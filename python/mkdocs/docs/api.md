@@ -105,7 +105,7 @@ table = StaticTable.from_metadata(
 
 ## Create a table
 
-To create a table by passing the table to the catalog:
+To create a table from a catalog:
 
 ```python
 from pyiceberg.catalog import load_catalog

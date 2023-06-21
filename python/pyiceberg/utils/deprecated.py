@@ -20,9 +20,9 @@ from typing import Any, Callable, Optional
 
 
 def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] = None) -> Callable:  # type: ignore
-    """
-    This is a decorator which can be used to mark functions as deprecated.
-    It will result in a warning being emitted when the function is used.
+    """A decorator which can be used to mark functions as deprecated.
+
+    Adding this will result in a warning being emitted when the function is used.
     """
     if help_message is not None:
         help_message = f" {help_message}."

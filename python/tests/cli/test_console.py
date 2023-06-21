@@ -119,7 +119,7 @@ class MockCatalog(Catalog):
             catalog=self,
         )
 
-    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:

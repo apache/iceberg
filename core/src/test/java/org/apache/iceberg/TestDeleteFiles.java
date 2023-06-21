@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -284,15 +285,14 @@ public class TestDeleteFiles extends TableTestBase {
 
     commit(table, table.newFastAppend().appendFile(dataFile), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject as not all rows match filter",
-        ValidationException.class,
-        "Cannot delete file where some, but not all, rows match filter",
-        () ->
-            commit(
-                table,
-                table.newDelete().deleteFromRowFilter(Expressions.equal("data", "aa")),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newDelete().deleteFromRowFilter(Expressions.equal("data", "aa")),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot delete file where some, but not all, rows match filter");
   }
 
   @Test
@@ -301,21 +301,19 @@ public class TestDeleteFiles extends TableTestBase {
 
     Expression rowFilter = Expressions.lessThan("iD", 5);
 
-    AssertHelpers.assertThrows(
-        "Should use case sensitive binding by default",
-        ValidationException.class,
-        "Cannot find field 'iD'",
-        () -> commit(table, table.newDelete().deleteFromRowFilter(rowFilter), branch));
+    Assertions.assertThatThrownBy(
+            () -> commit(table, table.newDelete().deleteFromRowFilter(rowFilter), branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'iD'");
 
-    AssertHelpers.assertThrows(
-        "Should fail with case sensitive binding",
-        ValidationException.class,
-        "Cannot find field 'iD'",
-        () ->
-            commit(
-                table,
-                table.newDelete().deleteFromRowFilter(rowFilter).caseSensitive(true),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newDelete().deleteFromRowFilter(rowFilter).caseSensitive(true),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'iD'");
 
     Snapshot deleteSnapshot =
         commit(

@@ -20,7 +20,7 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.AssertHelpers;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,10 +41,8 @@ public class TestKeyMetadataParser {
   @Test
   public void testUnsupportedVersion() {
     ByteBuffer badBuffer = ByteBuffer.wrap(new byte[] {0x02});
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to parse a buffer with wrong key metadata version",
-        UnsupportedOperationException.class,
-        "Cannot resolve schema for version",
-        () -> KeyMetadata.parse(badBuffer));
+    Assertions.assertThatThrownBy(() -> KeyMetadata.parse(badBuffer))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot resolve schema for version: 2");
   }
 }

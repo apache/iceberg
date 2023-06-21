@@ -225,11 +225,11 @@ class GlueCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
-    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         """Updates the table.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
+            table_request (CommitTableRequest): The table requests to be carried out.
 
         Returns:
             CommitTableResponse: The updated metadata.

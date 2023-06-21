@@ -493,11 +493,11 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         """Updates the table.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
+            table_request (CommitTableRequest): The table requests to be carried out.
 
         Returns:
             CommitTableResponse: The updated metadata.
@@ -505,9 +505,6 @@ class RestCatalog(Catalog):
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist.
         """
-        if len(table_requests) > 1:
-            raise ValueError("Multi table transactions not yet supported")
-        table_request = table_requests[0]
         response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
             data=table_request.json(),

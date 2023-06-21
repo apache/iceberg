@@ -120,6 +120,7 @@ class PrimitiveType(IcebergType):
 
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
+
     Example:
         >>> FixedType(8)
         FixedType(length=8)
@@ -146,9 +147,13 @@ class FixedType(PrimitiveType):
     def __repr__(self) -> str:
         return f"FixedType(length={self._len})"
 
+    def __getnewargs__(self) -> Tuple[int]:
+        return (self._len,)
+
 
 class DecimalType(PrimitiveType):
     """A fixed data type in Iceberg.
+
     Example:
         >>> DecimalType(32, 3)
         DecimalType(precision=32, scale=3)
@@ -189,6 +194,9 @@ class DecimalType(PrimitiveType):
 
     def __repr__(self) -> str:
         return f"DecimalType(precision={self._precision}, scale={self._scale})"
+
+    def __getnewargs__(self) -> Tuple[int, int]:
+        return (self._precision, self._scale)
 
 
 class NestedField(IcebergType):
@@ -246,6 +254,9 @@ class NestedField(IcebergType):
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
+    def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
+        return (self.field_id, self.name, self.field_type, self.required, self.doc)
+
     @property
     def optional(self) -> bool:
         return not self.required
@@ -286,6 +297,9 @@ class StructType(IcebergType):
     def __len__(self) -> int:
         return len(self.fields)
 
+    def __getnewargs__(self) -> Tuple[NestedField, ...]:
+        return self.fields
+
 
 class ListType(IcebergType):
     """A list type in Iceberg.
@@ -320,6 +334,9 @@ class ListType(IcebergType):
 
     def __str__(self) -> str:
         return f"list<{self.element_type}>"
+
+    def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
+        return (self.element_id, self.element_type, self.element_required)
 
 
 class MapType(IcebergType):
@@ -366,6 +383,9 @@ class MapType(IcebergType):
     def __str__(self) -> str:
         return f"map<{self.key_type}, {self.value_type}>"
 
+    def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
+        return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
+
 
 class BooleanType(PrimitiveType):
     """A boolean data type in Iceberg can be represented using an instance of this class.
@@ -383,6 +403,7 @@ class BooleanType(PrimitiveType):
 
 class IntegerType(PrimitiveType):
     """An Integer data type in Iceberg can be represented using an instance of this class.
+
     Integers in Iceberg are 32-bit signed and can be promoted to Longs.
 
     Example:
@@ -405,6 +426,7 @@ class IntegerType(PrimitiveType):
 
 class LongType(PrimitiveType):
     """A Long data type in Iceberg can be represented using an instance of this class.
+
     Longs in Iceberg are 64-bit signed integers.
 
     Example:
@@ -431,6 +453,7 @@ class LongType(PrimitiveType):
 
 class FloatType(PrimitiveType):
     """A Float data type in Iceberg can be represented using an instance of this class.
+
     Floats in Iceberg are 32-bit IEEE 754 floating points and can be promoted to Doubles.
 
     Example:
@@ -455,6 +478,7 @@ class FloatType(PrimitiveType):
 
 class DoubleType(PrimitiveType):
     """A Double data type in Iceberg can be represented using an instance of this class.
+
     Doubles in Iceberg are 64-bit IEEE 754 floating points.
 
     Example:
@@ -470,6 +494,7 @@ class DoubleType(PrimitiveType):
 
 class DateType(PrimitiveType):
     """A Date data type in Iceberg can be represented using an instance of this class.
+
     Dates in Iceberg are calendar dates without a timezone or time.
 
     Example:
@@ -485,6 +510,7 @@ class DateType(PrimitiveType):
 
 class TimeType(PrimitiveType):
     """A Time data type in Iceberg can be represented using an instance of this class.
+
     Times in Iceberg have microsecond precision and are a time of day without a date or timezone.
 
     Example:
@@ -500,6 +526,7 @@ class TimeType(PrimitiveType):
 
 class TimestampType(PrimitiveType):
     """A Timestamp data type in Iceberg can be represented using an instance of this class.
+
     Timestamps in Iceberg have microsecond precision and include a date and a time of day without a timezone.
 
     Example:
@@ -515,6 +542,7 @@ class TimestampType(PrimitiveType):
 
 class TimestamptzType(PrimitiveType):
     """A Timestamptz data type in Iceberg can be represented using an instance of this class.
+
     Timestamptzs in Iceberg are stored as UTC and include a date and a time of day with a timezone.
 
     Example:
@@ -530,6 +558,7 @@ class TimestamptzType(PrimitiveType):
 
 class StringType(PrimitiveType):
     """A String data type in Iceberg can be represented using an instance of this class.
+
     Strings in Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
 
     Example:
@@ -545,6 +574,7 @@ class StringType(PrimitiveType):
 
 class UUIDType(PrimitiveType):
     """A UUID data type in Iceberg can be represented using an instance of this class.
+
     UUIDs in Iceberg are universally unique identifiers.
 
     Example:
@@ -560,6 +590,7 @@ class UUIDType(PrimitiveType):
 
 class BinaryType(PrimitiveType):
     """A Binary data type in Iceberg can be represented using an instance of this class.
+
     Binaries in Iceberg are arbitrary-length byte arrays.
 
     Example:

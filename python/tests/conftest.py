@@ -1289,8 +1289,8 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
 
 
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
-    """
-    A mocked aws response implementation (for test use only).
+    """A mocked aws response implementation (for test use only).
+
     See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
@@ -1308,8 +1308,8 @@ class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
 
 
 class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
-    """
-    A mocked http client response implementation (for test use only).
+    """A mocked http client response implementation (for test use only).
+
     See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
@@ -1329,8 +1329,8 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
 
 
 def patch_aiobotocore() -> None:
-    """
-    Patch aiobotocore to work with moto.
+    """Patch aiobotocore to work with moto.
+
     See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
@@ -1347,8 +1347,8 @@ def patch_aiobotocore() -> None:
 
 @pytest.fixture(name="_patch_aiobotocore")
 def fixture_aiobotocore():  # type: ignore
-    """
-    Patch aiobotocore to work with moto.
+    """Patch aiobotocore to work with moto.
+
     pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755.
     """
     stored_method = aiobotocore.endpoint.convert_to_response_dict

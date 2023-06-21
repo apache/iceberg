@@ -55,7 +55,7 @@ class NoopCatalog(Catalog):
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         raise NotImplementedError
 
-    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         raise NotImplementedError
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:

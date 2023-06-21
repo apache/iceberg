@@ -19,8 +19,7 @@
 package org.apache.iceberg.view;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestViewRepresentationParser {
 
@@ -28,9 +27,9 @@ public class TestViewRepresentationParser {
   public void testParseUnknownViewRepresentation() {
     String json = "{\"type\":\"unknown-sql-representation\"}";
     ViewRepresentation unknownRepresentation = ViewRepresentationParser.fromJson(json);
-    Assert.assertEquals(
-        unknownRepresentation,
-        ImmutableUnknownViewRepresentation.builder().type("unknown-sql-representation").build());
+    Assertions.assertThat(
+            ImmutableUnknownViewRepresentation.builder().type("unknown-sql-representation").build())
+        .isEqualTo(unknownRepresentation);
 
     Assertions.assertThatThrownBy(() -> ViewRepresentationParser.toJson(unknownRepresentation))
         .isInstanceOf(UnsupportedOperationException.class)

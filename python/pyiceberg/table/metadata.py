@@ -94,7 +94,10 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
-    """Metadata for an Iceberg table as specified in the Apache Iceberg spec (https://iceberg.apache.org/spec/#iceberg-table-spec)."""
+    """Metadata for an Iceberg table as specified in the Apache Iceberg spec.
+
+    https://iceberg.apache.org/spec/#iceberg-table-spec
+    """
 
     @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:

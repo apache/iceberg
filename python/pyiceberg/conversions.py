@@ -108,8 +108,8 @@ def _(primitive_type: BooleanType, value_str: str) -> Union[int, float, str, uui
 @partition_to_py.register(TimestamptzType)
 @handle_none
 def _(primitive_type: PrimitiveType, value_str: str) -> int:
-    """
-    Conversion function.
+    """Converts a string to an integer value.
+
     Raises:
         ValueError: If the scale/exponent is not 0.
     """
@@ -187,8 +187,7 @@ def _(_: PrimitiveType, value: int) -> bytes:
 
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
-    """
-    Conversion function.
+    """Converts a float value into bytes.
 
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.

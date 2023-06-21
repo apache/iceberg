@@ -328,11 +328,11 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         """Updates one or more tables.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
+            table_request (CommitTableRequest): The table requests to be carried out.
 
         Returns:
             CommitTableResponse: The updated metadata.

@@ -48,7 +48,9 @@ import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
+import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -79,6 +81,8 @@ public class RESTSerializers {
         .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
         .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
+        .addSerializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqSerializer())
+        .addDeserializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
         .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
         .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
@@ -92,6 +96,8 @@ public class RESTSerializers {
     mapper.registerModule(module);
   }
 
+  /** @deprecated will be removed in 1.5.0, use {@link UpdateReqDeserializer} instead. */
+  @Deprecated
   public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
     @Override
     public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
@@ -101,12 +107,35 @@ public class RESTSerializers {
     }
   }
 
+  /** @deprecated will be removed in 1.5.0, use {@link UpdateReqSerializer} instead. */
+  @Deprecated
   public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
     @Override
     public void serialize(
         UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       UpdateRequirementParser.toJson(value, gen);
+    }
+  }
+
+  static class UpdateReqDeserializer
+      extends JsonDeserializer<org.apache.iceberg.UpdateRequirement> {
+    @Override
+    public org.apache.iceberg.UpdateRequirement deserialize(
+        JsonParser p, DeserializationContext ctxt) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return org.apache.iceberg.UpdateRequirementParser.fromJson(node);
+    }
+  }
+
+  static class UpdateReqSerializer extends JsonSerializer<org.apache.iceberg.UpdateRequirement> {
+    @Override
+    public void serialize(
+        org.apache.iceberg.UpdateRequirement value,
+        JsonGenerator gen,
+        SerializerProvider serializers)
+        throws IOException {
+      org.apache.iceberg.UpdateRequirementParser.toJson(value, gen);
     }
   }
 
@@ -303,6 +332,24 @@ public class RESTSerializers {
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return CommitTransactionRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class UpdateTableRequestSerializer extends JsonSerializer<UpdateTableRequest> {
+    @Override
+    public void serialize(
+        UpdateTableRequest request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UpdateTableRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class UpdateTableRequestDeserializer extends JsonDeserializer<UpdateTableRequest> {
+    @Override
+    public UpdateTableRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return UpdateTableRequestParser.fromJson(jsonNode);
     }
   }
 }

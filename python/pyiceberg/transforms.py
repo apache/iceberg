@@ -570,6 +570,7 @@ class IdentityTransform(Transform[S, S]):
 
 class TruncateTransform(Transform[S, S]):
     """A transform for truncating a value to a specified width.
+
     Args:
       width (int): The truncate width, should be positive.
     Raises:
@@ -708,6 +709,7 @@ def _(_type: IcebergType, value: int) -> str:
 
 class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided.
+
     Args:
       transform (str): A string name of a transform.
 
