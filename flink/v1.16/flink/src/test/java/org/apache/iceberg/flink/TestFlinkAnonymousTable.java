@@ -19,18 +19,18 @@
 package org.apache.iceberg.flink;
 
 import java.io.File;
-import java.io.IOException;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableEnvironment;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestFlinkAnonymousTable extends FlinkTestBase {
 
   @Test
-  public void testWriteAnonymousTable() throws IOException {
+  public void testWriteAnonymousTable() throws Exception {
     File warehouseDir = TEMPORARY_FOLDER.newFolder();
     TableEnvironment tEnv = getTableEnv();
     Table table =
@@ -50,6 +50,9 @@ public class TestFlinkAnonymousTable extends FlinkTestBase {
             .option("warehouse", warehouseDir.getAbsolutePath())
             .build();
 
-    table.insertInto(descriptor).execute();
+    table.insertInto(descriptor).execute().await();
+    Assert.assertTrue(
+        "The table path should exist",
+        warehouseDir.toPath().resolve("test_db").resolve("test").toFile().exists());
   }
 }
