@@ -49,7 +49,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assertions.assertThat(manifestListLocations.size())
+    Assertions.assertThat(manifestListLocations).hasSize(2)
         .as("should have 2 manifest lists")
         .isEqualTo(2);
     Assertions.assertThat(metadataLocations).hasSize(3)
