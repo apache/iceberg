@@ -18,6 +18,7 @@
 from typing import Any, Dict
 
 import pytest
+from sortedcontainers import SortedList
 
 from pyiceberg.expressions import (
     AlwaysTrue,
@@ -26,11 +27,17 @@ from pyiceberg.expressions import (
     In,
 )
 from pyiceberg.io import PY_IO_IMPL, load_file_io
-from pyiceberg.manifest import DataFile, ManifestContent
+from pyiceberg.manifest import (
+    DataFile,
+    DataFileContent,
+    FileFormat,
+    ManifestEntry,
+    ManifestEntryStatus,
+)
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import StaticTable, Table, _check_content
-from pyiceberg.table.metadata import TableMetadataV2
+from pyiceberg.table import StaticTable, Table, _match_deletes_to_datafile
+from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadataV2
 from pyiceberg.table.snapshots import (
     Operation,
     Snapshot,
@@ -44,7 +51,6 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform
-from pyiceberg.typedef import Record
 from pyiceberg.types import LongType, NestedField
 
 
@@ -252,26 +258,6 @@ def test_table_scan_projection_unknown_column(table: Table) -> None:
     assert "Could not find column: 'a'" in str(exc_info.value)
 
 
-def test_check_content_deletes() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        _check_content(
-            DataFile(
-                content=ManifestContent.DELETES,
-            )
-        )
-    assert "PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568" in str(exc_info.value)
-
-
-def test_check_content_data() -> None:
-    manifest_file = DataFile(content=ManifestContent.DATA)
-    assert _check_content(manifest_file) == manifest_file
-
-
-def test_check_content_missing_attr() -> None:
-    r = Record(*([None] * 15))
-    assert _check_content(r) == r  # type: ignore
-
-
 def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> None:
     assert isinstance(static_table, Table)
     assert static_table.metadata == table.metadata
@@ -280,3 +266,112 @@ def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> 
 def test_static_table_io_does_not_exist(metadata_location: str) -> None:
     with pytest.raises(ValueError):
         StaticTable.from_metadata(metadata_location, {PY_IO_IMPL: "pyiceberg.does.not.exist.FileIO"})
+
+
+def test_match_deletes_to_datafile() -> None:
+    data_entry = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=1,
+        data_file=DataFile(
+            content=DataFileContent.DATA,
+            file_path="s3://bucket/0000.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+        ),
+    )
+    delete_entry_1 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=0,  # Older than the data
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0001-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+        ),
+    )
+    delete_entry_2 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=3,
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0002-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+            # We don't really care about the tests here
+            value_counts={},
+            null_value_counts={},
+            nan_value_counts={},
+            lower_bounds={},
+            upper_bounds={},
+        ),
+    )
+    assert _match_deletes_to_datafile(
+        data_entry,
+        SortedList(iterable=[delete_entry_1, delete_entry_2], key=lambda entry: entry.sequence_number or INITIAL_SEQUENCE_NUMBER),
+    ) == {
+        delete_entry_2.data_file,
+    }
+
+
+def test_match_deletes_to_datafile_duplicate_number() -> None:
+    data_entry = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=1,
+        data_file=DataFile(
+            content=DataFileContent.DATA,
+            file_path="s3://bucket/0000.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+        ),
+    )
+    delete_entry_1 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=3,
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0001-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+            # We don't really care about the tests here
+            value_counts={},
+            null_value_counts={},
+            nan_value_counts={},
+            lower_bounds={},
+            upper_bounds={},
+        ),
+    )
+    delete_entry_2 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=3,
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0002-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+            # We don't really care about the tests here
+            value_counts={},
+            null_value_counts={},
+            nan_value_counts={},
+            lower_bounds={},
+            upper_bounds={},
+        ),
+    )
+    assert _match_deletes_to_datafile(
+        data_entry,
+        SortedList(iterable=[delete_entry_1, delete_entry_2], key=lambda entry: entry.sequence_number or INITIAL_SEQUENCE_NUMBER),
+    ) == {
+        delete_entry_1.data_file,
+        delete_entry_2.data_file,
+    }
