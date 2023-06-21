@@ -187,6 +187,12 @@ class DataFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
+    def __hash__(self) -> int:
+        return hash(self.file_path)
+
+    def __eq__(self, other: Any) -> bool:
+        return self.file_path == other.file_path if isinstance(other, DataFile) else False
+
 
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
@@ -244,6 +250,10 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+POSITIONAL_DELETE_SCHEMA = Schema(
+    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
+)
+
 
 class ManifestFile(Record):
     manifest_path: str
@@ -264,6 +274,12 @@ class ManifestFile(Record):
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+
+    def has_added_files(self) -> bool:
+        return self.added_files_count is None or self.added_files_count > 0
+
+    def has_existing_files(self) -> bool:
+        return self.existing_files_count is None or self.existing_files_count > 0
 
     def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
         """
