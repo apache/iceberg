@@ -26,8 +26,8 @@ import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableEnvironment;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Test;
-import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 public class TestFlinkAnonymousTable extends FlinkTestBase {
 
