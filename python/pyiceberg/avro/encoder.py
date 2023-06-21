@@ -43,7 +43,7 @@ class BinaryEncoder:
         """A boolean is written as a single byte whose value is either 0 (false) or 1 (true).
 
         Args:
-            boolean: The boolean to write
+            boolean: The boolean to write.
         """
         self.write(bytearray([bool(boolean)]))
 
@@ -56,21 +56,18 @@ class BinaryEncoder:
         self.write(bytearray([datum]))
 
     def write_float(self, f: float) -> None:
-        """
-        A float is written as 4 bytes.
-        """
+        """A float is written as 4 bytes."""
         self.write(STRUCT_FLOAT.pack(f))
 
     def write_double(self, f: float) -> None:
-        """
-        A double is written as 8 bytes.
-        """
+        """A double is written as 8 bytes."""
         self.write(STRUCT_DOUBLE.pack(f))
 
     def write_decimal_bytes(self, datum: decimal.Decimal) -> None:
         """
-        Decimal in bytes are encoded as long. Since size of packed value in bytes for
-        signed long is 8, 8 bytes are written.
+        Decimal in bytes are encoded as long.
+         
+        Since size of packed value in bytes for signed long is 8, 8 bytes are written.
         """
         sign, digits, _ = datum.as_tuple()
 
@@ -93,9 +90,7 @@ class BinaryEncoder:
             self.write(bytearray([bits_to_write & 0xFF]))
 
     def write_decimal_fixed(self, datum: decimal.Decimal, size: int) -> None:
-        """
-        Decimal in fixed are encoded as size of fixed bytes.
-        """
+        """Decimal in fixed are encoded as size of fixed bytes."""
         sign, digits, _ = datum.as_tuple()
 
         unscaled_datum = 0
@@ -132,36 +127,30 @@ class BinaryEncoder:
                 self.write(bytearray([bits_to_write & 0xFF]))
 
     def write_bytes(self, b: bytes) -> None:
-        """
-        Bytes are encoded as a long followed by that many bytes of data.
-        """
+        """Bytes are encoded as a long followed by that many bytes of data."""
         self.write_int(len(b))
         self.write(struct.pack(f"{len(b)}s", b))
 
     def write_bytes_fixed(self, b: bytes) -> None:
-        """
-        Writes fixed number of bytes
-        """
+        """Writes fixed number of bytes."""
         self.write(struct.pack(f"{len(b)}s", b))
 
     def write_utf8(self, s: str) -> None:
-        """
-        A string is encoded as a long followed by
-        that many bytes of UTF-8 encoded character data.
-        """
+        """A string is encoded as a long followed by that many bytes of UTF-8 encoded character data."""
         self.write_bytes(s.encode("utf-8"))
 
     def write_date_int(self, d: date) -> None:
         """
         Encode python date object as int.
-        It stores the number of days from
-        the unix epoch, 1 January 1970 (ISO calendar).
+
+        It stores the number of days from the unix epoch, 1 January 1970 (ISO calendar).
         """
         self.write_int(date_to_days(d))
 
     def write_time_millis_int(self, dt: time) -> None:
         """
         Encode python time object as int.
+
         It stores the number of milliseconds from midnight, 00:00:00.000
         """
         self.write_int(int(_time_object_to_micros(dt) / 1000))
@@ -169,6 +158,7 @@ class BinaryEncoder:
     def write_time_micros_long(self, dt: time) -> None:
         """
         Encode python time object as long.
+
         It stores the number of microseconds from midnight, 00:00:00.000000
         """
         self.write_int(_time_object_to_micros(dt))
@@ -176,6 +166,7 @@ class BinaryEncoder:
     def write_timestamp_millis_long(self, dt: datetime) -> None:
         """
         Encode python datetime object as long.
+
         It stores the number of milliseconds from midnight of unix epoch, 1 January 1970.
         """
         self.write_int(int(datetime_to_micros(dt) / 1000))
@@ -183,6 +174,7 @@ class BinaryEncoder:
     def write_timestamp_micros_long(self, dt: datetime) -> None:
         """
         Encode python datetime object as long.
+        
         It stores the number of microseconds from midnight of unix epoch, 1 January 1970.
         """
         self.write_int(datetime_to_micros(dt))

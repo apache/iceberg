@@ -120,19 +120,19 @@ def construct_reader(
 
 
 def construct_writer(file_schema: Union[Schema, IcebergType]) -> Writer:
-    """Constructs a writer from a file schema
+    """Constructs a writer from a file schema.
 
     Args:
-        file_schema (Schema | IcebergType): The schema of the Avro file
+        file_schema (Schema | IcebergType): The schema of the Avro file.
 
     Raises:
-        NotImplementedError: If attempting to resolve an unrecognized object type
+        NotImplementedError: If attempting to resolve an unrecognized object type.
     """
     return visit(file_schema, ConstructWriter())
 
 
 class ConstructWriter(SchemaVisitorPerPrimitiveType[Writer]):
-    """Constructs a writer tree from an Iceberg schema"""
+    """Constructs a writer tree from an Iceberg schema."""
 
     def schema(self, schema: Schema, struct_result: Writer) -> Writer:
         return struct_result
@@ -204,7 +204,7 @@ def resolve(
     """Resolves the file and read schema to produce a reader.
 
     Args:
-        file_schema (Schema | IcebergType): The schema of the Avro file
+        file_schema (Schema | IcebergType): The schema of the Avro file.
         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema.
         read_types (Dict[int, Callable[..., StructProtocol]]): A dict of types to use for struct data.
         read_enums (Dict[int, Callable[..., Enum]]): A dict of fields that have to be converted to an enum.

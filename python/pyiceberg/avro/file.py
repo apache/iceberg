@@ -148,7 +148,7 @@ class AvroFile(Generic[D]):
         """Generates a reader tree for the payload within an avro file.
 
         Returns:
-            A generator returning the AvroStructs
+            A generator returning the AvroStructs.
         """
         self.input_stream = self.input_file.open(seekable=False)
         self.decoder = BinaryDecoder(self.input_stream)
@@ -227,7 +227,7 @@ class AvroOutputFile(Generic[D]):
 
     def __enter__(self) -> AvroFile[D]:
         """
-        Opens the file and writes the header
+        Opens the file and writes the header.
 
         Returns:
             The file object to write records to

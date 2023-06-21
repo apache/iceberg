@@ -28,7 +28,6 @@ from pyiceberg.avro.writer import (
     FloatWriter,
     IntegerWriter,
     StringWriter,
-    StructWriter,
     TimeWriter,
     TimestampWriter,
     TimestamptzWriter,
@@ -36,7 +35,6 @@ from pyiceberg.avro.writer import (
 )
 from pyiceberg.avro.resolver import construct_writer
 from pyiceberg.avro.encoder import BinaryEncoder
-from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
@@ -153,11 +151,11 @@ def test_write_simple_struct() -> None:
         id: int
         property: str
 
-    struct = MyStruct(id=12, property="awesome")
+    my_struct = MyStruct(id=12, property="awesome")
 
     enc_str = "awesome".encode()
 
-    construct_writer(schema).write(encoder, struct)
+    construct_writer(schema).write(encoder, my_struct)
 
     assert output.getbuffer() == b''.join([b'\x18', zigzag_encode(len(enc_str)), enc_str])
 
@@ -176,13 +174,13 @@ def test_write_struct_with_dict() -> None:
         id: int
         properties: Dict[int,int]
 
-    struct = MyStruct(id=12, properties={1:2, 3:4})
+    my_struct = MyStruct(id=12, properties={1:2, 3:4})
 
-    construct_writer(schema).write(encoder, struct)
+    construct_writer(schema).write(encoder, my_struct)
 
     assert output.getbuffer() == b''.join([
         b'\x18', 
-        zigzag_encode(len(struct.properties)),
+        zigzag_encode(len(my_struct.properties)),
         zigzag_encode(1),
         zigzag_encode(2),
         zigzag_encode(3),
@@ -205,13 +203,13 @@ def test_write_struct_with_list() -> None:
         id: int
         properties: List[int]
 
-    struct = MyStruct(id=12, properties=[1,2,3,4])
+    my_struct = MyStruct(id=12, properties=[1,2,3,4])
 
-    construct_writer(schema).write(encoder, struct)
+    construct_writer(schema).write(encoder, my_struct)
 
     assert output.getbuffer() == b''.join([
         b'\x18', 
-        zigzag_encode(len(struct.properties)),
+        zigzag_encode(len(my_struct.properties)),
         zigzag_encode(1),
         zigzag_encode(2),
         zigzag_encode(3),

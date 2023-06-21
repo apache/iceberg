@@ -24,7 +24,6 @@ from pyiceberg.manifest import (
     FileFormat,
     ManifestEntry,
     ManifestEntryStatus,
-    ManifestFile,
     MANIFEST_ENTRY_SCHEMA,
 )
 from pyiceberg.typedef import Record
@@ -32,7 +31,7 @@ import pyiceberg.avro.file as avro
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from tempfile import TemporaryDirectory
 from enum import Enum
-from fastavro import writer, reader, parse_schema
+from fastavro import writer, reader
 from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 def get_deflate_compressor() -> None:
@@ -184,8 +183,8 @@ def test_write_manifest_entry_with_fastavro_read_with_iceberg() -> None:
             PyArrowFileIO().new_input(tmp_avro_file),
             MANIFEST_ENTRY_SCHEMA,
             {-1: ManifestEntry, 2: DataFile},
-        ) as reader:
-            it = iter(reader)
+        ) as avro_reader:
+            it = iter(avro_reader)
             avro_entry = next(it)
 
             assert entry == avro_entry

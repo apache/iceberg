@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Classes for building the Reader tree
+Classes for building the Reader tree.
 
 Constructing a reader tree from the schema makes it easy
 to decouple the reader implementation from the schema.
 
 The reader tree can be changed in such a way that the
-read schema is different, while respecting the read schema
+read schema is different, while respecting the read schema.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class BooleanWriter(Writer):
 
 
 class IntegerWriter(Writer):
-    """Longs and ints are encoded the same way, and there is no long in Python"""
+    """Longs and ints are encoded the same way, and there is no long in Python."""
 
     def write(self, encoder: BinaryEncoder, val: int) -> None:
         encoder.write_int(val)
@@ -128,7 +128,7 @@ class FixedWriter(Writer):
 
 
 class BinaryWriter(Writer):
-    """Variable byte length writer"""
+    """Variable byte length writer."""
 
     def write(self, encoder: BinaryEncoder, val: Any) -> None:
         encoder.write_bytes(val)

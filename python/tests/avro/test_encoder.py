@@ -21,7 +21,7 @@ import struct
 from decimal import Decimal
 import datetime
 
-from pyiceberg.avro.encoder import BinaryEncoder, _time_object_to_micros
+from pyiceberg.avro.encoder import BinaryEncoder
 
 def zigzag_encode(datum):
     result = []
@@ -32,33 +32,29 @@ def zigzag_encode(datum):
     result.append(struct.pack("B", datum))
     return b''.join(result)
 
+
 def test_write() -> None:
 
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = b'\x12\x34\x56'
+    _input = b'\x12\x34\x56'
 
-    encoder.write(input)
+    encoder.write(_input)
     
+    assert output.getbuffer() == _input
 
-    assert output.getbuffer() == input
 
 def test_write_boolean() -> None:
 
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = b'\x12\x34\x56'
-
     encoder.write_boolean(True)
     encoder.write_boolean(False)
 
     assert output.getbuffer() == struct.pack('??', True, False)
 
-
-def print_hex(bytes):
-    print(''.join('{:02x}'.format(x) for x in bytes))
 
 def test_write_int() -> None:
         
@@ -94,36 +90,37 @@ def test_write_int() -> None:
     assert buffer[21:28] == zigzag_encode(_7byte_input)
     assert buffer[28:36] == zigzag_encode(_8byte_input)
 
+
 def test_write_float() -> None:
 
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = 3.14159265359
+    _input = 3.14159265359
 
-    encoder.write_float(input)
+    encoder.write_float(_input)
 
-    assert output.getbuffer() == struct.pack('<f', input)
+    assert output.getbuffer() == struct.pack('<f', _input)
 
 
 def test_write_double() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = 3.14159265359
+    _input = 3.14159265359
 
-    encoder.write_double(input)
+    encoder.write_double(_input)
 
-    assert output.getbuffer() == struct.pack('<d', input)
+    assert output.getbuffer() == struct.pack('<d', _input)
 
 
 def test_write_decimal_bytes() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = Decimal('3.14159265359')
+    _input = Decimal('3.14159265359')
 
-    encoder.write_decimal_bytes(input)
+    encoder.write_decimal_bytes(_input)
 
     assert output.getbuffer() == b'\x0a\x49\x25\x59\xf6\x4f'
 
@@ -132,11 +129,9 @@ def test_write_decimal_fixed() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = Decimal('3.14159265359')
+    _input = Decimal('3.14159265359')
 
-    encoder.write_decimal_fixed(input, 8)
-
-    print_hex(output.getbuffer())
+    encoder.write_decimal_fixed(_input, 8)
 
     assert output.getbuffer() == b'\x00\x00\x00\x49\x25\x59\xf6\x4f'
 
@@ -146,32 +141,32 @@ def test_write_bytes() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = b'\x12\x34\x56'
+    _input = b'\x12\x34\x56'
 
-    encoder.write_bytes(input)
+    encoder.write_bytes(_input)
     
-    assert output.getbuffer() == b''.join([zigzag_encode(len(input)), input])
+    assert output.getbuffer() == b''.join([zigzag_encode(len(_input)), _input])
 
 
 def test_write_bytes_fixed() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = b'\x12\x34\x56'
+    _input = b'\x12\x34\x56'
 
-    encoder.write_bytes_fixed(input)
+    encoder.write_bytes_fixed(_input)
     
-    assert output.getbuffer() == input
+    assert output.getbuffer() == _input
 
 
 def test_write_utf8() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = "That, my liege, is how we know the Earth to be banana-shaped."
-    bin_input = input.encode()
+    _input = "That, my liege, is how we know the Earth to be banana-shaped."
+    bin_input = _input.encode()
 
-    encoder.write_utf8(input)
+    encoder.write_utf8(_input)
     
     assert output.getbuffer() ==  b''.join([zigzag_encode(len(bin_input)), bin_input])
 
@@ -181,11 +176,11 @@ def test_write_date_int() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = datetime.date(1970, 1, 2)
+    _input = datetime.date(1970, 1, 2)
 
-    days = (input - datetime.date(1970, 1, 1)).days
+    days = (_input - datetime.date(1970, 1, 1)).days
 
-    encoder.write_date_int(input)
+    encoder.write_date_int(_input)
     
     assert output.getbuffer() == zigzag_encode(days)
 
@@ -195,10 +190,10 @@ def test_write_time_millis_int() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = datetime.time(1, 2, 3, 456000)
+    _input = datetime.time(1, 2, 3, 456000)
     reference = int((1*60*60*1e6 + 2*60*1e6 + 3* 1e6 + 456000)/1000)
 
-    encoder.write_time_millis_int(input)
+    encoder.write_time_millis_int(_input)
     
     assert output.getbuffer() == zigzag_encode(reference)
 
@@ -207,10 +202,10 @@ def test_write_time_micros_long() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = datetime.time(1, 2, 3, 456000)
+    _input = datetime.time(1, 2, 3, 456000)
     reference = int(1*60*60*1e6 + 2*60*1e6 + 3* 1e6 + 456000)
 
-    encoder.write_time_micros_long(input)
+    encoder.write_time_micros_long(_input)
     
     assert output.getbuffer() == zigzag_encode(reference)
 
@@ -220,11 +215,11 @@ def test_write_timestamp_millis_long() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = datetime.datetime(2023, 1, 1, 1, 2, 3)
+    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
 
-    millis = int((input - datetime.datetime(1970, 1, 1, 0,0,0)).total_seconds()*1e3)
+    millis = int((_input - datetime.datetime(1970, 1, 1, 0,0,0)).total_seconds()*1e3)
 
-    encoder.write_timestamp_millis_long(input)
+    encoder.write_timestamp_millis_long(_input)
     
     assert output.getbuffer() == zigzag_encode(millis)
 
@@ -234,10 +229,10 @@ def test_write_timestamp_micros_long() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    input = datetime.datetime(2023, 1, 1, 1, 2, 3)
+    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
 
-    micros = int((input - datetime.datetime(1970, 1, 1, 0,0,0)).total_seconds()*1e6)
+    micros = int((_input - datetime.datetime(1970, 1, 1, 0,0,0)).total_seconds()*1e6)
 
-    encoder.write_timestamp_micros_long(input)
+    encoder.write_timestamp_micros_long(_input)
     
     assert output.getbuffer() == zigzag_encode(micros)
