@@ -292,7 +292,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Arrays.stream(metadataTables(tableIdent))
         .forEach(
             metadataTable ->
-                Assertions.assertThat(catalog.cache().asMap().containsKey(metadataTable))
+                Assertions.assertThat(catalog.cache().asMap()).containsKey(metadataTable)
                     .as(
                         "When a data table expires, its metadata tables should expire regardless of age")
                     .isFalse());
