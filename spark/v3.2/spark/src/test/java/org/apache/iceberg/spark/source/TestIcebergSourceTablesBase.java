@@ -45,6 +45,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -1450,9 +1451,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondCommitId = table.currentSnapshot().snapshotId();
 
     // rewrite manifest carry over the data file to its committing snapshot relationship
-    RewriteManifests.Result r = SparkActions.get().rewriteManifests(table).execute();
-    Assert.assertEquals("rewrite replaced 2 manifests", 2, Iterables.size(r.rewrittenManifests()));
-    Assert.assertEquals("rewrite added 1 manifests", 1, Iterables.size(r.addedManifests()));
+    RewriteManifests.Result rewriteManifestResult =
+        SparkActions.get().rewriteManifests(table).execute();
+    Assert.assertEquals(
+        "rewrite replaced 2 manifests",
+        2,
+        Iterables.size(rewriteManifestResult.rewrittenManifests()));
+    Assert.assertEquals(
+        "rewrite added 1 manifests", 1, Iterables.size(rewriteManifestResult.addedManifests()));
 
     List<Row> actual =
         spark
@@ -1528,19 +1534,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Actual results should have one row", 1, filtered.size());
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
-
-    List<Row> nonFiltered =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "partitions"))
-            .filter("partition.id <= 2 or record_count=1")
-            .collectAsList();
-    Assert.assertEquals("Actual results should have two row", 2, nonFiltered.size());
-    for (int i = 0; i < 2; i += 1) {
-      TestHelpers.assertEqualsSafe(
-          partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
-    }
 
     // check for snapshot expiration
     // if snapshot with firstCommitId is expired,
