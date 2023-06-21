@@ -19,13 +19,15 @@
 package org.apache.iceberg.flink;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableEnvironment;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 public class TestFlinkAnonymousTable extends FlinkTestBase {
 
@@ -50,9 +52,13 @@ public class TestFlinkAnonymousTable extends FlinkTestBase {
             .option("warehouse", warehouseDir.getAbsolutePath())
             .build();
 
-    table.insertInto(descriptor).execute().await();
-    Assert.assertTrue(
-        "The table path should exist",
-        warehouseDir.toPath().resolve("test_db").resolve("test").toFile().exists());
+    table.insertInto(descriptor).execute();
+    Awaitility.await()
+        .atMost(3, TimeUnit.SECONDS)
+        .untilAsserted(
+            () ->
+                Assertions.assertThat(
+                        warehouseDir.toPath().resolve("test_db").resolve("test").toFile())
+                    .exists());
   }
 }
