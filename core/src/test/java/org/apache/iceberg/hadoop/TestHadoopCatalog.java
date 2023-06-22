@@ -70,8 +70,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     Assertions.assertThat(table.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
     Assertions.assertThat(table.spec().fields()).hasSize(1);
-    Assertions.assertThat(table.properties().get("key1")).isEqualTo("value1");
-    Assertions.assertThat(table.properties().get("key2")).isEqualTo("value2");
+    Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
+    Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
   }
 
   @Test
@@ -273,9 +273,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<TableIdentifier> tbls1 = catalog.listTables(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(tbls1.stream().map(t -> t.name()).iterator());
-    Assertions.assertThat(tblSet).hasSize(2);
-    Assertions.assertThat(tblSet).contains("tbl1");
-    Assertions.assertThat(tblSet).contains("tbl2");
+    Assertions.assertThat(tblSet).hasSize(2).contains("tbl1").contains("tbl2");
 
     List<TableIdentifier> tbls2 = catalog.listTables(Namespace.of("db", "ns1"));
     Assertions.assertThat(tbls2).as("table identifiers").hasSize(1);
@@ -342,10 +340,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<Namespace> nsp1 = catalog.listNamespaces(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(nsp1.stream().map(t -> t.toString()).iterator());
-    Assertions.assertThat(tblSet).hasSize(3);
-    Assertions.assertThat(tblSet).contains("db.ns1");
-    Assertions.assertThat(tblSet).contains("db.ns2");
-    Assertions.assertThat(tblSet).contains("db.ns3");
+    Assertions.assertThat(tblSet)
+        .hasSize(3)
+        .contains("db.ns1")
+        .contains("db.ns2")
+        .contains("db.ns3");
 
     List<Namespace> nsp2 = catalog.listNamespaces(Namespace.of("db", "ns1"));
     Assertions.assertThat(nsp2).hasSize(1);
@@ -353,15 +352,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(t -> t.toString()).iterator());
-    Assertions.assertThat(tblSet2).hasSize(2);
-    Assertions.assertThat(tblSet2).contains("db");
-    Assertions.assertThat(tblSet2).contains("db2");
+    Assertions.assertThat(tblSet2).hasSize(2).contains("db").contains("db2");
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(t -> t.toString()).iterator());
-    Assertions.assertThat(tblSet3).hasSize(2);
-    Assertions.assertThat(tblSet3).contains("db");
-    Assertions.assertThat(tblSet3).contains("db2");
+    Assertions.assertThat(tblSet3).hasSize(2).contains("db").contains("db2");
 
     Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)

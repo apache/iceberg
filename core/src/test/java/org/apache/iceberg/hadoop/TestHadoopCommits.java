@@ -21,9 +21,6 @@ package org.apache.iceberg.hadoop;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -86,7 +83,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assertions.assertThat(version(2).exists())
         .as("Should not create v2 or newer versions")
         .isFalse();
-    Assertions.assertThat(versionHintFile.exists()).as("Should create version hint file").isTrue();
+    Assertions.assertThat(versionHintFile).as("Should create version hint file").exists();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(1);
@@ -96,18 +93,12 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testSchemaUpdate() throws Exception {
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(2);
@@ -124,12 +115,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testSchemaUpdateComplexType() throws Exception {
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     Types.StructType complexColumn =
         Types.StructType.of(
@@ -159,9 +146,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().addColumn("complex", complexColumn).commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(2);
@@ -178,12 +163,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testSchemaUpdateIdentifierFields() throws Exception {
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     Schema updatedSchema =
         new Schema(
@@ -194,9 +175,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().setIdentifierFields("id").commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(2);
@@ -214,12 +193,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     UpdateSchema update = table.updateSchema().addColumn("n", Types.IntegerType.get());
     update.apply();
 
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     version(2).createNewFile();
 
@@ -235,12 +210,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testStaleMetadata() throws Exception {
     Table tableCopy = TABLES.load(tableLocation);
 
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     // prepare changes on the copy without committing
     UpdateSchema updateCopy = tableCopy.updateSchema().addColumn("m", Types.IntegerType.get());
@@ -248,9 +219,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(table.schema().asStruct())
         .as("Unmodified copy should be out of date after update")
         .isNotEqualTo(tableCopy.schema().asStruct());
@@ -274,18 +243,12 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testStaleVersionHint() throws Exception {
     Table stale = TABLES.load(tableLocation);
 
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2).exists())
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(2);
@@ -312,9 +275,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // first append
     table.newFastAppend().appendFile(FILE_A).commit();
 
-    Assertions.assertThat(version(2).exists() && version(2).isFile())
-        .as("Should create v2 for the update")
-        .isTrue();
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(2);
@@ -328,9 +289,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // second append
     table.newFastAppend().appendFile(FILE_B).commit();
 
-    Assertions.assertThat(version(3).exists() && version(3).isFile())
-        .as("Should create v3 for the update")
-        .isTrue();
+    Assertions.assertThat(version(3)).as("Should create v3 for the update").exists().isFile();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
         .isEqualTo(3);
@@ -391,9 +350,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
    * provided {@link FileSystem} object. The provided FileSystem will be injected for commit call.
    */
   private void testRenameWithFileSystem(FileSystem mockFs) throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    assertFalse("Should not create v2 or newer versions", version(2).exists());
-    assertTrue(table instanceof BaseTable);
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").exists();
+    Assertions.assertThat(table).isInstanceOf(BaseTable.class);
     BaseTable baseTable = (BaseTable) table;
     // use v1 metafile as the test rename destination.
     TableMetadata meta1 = baseTable.operations().current();
@@ -402,12 +361,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // (so that we have 2 valid and different metadata files, which will reach the rename part
     // during commit)
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
-    assertTrue("Should create v2 for the update", version(2).exists() && version(2).isFile());
-    assertEquals("Should write the current version to the hint file", 2, readVersionHint());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
 
     // mock / spy the classes for testing
     TableOperations tops = baseTable.operations();
-    assertTrue(tops instanceof HadoopTableOperations);
+    Assertions.assertThat(tops).isInstanceOf(HadoopTableOperations.class);
     HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
 
     // inject the mockFS into the TableOperations
@@ -419,12 +380,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Set<String> actual =
         listMetadataJsonFiles().stream().map(File::getName).collect(Collectors.toSet());
     Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
-    assertEquals("only v1 and v2 metadata.json should exist.", expected, actual);
+    Assertions.assertThat(actual)
+        .as("only v1 and v2 metadata.json should exist.")
+        .isEqualTo(expected);
   }
 
   @Test
   public void testCanReadOldCompressedManifestFiles() throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
 
     // do a file append
     table.newAppend().appendFile(FILE_A).commit();
@@ -436,10 +399,10 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<File> metadataFiles = listMetadataJsonFiles();
 
-    assertEquals("Should have two versions", 2, metadataFiles.size());
-    assertTrue(
-        "Metadata should be compressed with old format.",
-        metadataFiles.stream().allMatch(f -> f.getName().endsWith(".metadata.json.gz")));
+    Assertions.assertThat(metadataFiles).as("Should have two versions").hasSize(2);
+    Assertions.assertThat(metadataFiles.stream().map(File::getName))
+        .as("Metadata should be compressed with old format.")
+        .allMatch(f -> f.endsWith(".metadata.json.gz"));
 
     Table reloaded = TABLES.load(tableLocation);
 
@@ -449,7 +412,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testConcurrentFastAppends() throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
     File dir = tableDir;
     FileUtils.deleteDirectory(dir);
     int threadsCount = 5;
@@ -493,8 +456,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
             });
 
     tableWithHighRetries.refresh();
-    assertEquals(
-        threadsCount * numberOfCommitedFilesPerThread,
-        Lists.newArrayList(tableWithHighRetries.snapshots()).size());
+    Assertions.assertThat(Lists.newArrayList(tableWithHighRetries.snapshots()))
+        .hasSize(threadsCount * numberOfCommitedFilesPerThread);
   }
 }

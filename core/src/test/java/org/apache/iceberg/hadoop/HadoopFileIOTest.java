@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -72,14 +69,15 @@ public class HadoopFileIOTest {
               Path scalePath = new Path(parent, Integer.toString(scale));
 
               createRandomFiles(scalePath, scale);
-              assertEquals(
-                  (long) scale,
-                  Streams.stream(hadoopFileIO.listPrefix(scalePath.toUri().toString())).count());
+              Assertions.assertThat(
+                      Streams.stream(hadoopFileIO.listPrefix(scalePath.toUri().toString())).count())
+                  .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertEquals(
-        totalFiles, Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count());
+    Assertions.assertThat(
+            Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
+        .isEqualTo(totalFiles);
   }
 
   @Test
@@ -112,16 +110,16 @@ public class HadoopFileIOTest {
               hadoopFileIO.deletePrefix(scalePath.toUri().toString());
 
               // Hadoop filesystem will throw if the path does not exist
-              assertThrows(
-                  UncheckedIOException.class,
-                  () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator());
+              Assertions.assertThatThrownBy(
+                      () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator())
+                  .isInstanceOf(UncheckedIOException.class);
             });
 
     hadoopFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
-    assertThrows(
-        UncheckedIOException.class,
-        () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator());
+    Assertions.assertThatThrownBy(
+            () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator())
+        .isInstanceOf(UncheckedIOException.class);
   }
 
   @Test
