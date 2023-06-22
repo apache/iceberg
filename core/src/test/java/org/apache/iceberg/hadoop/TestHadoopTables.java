@@ -98,8 +98,7 @@ public class TestHadoopTables {
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(Files.list(dataDir.toPath()).count()).isEqualTo(1);
-    ;
+    Assertions.assertThat(Files.list(dataDir.toPath())).isEqualTo(1);
     Assertions.assertThat(tableDir).doesNotExist();
     Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
