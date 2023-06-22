@@ -58,13 +58,11 @@ public class TestJdbcTableConcurrency {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  @TempDir public Path temp;
-  File tableDir;
+  @TempDir private File tableDir;
 
   @Test
   public synchronized void testConcurrentFastAppends() throws IOException {
     Map<String, String> properties = Maps.newHashMap();
-    this.tableDir = temp.toFile();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentFastAppend.db";
     properties.put(CatalogProperties.URI, sqliteDb);
@@ -115,7 +113,6 @@ public class TestJdbcTableConcurrency {
   @Test
   public synchronized void testConcurrentConnections() throws InterruptedException, IOException {
     Map<String, String> properties = Maps.newHashMap();
-    this.tableDir = temp.toFile();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";
     properties.put(CatalogProperties.URI, sqliteDb);

@@ -520,7 +520,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(tblSet).hasSize(3).contains("db.ns1", "db.ns2", "db.ns3");
 
     List<Namespace> nsp2 = catalog.listNamespaces(Namespace.of("db", "ns1"));
-    assertThat(nsp2.size()).isEqualTo(1);
+    assertThat(nsp2).hasSize(1);
     assertThat(nsp2.get(0)).hasToString("db.ns1.ns2");
 
     List<Namespace> nsp3 = catalog.listNamespaces();
