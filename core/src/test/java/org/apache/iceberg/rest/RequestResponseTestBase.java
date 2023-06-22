@@ -79,9 +79,9 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
       }
 
       for (String field : ((Iterable<? extends String>) node::fieldNames)) {
-        Assertions.assertThat(fieldsFromSpec.contains(field))
+        Assertions.assertThat(fieldsFromSpec)
             .as("Should not have field: %s", field)
-            .isTrue();
+            .contains(field);
       }
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);

@@ -53,7 +53,7 @@ public class TestHadoopTables {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  @TempDir private Path tableDir = null;
+  @TempDir private Path tableDir;
 
   @Test
   public void testTableExists() {
@@ -89,7 +89,7 @@ public class TestHadoopTables {
     Assertions.assertThat(TABLES.dropTable(tableDir.toUri().toString())).isFalse();
   }
 
-  @TempDir private Path dataDir = null;
+  @TempDir private Path dataDir;
 
   @Test
   public void testDropTableWithoutPurge() throws IOException {
