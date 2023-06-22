@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from functools import cached_property
 from itertools import chain
 from multiprocessing.pool import ThreadPool
@@ -28,6 +29,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Optional,
     Set,
     Tuple,
@@ -63,6 +65,7 @@ from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
+    IcebergBaseModel,
     Identifier,
     KeyDefaultDict,
     Properties,
@@ -74,7 +77,299 @@ if TYPE_CHECKING:
     import ray
     from duckdb import DuckDBPyConnection
 
+    from pyiceberg.catalog import Catalog
+
+
 ALWAYS_TRUE = AlwaysTrue()
+
+
+class Transaction:
+    _table: Table
+    _updates: Tuple[TableUpdate, ...]
+    _requirements: Tuple[TableRequirement, ...]
+
+    def __init__(
+        self,
+        table: Table,
+        actions: Optional[Tuple[TableUpdate, ...]] = None,
+        requirements: Optional[Tuple[TableRequirement, ...]] = None,
+    ):
+        self._table = table
+        self._updates = actions or ()
+        self._requirements = requirements or ()
+
+    def __enter__(self) -> Transaction:
+        return self
+
+    def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
+        fresh_table = self.commit_transaction()
+        # Update the new data in place
+        self._table.metadata = fresh_table.metadata
+        self._table.metadata_location = fresh_table.metadata_location
+
+    def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
+        """Appends updates to the set of staged updates.
+
+        Args:
+            *new_updates: Any new updates.
+
+        Raises:
+            ValueError: When the type of update is not unique.
+
+        Returns:
+            A new AlterTable object with the new updates appended.
+        """
+        for new_update in new_updates:
+            type_new_update = type(new_update)
+            if any(type(update) == type_new_update for update in self._updates):
+                raise ValueError(f"Updates in a single commit need to be unique, duplicate: {type_new_update}")
+        self._updates = self._updates + new_updates
+        return self
+
+    def set_table_version(self, format_version: Literal[1, 2]) -> Transaction:
+        """Sets the table to a certain version.
+
+        Args:
+            format_version: The newly set version.
+
+        Returns:
+            The alter table builder.
+        """
+        raise NotImplementedError("Not yet implemented")
+
+    def set_properties(self, **updates: str) -> Transaction:
+        """Set properties.
+
+        When a property is already set, it will be overwritten.
+
+        Args:
+            updates: The properties set on the table.
+
+        Returns:
+            The alter table builder.
+        """
+        return self._append_updates(SetPropertiesUpdate(updates=updates))
+
+    def remove_properties(self, *removals: str) -> Transaction:
+        """Removes properties.
+
+        Args:
+            removals: Properties to be removed.
+
+        Returns:
+            The alter table builder.
+        """
+        return self._append_updates(RemovePropertiesUpdate(removals=removals))
+
+    def update_location(self, location: str) -> Transaction:
+        """Sets the new table location.
+
+        Args:
+            location: The new location of the table.
+
+        Returns:
+            The alter table builder.
+        """
+        raise NotImplementedError("Not yet implemented")
+
+    def commit_transaction(self) -> Table:
+        """Commits the changes to the catalog.
+
+        Returns:
+            The table with the updates applied.
+        """
+        # Strip the catalog name
+        if len(self._updates) > 0:
+            response = self._table.catalog._commit_table(  # pylint: disable=W0212
+                CommitTableRequest(
+                    identifier=self._table.identifier[1:],
+                    requirements=self._requirements,
+                    updates=self._updates,
+                )
+            )
+            # Update the metadata with the new one
+            self._table.metadata = response.metadata
+            self._table.metadata_location = response.metadata_location
+
+            return self._table
+        else:
+            return self._table
+
+
+class TableUpdateAction(Enum):
+    upgrade_format_version = "upgrade-format-version"
+    add_schema = "add-schema"
+    set_current_schema = "set-current-schema"
+    add_spec = "add-spec"
+    set_default_spec = "set-default-spec"
+    add_sort_order = "add-sort-order"
+    set_default_sort_order = "set-default-sort-order"
+    add_snapshot = "add-snapshot"
+    set_snapshot_ref = "set-snapshot-ref"
+    remove_snapshots = "remove-snapshots"
+    remove_snapshot_ref = "remove-snapshot-ref"
+    set_location = "set-location"
+    set_properties = "set-properties"
+    remove_properties = "remove-properties"
+
+
+class TableUpdate(IcebergBaseModel):
+    action: TableUpdateAction
+
+
+class UpgradeFormatVersionUpdate(TableUpdate):
+    action = TableUpdateAction.upgrade_format_version
+    format_version: int = Field(alias="format-version")
+
+
+class AddSchemaUpdate(TableUpdate):
+    action = TableUpdateAction.add_schema
+    schema_: Schema = Field(alias="schema")
+
+
+class SetCurrentSchemaUpdate(TableUpdate):
+    action = TableUpdateAction.set_current_schema
+    schema_id: int = Field(
+        alias="schema-id", description="Schema ID to set as current, or -1 to set last added schema", default=-1
+    )
+
+
+class AddPartitionSpecUpdate(TableUpdate):
+    action = TableUpdateAction.add_spec
+    spec: PartitionSpec
+
+
+class SetDefaultSpecUpdate(TableUpdate):
+    action = TableUpdateAction.set_default_spec
+    spec_id: int = Field(
+        alias="spec-id", description="Partition spec ID to set as the default, or -1 to set last added spec", default=-1
+    )
+
+
+class AddSortOrderUpdate(TableUpdate):
+    action = TableUpdateAction.add_sort_order
+    sort_order: SortOrder = Field(alias="sort-order")
+
+
+class SetDefaultSortOrderUpdate(TableUpdate):
+    action = TableUpdateAction.set_default_sort_order
+    sort_order_id: int = Field(
+        alias="sort-order-id", description="Sort order ID to set as the default, or -1 to set last added sort order", default=-1
+    )
+
+
+class AddSnapshotUpdate(TableUpdate):
+    action = TableUpdateAction.add_snapshot
+    snapshot: Snapshot
+
+
+class SetSnapshotRefUpdate(TableUpdate):
+    action = TableUpdateAction.set_snapshot_ref
+    ref_name: str = Field(alias="ref-name")
+    type: Literal["tag", "branch"]
+    snapshot_id: int = Field(alias="snapshot-id")
+    max_age_ref_ms: int = Field(alias="max-ref-age-ms")
+    max_snapshot_age_ms: int = Field(alias="max-snapshot-age-ms")
+    min_snapshots_to_keep: int = Field(alias="min-snapshots-to-keep")
+
+
+class RemoveSnapshotsUpdate(TableUpdate):
+    action = TableUpdateAction.remove_snapshots
+    snapshot_ids: List[int] = Field(alias="snapshot-ids")
+
+
+class RemoveSnapshotRefUpdate(TableUpdate):
+    action = TableUpdateAction.remove_snapshot_ref
+    ref_name: str = Field(alias="ref-name")
+
+
+class SetLocationUpdate(TableUpdate):
+    action = TableUpdateAction.set_location
+    location: str
+
+
+class SetPropertiesUpdate(TableUpdate):
+    action = TableUpdateAction.set_properties
+    updates: Dict[str, str]
+
+
+class RemovePropertiesUpdate(TableUpdate):
+    action = TableUpdateAction.remove_properties
+    removals: List[str]
+
+
+class TableRequirement(IcebergBaseModel):
+    type: str
+
+
+class AssertCreate(TableRequirement):
+    """The table must not already exist; used for create transactions."""
+
+    type: Literal["assert-create"]
+
+
+class AssertTableUUID(TableRequirement):
+    """The table UUID must match the requirement's `uuid`."""
+
+    type: Literal["assert-table-uuid"]
+    uuid: str
+
+
+class AssertRefSnapshotId(TableRequirement):
+    """The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+
+    if `snapshot-id` is `null` or missing, the ref must not already exist.
+    """
+
+    type: Literal["assert-ref-snapshot-id"]
+    ref: str
+    snapshot_id: int = Field(..., alias="snapshot-id")
+
+
+class AssertLastAssignedFieldId(TableRequirement):
+    """The table's last assigned column id must match the requirement's `last-assigned-field-id`."""
+
+    type: Literal["assert-last-assigned-field-id"]
+    last_assigned_field_id: int = Field(..., alias="last-assigned-field-id")
+
+
+class AssertCurrentSchemaId(TableRequirement):
+    """The table's current schema id must match the requirement's `current-schema-id`."""
+
+    type: Literal["assert-current-schema-id"]
+    current_schema_id: int = Field(..., alias="current-schema-id")
+
+
+class AssertLastAssignedPartitionId(TableRequirement):
+    """The table's last assigned partition id must match the requirement's `last-assigned-partition-id`."""
+
+    type: Literal["assert-last-assigned-partition-id"]
+    last_assigned_partition_id: int = Field(..., alias="last-assigned-partition-id")
+
+
+class AssertDefaultSpecId(TableRequirement):
+    """The table's default spec id must match the requirement's `default-spec-id`."""
+
+    type: Literal["assert-default-spec-id"]
+    default_spec_id: int = Field(..., alias="default-spec-id")
+
+
+class AssertDefaultSortOrderId(TableRequirement):
+    """The table's default sort order id must match the requirement's `default-sort-order-id`."""
+
+    type: Literal["assert-default-sort-order-id"]
+    default_sort_order_id: int = Field(..., alias="default-sort-order-id")
+
+
+class CommitTableRequest(IcebergBaseModel):
+    identifier: Identifier = Field()
+    requirements: List[TableRequirement] = Field(default_factory=list)
+    updates: List[TableUpdate] = Field(default_factory=list)
+
+
+class CommitTableResponse(IcebergBaseModel):
+    metadata: TableMetadata = Field()
+    metadata_location: str = Field(alias="metadata-location")
 
 
 class Table:
@@ -82,16 +377,27 @@ class Table:
     metadata: TableMetadata = Field()
     metadata_location: str = Field()
     io: FileIO
+    catalog: Catalog
 
-    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO) -> None:
+    def __init__(
+        self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO, catalog: Catalog
+    ) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
+        self.catalog = catalog
+
+    def transaction(self) -> Transaction:
+        return Transaction(self)
 
     def refresh(self) -> Table:
         """Refresh the current table metadata."""
-        raise NotImplementedError("To be implemented")
+        fresh = self.catalog.load_table(self.identifier[1:])
+        self.metadata = fresh.metadata
+        self.io = fresh.io
+        self.metadata_location = fresh.metadata_location
+        return self
 
     def name(self) -> Identifier:
         """Return the identifier of this table."""
@@ -141,6 +447,11 @@ class Table:
     def sort_orders(self) -> Dict[int, SortOrder]:
         """Return a dict of the sort orders of this table."""
         return {sort_order.order_id: sort_order for sort_order in self.metadata.sort_orders}
+
+    @property
+    def properties(self) -> Dict[str, str]:
+        """Properties of the table."""
+        return self.metadata.properties
 
     def location(self) -> str:
         """Return the table's base location."""
@@ -195,11 +506,14 @@ class StaticTable(Table):
 
         metadata = FromInputFile.table_metadata(file)
 
+        from pyiceberg.catalog.noop import NoopCatalog
+
         return cls(
             identifier=("static-table", metadata_location),
             metadata_location=metadata_location,
             metadata=metadata,
             io=load_file_io({**properties, **metadata.properties}),
+            catalog=NoopCatalog("static-table"),
         )
 
 
