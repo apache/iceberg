@@ -99,9 +99,11 @@ class Transaction:
         self._requirements = requirements or ()
 
     def __enter__(self) -> Transaction:
+        """Starts a transaction to update the table."""
         return self
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
+        """Closes and commits the transaction."""
         fresh_table = self.commit_transaction()
         # Update the new data in place
         self._table.metadata = fresh_table.metadata

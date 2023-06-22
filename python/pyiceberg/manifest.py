@@ -193,9 +193,14 @@ class DataFile(Record):
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
     def __hash__(self) -> int:
+        """Returns the hash of the file path."""
         return hash(self.file_path)
 
     def __eq__(self, other: Any) -> bool:
+        """Compares the datafile with another object.
+
+        If it is a datafile, it will compare based on the file_path.
+        """
         return self.file_path == other.file_path if isinstance(other, DataFile) else False
 
 
