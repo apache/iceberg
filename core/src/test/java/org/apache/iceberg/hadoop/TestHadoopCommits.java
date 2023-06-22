@@ -35,7 +35,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
@@ -56,6 +55,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
@@ -411,10 +411,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testConcurrentFastAppends() throws Exception {
+  public void testConcurrentFastAppends(@TempDir File dir) throws Exception {
     Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
-    File dir = tableDir;
-    FileUtils.deleteDirectory(dir);
     int threadsCount = 5;
     int numberOfCommitedFilesPerThread = 10;
     Table tableWithHighRetries =
