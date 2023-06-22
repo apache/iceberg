@@ -58,7 +58,7 @@ public class TableMigrationUtil {
    * Returns the data files in a partition by listing the partition location.
    *
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
+   * partitions, metrics other than row count are set to null.
    *
    * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
@@ -88,7 +88,7 @@ public class TableMigrationUtil {
    * the files and the file reading is done in parallel by a specified number of threads.
    *
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
+   * partitions, metrics other than row count are set to null.
    *
    * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
