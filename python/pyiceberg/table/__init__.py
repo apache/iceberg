@@ -481,6 +481,7 @@ class Table:
         return self.metadata.snapshot_log
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Table class."""
         return (
             self.identifier == other.identifier
             and self.metadata == other.metadata

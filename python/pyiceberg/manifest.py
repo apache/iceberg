@@ -46,6 +46,7 @@ class DataFileContent(int, Enum):
     EQUALITY_DELETES = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DataFileContent class."""
         return f"DataFileContent.{self.name}"
 
 
@@ -54,6 +55,7 @@ class ManifestContent(int, Enum):
     DELETES = 1
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestContent class."""
         return f"ManifestContent.{self.name}"
 
 
@@ -63,6 +65,7 @@ class ManifestEntryStatus(int, Enum):
     DELETED = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestEntryStatus class."""
         return f"ManifestEntryStatus.{self.name}"
 
 
@@ -72,6 +75,7 @@ class FileFormat(str, Enum):
     ORC = "ORC"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
 
@@ -179,6 +183,7 @@ class DataFile(Record):
     spec_id: Optional[int]
 
     def __setattr__(self, name: str, value: Any) -> None:
+        """Used for assigning a key/value to a DataFile."""
         # The file_format is written as a string, so we need to cast it to the Enum
         if name == "file_format":
             value = FileFormat[value]
