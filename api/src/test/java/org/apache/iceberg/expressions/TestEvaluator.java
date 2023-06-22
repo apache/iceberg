@@ -42,6 +42,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -674,6 +676,18 @@ public class TestEvaluator {
     assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
         .as("utf8(abcd) in [string(abc), string(abd)] => false")
         .isFalse();
+
+    StructType decimalSeqStruct = StructType.of(required(35, "d", Types.DecimalType.of(5, 4)));
+    Evaluator decimalSeqEvaluator = new Evaluator(decimalSeqStruct, in("d", new BigDecimal(new BigInteger("10001"), 4),
+        new BigDecimal(new BigInteger("1001"), 3), new BigDecimal(new BigInteger("11"), 1)));
+    assertThat(decimalSeqEvaluator.eval(TestHelpers.Row.of(new BigDecimal(new BigInteger("10001"), 4))))
+        .as("1.0001 in[1.0001] => true").isTrue();
+    assertThat(decimalSeqEvaluator.eval(TestHelpers.Row.of(new BigDecimal(new BigInteger("11000"), 4))))
+        .as("1.1 in[1.0001,1.0010,1.1000] => true").isTrue();
+    assertThat(decimalSeqEvaluator.eval(TestHelpers.Row.of(new BigDecimal(new BigInteger("21000"), 4))))
+        .as("2.1 in[1.1000,1.0001,1.0010] => false").isFalse();
+    assertThat(decimalSeqEvaluator.eval(TestHelpers.Row.of(new BigDecimal(new BigInteger("10010"), 4))))
+        .as("1.00100 in[1.1000,1.0001,1.0010] => true").isTrue();
   }
 
   @Test
