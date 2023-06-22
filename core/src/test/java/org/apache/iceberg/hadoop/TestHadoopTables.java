@@ -85,7 +85,6 @@ public class TestHadoopTables {
 
     Assertions.assertThat(Files.list(dataDir.toPath()).count()).isEqualTo(0);
     Assertions.assertThat(tableDir).doesNotExist();
-
     Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
 
