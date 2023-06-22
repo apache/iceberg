@@ -80,7 +80,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assertions.assertThat(version(1)).exists().isFile();
         .as("Should create v1 metadata")
         .isTrue();
-    Assertions.assertThat(version(2).exists())
+    Assertions.assertThat(version(2)).exists()
         .as("Should not create v2 or newer versions")
         .isFalse();
     Assertions.assertThat(versionHintFile).as("Should create version hint file").exists();
