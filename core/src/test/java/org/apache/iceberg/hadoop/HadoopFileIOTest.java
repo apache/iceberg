@@ -112,14 +112,16 @@ public class HadoopFileIOTest {
               // Hadoop filesystem will throw if the path does not exist
               Assertions.assertThatThrownBy(
                       () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator())
-                  .isInstanceOf(UncheckedIOException.class);
+                  .isInstanceOf(UncheckedIOException.class)
+                  .hasMessageContaining("java.io.FileNotFoundException");
             });
 
     hadoopFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
     Assertions.assertThatThrownBy(
             () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator())
-        .isInstanceOf(UncheckedIOException.class);
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("java.io.FileNotFoundException");
   }
 
   @Test

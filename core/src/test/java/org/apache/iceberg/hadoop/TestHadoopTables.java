@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -54,7 +53,7 @@ public class TestHadoopTables {
           required(2, "data", Types.StringType.get()));
 
   @TempDir private File tableDir;
-  @TempDir private Path dataDir;
+  @TempDir private File dataDir;
 
   @Test
   public void testTableExists() {
@@ -77,14 +76,14 @@ public class TestHadoopTables {
   @Test
   public void testDropTableWithPurge() throws IOException {
 
-    createDummyTable(tableDir, dataDir.toFile());
+    createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), true);
     Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(Files.list(dataDir)).hasSize(0);
+    Assertions.assertThat(Files.list(dataDir.toPath()).count()).isEqualTo(0);
     Assertions.assertThat(tableDir).doesNotExist();
 
     Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
@@ -92,14 +91,15 @@ public class TestHadoopTables {
 
   @Test
   public void testDropTableWithoutPurge() throws IOException {
-    createDummyTable(tableDir, dataDir.toFile());
+    createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), false);
     Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(Files.list(dataDir)).hasSize(1);
+    Assertions.assertThat(Files.list(dataDir.toPath()).count()).isEqualTo(1);
+    ;
     Assertions.assertThat(tableDir).doesNotExist();
     Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }

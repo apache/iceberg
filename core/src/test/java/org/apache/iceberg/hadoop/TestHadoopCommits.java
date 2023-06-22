@@ -74,15 +74,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     Assertions.assertThat(tasks).as("Should not create any scan tasks").isEmpty();
     Assertions.assertThat(tableDir).as("Table location should exist").exists();
-    Assertions.assertThat(metadataDir.exists() && metadataDir.isDirectory())
-        .as("Should create metadata folder")
-        .isTrue();
-    Assertions.assertThat(version(1)).exists().isFile();
-        .as("Should create v1 metadata")
-        .isTrue();
-    Assertions.assertThat(version(2)).exists()
-        .as("Should not create v2 or newer versions")
-        .isFalse();
+    Assertions.assertThat(metadataDir).as("Should create metadata folder").exists().isDirectory();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
     Assertions.assertThat(versionHintFile).as("Should create version hint file").exists();
     Assertions.assertThat(readVersionHint())
         .as("Should write the current version to the hint file")
@@ -351,7 +345,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
    */
   private void testRenameWithFileSystem(FileSystem mockFs) throws Exception {
     Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
-    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").exists();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
     Assertions.assertThat(table).isInstanceOf(BaseTable.class);
     BaseTable baseTable = (BaseTable) table;
     // use v1 metafile as the test rename destination.

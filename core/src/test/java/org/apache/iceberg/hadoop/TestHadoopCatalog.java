@@ -70,8 +70,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     Assertions.assertThat(table.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
     Assertions.assertThat(table.spec().fields()).hasSize(1);
-    Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
-    Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
+    Assertions.assertThat(table.properties())
+        .containsEntry("key1", "value1")
+        .containsEntry("key2", "value2");
   }
 
   @Test
@@ -121,8 +122,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .as("Table should have a spec with one void field")
         .isEqualTo(v1Expected);
 
-    Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
-    Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
+    Assertions.assertThat(table.properties())
+        .containsEntry("key1", "value1")
+        .containsEntry("key2", "value2");
   }
 
   @Test
@@ -276,8 +278,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assertions.assertThat(tblSet).hasSize(2).contains("tbl1").contains("tbl2");
 
     List<TableIdentifier> tbls2 = catalog.listTables(Namespace.of("db", "ns1"));
-    Assertions.assertThat(tbls2).as("table identifiers").hasSize(1);
-    Assertions.assertThat(tbls2.get(0).name()).as("table name").isEqualTo("tbl3");
+    Assertions.assertThat(tbls2).hasSize(1);
+    Assertions.assertThat(tbls2.get(0).name()).isEqualTo("tbl3");
 
     Assertions.assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)
@@ -533,14 +535,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
 
     Table table = catalog.loadTable(tableIdent);
-    Assertions.assertThat(table.name()).as("Name must match").isEqualTo("hadoop.db.ns1.ns2.tbl");
+    Assertions.assertThat(table.name()).isEqualTo("hadoop.db.ns1.ns2.tbl");
 
     TableIdentifier snapshotsTableIdent =
         TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
-    Assertions.assertThat(snapshotsTable.name())
-        .as("Name must match")
-        .isEqualTo("hadoop.db.ns1.ns2.tbl.snapshots");
+    Assertions.assertThat(snapshotsTable.name()).isEqualTo("hadoop.db.ns1.ns2.tbl.snapshots");
   }
 
   private static void addVersionsToTable(Table table) {
