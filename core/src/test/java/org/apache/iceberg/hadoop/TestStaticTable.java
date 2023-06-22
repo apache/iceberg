@@ -22,7 +22,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -91,9 +90,9 @@ public class TestStaticTable extends HadoopTableTestBase {
     Assertions.assertThat(table.currentSnapshot().snapshotId())
         .as("Same snapshot?")
         .isEqualTo(staticTable.currentSnapshot().snapshotId());
-    Assertions.assertThat(Maps.difference(table.properties(), staticTable.properties()).areEqual())
+    Assertions.assertThat(table.properties())
         .as("Same properties?")
-        .isTrue();
+        .isEqualTo(staticTable.properties());
   }
 
   @Test
