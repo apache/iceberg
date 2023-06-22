@@ -1241,16 +1241,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
-            optional(
-                9,
-                "last_updated_ms",
-                Types.TimestampType.withZone(),
-                "Partition last updated timestamp"),
-            optional(
-                10,
-                "last_updated_snapshot_id",
-                Types.LongType.get(),
-                "Id of snapshot that last updated this partition"),
             required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
             required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
             required(
@@ -1272,7 +1262,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 8,
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
-                "Count of equality delete files"));
+                "Count of equality delete files"),
+            optional(
+                9,
+                "last_updated_ms",
+                Types.TimestampType.withZone(),
+                "Partition last updated timestamp"),
+            optional(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Id of snapshot that last updated this partition"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 

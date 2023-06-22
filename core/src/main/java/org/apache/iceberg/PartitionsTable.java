@@ -49,16 +49,6 @@ public class PartitionsTable extends BaseMetadataTable {
         new Schema(
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
-            Types.NestedField.optional(
-                9,
-                "last_updated_ms",
-                Types.TimestampType.withZone(),
-                "Partition last updated timestamp"),
-            Types.NestedField.optional(
-                10,
-                "last_updated_snapshot_id",
-                Types.LongType.get(),
-                "Id of snapshot that last updated this partition"),
             Types.NestedField.required(
                 2, "record_count", Types.LongType.get(), "Count of records in data files"),
             Types.NestedField.required(
@@ -82,7 +72,17 @@ public class PartitionsTable extends BaseMetadataTable {
                 8,
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
-                "Count of equality delete files"));
+                "Count of equality delete files"),
+            Types.NestedField.optional(
+                9,
+                "last_updated_ms",
+                Types.TimestampType.withZone(),
+                "Partition last updated timestamp"),
+            Types.NestedField.optional(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Id of snapshot that last updated this partition"));
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -95,14 +95,14 @@ public class PartitionsTable extends BaseMetadataTable {
   public Schema schema() {
     if (unpartitionedTable) {
       return schema.select(
-          "last_updated_ms",
-          "last_updated_snapshot_id",
           "record_count",
           "file_count",
           "position_delete_record_count",
           "position_delete_file_count",
           "equality_delete_record_count",
-          "equality_delete_file_count");
+          "equality_delete_file_count",
+          "last_updated_ms",
+          "last_updated_snapshot_id");
     }
     return schema;
   }
@@ -123,14 +123,14 @@ public class PartitionsTable extends BaseMetadataTable {
           partitions,
           root ->
               StaticDataTask.Row.of(
-                  root.lastUpdatedAt,
-                  root.lastUpdatedSnapshotId,
                   root.dataRecordCount,
                   root.dataFileCount,
                   root.posDeleteRecordCount,
                   root.posDeleteFileCount,
                   root.eqDeleteRecordCount,
-                  root.eqDeleteFileCount));
+                  root.eqDeleteFileCount,
+                  root.lastUpdatedMs,
+                  root.lastUpdatedSnapshotId));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -145,14 +145,14 @@ public class PartitionsTable extends BaseMetadataTable {
     return StaticDataTask.Row.of(
         partition.partitionData,
         partition.specId,
-        partition.lastUpdatedAt,
-        partition.lastUpdatedSnapshotId,
         partition.dataRecordCount,
         partition.dataFileCount,
         partition.posDeleteRecordCount,
         partition.posDeleteFileCount,
         partition.eqDeleteRecordCount,
-        partition.eqDeleteFileCount);
+        partition.eqDeleteFileCount,
+        partition.lastUpdatedMs,
+        partition.lastUpdatedSnapshotId);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
@@ -273,7 +273,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
-    private Long lastUpdatedAt;
+    private Long lastUpdatedMs;
     private Long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
@@ -285,15 +285,15 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
-      this.lastUpdatedAt = null;
+      this.lastUpdatedMs = null;
       this.lastUpdatedSnapshotId = null;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
       if (snapshot != null) {
         long snapshotCommitTime = snapshot.timestampMillis() * 1000;
-        if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
-          this.lastUpdatedAt = snapshotCommitTime;
+        if (this.lastUpdatedMs == null || snapshotCommitTime > this.lastUpdatedMs) {
+          this.lastUpdatedMs = snapshotCommitTime;
           this.lastUpdatedSnapshotId = snapshot.snapshotId();
         }
       }
