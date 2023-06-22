@@ -76,7 +76,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     Assertions.assertThat(tasks).as("Should not create any scan tasks").isEmpty();
-    Assertions.assertThat(tableDir.exists()).as("Table location should exist").isTrue();
+    Assertions.assertThat(tableDir).as("Table location should exist").exists();
     Assertions.assertThat(metadataDir.exists() && metadataDir.isDirectory())
         .as("Should create metadata folder")
         .isTrue();
