@@ -53,22 +53,23 @@ public class TestHadoopTables {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  @TempDir private Path tableDir;
+  @TempDir private File tableDir;
+  @TempDir private Path dataDir;
 
   @Test
   public void testTableExists() {
-    Assertions.assertThat(TABLES.exists(tableDir.toUri().toString())).isFalse();
+    Assertions.assertThat(TABLES.exists(tableDir.toString())).isFalse();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    TABLES.create(SCHEMA, spec, tableDir.toUri().toString());
-    Assertions.assertThat(TABLES.exists(tableDir.toUri().toString())).isTrue();
+    TABLES.create(SCHEMA, spec, tableDir.toString());
+    Assertions.assertThat(TABLES.exists(tableDir.toString())).isTrue();
   }
 
   @Test
   public void testDropTable() {
-    TABLES.create(SCHEMA, tableDir.toUri().toString());
-    TABLES.dropTable(tableDir.toUri().toString());
+    TABLES.create(SCHEMA, tableDir.toString());
+    TABLES.dropTable(tableDir.toString());
 
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
   }
@@ -76,39 +77,37 @@ public class TestHadoopTables {
   @Test
   public void testDropTableWithPurge() throws IOException {
 
-    createDummyTable(tableDir.toFile(), dataDir.toFile());
+    createDummyTable(tableDir, dataDir.toFile());
 
-    TABLES.dropTable(tableDir.toUri().toString(), true);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
+    TABLES.dropTable(tableDir.toString(), true);
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
     Assertions.assertThat(Files.list(dataDir)).hasSize(0);
     Assertions.assertThat(tableDir).doesNotExist();
 
-    Assertions.assertThat(TABLES.dropTable(tableDir.toUri().toString())).isFalse();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toString())).isFalse();
   }
-
-  @TempDir private Path dataDir;
 
   @Test
   public void testDropTableWithoutPurge() throws IOException {
-    createDummyTable(tableDir.toFile(), dataDir.toFile());
+    createDummyTable(tableDir, dataDir.toFile());
 
-    TABLES.dropTable(tableDir.toUri().toString(), false);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
+    TABLES.dropTable(tableDir.toString(), false);
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
     Assertions.assertThat(Files.list(dataDir)).hasSize(1);
     Assertions.assertThat(tableDir).doesNotExist();
-    Assertions.assertThat(TABLES.dropTable(tableDir.toUri().toString())).isFalse();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toString())).isFalse();
   }
 
   @Test
   public void testDefaultSortOrder() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    Table table = TABLES.create(SCHEMA, spec, tableDir.toUri().toString());
+    Table table = TABLES.create(SCHEMA, spec, tableDir.toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
@@ -119,8 +118,7 @@ public class TestHadoopTables {
   public void testCustomSortOrder() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     SortOrder order = SortOrder.builderFor(SCHEMA).asc("id", NULLS_FIRST).build();
-    Table table =
-        TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toUri().toString());
+    Table table = TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
@@ -140,7 +138,7 @@ public class TestHadoopTables {
   @Test
   public void testTableName() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    String location = tableDir.toUri().toString();
+    String location = tableDir.toString();
     TABLES.create(SCHEMA, spec, location);
 
     Table table = TABLES.load(location);

@@ -121,8 +121,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .as("Table should have a spec with one void field")
         .isEqualTo(v1Expected);
 
-    Assertions.assertThat(table.properties().get("key1")).isEqualTo("value1");
-    Assertions.assertThat(table.properties().get("key2")).isEqualTo("value2");
+    Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
+    Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
   }
 
   @Test

@@ -112,6 +112,7 @@ public class HadoopTableTestBase {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
+  @TempDir File tempDir;
   @TempDir File tableDir;
 
   String tableLocation = null;
@@ -121,7 +122,6 @@ public class HadoopTableTestBase {
 
   @BeforeEach
   public void setupTable() throws Exception {
-
     this.tableLocation = tableDir.toURI().toString();
     this.metadataDir = new File(tableDir, "metadata");
     this.versionHintFile = new File(metadataDir, "version-hint.text");
@@ -193,7 +193,7 @@ public class HadoopTableTestBase {
         "hadoop",
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath())
+            .put(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath())
             .buildOrThrow());
     return hadoopCatalog;
   }
