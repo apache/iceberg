@@ -81,7 +81,7 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
   }
 
   protected void validateSingleFieldPartition(
-      CloseableIterable<ManifestEntry<? extends ContentFile<?>>> files, int partitionValue) {
+      CloseableIterable<ManifestEntry<?>> files, int partitionValue) {
     validatePartition(files, 0, partitionValue);
   }
 

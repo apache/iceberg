@@ -1231,12 +1231,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
-            required(
+            optional(
                 9,
                 "last_updated_ms",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
-            required(
+            optional(
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
@@ -1327,7 +1327,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
     long secondCommitId = table.currentSnapshot().snapshotId();
 
-    // rewrite manifest carry over the data file to its committing snapshot relationship
+    // check if rewrite manifest does not override metadata about data file's creating snapshot
     RewriteManifests.Result rewriteManifestResult =
         SparkActions.get().rewriteManifests(table).execute();
     Assert.assertEquals(
@@ -1426,8 +1426,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", 0L)
-            .set("last_updated_snapshot_id", 0L)
+            .set("last_updated_ms", null)
+            .set("last_updated_snapshot_id", null)
             .build();
     expected.remove(0);
     expected.add(0, newPartitionRecord);

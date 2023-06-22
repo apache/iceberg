@@ -49,12 +49,12 @@ public class PartitionsTable extends BaseMetadataTable {
         new Schema(
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
-            Types.NestedField.required(
+            Types.NestedField.optional(
                 9,
                 "last_updated_ms",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
-            Types.NestedField.required(
+            Types.NestedField.optional(
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
@@ -273,8 +273,8 @@ public class PartitionsTable extends BaseMetadataTable {
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
-    private long lastUpdatedAt;
-    private long lastUpdatedSnapshotId;
+    private Long lastUpdatedAt;
+    private Long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
@@ -285,16 +285,19 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
-      this.lastUpdatedAt = 0L;
-      this.lastUpdatedSnapshotId = 0L;
+      this.lastUpdatedAt = null;
+      this.lastUpdatedSnapshotId = null;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
-      long snapshotCommitTime = snapshot == null ? 0 : snapshot.timestampMillis() * 1000;
-      if (snapshotCommitTime > this.lastUpdatedAt) {
-        this.lastUpdatedAt = snapshotCommitTime;
-        this.lastUpdatedSnapshotId = snapshot.snapshotId();
+      if (snapshot != null) {
+        long snapshotCommitTime = snapshot.timestampMillis() * 1000;
+        if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
+          this.lastUpdatedAt = snapshotCommitTime;
+          this.lastUpdatedSnapshotId = snapshot.snapshotId();
+        }
       }
+
       switch (file.content()) {
         case DATA:
           this.dataRecordCount += file.recordCount();
