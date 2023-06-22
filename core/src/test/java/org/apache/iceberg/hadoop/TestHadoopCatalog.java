@@ -51,7 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
@@ -303,7 +303,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateNamespace() throws Exception {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = temp.toFile().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
@@ -323,7 +323,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assertions.assertThat(fs2.isDirectory(new Path(metaLocation2))).isTrue();
 
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(tbl1.namespace()))
-        .isInstanceOf(org.apache.iceberg.exceptions.AlreadyExistsException.class)
+        .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Namespace already exists: " + tbl1.namespace());
   }
 
@@ -419,7 +419,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropNamespace() throws IOException {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = temp.toFile().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(

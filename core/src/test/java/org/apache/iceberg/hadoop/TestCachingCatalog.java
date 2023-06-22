@@ -42,9 +42,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FakeTicker;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestCachingCatalog extends HadoopTableTestBase {
 
@@ -53,12 +53,12 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   private FakeTicker ticker;
 
-  @Before
+  @BeforeEach
   public void beforeEach() {
     this.ticker = new FakeTicker();
   }
 
-  @After
+  @AfterEach
   public void afterEach() {
     this.ticker = null;
   }
@@ -292,10 +292,10 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Arrays.stream(metadataTables(tableIdent))
         .forEach(
             metadataTable ->
-                Assertions.assertThat(catalog.cache().asMap()).containsKey(metadataTable)
+                Assertions.assertThat(catalog.cache().asMap())
                     .as(
                         "When a data table expires, its metadata tables should expire regardless of age")
-                    .isFalse());
+                    .doesNotContainKeys(metadataTable));
   }
 
   @Test

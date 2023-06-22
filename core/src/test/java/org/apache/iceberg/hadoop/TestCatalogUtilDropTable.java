@@ -30,7 +30,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -49,12 +49,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assertions.assertThat(manifestListLocations).hasSize(2)
-        .as("should have 2 manifest lists")
-        .isEqualTo(2);
-    Assertions.assertThat(metadataLocations).hasSize(3)
-        .as("should have 3 metadata locations")
-        .isEqualTo(3);
+    Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
+    Assertions.assertThat(metadataLocations).as("should have 3 metadata locations").hasSize(3);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
@@ -131,12 +127,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assertions.assertThat(manifestListLocations.size())
-        .as("should have 2 manifest lists")
-        .isEqualTo(2);
-    Assertions.assertThat(metadataLocations.size())
-        .as("should have 4 metadata locations")
-        .isEqualTo(4);
+    Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
+    Assertions.assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))

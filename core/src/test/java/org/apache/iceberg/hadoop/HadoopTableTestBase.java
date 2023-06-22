@@ -28,6 +28,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,9 +49,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.types.Types;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 public class HadoopTableTestBase {
   // Schema passed to create tables
@@ -113,7 +113,7 @@ public class HadoopTableTestBase {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir Path temp;
 
   File tableDir = null;
   String tableLocation = null;
@@ -121,9 +121,9 @@ public class HadoopTableTestBase {
   File versionHintFile = null;
   Table table = null;
 
-  @Before
+  @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = temp.newFolder();
+    this.tableDir = temp.toFile();
     tableDir.delete(); // created by table create
 
     this.tableLocation = tableDir.toURI().toString();
@@ -197,7 +197,7 @@ public class HadoopTableTestBase {
         "hadoop",
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toFile().getAbsolutePath())
             .buildOrThrow());
     return hadoopCatalog;
   }

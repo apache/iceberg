@@ -42,7 +42,6 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,68 +53,62 @@ public class TestHadoopTables {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  private File tableDir = null;
-
-  @BeforeEach
-  public void setupTableLocation(@TempDir Path temp) throws Exception {
-    tableDir = temp.toFile();
-  }
+  @TempDir private Path tableDir = null;
 
   @Test
   public void testTableExists() {
-    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isFalse();
+    Assertions.assertThat(TABLES.exists(tableDir.toUri().toString())).isFalse();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
-    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isTrue();
+    TABLES.create(SCHEMA, spec, tableDir.toUri().toString());
+    Assertions.assertThat(TABLES.exists(tableDir.toUri().toString())).isTrue();
   }
 
   @Test
   public void testDropTable() {
-    TABLES.create(SCHEMA, tableDir.toURI().toString());
-    TABLES.dropTable(tableDir.toURI().toString());
+    TABLES.create(SCHEMA, tableDir.toUri().toString());
+    TABLES.dropTable(tableDir.toUri().toString());
 
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
   }
 
   @Test
-  public void testDropTableWithPurge(@TempDir Path temp) throws IOException {
-    File dataDir = temp.toFile();
+  public void testDropTableWithPurge() throws IOException {
 
-    createDummyTable(tableDir, dataDir);
+    createDummyTable(tableDir.toFile(), dataDir.toFile());
 
-    TABLES.dropTable(tableDir.toURI().toString(), true);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    TABLES.dropTable(tableDir.toUri().toString(), true);
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(dataDir.listFiles()).hasSize(0);
+    Assertions.assertThat(Files.list(dataDir)).hasSize(0);
     Assertions.assertThat(tableDir).doesNotExist();
 
-    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toUri().toString())).isFalse();
   }
 
+  @TempDir private Path dataDir = null;
+
   @Test
-  public void testDropTableWithoutPurge(@TempDir Path temp) throws IOException {
-    File dataDir = temp.toFile();
+  public void testDropTableWithoutPurge() throws IOException {
+    createDummyTable(tableDir.toFile(), dataDir.toFile());
 
-    createDummyTable(tableDir, dataDir);
-
-    TABLES.dropTable(tableDir.toURI().toString(), false);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    TABLES.dropTable(tableDir.toUri().toString(), false);
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toUri().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(dataDir.listFiles()).hasSize(1);
+    Assertions.assertThat(Files.list(dataDir)).hasSize(1);
     Assertions.assertThat(tableDir).doesNotExist();
-    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toUri().toString())).isFalse();
   }
 
   @Test
   public void testDefaultSortOrder() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
+    Table table = TABLES.create(SCHEMA, spec, tableDir.toUri().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
@@ -127,7 +120,7 @@ public class TestHadoopTables {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     SortOrder order = SortOrder.builderFor(SCHEMA).asc("id", NULLS_FIRST).build();
     Table table =
-        TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
+        TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toUri().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
@@ -147,7 +140,7 @@ public class TestHadoopTables {
   @Test
   public void testTableName() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
-    String location = tableDir.toURI().toString();
+    String location = tableDir.toUri().toString();
     TABLES.create(SCHEMA, spec, location);
 
     Table table = TABLES.load(location);

@@ -58,7 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
@@ -450,7 +450,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   @Test
   public void testConcurrentFastAppends() throws Exception {
     assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    File dir = temp.newFolder();
+    File dir = temp.toFile();
     FileUtils.deleteDirectory(dir);
     int threadsCount = 5;
     int numberOfCommitedFilesPerThread = 10;
