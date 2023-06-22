@@ -28,7 +28,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -115,7 +114,6 @@ public class HadoopTableTestBase {
 
   @TempDir File tableDir;
 
-  File tableDir = null;
   String tableLocation = null;
   File metadataDir = null;
   File versionHintFile = null;
@@ -123,8 +121,6 @@ public class HadoopTableTestBase {
 
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = temp.toFile();
-    tableDir.delete(); // created by table create
 
     this.tableLocation = tableDir.toURI().toString();
     this.metadataDir = new File(tableDir, "metadata");
@@ -197,7 +193,7 @@ public class HadoopTableTestBase {
         "hadoop",
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toFile().getAbsolutePath())
+            .put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath())
             .buildOrThrow());
     return hadoopCatalog;
   }
