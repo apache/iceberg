@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import org.apache.commons.compress.utils.Sets;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -188,22 +190,21 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df, boolean netChanges) {
-    Predicate<String> columnsToRemove;
+    Predicate<String> columnsToKeep;
     if (netChanges) {
-      columnsToRemove =
-          column ->
-              column.equals(MetadataColumns.CHANGE_TYPE.name())
-                  || column.equals(MetadataColumns.CHANGE_ORDINAL.name())
-                  || column.equals(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
+      Set<String> metadataColumn =
+          Sets.newHashSet(
+              MetadataColumns.CHANGE_TYPE.name(),
+              MetadataColumns.CHANGE_ORDINAL.name(),
+              MetadataColumns.COMMIT_SNAPSHOT_ID.name());
+
+      columnsToKeep = column -> !metadataColumn.contains(column);
     } else {
-      columnsToRemove = column -> column.equals(MetadataColumns.CHANGE_TYPE.name());
+      columnsToKeep = column -> !column.equals(MetadataColumns.CHANGE_TYPE.name());
     }
 
     Column[] repartitionSpec =
-        Arrays.stream(df.columns())
-            .filter(columnsToRemove.negate())
-            .map(df::col)
-            .toArray(Column[]::new);
+        Arrays.stream(df.columns()).filter(columnsToKeep).map(df::col).toArray(Column[]::new);
     return applyCarryoverRemoveIterator(df, repartitionSpec, netChanges);
   }
 
