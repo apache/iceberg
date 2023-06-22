@@ -1267,7 +1267,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 9,
                 "last_updated_ms",
                 Types.TimestampType.withZone(),
-                "Partition last updated timestamp"),
+                "Commit time of snapshot that last updated this partition"),
             optional(
                 10,
                 "last_updated_snapshot_id",

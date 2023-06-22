@@ -77,7 +77,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 9,
                 "last_updated_ms",
                 Types.TimestampType.withZone(),
-                "Partition last updated timestamp"),
+                "Commit time of snapshot that last updated this partition"),
             Types.NestedField.optional(
                 10,
                 "last_updated_snapshot_id",
@@ -285,8 +285,6 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
-      this.lastUpdatedMs = null;
-      this.lastUpdatedSnapshotId = null;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
