@@ -45,6 +45,10 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return changeTypeIndex;
   }
 
+  protected String changeType(Row row) {
+    return row.getString(changeTypeIndex());
+  }
+
   protected Iterator<Row> rowIterator() {
     return rowIterator;
   }

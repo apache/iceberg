@@ -264,23 +264,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
-    Column[] sortSpec;
+    Column changeType = df.col(MetadataColumns.CHANGE_TYPE.name());
+    Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
+    Column[] extraColumns =
+        netChanges ? new Column[] {changeOrdinal, changeType} : new Column[] {changeType};
 
-    if (netChanges) {
-      Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-      Preconditions.checkState(
-          Arrays.stream(repartitionSpec).noneMatch(c -> c.equals(changeOrdinal)),
-          "Change ordinal should not be in repartition spec");
-
-      sortSpec = new Column[repartitionSpec.length + 2];
-      sortSpec[sortSpec.length - 2] = changeOrdinal;
-    } else {
-      sortSpec = new Column[repartitionSpec.length + 1];
-    }
-
-    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
+    Column[] sortSpec = new Column[repartitionSpec.length + extraColumns.length];
 
     System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);
+    System.arraycopy(extraColumns, 0, sortSpec, repartitionSpec.length, extraColumns.length);
 
     return sortSpec;
   }

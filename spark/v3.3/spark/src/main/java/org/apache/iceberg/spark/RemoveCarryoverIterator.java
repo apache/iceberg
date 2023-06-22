@@ -90,7 +90,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     }
 
     // If the current row is a delete row, drain all identical delete rows
-    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
+    if (changeType(currentRow).equals(DELETE) && rowIterator().hasNext()) {
       cachedDeletedRow = currentRow;
       deletedRowCount = 1;
 
@@ -101,7 +101,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
       while (nextRow != null
           && cachedDeletedRow != null
           && isSameRecord(cachedDeletedRow, nextRow)) {
-        if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
+        if (changeType(nextRow).equals(INSERT)) {
           deletedRowCount--;
           if (deletedRowCount == 0) {
             cachedDeletedRow = null;

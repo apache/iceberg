@@ -47,13 +47,13 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  public void createTableWith2Columns() {
+  public void createTableWithTwoColumns() {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
   }
 
-  private void createTableWith3Columns() {
+  private void createTableWithThreeColumns() {
     sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
     sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
@@ -67,7 +67,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testCustomizedViewName() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
 
@@ -100,7 +100,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNoSnapshotIdInput() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -131,7 +131,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testTimestampsBasedQuery() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     long beginning = System.currentTimeMillis();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -191,7 +191,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testWithCarryovers() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -226,7 +226,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdate() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -285,7 +285,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithFilter() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -317,7 +317,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithMultipleIdentifierColumns() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -349,7 +349,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOvers() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -383,7 +383,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOversWithoutUpdatedRows() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -416,19 +416,21 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   @Test
   public void testNetChangesWithRemoveCarryOvers() {
     // partitioned by id
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     // insert rows: (1, 'a', 12) (2, 'b', 11) (2, 'e', 12)
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap1 = table.currentSnapshot();
 
-    // delete rows: (2, 'b', 11) (2, 'e', 12), insert rows: (3, 'c', 13) (2, 'd', 11) (2, 'e', 12)
+    // delete rows: (2, 'b', 11) (2, 'e', 12)
+    // insert rows: (3, 'c', 13) (2, 'd', 11) (2, 'e', 12)
     sql("INSERT OVERWRITE %s VALUES (3, 'c', 13), (2, 'd', 11), (2, 'e', 12)", tableName);
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
-    // delete rows: (2, 'd', 11) (2, 'e', 12) (3, 'c', 13), insert rows: (3, 'c', 15) (2, 'e', 12)
+    // delete rows: (2, 'd', 11) (2, 'e', 12) (3, 'c', 13)
+    // insert rows: (3, 'c', 15) (2, 'e', 12)
     sql("INSERT OVERWRITE %s VALUES (3, 'c', 15), (2, 'e', 12)", tableName);
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
@@ -466,7 +468,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNetChangesWithComputeUpdates() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     assertThrows(
         "Should fail because net_changes is not supported with computing updates",
         IllegalArgumentException.class,
@@ -478,7 +480,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNotRemoveCarryOvers() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);

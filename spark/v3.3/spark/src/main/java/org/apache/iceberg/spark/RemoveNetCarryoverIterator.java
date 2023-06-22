@@ -24,8 +24,9 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
 /**
- * This class computes the net changes across multiple snapshots. It takes a row iterator, and
- * assumes the following:
+ * This class computes the net changes across multiple snapshots. It is different from {@link
+ * RemoveCarryoverIterator}, which only removes carry-over rows within a single snapshot. It takes a
+ * row iterator, and assumes the following:
  *
  * <ul>
  *   <li>The row iterator is partitioned by all columns.
@@ -82,13 +83,14 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
     // pull rows from the iterator until two consecutive rows are different
     while (isSameRecord(currentRow, nextRow)) {
       if (oppositeChangeType(currentRow, nextRow)) {
-        // two rows with opposite change types means no net changes
+        // two rows with opposite change types means no net changes, remove both
         cachedRowCount--;
         nextRow = null;
       } else {
-        // two rows with same change types means potential net changes
-        nextRow = null;
+        // two rows with same change types means potential net changes, cache the next row, reset it
+        // to null
         cachedRowCount++;
+        nextRow = null;
       }
 
       // stop pulling rows if there is no more rows or the next row is different
@@ -116,10 +118,8 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
   }
 
   private boolean oppositeChangeType(Row currentRow, Row nextRow) {
-    return (nextRow.getString(changeTypeIndex()).equals(INSERT)
-            && currentRow.getString(changeTypeIndex()).equals(DELETE))
-        || (nextRow.getString(changeTypeIndex()).equals(DELETE)
-            && currentRow.getString(changeTypeIndex()).equals(INSERT));
+    return (changeType(nextRow).equals(INSERT) && changeType(currentRow).equals(DELETE))
+        || (changeType(nextRow).equals(DELETE) && changeType(currentRow).equals(INSERT));
   }
 
   private int[] generateIndicesToIdentifySameRow() {
