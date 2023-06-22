@@ -113,7 +113,7 @@ public class HadoopTableTestBase {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  @TempDir Path temp;
+  @TempDir File tableDir;
 
   File tableDir = null;
   String tableLocation = null;
