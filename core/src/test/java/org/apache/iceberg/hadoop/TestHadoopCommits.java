@@ -77,7 +77,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assertions.assertThat(metadataDir.exists() && metadataDir.isDirectory())
         .as("Should create metadata folder")
         .isTrue();
-    Assertions.assertThat(version(1).exists() && version(1).isFile())
+    Assertions.assertThat(version(1)).exists().isFile();
         .as("Should create v1 metadata")
         .isTrue();
     Assertions.assertThat(version(2).exists())
