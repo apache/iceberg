@@ -270,8 +270,7 @@ public class DataFiles {
 
     public Builder withPartitionValues(List<String> partitionValues) {
       Preconditions.checkArgument(
-          (isPartitioned && !partitionValues.isEmpty())
-              || (!isPartitioned && partitionValues.isEmpty()),
+          isPartitioned ^ partitionValues.isEmpty(),
           "Table must be partitioned or partition values must be empty");
       if (!partitionValues.isEmpty()) {
         this.partitionData = fillFromValues(spec, partitionValues, partitionData);
