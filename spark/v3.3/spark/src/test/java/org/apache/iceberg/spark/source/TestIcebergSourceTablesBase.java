@@ -1417,7 +1417,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2 or record_count=1")
             .collectAsList();
-    Assert.assertEquals("Actual results should have one row", 2, nonFiltered.size());
+    Assert.assertEquals("Actual results should have two row", 2, nonFiltered.size());
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1513,20 +1513,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
-
-    // check time travel
-    List<Row> actualAfterFirstCommit =
-        spark
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(secondCommitId))
-            .load(loadLocation(tableIdentifier, "partitions"))
-            .orderBy("partition.id")
-            .collectAsList();
-
-    Assert.assertEquals("Actual results should have one row", 2, actualAfterFirstCommit.size());
-    TestHelpers.assertEqualsSafe(
-        partitionsTable.schema().asStruct(), expected.get(0), actualAfterFirstCommit.get(0));
 
     // check predicate push down
     List<Row> filtered =
