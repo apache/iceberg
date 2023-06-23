@@ -24,9 +24,10 @@ from unittest.mock import MagicMock, patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from pyarrow.fs import FileType
+from pyarrow.fs import FileType, LocalFileSystem
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -57,11 +58,12 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    _read_deletes,
     expression_to_pyarrow,
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
@@ -798,7 +800,14 @@ def project(
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    content=DataFileContent.DATA,
+                    file_path=file,
+                    file_format=FileFormat.PARQUET,
+                    partition={},
+                    record_count=3,
+                    file_size_in_bytes=3,
+                )
             )
             for file in files
         ],
@@ -813,6 +822,7 @@ def project(
             ),
             metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         expr or AlwaysTrue(),
         schema,
@@ -1186,6 +1196,106 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.fixture
+def deletes_file(tmp_path: str, example_task: FileScanTask) -> str:
+    path = example_task.file.file_path
+    table = pa.table({"file_path": [path, path, path], "pos": [1, 3, 5]})
+
+    deletes_file_path = f"{tmp_path}/deletes.parquet"
+    pq.write_table(table, deletes_file_path)
+
+    return deletes_file_path
+
+
+def test_read_deletes(deletes_file: str, example_task: FileScanTask) -> None:
+    deletes = _read_deletes(LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET))
+    assert set(deletes.keys()) == {example_task.file.file_path}
+    assert list(deletes.values())[0] == pa.chunked_array([[1, 3, 5]])
+
+
+def test_delete(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET)},
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
+def test_delete_duplicates(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+        },
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
 def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
     metadata_location = "file://a/b/c.json"
     projection = project_table(
@@ -1202,6 +1312,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
             ),
             metadata_location=metadata_location,
             io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,
         projected_schema=table_schema_simple,

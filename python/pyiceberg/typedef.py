@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 class FrozenDict(Dict[Any, Any]):
     def __setitem__(self, instance: Any, value: Any) -> None:
+        """Used for assigning a value to a FrozenDict."""
         raise AttributeError("FrozenDict does not support assignment")
 
     def update(self, *args: Any, **kwargs: Any) -> None:
@@ -61,6 +62,7 @@ class KeyDefaultDict(Dict[K, V]):
         self.default_factory = default_factory
 
     def __missing__(self, key: K) -> V:
+        """Defines behavior if you access a non-existent key in a KeyDefaultDict."""
         val = self.default_factory(key)
         self[key] = val
         return val
@@ -80,11 +82,11 @@ class StructProtocol(Protocol):  # pragma: no cover
 
     @abstractmethod
     def __getitem__(self, pos: int) -> Any:
-        ...
+        """Used for fetching a value from a StructProtocol."""
 
     @abstractmethod
     def __setitem__(self, pos: int, value: Any) -> None:
-        ...
+        """Used for assigning a value to a StructProtocol."""
 
 
 class IcebergBaseModel(BaseModel):
@@ -143,15 +145,19 @@ class Record(StructProtocol):
             self.__setattr__(field_name, d)
 
     def __setitem__(self, pos: int, value: Any) -> None:
+        """Used for assigning a value to a Record."""
         self.__setattr__(self._position_to_field_name[pos], value)
 
     def __getitem__(self, pos: int) -> Any:
+        """Used for fetching a value from a Record."""
         return self.__getattribute__(self._position_to_field_name[pos])
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Record class."""
         if not isinstance(other, Record):
             return False
         return self.__dict__ == other.__dict__
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Record class."""
         return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"

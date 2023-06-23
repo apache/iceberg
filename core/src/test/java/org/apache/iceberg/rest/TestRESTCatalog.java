@@ -75,14 +75,13 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -279,20 +278,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCat.setConf(new Configuration());
     restCat.initialize("prod", initialConfig);
 
-    Assert.assertEquals(
-        "Catalog properties after initialize should use the server's override properties",
-        "false",
-        restCat.properties().get(CatalogProperties.CACHE_ENABLED));
+    Assertions.assertThat(restCat.properties().get(CatalogProperties.CACHE_ENABLED))
+        .as("Catalog properties after initialize should use the server's override properties")
+        .isEqualTo("false");
 
-    Assert.assertEquals(
-        "Catalog after initialize should use the server's default properties if not specified",
-        "1",
-        restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE));
+    Assertions.assertThat(restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE))
+        .as("Catalog after initialize should use the server's default properties if not specified")
+        .isEqualTo("1");
 
-    Assert.assertEquals(
-        "Catalog should return final warehouse location",
-        "s3://bucket/warehouse",
-        restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION));
+    Assertions.assertThat(restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION))
+        .as("Catalog should return final warehouse location")
+        .isEqualTo("s3://bucket/warehouse");
 
     restCat.close();
   }
@@ -323,7 +319,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", "bearer-token"));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // the bearer token should be used for all interactions
     Mockito.verify(adapter)
@@ -359,7 +355,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
@@ -412,7 +408,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", "bearer-token"));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // use the bearer token for config
     Mockito.verify(adapter)
@@ -467,7 +463,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // call client credentials with no initial auth
     Mockito.verify(adapter)
@@ -539,7 +535,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "token",
             "bearer-token"));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // use the bearer token for client credentials
     Mockito.verify(adapter)
@@ -685,7 +681,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", catalogToken));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     Mockito.verify(adapter)
         .execute(
@@ -1046,12 +1042,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             required(2, "data", Types.StringType.get()));
 
     Table table = catalog.createTable(ident, expectedSchema);
-    Assertions.assertEquals(
-        expectedSchema.asStruct(), table.schema().asStruct(), "Schema should match");
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expectedSchema.asStruct());
 
     Table loaded = catalog.loadTable(ident); // the first load will send the token
-    Assertions.assertEquals(
-        expectedSchema.asStruct(), loaded.schema().asStruct(), "Schema should match");
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expectedSchema.asStruct());
 
     loaded.refresh(); // refresh to force reload
 
@@ -1286,7 +1284,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .untilAsserted(
             () -> {
               // use the exchanged catalog token
-              Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+              Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table")))
+                  .isFalse();
 
               // call client credentials with no initial auth
               Mockito.verify(adapter)
@@ -1435,7 +1434,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", credential));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // call client credentials with no initial auth
     Mockito.verify(adapter)
@@ -1521,7 +1520,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", token));
 
-    Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     Mockito.verify(adapter)
         .execute(
@@ -1614,7 +1613,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .untilAsserted(
             () -> {
               // use the exchanged catalog token
-              Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
+              Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table")))
+                  .isFalse();
 
               // call client credentials with no initial auth
               Mockito.verify(adapter)

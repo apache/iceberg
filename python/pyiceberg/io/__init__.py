@@ -77,13 +77,13 @@ class InputStream(Protocol):
         ...
 
     def __enter__(self) -> InputStream:
-        ...
+        """Provides setup when opening an InputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        ...
+        """Performs cleanup when exiting the scope of a 'with' statement."""
 
 
 @runtime_checkable
@@ -104,13 +104,13 @@ class OutputStream(Protocol):  # pragma: no cover
 
     @abstractmethod
     def __enter__(self) -> OutputStream:
-        ...
+        """Provides setup when opening an OutputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        ...
+        """Performs cleanup when exiting the scope of a 'with' statement."""
 
 
 class InputFile(ABC):

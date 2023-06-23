@@ -46,6 +46,7 @@ class DataFileContent(int, Enum):
     EQUALITY_DELETES = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DataFileContent class."""
         return f"DataFileContent.{self.name}"
 
 
@@ -54,6 +55,7 @@ class ManifestContent(int, Enum):
     DELETES = 1
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestContent class."""
         return f"ManifestContent.{self.name}"
 
 
@@ -63,6 +65,7 @@ class ManifestEntryStatus(int, Enum):
     DELETED = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestEntryStatus class."""
         return f"ManifestEntryStatus.{self.name}"
 
 
@@ -72,6 +75,7 @@ class FileFormat(str, Enum):
     ORC = "ORC"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
 
@@ -179,6 +183,7 @@ class DataFile(Record):
     spec_id: Optional[int]
 
     def __setattr__(self, name: str, value: Any) -> None:
+        """Used for assigning a key/value to a DataFile."""
         # The file_format is written as a string, so we need to cast it to the Enum
         if name == "file_format":
             value = FileFormat[value]
@@ -186,6 +191,17 @@ class DataFile(Record):
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
+
+    def __hash__(self) -> int:
+        """Returns the hash of the file path."""
+        return hash(self.file_path)
+
+    def __eq__(self, other: Any) -> bool:
+        """Compares the datafile with another object.
+
+        If it is a datafile, it will compare based on the file_path.
+        """
+        return self.file_path == other.file_path if isinstance(other, DataFile) else False
 
 
 MANIFEST_ENTRY_SCHEMA = Schema(
@@ -244,6 +260,10 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+POSITIONAL_DELETE_SCHEMA = Schema(
+    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
+)
+
 
 class ManifestFile(Record):
     manifest_path: str
@@ -264,6 +284,12 @@ class ManifestFile(Record):
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+
+    def has_added_files(self) -> bool:
+        return self.added_files_count is None or self.added_files_count > 0
+
+    def has_existing_files(self) -> bool:
+        return self.existing_files_count is None or self.existing_files_count > 0
 
     def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
         """

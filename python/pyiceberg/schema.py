@@ -88,15 +88,19 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self) -> str:
+        """Returns the string representation of the Schema class."""
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Schema class."""
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the Literal class."""
         return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Schema class."""
         if not other:
             return False
 
@@ -681,9 +685,11 @@ class Accessor:
     inner: Optional["Accessor"] = None
 
     def __str__(self) -> str:
+        """Returns the string representation of the Accessor class."""
         return f"Accessor(position={self.position},inner={self.inner})"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Accessor class."""
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:

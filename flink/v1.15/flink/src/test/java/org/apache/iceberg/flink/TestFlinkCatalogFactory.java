@@ -43,7 +43,7 @@ public class TestFlinkCatalogFactory {
   }
 
   @Test
-  public void testCreateCreateCatalogHive() {
+  public void testCreateCatalogHive() {
     String catalogName = "hiveCatalog";
     props.put(
         FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HIVE);
@@ -56,7 +56,7 @@ public class TestFlinkCatalogFactory {
   }
 
   @Test
-  public void testCreateCreateCatalogHadoop() {
+  public void testCreateCatalogHadoop() {
     String catalogName = "hadoopCatalog";
     props.put(
         FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP);
@@ -69,7 +69,7 @@ public class TestFlinkCatalogFactory {
   }
 
   @Test
-  public void testCreateCreateCatalogCustom() {
+  public void testCreateCatalogCustom() {
     String catalogName = "customCatalog";
     props.put(CatalogProperties.CATALOG_IMPL, CustomHadoopCatalog.class.getName());
 
@@ -81,7 +81,7 @@ public class TestFlinkCatalogFactory {
   }
 
   @Test
-  public void testCreateCreateCatalogCustomWithHiveCatalogTypeSet() {
+  public void testCreateCatalogCustomWithHiveCatalogTypeSet() {
     String catalogName = "customCatalog";
     props.put(CatalogProperties.CATALOG_IMPL, CustomHadoopCatalog.class.getName());
     props.put(

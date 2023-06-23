@@ -1041,6 +1041,7 @@ class LocalOutputFile(OutputFile):
         self._path = parsed_location.path
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the LocalOutputFile class."""
         return os.path.getsize(self._path)
 
     def exists(self) -> bool:

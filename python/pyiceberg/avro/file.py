@@ -104,12 +104,14 @@ class Block(Generic[D]):
     position: int = 0
 
     def __iter__(self) -> Block[D]:
+        """Returns an iterator for the Block class."""
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
     def __next__(self) -> D:
+        """Returns the next item when iterating over the Block class."""
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
@@ -161,9 +163,11 @@ class AvroFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
+        """Performs cleanup when exiting the scope of a 'with' statement."""
         self.input_stream.close()
 
     def __iter__(self) -> AvroFile[D]:
+        """Returns an iterator for the AvroFile class."""
         return self
 
     def _read_block(self) -> int:
@@ -185,6 +189,7 @@ class AvroFile(Generic[D]):
         return block_records
 
     def __next__(self) -> D:
+        """Returns the next item when iterating over the AvroFile class."""
         if self.block and self.block.has_next():
             return next(self.block)
 

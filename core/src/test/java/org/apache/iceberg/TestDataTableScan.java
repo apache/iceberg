@@ -25,6 +25,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -124,11 +125,10 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a ref for scanning when a snapshot is set",
-        IllegalArgumentException.class,
-        "Cannot override ref, already set snapshot id=1",
-        () -> table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).useRef("tagB"));
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).useRef("tagB"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override ref, already set snapshot id=1");
   }
 
   @Test
@@ -138,11 +138,10 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a snapshot for scanning when a ref is set",
-        IllegalArgumentException.class,
-        "Cannot override snapshot, already set snapshot id=2",
-        () -> table.newScan().useRef("tagB").useSnapshot(snapshotA.snapshotId()));
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useRef("tagB").useSnapshot(snapshotA.snapshotId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override snapshot, already set snapshot id=2");
   }
 
   @Test
@@ -152,11 +151,11 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
         .manageSnapshots()
         .createBranch("testBranch", table.currentSnapshot().snapshotId())
         .commit();
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a snapshot for scanning when a ref is set",
-        IllegalArgumentException.class,
-        "Cannot override snapshot, already set snapshot id=1",
-        () -> table.newScan().useRef("testBranch").asOfTime(System.currentTimeMillis()));
+
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useRef("testBranch").asOfTime(System.currentTimeMillis()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override snapshot, already set snapshot id=1");
   }
 
   @Test
@@ -166,20 +165,16 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use multiple refs",
-        IllegalArgumentException.class,
-        "Cannot override ref, already set snapshot id=2",
-        () -> table.newScan().useRef("tagB").useRef("tagA"));
+    Assertions.assertThatThrownBy(() -> table.newScan().useRef("tagB").useRef("tagA"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override ref, already set snapshot id=2");
   }
 
   @Test
   public void testSettingInvalidRefFails() {
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use an invalid ref for scanning",
-        IllegalArgumentException.class,
-        "Cannot find ref nonexisting",
-        () -> table.newScan().useRef("nonexisting"));
+    Assertions.assertThatThrownBy(() -> table.newScan().useRef("nonexisting"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref nonexisting");
   }
 
   private void validateExpectedFileScanTasks(
