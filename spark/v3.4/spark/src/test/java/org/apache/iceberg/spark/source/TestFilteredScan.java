@@ -56,13 +56,13 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
+import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
@@ -209,7 +209,7 @@ public class TestFilteredScan {
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
-      pushFilters(builder, EqualTo.apply("id", i));
+      pushFilters(builder, EqualTo.apply("id", i).toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] partitions = scan.planInputPartitions();
@@ -239,7 +239,7 @@ public class TestFilteredScan {
 
         pushFilters(
             builder,
-            EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+            EqualTo.apply("ID", i).toV2()); // note lower(ID) == lower(id), so there must be a match
         Batch scan = builder.build().toBatch();
 
         InputPartition[] tasks = scan.planInputPartitions();
@@ -265,7 +265,7 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+    pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00").toV2());
     Batch scan = builder.build().toBatch();
 
     InputPartition[] tasks = scan.planInputPartitions();
@@ -295,7 +295,7 @@ public class TestFilteredScan {
       SparkScanBuilder builder =
           new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(builder, EqualTo.apply("id", i));
+      pushFilters(builder, EqualTo.apply("id", i).toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
@@ -325,7 +325,7 @@ public class TestFilteredScan {
       SparkScanBuilder builder =
           new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00").toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
@@ -345,8 +345,9 @@ public class TestFilteredScan {
       pushFilters(
           builder,
           And.apply(
-              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+                  GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+                  LessThan.apply("ts", "2017-12-22T08:00:00+00:00"))
+              .toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
@@ -380,7 +381,7 @@ public class TestFilteredScan {
       SparkScanBuilder builder =
           new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00").toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
@@ -400,8 +401,9 @@ public class TestFilteredScan {
       pushFilters(
           builder,
           And.apply(
-              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+                  GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+                  LessThan.apply("ts", "2017-12-22T08:00:00+00:00"))
+              .toV2());
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
@@ -470,7 +472,7 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(builder, new StringStartsWith("data", "junc"));
+    pushFilters(builder, new StringStartsWith("data", "junc").toV2());
     Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(1, scan.planInputPartitions().length);
@@ -486,7 +488,7 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
+    pushFilters(builder, new Not(new StringStartsWith("data", "junc")).toV2());
     Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(9, scan.planInputPartitions().length);
@@ -502,7 +504,7 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(builder, new StringStartsWith("data", "junc"));
+    pushFilters(builder, new StringStartsWith("data", "junc").toV2());
     Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(1, scan.planInputPartitions().length);
@@ -518,7 +520,7 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
+    pushFilters(builder, new Not(new StringStartsWith("data", "junc")).toV2());
     Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(9, scan.planInputPartitions().length);
@@ -600,10 +602,10 @@ public class TestFilteredScan {
     return expected;
   }
 
-  private void pushFilters(ScanBuilder scan, Filter... filters) {
-    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownFilters.class);
-    SupportsPushDownFilters filterable = (SupportsPushDownFilters) scan;
-    filterable.pushFilters(filters);
+  private void pushFilters(ScanBuilder scan, Predicate... predicates) {
+    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
+    SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
+    filterable.pushPredicates(predicates);
   }
 
   private Table buildPartitionedTable(
