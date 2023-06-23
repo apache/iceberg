@@ -85,9 +85,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.assertj.core.api.Assertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Test cases for {@link ArrowReader}.
@@ -126,13 +126,16 @@ public class ArrowReaderTest {
           "uuid_nullable",
           "decimal",
           "decimal_nullable");
-
-  @Rule public final TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File tempDir;
 
   private HadoopTables tables;
-
   private String tableLocation;
   private List<GenericRecord> rowsWritten;
+
+  @BeforeEach
+  public void before() {
+    tableLocation = tempDir.toURI().toString();
+  }
 
   /**
    * Read all rows and columns from the table without any filter. The test asserts that the Arrow
@@ -224,7 +227,7 @@ public class ArrowReaderTest {
         numRoots++;
       }
     }
-    assertThat(numRoots).isEqualTo(0);
+    assertThat(numRoots).isZero();
   }
 
   /**
@@ -666,7 +669,7 @@ public class ArrowReaderTest {
   private void writeTable(boolean constantRecords) throws Exception {
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
-    tableLocation = temp.newFolder("test").toString();
+    tableLocation = tempDir.toURI().toString();
 
     Schema schema =
         new Schema(
@@ -870,7 +873,7 @@ public class ArrowReaderTest {
 
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
     rowsWritten.addAll(records);
-    File parquetFile = temp.newFile();
+    File parquetFile = File.createTempFile("junit", null, tempDir);
     assertThat(parquetFile.delete()).isTrue();
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
