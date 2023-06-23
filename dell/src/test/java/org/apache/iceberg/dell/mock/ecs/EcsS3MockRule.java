@@ -72,7 +72,7 @@ public class EcsS3MockRule implements TestRule {
   /** Load rule from thread local and check bucket */
   public static EcsS3MockRule rule(String id) {
     EcsS3MockRule rule = TEST_RULE_FOR_MOCK_CLIENT.get();
-    assertThat(rule != null && rule.bucket().equals(id)).as("Test Rule must match id").isTrue();
+    assertThat(rule).isNotNull().extracting(EcsS3MockRule::bucket).isEqualTo(id);
     return rule;
   }
 

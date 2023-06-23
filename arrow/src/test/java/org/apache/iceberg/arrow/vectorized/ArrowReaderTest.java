@@ -351,7 +351,7 @@ public class ArrowReaderTest {
         // Call hasNext() a few extra times.
         // This should not affect the total number of rows read.
         for (int i = 0; i < numExtraCallsToHasNext; i++) {
-          assertThat(iterator.hasNext()).isTrue();
+          assertThat(iterator).hasNext();
         }
 
         ColumnarBatch batch = iterator.next();
