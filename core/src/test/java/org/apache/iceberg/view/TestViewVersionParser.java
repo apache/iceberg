@@ -122,6 +122,17 @@ public class TestViewVersionParser {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version summary, missing operation");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .timestampMillis(12345)
+                    .schemaId(1)
+                    .summary(ImmutableMap.of("operation", "random-op"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid operation. Must be create or replace but was: random-op");
   }
 
   @Test

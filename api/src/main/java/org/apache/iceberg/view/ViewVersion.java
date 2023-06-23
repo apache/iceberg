@@ -78,5 +78,10 @@ public interface ViewVersion {
   default void check() {
     Preconditions.checkArgument(
         summary().containsKey("operation"), "Invalid view version summary, missing operation");
+    String operation = summary().get("operation");
+    Preconditions.checkArgument(
+        "create".equals(operation) || "replace".equals(operation),
+        "Invalid operation. Must be create or replace but was: %s",
+        operation);
   }
 }
