@@ -43,7 +43,7 @@ public class DecimalVectorUtilTest {
     byte[] bytes = bigInt.toByteArray();
     byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
 
-    assertThat(paddedBytes.length).isEqualTo(16);
+    assertThat(paddedBytes).hasSize(16);
     BigInteger result = new BigInteger(paddedBytes);
     assertThat(result).isEqualTo(bigInt);
   }
