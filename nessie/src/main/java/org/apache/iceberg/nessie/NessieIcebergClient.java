@@ -26,7 +26,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -35,7 +38,9 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
@@ -522,5 +527,50 @@ public class NessieIcebergClient implements AutoCloseable {
     if (null != api) {
       api.close();
     }
+  }
+
+  public TableMetadata loadTableMetadataWithNessieSpecificProperties(
+      String metadataLocation, IcebergTable table, FileIO fileIO, String identifier) {
+    // Update the TableMetadata with the Content of NessieTableState.
+    TableMetadata deserialized = TableMetadataParser.read(fileIO, metadataLocation);
+    Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
+    newProperties.put(NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, getRef().getHash());
+    // To prevent accidental deletion of files that are still referenced by other branches/tags,
+    // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
+    // remove_orphan_files, drop_table with purge will fail with an error.
+    // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
+    // files.
+    newProperties.put(TableProperties.GC_ENABLED, "false");
+
+    boolean metadataCleanupEnabled =
+        newProperties
+            .getOrDefault(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false")
+            .equalsIgnoreCase("true");
+    if (metadataCleanupEnabled) {
+      newProperties.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false");
+      LOG.warn(
+          "Automatic table metadata files cleanup was requested, but disabled because "
+              + "the Nessie catalog can use historical metadata files from other references. "
+              + "Use the 'nessie-gc' tool for history-aware GC");
+    }
+
+    TableMetadata.Builder builder =
+        TableMetadata.buildFrom(deserialized)
+            .setPreviousFileLocation(null)
+            .setCurrentSchema(table.getSchemaId())
+            .setDefaultSortOrder(table.getSortOrderId())
+            .setDefaultPartitionSpec(table.getSpecId())
+            .withMetadataLocation(metadataLocation)
+            .setProperties(newProperties);
+    if (table.getSnapshotId() != -1) {
+      builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
+    }
+    LOG.info(
+        "loadTableMetadata for '{}' from location '{}' at '{}'",
+        identifier,
+        metadataLocation,
+        reference);
+
+    return builder.discardChanges().build();
   }
 }
