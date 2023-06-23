@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 public class TestJdbcUtil {
 

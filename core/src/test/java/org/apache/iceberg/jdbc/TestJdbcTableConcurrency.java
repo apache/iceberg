@@ -22,7 +22,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,8 +45,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestJdbcTableConcurrency {
 
@@ -56,12 +57,13 @@ public class TestJdbcTableConcurrency {
       new Schema(
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
-
-  @TempDir private File tableDir;
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  File tableDir;
 
   @Test
   public synchronized void testConcurrentFastAppends() throws IOException {
     Map<String, String> properties = Maps.newHashMap();
+    this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentFastAppend.db";
     properties.put(CatalogProperties.URI, sqliteDb);
@@ -106,12 +108,13 @@ public class TestJdbcTableConcurrency {
             });
 
     icebergTable.refresh();
-    assertThat(icebergTable.currentSnapshot().allManifests(icebergTable.io())).hasSize(20);
+    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests(icebergTable.io()).size());
   }
 
   @Test
   public synchronized void testConcurrentConnections() throws InterruptedException, IOException {
     Map<String, String> properties = Maps.newHashMap();
+    this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";
     properties.put(CatalogProperties.URI, sqliteDb);
@@ -146,7 +149,7 @@ public class TestJdbcTableConcurrency {
     }
 
     executorService.shutdown();
-    assertThat(executorService.awaitTermination(3, TimeUnit.MINUTES)).as("Timeout").isTrue();
-    assertThat(Iterables.size(icebergTable.snapshots())).isEqualTo(7);
+    Assert.assertTrue("Timeout", executorService.awaitTermination(3, TimeUnit.MINUTES));
+    Assert.assertEquals(7, Iterables.size(icebergTable.snapshots()));
   }
 }
