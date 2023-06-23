@@ -303,7 +303,7 @@ public class SparkV2Filters {
   private static <T> UnboundPredicate<T> handleComparePredicate(
       Predicate predicate,
       BiFunction<UnboundTerm<T>, T, UnboundPredicate<T>> refAndLiteralFunc,
-      BiFunction<T, UnboundTerm<T>, UnboundPredicate<T>> LiteralAndRefFunc) {
+      BiFunction<T, UnboundTerm<T>, UnboundPredicate<T>> literalAndRefFunc) {
     if (couldConvert(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
       UnboundTerm<T> term = toTerm(leftChild(predicate));
       if (term == null) {
@@ -317,7 +317,7 @@ public class SparkV2Filters {
         return null;
       }
 
-      return LiteralAndRefFunc.apply(convertLiteral(leftChild(predicate)), term);
+      return literalAndRefFunc.apply(convertLiteral(leftChild(predicate)), term);
     } else {
       return null;
     }
