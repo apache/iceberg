@@ -98,15 +98,15 @@ public class ArrowSchemaUtilTest {
                 MapType.ofOptional(
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
-    assertThat(arrow.getFields().size()).isEqualTo(iceberg.columns().size());
+   assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
   }
 
   private void validate(Schema iceberg, org.apache.arrow.vector.types.pojo.Schema arrow) {
-    assertThat(arrow.getFields().size()).isEqualTo(iceberg.columns().size());
+    assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
 
     for (Types.NestedField nf : iceberg.columns()) {
       Field field = arrow.findField(nf.name());
-      assertThat(field).as("Missing filed: " + nf).isNotNull();
+      assertThat(field).as("Missing field: " + nf).isNotNull();
       validate(nf.type(), field, nf.isOptional());
     }
   }
