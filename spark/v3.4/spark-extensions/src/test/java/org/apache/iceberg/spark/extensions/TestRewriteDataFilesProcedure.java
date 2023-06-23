@@ -185,6 +185,30 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithSortStrategyAndMultipleShufflePartitionsPerFile() {
+    createTable();
+    insertData(10 /* file count */);
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + " table => '%s', "
+                + " strategy => 'sort', "
+                + " sort_order => 'c1', "
+                + " options => map('shuffle-partitions-per-file', '2'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testRewriteDataFilesWithZOrder() {
     createTable();
     // create 10 files under non-partitioned table
@@ -206,6 +230,43 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    // Due to Z_order, the data written will be in the below order.
+    // As there is only one small output file, we can validate the query ordering (as it will not
+    // change).
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null));
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
+  }
+
+  @Test
+  public void testRewriteDataFilesWithZOrderAndMultipleShufflePartitionsPerFile() {
+    createTable();
+    insertData(10 /* file count */);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + " table => '%s', "
+                + "strategy => 'sort', "
+                + " sort_order => 'zorder(c1, c2)', "
+                + " options => map('shuffle-partitions-per-file', '2'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
 
     // Due to Z_order, the data written will be in the below order.
     // As there is only one small output file, we can validate the query ordering (as it will not
