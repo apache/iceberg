@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -140,12 +139,13 @@ public class TestOrcDataWriter {
     // When files other than HadoopInputFile and HadoopOutputFile are supplied the location
     // is used to determine the corresponding FileSystem class based on the scheme in case of
     // local files that would be the LocalFileSystem. To prevent this we use the Proxy classes to
-    // use a scheme `dummy` that is not handled.
+    // use a scheme `dummy` that is not handled. Note that Hadoop 2.7.3 throws IOException
+    // while latest Hadoop versions throw UnsupportedFileSystemException (extends IOException)
     ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
     Assertions.assertThatThrownBy(
             () -> new Path(outFile.location()).getFileSystem(new Configuration()))
-        .isInstanceOf(UnsupportedFileSystemException.class)
-        .hasMessageStartingWith("No FileSystem for scheme \"dummy\"");
+        .isInstanceOf(IOException.class)
+        .hasMessageStartingWith("No FileSystem for scheme");
 
     // Given that FileIO is now handled there is no determination of FileSystem based on scheme
     // but instead operations are handled by the InputFileSystem and OutputFileSystem that wrap
