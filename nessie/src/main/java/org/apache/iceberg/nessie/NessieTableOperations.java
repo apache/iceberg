@@ -119,8 +119,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         null,
         2,
         location ->
-            client.loadTableMetadataWithNessieSpecificProperties(
-                location, table, fileIO, key.toString()));
+            NessieUtil.loadTableMetadataWithNessieSpecificProperties(
+                location, table, fileIO, key.toString(), reference));
   }
 
   @Override
