@@ -39,7 +39,6 @@ import static org.apache.iceberg.expressions.Expressions.startsWith;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -160,22 +159,8 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
-          return handleEQPredicate(
-              predicate,
-              (uboundTerm, value) -> {
-                if (predicate.name().equals(EQ)) {
-                  // comparison with null in normal equality is always null. this is probably a
-                  // mistake.
-                  Preconditions.checkNotNull(
-                      value, "Expression is always false (eq is not null-safe): %s", predicate);
-                  return handleEqual(uboundTerm, value);
-                } else { // "<=>"
-                  return handleEqual(uboundTerm, value);
-                }
-              });
-
         case NOT_EQ:
-          return handleEQPredicate(predicate, SparkV2Filters::handleNotEqual);
+          return handleEQPredicate(predicate);
 
         case IN:
           if (isSupportedInPredicate(predicate)) {
@@ -245,10 +230,9 @@ public class SparkV2Filters {
     return null;
   }
 
-  private static <T> UnboundPredicate<T> handleEQPredicate(
-      Predicate predicate, BiFunction<UnboundTerm<T>, T, UnboundPredicate<T>> func) {
+  private static <T> UnboundPredicate<T> handleEQPredicate(Predicate predicate) {
     T value;
-    UnboundTerm<T> term = null;
+    UnboundTerm<T> term;
     if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
       term = ref(SparkUtil.toColumnName(leftChild(predicate)));
       value = convertLiteral(rightChild(predicate));
@@ -259,7 +243,18 @@ public class SparkV2Filters {
       return null;
     }
 
-    return func.apply(term, value);
+    if (NOT_EQ.equals(predicate.name())) {
+      return handleNotEqual(term, value);
+    }
+
+    if (EQ.equals(predicate.name())) {
+      // comparison with null in normal equality is always null. this is probably a
+      // mistake.
+      Preconditions.checkNotNull(
+          value, "Expression is always false (eq is not null-safe): %s", predicate);
+    }
+
+    return handleEqual(term, value);
   }
 
   private static <T> UnboundPredicate<T> handleEqual(UnboundTerm<T> attribute, T value) {
