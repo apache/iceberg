@@ -28,18 +28,24 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.NaNUtil;
@@ -57,6 +63,7 @@ public class SparkV2Filters {
   private static final String FALSE = "ALWAYS_FALSE";
   private static final String EQ = "=";
   private static final String EQ_NULL_SAFE = "<=>";
+  private static final String NOT_EQ = "<>";
   private static final String GT = ">";
   private static final String GT_EQ = ">=";
   private static final String LT = "<";
@@ -75,6 +82,7 @@ public class SparkV2Filters {
           .put(FALSE, Operation.FALSE)
           .put(EQ, Operation.EQ)
           .put(EQ_NULL_SAFE, Operation.EQ)
+          .put(NOT_EQ, Operation.NOT_EQ)
           .put(GT, Operation.GT)
           .put(GT_EQ, Operation.GT_EQ)
           .put(LT, Operation.LT)
@@ -152,30 +160,22 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
-          Object value;
-          String columnName;
-          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            columnName = SparkUtil.toColumnName(leftChild(predicate));
-            value = convertLiteral(rightChild(predicate));
-          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            columnName = SparkUtil.toColumnName(rightChild(predicate));
-            value = convertLiteral(leftChild(predicate));
-          } else {
-            return null;
-          }
+          return handleEQPredicate(
+              predicate,
+              (uboundTerm, value) -> {
+                if (predicate.name().equals(EQ)) {
+                  // comparison with null in normal equality is always null. this is probably a
+                  // mistake.
+                  Preconditions.checkNotNull(
+                      value, "Expression is always false (eq is not null-safe): %s", predicate);
+                  return handleEqual(uboundTerm, value);
+                } else { // "<=>"
+                  return handleEqual(uboundTerm, value);
+                }
+              });
 
-          if (predicate.name().equals(EQ)) {
-            // comparison with null in normal equality is always null. this is probably a mistake.
-            Preconditions.checkNotNull(
-                value, "Expression is always false (eq is not null-safe): %s", predicate);
-            return handleEqual(columnName, value);
-          } else { // "<=>"
-            if (value == null) {
-              return isNull(columnName);
-            } else {
-              return handleEqual(columnName, value);
-            }
-          }
+        case NOT_EQ:
+          return handleEQPredicate(predicate, SparkV2Filters::handleNotEqual);
 
         case IN:
           if (isSupportedInPredicate(predicate)) {
@@ -245,6 +245,47 @@ public class SparkV2Filters {
     return null;
   }
 
+  private static <T> UnboundPredicate<T> handleEQPredicate(
+      Predicate predicate, BiFunction<UnboundTerm<T>, T, UnboundPredicate<T>> func) {
+    T value;
+    UnboundTerm<T> term = null;
+    if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+      term = ref(SparkUtil.toColumnName(leftChild(predicate)));
+      value = convertLiteral(rightChild(predicate));
+    } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+      term = ref(SparkUtil.toColumnName(rightChild(predicate)));
+      value = convertLiteral(leftChild(predicate));
+    } else {
+      return null;
+    }
+
+    return func.apply(term, value);
+  }
+
+  private static <T> UnboundPredicate<T> handleEqual(UnboundTerm<T> attribute, T value) {
+    if (value == null) {
+      return isNull(attribute);
+    }
+
+    if (NaNUtil.isNaN(value)) {
+      return isNaN(attribute);
+    } else {
+      return equal(attribute, value);
+    }
+  }
+
+  private static <T> UnboundPredicate<T> handleNotEqual(UnboundTerm<T> attribute, T value) {
+    if (value == null) {
+      return notNull(attribute);
+    }
+
+    if (NaNUtil.isNaN(value)) {
+      return notNaN(attribute);
+    } else {
+      return notEqual(attribute, value);
+    }
+  }
+
   @SuppressWarnings("unchecked")
   private static <T> T child(Predicate predicate) {
     org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
@@ -282,19 +323,12 @@ public class SparkV2Filters {
     return expr instanceof Literal;
   }
 
-  private static Object convertLiteral(Literal<?> literal) {
+  @SuppressWarnings("unchecked")
+  private static <T> T convertLiteral(Literal<?> literal) {
     if (literal.value() instanceof UTF8String) {
-      return ((UTF8String) literal.value()).toString();
+      return (T) ((UTF8String) literal.value()).toString();
     }
-    return literal.value();
-  }
-
-  private static Expression handleEqual(String attribute, Object value) {
-    if (NaNUtil.isNaN(value)) {
-      return isNaN(attribute);
-    } else {
-      return equal(attribute, value);
-    }
+    return (T) literal.value();
   }
 
   private static boolean hasNoInFilter(Predicate predicate) {

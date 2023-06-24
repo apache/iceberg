@@ -39,6 +39,7 @@ import org.junit.Test;
 
 public class TestSparkV2Filters {
 
+  @SuppressWarnings("checkstyle:MethodLength")
   @Test
   public void testV2Filters() {
     Map<String, String> attrMap = Maps.newHashMap();
@@ -127,6 +128,18 @@ public class TestSparkV2Filters {
           Expression expectedEq2 = Expressions.equal(unquoted, 1);
           Expression actualEq2 = SparkV2Filters.convert(eq2);
           Assert.assertEquals("EqualTo must match", expectedEq2.toString(), actualEq2.toString());
+
+          Predicate notEq1 = new Predicate("<>", attrAndValue);
+          Expression expectedNotEq1 = Expressions.notEqual(unquoted, 1);
+          Expression actualNotEq1 = SparkV2Filters.convert(notEq1);
+          Assert.assertEquals(
+              "NotEqualTo must match", expectedNotEq1.toString(), actualNotEq1.toString());
+
+          Predicate notEq2 = new Predicate("<>", valueAndAttr);
+          Expression expectedNotEq2 = Expressions.notEqual(unquoted, 1);
+          Expression actualNotEq2 = SparkV2Filters.convert(notEq2);
+          Assert.assertEquals(
+              "NotEqualTo must match", expectedNotEq2.toString(), actualNotEq2.toString());
 
           Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
           Expression expectedEqNullSafe1 = Expressions.equal(unquoted, 1);
