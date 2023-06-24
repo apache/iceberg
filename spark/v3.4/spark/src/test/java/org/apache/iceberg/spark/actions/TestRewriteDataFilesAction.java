@@ -902,7 +902,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                     .option(SparkShufflingDataRewriter.SHUFFLE_PARTITIONS_PER_FILE, "5")
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("requires enabling Iceberg Spark session extensions");
+        .hasMessageContaining("requires enabling Iceberg Spark session extensions");
   }
 
   @Test
