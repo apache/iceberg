@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+import static org.apache.iceberg.spark.SparkTableUtil.wapBranch;
+import static org.apache.iceberg.spark.SparkTableUtil.wapEnabled;
 
 import java.io.IOException;
 import java.util.Map;
@@ -371,6 +373,10 @@ public class SparkTable
             .newDelete()
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
+
+    if (wapEnabled(table())) {
+      branch = wapBranch(sparkSession(), branch);
+    }
 
     if (branch != null) {
       deleteFiles.toBranch(branch);
