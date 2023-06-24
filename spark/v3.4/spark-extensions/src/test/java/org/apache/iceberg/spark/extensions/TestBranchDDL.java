@@ -203,13 +203,13 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
-        "mismatched input",
+        "no viable alternative at input '<EOF>'",
         () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName));
 
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
-        "mismatched input",
+        "no viable alternative at input 'abc'",
         () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"));
 
     AssertHelpers.assertThrows(
@@ -266,7 +266,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Non-conforming branch name",
         IcebergParseException.class,
-        "mismatched input '123'",
+        "no viable alternative at input '123'",
         () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"));
   }
 

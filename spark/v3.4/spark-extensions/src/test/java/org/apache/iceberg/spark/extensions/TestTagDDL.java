@@ -98,7 +98,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
-        "mismatched input",
+        "no viable alternative at input '<EOF>'",
         () ->
             sql(
                 "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
@@ -107,7 +107,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
-        "mismatched input",
+        "no viable alternative at input 'abc'",
         () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"));
 
     AssertHelpers.assertThrows(
@@ -158,7 +158,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Non-conforming tag name",
         IcebergParseException.class,
-        "mismatched input '123'",
+        "no viable alternative at input '123'",
         () -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"));
 
     table.manageSnapshots().removeTag(tagName).commit();
@@ -317,7 +317,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Non-conforming tag name",
         IcebergParseException.class,
-        "mismatched input '123'",
+        "no viable alternative at input '123'",
         () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"));
   }
 
