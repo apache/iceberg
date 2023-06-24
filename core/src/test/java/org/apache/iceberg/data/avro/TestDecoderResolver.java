@@ -140,15 +140,15 @@ public class TestDecoderResolver {
   }
 
   private void checkCached(Schema readSchema, Schema fileSchema) {
-    assertThat(DecoderResolver.DECODER_CACHES.get().containsKey(readSchema)).isTrue();
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema).containsKey(fileSchema))
-        .isTrue();
+    assertThat(DecoderResolver.DECODER_CACHES.get()).containsKey(readSchema);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema)).containsKey(fileSchema);
   }
 
   private int getActualSize() {
     // The size of keys included the GCed keys
     Set<Schema> keys = DecoderResolver.DECODER_CACHES.get().keySet();
     Set<Schema> identityKeys = Sets.newIdentityHashSet();
+    // Forcefully remove keys that have been garbage collected
     identityKeys.addAll(keys);
     return identityKeys.size();
   }
