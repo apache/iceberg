@@ -171,18 +171,18 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   @Test
   public void testUnpartitioned() throws IOException {
-    initTable(false);
+    createAndInitTable(false);
     testCdcEvents(false);
   }
 
   @Test
   public void testPartitioned() throws IOException {
-    initTable(true);
+    createAndInitTable(true);
     testCdcEvents(true);
   }
 
   private void testWritePureEqDeletes(boolean partitioned) throws IOException {
-    initTable(partitioned);
+    createAndInitTable(partitioned);
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
@@ -211,7 +211,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
   }
 
   private void testAbort(boolean partitioned) throws IOException {
-    initTable(partitioned);
+    createAndInitTable(partitioned);
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
@@ -254,7 +254,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   @Test
   public void testPartitionedTableWithDataAsKey() throws IOException {
-    initTable(true);
+    createAndInitTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
@@ -299,7 +299,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   @Test
   public void testPartitionedTableWithDataAndIdAsKey() throws IOException {
-    initTable(true);
+    createAndInitTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId(), idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
@@ -335,7 +335,8 @@ public class TestDeltaTaskWriter extends TableTestBase {
                 new RowType.RowField("id", new IntType()),
                 new RowType.RowField("ts", new LocalZonedTimestampType(3))));
 
-    initTable(create(tableSchema, PartitionSpec.unpartitioned()));
+    this.table = create(tableSchema, PartitionSpec.unpartitioned());
+    initTable(table);
 
     List<Integer> equalityIds = ImmutableList.of(table.schema().findField("ts").fieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(flinkType, equalityIds);
@@ -343,12 +344,19 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
     RowDataSerializer serializer = new RowDataSerializer(flinkType);
-
     OffsetDateTime start = OffsetDateTime.now();
-    writer.write(createBinaryRowData(serializer, RowKind.INSERT, 1, start));
-    writer.write(createBinaryRowData(serializer, RowKind.INSERT, 2, start.plusSeconds(1)));
-
-    writer.write(createBinaryRowData(serializer, RowKind.DELETE, 2, start.plusSeconds(1)));
+    writer.write(
+        serializer.toBinaryRow(
+            GenericRowData.ofKind(
+                RowKind.INSERT, 1, TimestampData.fromInstant(start.toInstant()))));
+    writer.write(
+        serializer.toBinaryRow(
+            GenericRowData.ofKind(
+                RowKind.INSERT, 2, TimestampData.fromInstant(start.plusSeconds(1).toInstant()))));
+    writer.write(
+        serializer.toBinaryRow(
+            GenericRowData.ofKind(
+                RowKind.DELETE, 2, TimestampData.fromInstant(start.plusSeconds(1).toInstant()))));
 
     WriteResult result = writer.complete();
     // One data file
@@ -410,7 +418,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
         true);
   }
 
-  private void initTable(boolean partitioned) {
+  private void createAndInitTable(boolean partitioned) {
     if (partitioned) {
       this.table = create(SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("data").build());
     } else {
@@ -421,18 +429,10 @@ public class TestDeltaTaskWriter extends TableTestBase {
   }
 
   private void initTable(TestTables.TestTable testTable) {
-    this.table = testTable;
-
-    table
+    testTable
         .updateProperties()
         .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8 * 1024))
         .defaultFormat(format)
         .commit();
-  }
-
-  private RowData createBinaryRowData(
-      RowDataSerializer serializer, RowKind rowKind, Integer id, OffsetDateTime ts) {
-    return serializer.toBinaryRow(
-        GenericRowData.ofKind(rowKind, id, TimestampData.fromInstant(ts.toInstant())));
   }
 }
