@@ -37,7 +37,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Rule;
@@ -106,19 +105,14 @@ public class TestWriteAborts extends SparkExtensionsTestBase {
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
 
     Assertions.assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 // incoming records are not ordered by partitions so the job must fail
                 inputDF
                     .coalesce(1)
                     .sortWithinPartitions("id")
                     .writeTo(tableName)
                     .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-                    .append();
-              } catch (NoSuchTableException e) {
-                throw new RuntimeException(e);
-              }
-            })
+                    .append())
         .isInstanceOf(SparkException.class)
         .hasMessageContaining("Encountered records that belong to already closed files");
 
