@@ -337,6 +337,7 @@ project(':iceberg-api') {
 project(':iceberg-common') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation 'org.junit.jupiter:junit-jupiter'
   }
 }
 
