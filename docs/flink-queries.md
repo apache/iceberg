@@ -195,7 +195,7 @@ IcebergSource source = IcebergSource.forRowData()
     .streaming(true)
     .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
     .monitorInterval(Duration.ofSeconds(60))
-    .build()
+    .build();
 
 DataStream<RowData> stream = env.fromSource(
     source,
