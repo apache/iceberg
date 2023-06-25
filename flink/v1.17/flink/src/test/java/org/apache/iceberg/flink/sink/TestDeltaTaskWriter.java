@@ -63,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -360,12 +361,14 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     WriteResult result = writer.complete();
     // One data file
-    Assert.assertEquals(1, result.dataFiles().length);
+    Assertions.assertThat(result.dataFiles().length).isEqualTo(1);
     // One eq delete file + one pos delete file
-    Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(
-        Sets.newHashSet(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES),
-        Arrays.stream(result.deleteFiles()).map(ContentFile::content).collect(Collectors.toSet()));
+    Assertions.assertThat(result.deleteFiles().length).isEqualTo(2);
+    Assertions.assertThat(
+            Arrays.stream(result.deleteFiles())
+                .map(ContentFile::content)
+                .collect(Collectors.toSet()))
+        .isEqualTo(Sets.newHashSet(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES));
     commitTransaction(result);
 
     Record expectedRecord = GenericRecord.create(tableSchema);
@@ -373,8 +376,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
     int cutPrecisionNano = start.getNano() / 1000000 * 1000000;
     expectedRecord.setField("ts", start.withNano(cutPrecisionNano));
 
-    Assert.assertEquals(
-        "Should have expected records", expectedRowSet(expectedRecord), actualRowSet("*"));
+    Assertions.assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedRecord));
   }
 
   private void commitTransaction(WriteResult result) {
