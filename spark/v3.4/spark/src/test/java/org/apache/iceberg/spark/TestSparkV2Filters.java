@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import org.apache.iceberg.DateTimeUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundTerm;
@@ -385,43 +386,48 @@ public class TestSparkV2Filters {
   }
 
   @Test
-  public void testYear() {
+  public void testYears() {
     ScalarFunction<Integer> dateToYear = new YearsFunction.DateToYearsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
             dateToYear.name(),
             dateToYear.canonicalName(),
             expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.year("col1"), 2021, DataTypes.IntegerType);
+    testUDF(udf, Expressions.year("col1"), DateTimeUtil.years("2023-06-25"), DataTypes.IntegerType);
   }
 
   @Test
-  public void testMonth() {
+  public void testMonths() {
     ScalarFunction<Integer> dateToMonth = new MonthsFunction.DateToMonthsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
             dateToMonth.name(),
             dateToMonth.canonicalName(),
             expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.month("col1"), 5, DataTypes.IntegerType);
+    testUDF(
+        udf, Expressions.month("col1"), DateTimeUtil.months("2023-06-25"), DataTypes.IntegerType);
   }
 
   @Test
-  public void testDay() {
+  public void testDays() {
     ScalarFunction<Integer> dateToDay = new DaysFunction.DateToDaysFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
             dateToDay.name(), dateToDay.canonicalName(), expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.day("col1"), 20, DataTypes.IntegerType);
+    testUDF(udf, Expressions.day("col1"), DateTimeUtil.days("2023-06-25"), DataTypes.IntegerType);
   }
 
   @Test
-  public void testHour() {
+  public void testHours() {
     ScalarFunction<Integer> tsToHour = new HoursFunction.TimestampToHoursFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
             tsToHour.name(), tsToHour.canonicalName(), expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.hour("col1"), 20, DataTypes.IntegerType);
+    testUDF(
+        udf,
+        Expressions.hour("col1"),
+        DateTimeUtil.hours("2023-06-25T13:15:30"),
+        DataTypes.IntegerType);
   }
 
   @Test

@@ -452,6 +452,7 @@ public class SparkV2Filters {
         if (isRef(udf.children()[0])) {
           return year(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
         }
+
         return null;
       case "months":
         Preconditions.checkArgument(
@@ -459,6 +460,7 @@ public class SparkV2Filters {
         if (isRef(udf.children()[0])) {
           return month(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
         }
+
         return null;
       case "days":
         Preconditions.checkArgument(
@@ -466,6 +468,7 @@ public class SparkV2Filters {
         if (isRef(udf.children()[0])) {
           return day(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
         }
+
         return null;
       case "hours":
         Preconditions.checkArgument(
@@ -473,6 +476,7 @@ public class SparkV2Filters {
         if (isRef(udf.children()[0])) {
           return hour(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
         }
+
         return null;
       case "bucket":
         Preconditions.checkArgument(
@@ -483,6 +487,7 @@ public class SparkV2Filters {
               SparkUtil.toColumnName((NamedReference) udf.children()[1]),
               convertLiteral((Literal<Integer>) udf.children()[0]));
         }
+
         return null;
       case "truncate":
         Preconditions.checkArgument(
@@ -493,6 +498,7 @@ public class SparkV2Filters {
               SparkUtil.toColumnName((NamedReference) udf.children()[1]),
               convertLiteral((Literal<Integer>) udf.children()[0]));
         }
+
         return null;
       default:
         return null;
