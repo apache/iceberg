@@ -98,7 +98,7 @@ public class ArrowSchemaUtilTest {
                 MapType.ofOptional(
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
-   assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
+    assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
   }
 
   private void validate(Schema iceberg, org.apache.arrow.vector.types.pojo.Schema arrow) {
