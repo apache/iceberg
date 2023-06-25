@@ -68,3 +68,8 @@ derby.log
 python/.mypy_cache/
 python/htmlcov
 python/coverage.xml
+
+# generated files
+api/src/main/generated/
+core/src/main/generated/
+hive-metastore/src/main/generated/
