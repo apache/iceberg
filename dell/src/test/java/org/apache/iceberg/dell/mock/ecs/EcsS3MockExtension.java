@@ -30,19 +30,18 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.iceberg.common.testutils.CustomExtension;
 import org.apache.iceberg.dell.DellClientFactories;
 import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.MockDellClientFactory;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
- * Mock rule of ECS S3 mock.
+ * Extension of ECS S3 mock.
  *
  * <p>Use environment parameter to specify use mock client or real client.
  */
-public class EcsS3MockRule implements TestRule {
+public class EcsS3MockExtension implements CustomExtension {
 
   /** Object ID generator */
   private static final AtomicInteger ID = new AtomicInteger(0);
@@ -59,43 +58,30 @@ public class EcsS3MockRule implements TestRule {
   private S3Client client;
   private boolean bucketCreated;
 
-  public static EcsS3MockRule create() {
-    return new EcsS3MockRule(true);
-  }
+  private static final ThreadLocal<EcsS3MockExtension> TEST_EXTENSION_FOR_MOCK_CLIENT =
+      new ThreadLocal<>();
 
-  public static EcsS3MockRule manualCreateBucket() {
-    return new EcsS3MockRule(false);
-  }
-
-  private static final ThreadLocal<EcsS3MockRule> TEST_RULE_FOR_MOCK_CLIENT = new ThreadLocal<>();
-
-  /** Load rule from thread local and check bucket */
-  public static EcsS3MockRule rule(String id) {
-    EcsS3MockRule rule = TEST_RULE_FOR_MOCK_CLIENT.get();
-    assertThat(rule).isNotNull().extracting(EcsS3MockRule::bucket).isEqualTo(id);
-    return rule;
-  }
-
-  public EcsS3MockRule(boolean autoCreateBucket) {
+  private EcsS3MockExtension(boolean autoCreateBucket) {
     this.autoCreateBucket = autoCreateBucket;
   }
 
-  @Override
-  public Statement apply(Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        initialize();
-        try {
-          base.evaluate();
-        } finally {
-          cleanUp();
-        }
-      }
-    };
+  public static EcsS3MockExtension create() {
+    return new EcsS3MockExtension(true);
   }
 
-  private void initialize() {
+  public static EcsS3MockExtension manualCreateBucket() {
+    return new EcsS3MockExtension(false);
+  }
+
+  /** Load rule from thread local and check bucket */
+  public static EcsS3MockExtension extension(String id) {
+    EcsS3MockExtension rule = TEST_EXTENSION_FOR_MOCK_CLIENT.get();
+    assertThat(rule).isNotNull().extracting(EcsS3MockExtension::bucket).isEqualTo(id);
+    return rule;
+  }
+
+  @Override
+  public void before(ExtensionContext context) {
     bucket = "test-" + UUID.randomUUID();
     if (System.getenv(DellProperties.ECS_S3_ENDPOINT) == null) {
       mock = true;
@@ -104,7 +90,7 @@ public class EcsS3MockRule implements TestRule {
       properties.put(MockDellClientFactory.ID_KEY, bucket);
       clientProperties = properties;
       client = new MockS3Client();
-      TEST_RULE_FOR_MOCK_CLIENT.set(this);
+      TEST_EXTENSION_FOR_MOCK_CLIENT.set(this);
     } else {
       mock = false;
       Map<String, String> properties = new LinkedHashMap<>();
@@ -122,10 +108,11 @@ public class EcsS3MockRule implements TestRule {
     }
   }
 
-  private void cleanUp() {
+  @Override
+  public void after(ExtensionContext context) {
     if (mock) {
       // clean up
-      TEST_RULE_FOR_MOCK_CLIENT.set(null);
+      TEST_EXTENSION_FOR_MOCK_CLIENT.set(null);
     } else {
       if (bucketCreated) {
         deleteBucket();

@@ -24,23 +24,26 @@ import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.common.testutils.PerClassCallbackWrapper;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestEcsAppendOutputStream {
+class TestEcsAppendOutputStream {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  static PerClassCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerClassCallbackWrapper<>(EcsS3MockExtension.create());
 
   @Test
-  public void testBaseObjectWrite() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testBaseObjectWrite() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     try (EcsAppendOutputStream output =
         EcsAppendOutputStream.createWithBufferSize(
-            rule.client(),
-            new EcsURI(rule.bucket(), objectName),
+            extensionWrapper.getExtension().client(),
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName),
             10,
             MetricsContext.nullMetrics())) {
       // write 1 byte
@@ -54,7 +57,11 @@ public class TestEcsAppendOutputStream {
     }
 
     try (InputStream input =
-        rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
+        extensionWrapper
+            .getExtension()
+            .client()
+            .readObjectStream(
+                extensionWrapper.getExtension().bucket(), objectName, Range.fromOffset(0))) {
       assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
           .as("Must write all the object content")
           .isEqualTo("1" + "123" + "1234567" + "12345678901");
@@ -62,12 +69,12 @@ public class TestEcsAppendOutputStream {
   }
 
   @Test
-  public void testRewrite() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testRewrite() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     try (EcsAppendOutputStream output =
         EcsAppendOutputStream.createWithBufferSize(
-            rule.client(),
-            new EcsURI(rule.bucket(), objectName),
+            extensionWrapper.getExtension().client(),
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName),
             10,
             MetricsContext.nullMetrics())) {
       // write 7 bytes
@@ -76,8 +83,8 @@ public class TestEcsAppendOutputStream {
 
     try (EcsAppendOutputStream output =
         EcsAppendOutputStream.createWithBufferSize(
-            rule.client(),
-            new EcsURI(rule.bucket(), objectName),
+            extensionWrapper.getExtension().client(),
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName),
             10,
             MetricsContext.nullMetrics())) {
       // write 14 bytes
@@ -86,7 +93,11 @@ public class TestEcsAppendOutputStream {
     }
 
     try (InputStream input =
-        rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
+        extensionWrapper
+            .getExtension()
+            .client()
+            .readObjectStream(
+                extensionWrapper.getExtension().bucket(), objectName, Range.fromOffset(0))) {
       assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
           .as("Must replace the object content")
           .isEqualTo("1234567" + "1234567");

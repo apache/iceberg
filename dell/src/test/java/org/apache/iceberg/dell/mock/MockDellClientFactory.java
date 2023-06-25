@@ -21,9 +21,9 @@ package org.apache.iceberg.dell.mock;
 import com.emc.object.s3.S3Client;
 import java.util.Map;
 import org.apache.iceberg.dell.DellClientFactory;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 
-/** Provide client which initialized by {@link EcsS3MockRule} */
+/** Provide client which initialized by {@link EcsS3MockExtension} */
 public class MockDellClientFactory implements DellClientFactory {
 
   public static final String ID_KEY = "mock.dell.client.factory.id";
@@ -33,7 +33,7 @@ public class MockDellClientFactory implements DellClientFactory {
 
   @Override
   public S3Client ecsS3() {
-    return EcsS3MockRule.rule(id).client();
+    return EcsS3MockExtension.extension(id).client();
   }
 
   @Override

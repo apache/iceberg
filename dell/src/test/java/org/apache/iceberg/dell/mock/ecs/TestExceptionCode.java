@@ -21,48 +21,69 @@ package org.apache.iceberg.dell.mock.ecs;
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.request.PutObjectRequest;
+import org.apache.iceberg.common.testutils.PerTestCallbackWrapper;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 /** Verify the error codes between real client and mock client. */
-public class TestExceptionCode {
+class TestExceptionCode {
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  PerTestCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerTestCallbackWrapper<>(EcsS3MockExtension.create());
 
   @Test
-  public void testExceptionCode() {
+  void testExceptionCode() {
     String object = "test";
     assertS3Exception(
         "Append absent object",
         404,
         "NoSuchKey",
-        () -> rule.client().appendObject(rule.bucket(), object, "abc".getBytes()));
+        () ->
+            extensionWrapper
+                .getExtension()
+                .client()
+                .appendObject(extensionWrapper.getExtension().bucket(), object, "abc".getBytes()));
     assertS3Exception(
         "Get object",
         404,
         "NoSuchKey",
-        () -> rule.client().readObjectStream(rule.bucket(), object, Range.fromOffset(0)));
+        () ->
+            extensionWrapper
+                .getExtension()
+                .client()
+                .readObjectStream(
+                    extensionWrapper.getExtension().bucket(), object, Range.fromOffset(0)));
 
-    rule.client().putObject(new PutObjectRequest(rule.bucket(), object, "abc".getBytes()));
+    extensionWrapper
+        .getExtension()
+        .client()
+        .putObject(
+            new PutObjectRequest(
+                extensionWrapper.getExtension().bucket(), object, "abc".getBytes()));
     assertS3Exception(
         "Put object with unexpect E-Tag",
         412,
         "PreconditionFailed",
         () -> {
-          PutObjectRequest request = new PutObjectRequest(rule.bucket(), object, "def".getBytes());
+          PutObjectRequest request =
+              new PutObjectRequest(
+                  extensionWrapper.getExtension().bucket(), object, "def".getBytes());
           request.setIfMatch("abc");
-          rule.client().putObject(request);
+          extensionWrapper.getExtension().client().putObject(request);
         });
     assertS3Exception(
         "Put object if absent",
         412,
         "PreconditionFailed",
         () -> {
-          PutObjectRequest request = new PutObjectRequest(rule.bucket(), object, "def".getBytes());
+          PutObjectRequest request =
+              new PutObjectRequest(
+                  extensionWrapper.getExtension().bucket(), object, "def".getBytes());
           request.setIfNoneMatch("*");
-          rule.client().putObject(request);
+          extensionWrapper.getExtension().client().putObject(request);
         });
   }
 

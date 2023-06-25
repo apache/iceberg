@@ -24,10 +24,10 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestEcsURI {
+class TestEcsURI {
 
   @Test
-  public void testConstructor() {
+  void testConstructor() {
     assertURI("bucket", "", new EcsURI("ecs://bucket"));
     assertURI("bucket", "", new EcsURI("ecs://bucket/"));
     assertURI("bucket", "", new EcsURI("ecs://bucket//"));
@@ -38,7 +38,7 @@ public class TestEcsURI {
   }
 
   @Test
-  public void testConstructorWithBucketAndName() {
+  void testConstructorWithBucketAndName() {
     assertURI("bucket", "", new EcsURI("bucket", ""));
     assertURI("bucket", "", new EcsURI("bucket", "/"));
     assertURI("bucket", "", new EcsURI("bucket", "//"));
@@ -54,7 +54,7 @@ public class TestEcsURI {
   }
 
   @Test
-  public void testInvalidLocation() {
+  void testInvalidLocation() {
     Assertions.assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid ecs location: http://bucket/a");

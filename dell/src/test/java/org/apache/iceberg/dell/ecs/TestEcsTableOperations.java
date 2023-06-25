@@ -28,23 +28,26 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.common.testutils.PerTestCallbackWrapper;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestEcsTableOperations {
+class TestEcsTableOperations {
 
   static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  PerTestCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerTestCallbackWrapper<>(EcsS3MockExtension.create());
 
   @Test
-  public void testConcurrentCommit() {
+  void testConcurrentCommit() {
     EcsCatalog catalog1 = createCatalog("test1");
     EcsCatalog catalog2 = createCatalog("test2");
 
@@ -72,8 +75,10 @@ public class TestEcsTableOperations {
   public EcsCatalog createCatalog(String name) {
     EcsCatalog ecsCatalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, new EcsURI(rule.bucket(), "").location());
-    properties.putAll(rule.clientProperties());
+    properties.put(
+        CatalogProperties.WAREHOUSE_LOCATION,
+        new EcsURI(extensionWrapper.getExtension().bucket(), "").location());
+    properties.putAll(extensionWrapper.getExtension().clientProperties());
     ecsCatalog.initialize(name, properties);
     return ecsCatalog;
   }

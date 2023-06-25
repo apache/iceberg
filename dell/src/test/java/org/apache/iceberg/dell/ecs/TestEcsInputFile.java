@@ -24,31 +24,42 @@ import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.common.testutils.PerClassCallbackWrapper;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestEcsInputFile {
+class TestEcsInputFile {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  static PerClassCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerClassCallbackWrapper<>(EcsS3MockExtension.create());
 
   @Test
-  public void testAbsentFile() {
-    String objectName = rule.randomObjectName();
+  void testAbsentFile() {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     EcsInputFile inputFile =
-        EcsInputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
+        EcsInputFile.fromLocation(
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName).toString(),
+            extensionWrapper.getExtension().client());
     assertThat(inputFile.exists()).as("File is absent").isFalse();
   }
 
   @Test
-  public void testFileRead() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testFileRead() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     EcsInputFile inputFile =
-        EcsInputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
+        EcsInputFile.fromLocation(
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName).toString(),
+            extensionWrapper.getExtension().client());
 
-    rule.client()
-        .putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+    extensionWrapper
+        .getExtension()
+        .client()
+        .putObject(
+            new PutObjectRequest(
+                extensionWrapper.getExtension().bucket(), objectName, "0123456789".getBytes()));
 
     assertThat(inputFile.exists()).as("File should exists").isTrue();
     assertThat(inputFile.getLength()).as("File length should be 10").isEqualTo(10);

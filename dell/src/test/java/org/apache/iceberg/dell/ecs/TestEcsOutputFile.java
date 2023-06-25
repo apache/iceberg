@@ -24,23 +24,28 @@ import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.common.testutils.PerClassCallbackWrapper;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.assertj.core.api.Assertions;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestEcsOutputFile {
+class TestEcsOutputFile {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  static PerClassCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerClassCallbackWrapper<>(EcsS3MockExtension.create());
 
   @Test
-  public void testFileWrite() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testFileWrite() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     EcsOutputFile outputFile =
-        EcsOutputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
+        EcsOutputFile.fromLocation(
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName).toString(),
+            extensionWrapper.getExtension().client());
 
     // File write
     try (PositionOutputStream output = outputFile.create()) {
@@ -48,7 +53,11 @@ public class TestEcsOutputFile {
     }
 
     try (InputStream input =
-        rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
+        extensionWrapper
+            .getExtension()
+            .client()
+            .readObjectStream(
+                extensionWrapper.getExtension().bucket(), objectName, Range.fromOffset(0))) {
       assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
           .as("File content is expected")
           .isEqualTo("1234567890");
@@ -56,10 +65,12 @@ public class TestEcsOutputFile {
   }
 
   @Test
-  public void testFileOverwrite() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testFileOverwrite() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     EcsOutputFile outputFile =
-        EcsOutputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
+        EcsOutputFile.fromLocation(
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName).toString(),
+            extensionWrapper.getExtension().client());
 
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes());
@@ -70,7 +81,11 @@ public class TestEcsOutputFile {
     }
 
     try (InputStream input =
-        rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
+        extensionWrapper
+            .getExtension()
+            .client()
+            .readObjectStream(
+                extensionWrapper.getExtension().bucket(), objectName, Range.fromOffset(0))) {
       assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
           .as("File content should be overwritten")
           .isEqualTo("abcdefghij");
@@ -78,10 +93,12 @@ public class TestEcsOutputFile {
   }
 
   @Test
-  public void testFileAlreadyExists() throws IOException {
-    String objectName = rule.randomObjectName();
+  void testFileAlreadyExists() throws IOException {
+    String objectName = extensionWrapper.getExtension().randomObjectName();
     EcsOutputFile outputFile =
-        EcsOutputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
+        EcsOutputFile.fromLocation(
+            new EcsURI(extensionWrapper.getExtension().bucket(), objectName).toString(),
+            extensionWrapper.getExtension().client());
 
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes());

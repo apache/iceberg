@@ -30,7 +30,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.common.testutils.PerTestCallbackWrapper;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockExtension;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -41,36 +42,39 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestEcsCatalog {
+class TestEcsCatalog {
 
   static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension
+  public PerTestCallbackWrapper<EcsS3MockExtension> extensionWrapper =
+      new PerTestCallbackWrapper<>(EcsS3MockExtension.create());
 
   private EcsCatalog ecsCatalog;
 
-  @Before
-  public void before() {
+  @BeforeEach
+  void before() {
     ecsCatalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, new EcsURI(rule.bucket(), "").location());
-    properties.putAll(rule.clientProperties());
+    properties.put(
+        CatalogProperties.WAREHOUSE_LOCATION,
+        new EcsURI(extensionWrapper.getExtension().bucket(), "").location());
+    properties.putAll(extensionWrapper.getExtension().clientProperties());
     ecsCatalog.initialize("test", properties);
   }
 
-  @After
-  public void after() throws IOException {
+  @AfterEach
+  void after() throws IOException {
     ecsCatalog.close();
   }
 
   @Test
-  public void testListTablesAndNamespaces() {
+  void testListTablesAndNamespaces() {
     ecsCatalog.createNamespace(Namespace.of("a"));
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createNamespace(Namespace.of("a", "b2"));
@@ -80,50 +84,44 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t4"), SCHEMA);
     ecsCatalog.createTable(TableIdentifier.of("a", "b1", "t5"), SCHEMA);
 
-    Assert.assertEquals(
-        "List namespaces with empty namespace",
-        ImmutableList.of(Namespace.of("a")),
-        ecsCatalog.listNamespaces());
-    Assert.assertEquals(
-        "List tables with empty namespace",
-        ImmutableList.of(TableIdentifier.of("t1"), TableIdentifier.of("t2")),
-        ecsCatalog.listTables(Namespace.empty()));
-    Assert.assertEquals(
-        "List namespaces in [a]",
-        ImmutableList.of(Namespace.of("a", "b1"), Namespace.of("a", "b2")),
-        ecsCatalog.listNamespaces(Namespace.of("a")));
-    Assert.assertEquals(
-        "List tables in [a]",
-        ImmutableList.of(TableIdentifier.of("a", "t3"), TableIdentifier.of("a", "t4")),
-        ecsCatalog.listTables(Namespace.of("a")));
+    Assertions.assertThat(ImmutableList.of(Namespace.of("a")))
+        .as("List namespaces with empty namespace")
+        .isEqualTo(ecsCatalog.listNamespaces());
+    Assertions.assertThat(ImmutableList.of(TableIdentifier.of("t1"), TableIdentifier.of("t2")))
+        .as("List tables with empty namespace")
+        .isEqualTo(ecsCatalog.listTables(Namespace.empty()));
+    Assertions.assertThat(ImmutableList.of(Namespace.of("a", "b1"), Namespace.of("a", "b2")))
+        .as("List namespaces in [a]")
+        .isEqualTo(ecsCatalog.listNamespaces(Namespace.of("a")));
+    Assertions.assertThat(
+            ImmutableList.of(TableIdentifier.of("a", "t3"), TableIdentifier.of("a", "t4")))
+        .as("List tables in [a]")
+        .isEqualTo(ecsCatalog.listTables(Namespace.of("a")));
   }
 
   @Test
-  public void testNamespaceProperties() {
+  void testNamespaceProperties() {
     ecsCatalog.createNamespace(Namespace.of("a"), ImmutableMap.of("a", "a"));
 
-    Assert.assertEquals(
-        "The initial properties",
-        ImmutableMap.of("a", "a"),
-        ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
+    Assertions.assertThat(ImmutableMap.of("a", "a"))
+        .as("The initial properties")
+        .isEqualTo(ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
     ecsCatalog.setProperties(Namespace.of("a"), ImmutableMap.of("b", "b"));
 
-    Assert.assertEquals(
-        "Update properties",
-        ImmutableMap.of("a", "a", "b", "b"),
-        ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
+    Assertions.assertThat(ImmutableMap.of("a", "a", "b", "b"))
+        .as("Update properties")
+        .isEqualTo(ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
     ecsCatalog.removeProperties(Namespace.of("a"), ImmutableSet.of("a"));
 
-    Assert.assertEquals(
-        "Remove properties",
-        ImmutableMap.of("b", "b"),
-        ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
+    Assertions.assertThat(ImmutableMap.of("b", "b"))
+        .as("Remove properties")
+        .isEqualTo(ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
   }
 
   @Test
-  public void testDropNamespace() {
+  void testDropNamespace() {
     ecsCatalog.createNamespace(Namespace.of("a"));
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
@@ -149,7 +147,7 @@ public class TestEcsCatalog {
   }
 
   @Test
-  public void testDropTable() {
+  void testDropTable() {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 
     assertThat(ecsCatalog.dropTable(TableIdentifier.of("unknown")))
@@ -160,7 +158,7 @@ public class TestEcsCatalog {
   }
 
   @Test
-  public void testRenameTable() {
+  void testRenameTable() {
     ecsCatalog.createNamespace(Namespace.of("a"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
     ecsCatalog.createNamespace(Namespace.of("b"));
@@ -190,7 +188,7 @@ public class TestEcsCatalog {
   }
 
   @Test
-  public void testRegisterTable() {
+  void testRegisterTable() {
     TableIdentifier identifier = TableIdentifier.of("a", "t1");
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
@@ -207,7 +205,7 @@ public class TestEcsCatalog {
   }
 
   @Test
-  public void testRegisterExistingTable() {
+  void testRegisterExistingTable() {
     TableIdentifier identifier = TableIdentifier.of("a", "t1");
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
