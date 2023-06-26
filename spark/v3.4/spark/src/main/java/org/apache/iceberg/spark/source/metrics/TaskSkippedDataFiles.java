@@ -31,7 +31,7 @@ public class TaskSkippedDataFiles implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return SkippedDataFiles.name;
+    return SkippedDataFiles.NAME;
   }
 
   @Override

@@ -22,11 +22,11 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class SkippedDataManifests extends CustomSumMetric {
 
-  static final String name = "skippedDataManifests";
+  static final String NAME = "skippedDataManifests";
 
   @Override
   public String name() {
-    return name;
+    return NAME;
   }
 
   @Override

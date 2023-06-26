@@ -31,7 +31,7 @@ public class TaskScannedDataManifests implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return ScannedDataManifests.name;
+    return ScannedDataManifests.NAME;
   }
 
   @Override

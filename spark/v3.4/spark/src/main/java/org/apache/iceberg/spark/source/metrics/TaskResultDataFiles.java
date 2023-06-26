@@ -31,7 +31,7 @@ public class TaskResultDataFiles implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return ResultDataFiles.name;
+    return ResultDataFiles.NAME;
   }
 
   @Override

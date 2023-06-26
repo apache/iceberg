@@ -22,11 +22,11 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class ResultDataFiles extends CustomSumMetric {
 
-  static final String name = "resultDataFiles";
+  static final String NAME = "resultDataFiles";
 
   @Override
   public String name() {
-    return name;
+    return NAME;
   }
 
   @Override

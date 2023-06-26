@@ -32,7 +32,7 @@ public class TaskTotalFileSize implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return TotalFileSize.name;
+    return TotalFileSize.NAME;
   }
 
   @Override

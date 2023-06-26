@@ -23,11 +23,11 @@ import org.apache.spark.sql.connector.metric.CustomMetric;
 
 public class TotalFileSize implements CustomMetric {
 
-  static final String name = "totalFileSize";
+  static final String NAME = "totalFileSize";
 
   @Override
   public String name() {
-    return name;
+    return NAME;
   }
 
   @Override

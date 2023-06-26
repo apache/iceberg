@@ -31,7 +31,7 @@ public class TaskSkippedDataManifests implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return SkippedDataManifests.name;
+    return SkippedDataManifests.NAME;
   }
 
   @Override

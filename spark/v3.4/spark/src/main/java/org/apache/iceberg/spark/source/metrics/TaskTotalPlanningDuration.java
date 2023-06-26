@@ -32,7 +32,7 @@ public class TaskTotalPlanningDuration implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return TotalPlanningDuration.name;
+    return TotalPlanningDuration.NAME;
   }
 
   @Override
