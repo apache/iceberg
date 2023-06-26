@@ -33,10 +33,12 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogFunction;
+import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogPartition;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
+import org.apache.flink.table.catalog.FunctionLanguage;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
@@ -69,6 +71,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.sink.PartitionTransformUdf;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -98,6 +101,8 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private final Map<ObjectPath, CatalogFunction> functions;
+  public static final String SYSTEM_DATABASE_NAME = "system";
 
   public FlinkCatalog(
       String catalogName,
@@ -110,6 +115,7 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
+    this.functions = Maps.newHashMap();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog =
@@ -128,6 +134,14 @@ public class FlinkCatalog extends AbstractCatalog {
     // Create the default database if it does not exist.
     try {
       createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
+      functions.put(
+          new ObjectPath(SYSTEM_DATABASE_NAME, PartitionTransformUdf.Bucket.FUNCTION_NAME),
+          new CatalogFunctionImpl(
+              PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
+      functions.put(
+          new ObjectPath(SYSTEM_DATABASE_NAME, PartitionTransformUdf.Truncate.FUNCTION_NAME),
+          new CatalogFunctionImpl(
+              PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
     } catch (DatabaseAlreadyExistException e) {
       // Ignore the exception if it's already exist.
     }
@@ -260,6 +274,7 @@ public class FlinkCatalog extends AbstractCatalog {
         if (!success && !ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name);
         }
+        functions.entrySet().removeIf(entry -> entry.getKey().getDatabaseName().equals(name));
       } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
@@ -674,19 +689,33 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public List<String> listFunctions(String dbName) throws CatalogException {
-    return Collections.emptyList();
+  public List<String> listFunctions(String dbName)
+      throws DatabaseNotExistException, CatalogException {
+
+    if (!databaseExists(dbName)) {
+      throw new DatabaseNotExistException(getName(), dbName);
+    }
+
+    return functions.keySet().stream()
+        .filter(key -> key.getDatabaseName().equals(dbName))
+        .map(ObjectPath::getObjectName)
+        .collect(Collectors.toList());
   }
 
   @Override
   public CatalogFunction getFunction(ObjectPath functionPath)
       throws FunctionNotExistException, CatalogException {
-    throw new FunctionNotExistException(getName(), functionPath);
+
+    if (!functionExists(functionPath)) {
+      throw new FunctionNotExistException(getName(), functionPath);
+    }
+
+    return functions.get(functionPath);
   }
 
   @Override
   public boolean functionExists(ObjectPath functionPath) throws CatalogException {
-    return false;
+    return functions.containsKey(functionPath);
   }
 
   @Override
