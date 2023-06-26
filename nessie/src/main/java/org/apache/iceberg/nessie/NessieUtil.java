@@ -26,11 +26,9 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -104,15 +102,14 @@ public final class NessieUtil {
         .orElseGet(() -> System.getProperty("user.name"));
   }
 
-  public static TableMetadata loadTableMetadataWithNessieSpecificProperties(
+  public static TableMetadata updateTableMetadataWithNessieSpecificProperties(
+      TableMetadata tableMetadata,
       String metadataLocation,
       IcebergTable table,
-      FileIO fileIO,
       String identifier,
       Reference reference) {
     // Update the TableMetadata with the Content of NessieTableState.
-    TableMetadata deserialized = TableMetadataParser.read(fileIO, metadataLocation);
-    Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
+    Map<String, String> newProperties = Maps.newHashMap(tableMetadata.properties());
     newProperties.put(NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
     // To prevent accidental deletion of files that are still referenced by other branches/tags,
     // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
@@ -134,7 +131,7 @@ public final class NessieUtil {
     }
 
     TableMetadata.Builder builder =
-        TableMetadata.buildFrom(deserialized)
+        TableMetadata.buildFrom(tableMetadata)
             .setPreviousFileLocation(null)
             .setCurrentSchema(table.getSchemaId())
             .setDefaultSortOrder(table.getSortOrderId())

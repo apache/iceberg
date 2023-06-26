@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -119,8 +120,12 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         null,
         2,
         location ->
-            NessieUtil.loadTableMetadataWithNessieSpecificProperties(
-                location, table, fileIO, key.toString(), reference));
+            NessieUtil.updateTableMetadataWithNessieSpecificProperties(
+                TableMetadataParser.read(fileIO, location),
+                location,
+                table,
+                key.toString(),
+                reference));
   }
 
   @Override
