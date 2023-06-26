@@ -18,6 +18,7 @@
 
 import math
 import struct
+from tempfile import TemporaryDirectory
 from typing import Any, List
 
 import pyarrow as pa
@@ -154,7 +155,8 @@ def test_dataset() -> pa.Buffer:
     def file_visitor(written_file: Any) -> None:
         visited_paths.append(written_file)
 
-    pq.write_to_dataset(table, "/tmp/dataset", partition_cols=["even"], file_visitor=file_visitor)
+    with TemporaryDirectory() as tmpdir:
+        pq.write_to_dataset(table, tmpdir, partition_cols=["even"], file_visitor=file_visitor)
 
     even = None
     odd = None
