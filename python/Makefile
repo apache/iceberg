@@ -36,9 +36,16 @@ test-integration:
 	docker-compose -f dev/docker-compose-integration.yml kill
 	docker-compose -f dev/docker-compose-integration.yml rm -f
 	docker-compose -f dev/docker-compose-integration.yml up -d
-	sleep 10
-	docker-compose -f dev/docker-compose-integration.yml exec -T spark-iceberg ipython ./provision.py
-	poetry run pytest tests/ -v -m integration ${PYTEST_ARGS}
+	# sleep 10
+	# docker-compose -f dev/docker-compose-integration.yml exec -T spark-iceberg ipython ./provision.py
+	# poetry run pytest tests/catalog/integration_test_jdbc_postgres.py -v -m integration ${PYTEST_ARGS}
+	# Env:
+	# AWS_TEST_BUCKET=test
+	# AWS_REGION=us-east-1
+	# AWS_ACCESS_KEY_ID=admin
+	# AWS_SECRET_ACCESS_KEY=password
+	#
+	poetry run pytest tests/catalog/integration_test_jdbc_postgres.py -v ${PYTEST_ARGS}
 
 test-integration-rebuild:
 	docker-compose -f dev/docker-compose-integration.yml kill

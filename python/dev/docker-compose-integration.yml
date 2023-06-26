@@ -17,27 +17,37 @@
 version: "3"
 
 services:
-  spark-iceberg:
-    image: python-integration
-    container_name: pyiceberg-spark
-    build: .
+  postgres:
+    image: postgres
+    container_name: pyiceberg-postgres
     networks:
       iceberg_net:
-    depends_on:
-      - rest
-      - minio
-    volumes:
-      - ./warehouse:/home/iceberg/warehouse
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
     ports:
-      - 8888:8888
-      - 8080:8080
-    links:
-      - rest:rest
-      - minio:minio
+      - 5432:5432
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpass
+  # spark-iceberg:
+  #   image: python-integration
+  #   container_name: pyiceberg-spark
+  #   build: .
+  #   networks:
+  #     iceberg_net:
+  #   depends_on:
+  #     - rest
+  #     - minio
+  #   volumes:
+  #     - ./warehouse:/home/iceberg/warehouse
+  #   environment:
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=password
+  #     - AWS_REGION=us-east-1
+  #   ports:
+  #     - 8888:8888
+  #     - 8080:8080
+  #   links:
+  #     - rest:rest
+  #     - minio:minio
   rest:
     image: tabulario/iceberg-rest
     container_name: pyiceberg-rest
