@@ -16,11 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.source.metrics;
-
-import org.apache.iceberg.metrics.MetricsReport;
-import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.metrics.ScanReport;
+package org.apache.iceberg.metrics;
 
 public class InMemoryReadMetricReporter implements MetricsReporter {
 
