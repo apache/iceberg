@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0123,W0613
+import pickle
 from typing import Type
 
 import pytest
@@ -63,6 +64,7 @@ non_parameterized_types = [
 @pytest.mark.parametrize("input_index, input_type", non_parameterized_types)
 def test_repr_primitive_types(input_index: int, input_type: Type[PrimitiveType]) -> None:
     assert isinstance(eval(repr(input_type())), input_type)
+    assert input_type == pickle.loads(pickle.dumps(input_type))
 
 
 @pytest.mark.parametrize(
@@ -109,6 +111,7 @@ def test_fixed_type() -> None:
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == FixedType(5)
     assert type_var != FixedType(6)
+    assert type_var == pickle.loads(pickle.dumps(type_var))
 
 
 def test_decimal_type() -> None:
@@ -120,6 +123,7 @@ def test_decimal_type() -> None:
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == DecimalType(9, 2)
     assert type_var != DecimalType(9, 3)
+    assert type_var == pickle.loads(pickle.dumps(type_var))
 
 
 def test_struct_type() -> None:
@@ -140,6 +144,7 @@ def test_struct_type() -> None:
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
     assert type_var != StructType(NestedField(1, "optional_field", IntegerType(), required=True))
+    assert type_var == pickle.loads(pickle.dumps(type_var))
 
 
 def test_list_type() -> None:
@@ -163,6 +168,7 @@ def test_list_type() -> None:
         ),
         True,
     )
+    assert type_var == pickle.loads(pickle.dumps(type_var))
 
 
 def test_map_type() -> None:
@@ -175,6 +181,7 @@ def test_map_type() -> None:
     assert type_var == eval(repr(type_var))
     assert type_var != MapType(1, LongType(), 2, UUIDType(), False)
     assert type_var != MapType(1, DoubleType(), 2, StringType(), True)
+    assert type_var == pickle.loads(pickle.dumps(type_var))
 
 
 def test_nested_field() -> None:
@@ -200,6 +207,7 @@ def test_nested_field() -> None:
     assert field_var.field_id == 1
     assert isinstance(field_var.field_type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
+    assert field_var == pickle.loads(pickle.dumps(field_var))
 
 
 @pytest.mark.parametrize("input_index,input_type", non_parameterized_types)

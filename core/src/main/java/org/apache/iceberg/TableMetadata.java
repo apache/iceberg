@@ -499,11 +499,6 @@ public class TableMetadata implements Serializable {
       List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
       loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
 
-      // Format version 1 does not have accurate sequence numbering, so remove based on timestamp
-      if (this.formatVersion == 1) {
-        loadedSnapshots.removeIf(s -> s.timestampMillis() > currentSnapshot().timestampMillis());
-      }
-
       this.snapshots = ImmutableList.copyOf(loadedSnapshots);
       this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
       validateCurrentSnapshot();

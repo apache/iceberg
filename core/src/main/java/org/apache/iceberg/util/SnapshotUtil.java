@@ -239,6 +239,10 @@ public class SnapshotUtil {
                 return true;
               }
 
+              if (next == null) {
+                return false;
+              }
+
               Long parentId = next.parentId();
               if (parentId == null) {
                 return false;

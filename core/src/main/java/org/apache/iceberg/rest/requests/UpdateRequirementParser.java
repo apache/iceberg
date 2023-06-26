@@ -28,6 +28,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.util.JsonUtil;
 
+/**
+ * @deprecated will be removed in 1.5.0, use {@link org.apache.iceberg.UpdateRequirementParser}
+ *     instead.
+ */
+@Deprecated
 public class UpdateRequirementParser {
 
   private UpdateRequirementParser() {}

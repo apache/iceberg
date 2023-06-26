@@ -62,8 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -168,70 +166,70 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCreateNamespace() {
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
     catalog.createNamespace(NS);
-    Assert.assertTrue(
-        "Catalog should have the created namespace", catalog.listNamespaces().contains(NS));
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.listNamespaces())
+        .as("Catalog should have the created namespace")
+        .contains(NS);
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
   }
 
   @Test
   public void testCreateExistingNamespace() {
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
     catalog.createNamespace(NS);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
 
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(NS))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Namespace already exists");
 
-    Assert.assertTrue("Namespace should still exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should still exist").isTrue();
   }
 
   @Test
   public void testCreateNamespaceWithProperties() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
     Map<String, String> createProps = ImmutableMap.of("prop", "val");
     catalog.createNamespace(NS, createProps);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
 
     Map<String, String> props = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Create properties should be a subset of returned properties",
-        createProps.entrySet(),
-        Sets.intersection(createProps.entrySet(), props.entrySet()));
+
+    Assertions.assertThat(Sets.intersection(createProps.entrySet(), props.entrySet()))
+        .as("Create properties should be a subset of returned properties")
+        .containsExactlyInAnyOrderElementsOf(createProps.entrySet());
   }
 
   @Test
   public void testLoadNamespaceMetadata() {
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(NS))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageStartingWith("Namespace does not exist: newdb");
 
     catalog.createNamespace(NS);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
-
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
     Map<String, String> props = catalog.loadNamespaceMetadata(NS);
-    Assert.assertNotNull("Should return non-null property map", props);
+    Assertions.assertThat(props).as("Should return non-null property map").isNotNull();
     // note that there are no requirements for the properties returned by the catalog
   }
 
   @Test
   public void testSetNamespaceProperties() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -241,15 +239,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, properties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Set properties should be a subset of returned properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), actualProperties.entrySet()));
+    Assertions.assertThat(actualProperties.entrySet())
+        .as("Set properties should be a subset of returned properties")
+        .containsAll(properties.entrySet());
   }
 
   @Test
   public void testUpdateNamespaceProperties() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -259,25 +256,23 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, initialProperties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Set properties should be a subset of returned properties",
-        initialProperties.entrySet(),
-        Sets.intersection(initialProperties.entrySet(), actualProperties.entrySet()));
+    Assertions.assertThat(actualProperties.entrySet())
+        .as("Set properties should be a subset of returned properties")
+        .containsAll(initialProperties.entrySet());
 
     Map<String, String> updatedProperties = ImmutableMap.of("owner", "newuser");
 
     catalog.setProperties(NS, updatedProperties);
 
     Map<String, String> finalProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Updated properties should be a subset of returned properties",
-        updatedProperties.entrySet(),
-        Sets.intersection(updatedProperties.entrySet(), finalProperties.entrySet()));
+    Assertions.assertThat(finalProperties.entrySet())
+        .as("Updated properties should be a subset of returned properties")
+        .containsAll(updatedProperties.entrySet());
   }
 
   @Test
   public void testUpdateAndSetNamespaceProperties() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -287,10 +282,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, initialProperties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Set properties should be a subset of returned properties",
-        initialProperties.entrySet(),
-        Sets.intersection(initialProperties.entrySet(), actualProperties.entrySet()));
+    Assertions.assertThat(actualProperties.entrySet())
+        .as("Set properties should be a subset of returned properties")
+        .containsAll(initialProperties.entrySet());
 
     Map<String, String> updatedProperties =
         ImmutableMap.of("owner", "newuser", "last-modified-at", "now");
@@ -298,15 +292,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, updatedProperties);
 
     Map<String, String> finalProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertEquals(
-        "Updated properties should be a subset of returned properties",
-        updatedProperties.entrySet(),
-        Sets.intersection(updatedProperties.entrySet(), finalProperties.entrySet()));
+    Assertions.assertThat(finalProperties.entrySet())
+        .as("Updated properties should be a subset of returned properties")
+        .containsAll(updatedProperties.entrySet());
   }
 
   @Test
   public void testSetNamespacePropertiesNamespaceDoesNotExist() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -317,7 +310,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRemoveNamespaceProperties() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -328,17 +321,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.removeProperties(NS, ImmutableSet.of("created-at"));
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assert.assertFalse(
-        "Should not contain deleted property key", actualProperties.containsKey("created-at"));
-    Assert.assertEquals(
-        "Expected properties should be a subset of returned properties",
-        ImmutableMap.of("owner", "user").entrySet(),
-        Sets.intersection(properties.entrySet(), actualProperties.entrySet()));
+    Assertions.assertThat(actualProperties.containsKey("created-at"))
+        .as("Should not contain deleted property key")
+        .isFalse();
+    Assertions.assertThat(Sets.intersection(properties.entrySet(), actualProperties.entrySet()))
+        .as("Expected properties should be a subset of returned properties")
+        .containsExactlyInAnyOrderElementsOf(ImmutableMap.of("owner", "user").entrySet());
   }
 
   @Test
   public void testRemoveNamespacePropertiesNamespaceDoesNotExist() {
-    Assume.assumeTrue(supportsNamespaceProperties());
+    Assumptions.assumeTrue(supportsNamespaceProperties());
 
     C catalog = catalog();
 
@@ -351,22 +344,23 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testDropNamespace() {
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
     catalog.createNamespace(NS);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
-
-    Assert.assertTrue(
-        "Dropping an existing namespace should return true", catalog.dropNamespace(NS));
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
+    Assertions.assertThat(catalog.dropNamespace(NS))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    Assertions.assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
   }
 
   @Test
   public void testDropNonexistentNamespace() {
     C catalog = catalog();
 
-    Assert.assertFalse(
-        "Dropping a nonexistent namespace should return false", catalog.dropNamespace(NS));
+    Assertions.assertThat(catalog.dropNamespace(NS))
+        .as("Dropping a nonexistent namespace should return false")
+        .isFalse();
   }
 
   @Test
@@ -394,14 +388,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .hasSameElementsAs(concat(starting, ns2));
 
     catalog.dropNamespace(ns2);
-    Assert.assertTrue(
-        "Should include only starting namespaces", catalog.listNamespaces().containsAll(starting));
+    Assertions.assertThat(catalog.listNamespaces().containsAll(starting))
+        .as("Should include only starting namespaces")
+        .isTrue();
   }
 
   @Test
   public void testListNestedNamespaces() {
-    Assume.assumeTrue(
-        "Only valid when the catalog supports nested namespaces", supportsNestedNamespaces());
+    Assumptions.assumeTrue(
+        supportsNestedNamespaces(), "Only valid when the catalog supports nested namespaces");
 
     C catalog = catalog();
 
@@ -448,22 +443,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
-    Assume.assumeTrue(supportsNamesWithSlashes());
+    Assumptions.assumeTrue(supportsNamesWithSlashes());
 
     C catalog = catalog();
 
     Namespace withSlash = Namespace.of("new/db");
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+    Assertions.assertThat(catalog.namespaceExists(withSlash))
+        .as("Namespace should not exist")
+        .isFalse();
 
     catalog.createNamespace(withSlash);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withSlash));
+    Assertions.assertThat(catalog.namespaceExists(withSlash)).as("Namespace should exist").isTrue();
 
     Map<String, String> properties = catalog.loadNamespaceMetadata(withSlash);
-    Assert.assertNotNull("Properties should be accessible", properties);
-
-    Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withSlash));
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+    Assertions.assertThat(properties).as("Properties should be accessible").isNotNull();
+    Assertions.assertThat(catalog.dropNamespace(withSlash))
+        .as("Dropping the namespace should succeed")
+        .isTrue();
+    Assertions.assertThat(catalog.namespaceExists(withSlash))
+        .as("Namespace should not exist")
+        .isFalse();
   }
 
   @Test
@@ -472,16 +472,21 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Namespace withDot = Namespace.of("new.db");
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withDot));
+    Assertions.assertThat(catalog.namespaceExists(withDot))
+        .as("Namespace should not exist")
+        .isFalse();
 
     catalog.createNamespace(withDot);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withDot));
+    Assertions.assertThat(catalog.namespaceExists(withDot)).as("Namespace should exist").isTrue();
 
     Map<String, String> properties = catalog.loadNamespaceMetadata(withDot);
-    Assert.assertNotNull("Properties should be accessible", properties);
-
-    Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withDot));
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withDot));
+    Assertions.assertThat(properties).as("Properties should be accessible").isNotNull();
+    Assertions.assertThat(catalog.dropNamespace(withDot))
+        .as("Dropping the namespace should succeed")
+        .isTrue();
+    Assertions.assertThat(catalog.namespaceExists(withDot))
+        .as("Namespace should not exist")
+        .isFalse();
   }
 
   @Test
@@ -490,31 +495,31 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(ident.namespace());
     }
 
     Table table = catalog.buildTable(ident, SCHEMA).create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     // validate table settings
-    Assert.assertEquals(
-        "Table name should report its full name", catalog.name() + "." + ident, table.name());
-    Assert.assertEquals(
-        "Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertNotNull("Should have a location", table.location());
-    Assert.assertTrue("Should be unpartitioned", table.spec().isUnpartitioned());
-    Assert.assertTrue("Should be unsorted", table.sortOrder().isUnsorted());
-    Assert.assertNotNull("Should have table properties", table.properties());
+    Assertions.assertThat(table.name())
+        .as("Table name should report its full name")
+        .isEqualTo(catalog.name() + "." + ident);
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Schema should match expected ID assignment")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.location()).as("Should have a location").isNotNull();
+    Assertions.assertThat(table.spec().isUnpartitioned()).as("Should be unpartitioned").isTrue();
+    Assertions.assertThat(table.sortOrder().isUnsorted()).as("Should be unsorted").isTrue();
+    Assertions.assertThat(table.properties()).as("Should have table properties").isNotNull();
   }
 
   @Test
   public void testTableNameWithSlash() {
-    Assume.assumeTrue(supportsNamesWithSlashes());
+    Assumptions.assumeTrue(supportsNamesWithSlashes());
 
     C catalog = catalog();
 
@@ -523,20 +528,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(Namespace.of("ns"));
     }
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     Table loaded = catalog.loadTable(ident);
-    Assert.assertEquals(
-        "Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Schema should match expected ID assignment")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
 
     catalog.dropTable(ident);
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
   }
 
   @Test
@@ -548,20 +552,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(Namespace.of("ns"));
     }
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     Table loaded = catalog.loadTable(ident);
-    Assert.assertEquals(
-        "Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Schema should match expected ID assignment")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
 
     catalog.dropTable(ident);
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
   }
 
   @Test
@@ -574,20 +577,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(ident.namespace());
     }
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     Assertions.assertThatThrownBy(() -> catalog.buildTable(ident, OTHER_SCHEMA).create())
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: ns.table");
 
     Table table = catalog.loadTable(ident);
-    Assert.assertEquals(
-        "Schema should match original table schema",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Schema should match original table schema")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
   }
 
   @Test
@@ -600,7 +602,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(ident.namespace());
     }
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -614,20 +616,23 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .create();
 
     // validate table settings
-    Assert.assertEquals(
-        "Table name should report its full name", catalog.name() + "." + ident, table.name());
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
-    Assert.assertEquals(
-        "Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertNotNull("Should have a location", table.location());
-    Assert.assertEquals("Should use requested partition spec", TABLE_SPEC, table.spec());
-    Assert.assertEquals("Should use requested write order", TABLE_WRITE_ORDER, table.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assertions.assertThat(table.name())
+        .as("Table name should report its full name")
+        .isEqualTo(catalog.name() + "." + ident);
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Schema should match expected ID assignment")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.location()).as("Should have a location").isNotNull();
+    Assertions.assertThat(table.spec())
+        .as("Should use requested partition spec")
+        .isEqualTo(TABLE_SPEC);
+    Assertions.assertThat(table.sortOrder())
+        .as("Should use requested write order")
+        .isEqualTo(TABLE_WRITE_ORDER);
+    Assertions.assertThat(table.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
   }
 
   @Test
@@ -640,7 +645,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(ident.namespace());
     }
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -651,24 +656,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .withSortOrder(WRITE_ORDER)
         .withProperties(properties)
         .create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     Table table = catalog.loadTable(ident);
     // validate table settings
-    Assert.assertEquals(
-        "Table name should report its full name", catalog.name() + "." + ident, table.name());
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
-    Assert.assertEquals(
-        "Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertNotNull("Should have a location", table.location());
-    Assert.assertEquals("Should use requested partition spec", TABLE_SPEC, table.spec());
-    Assert.assertEquals("Should use requested write order", TABLE_WRITE_ORDER, table.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assertions.assertThat(table.name())
+        .as("Table name should report its full name")
+        .isEqualTo(catalog.name() + "." + ident);
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Schema should match expected ID assignment")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.location()).as("Should have a location").isNotNull();
+    Assertions.assertThat(table.spec())
+        .as("Should use requested partition spec")
+        .isEqualTo(TABLE_SPEC);
+    Assertions.assertThat(table.sortOrder())
+        .as("Should use requested write order")
+        .isEqualTo(TABLE_WRITE_ORDER);
+    Assertions.assertThat(table.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
   }
 
   @Test
@@ -700,7 +708,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
 
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
     Assertions.assertThatThrownBy(() -> catalog.loadTable(ident))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist: ns.table");
@@ -714,17 +722,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Source table should not exist before create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should not exist before create")
+        .isFalse();
 
     catalog.buildTable(TABLE, SCHEMA).create();
-    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after create")
+        .isTrue();
 
-    Assert.assertFalse(
-        "Destination table should not exist before rename", catalog.tableExists(RENAMED_TABLE));
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should not exist before rename")
+        .isFalse();
 
     catalog.renameTable(TABLE, RENAMED_TABLE);
-    Assert.assertTrue("Table should exist with new name", catalog.tableExists(RENAMED_TABLE));
-    Assert.assertFalse("Original table should no longer exist", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Table should exist with new name")
+        .isTrue();
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Original table should no longer exist")
+        .isFalse();
 
     catalog.dropTable(RENAMED_TABLE);
     assertEmpty("Should not contain table after drop", catalog, NS);
@@ -738,17 +755,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Source table should not exist before rename", catalog.tableExists(TABLE));
-    Assert.assertFalse(
-        "Destination table should not exist before rename", catalog.tableExists(RENAMED_TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should not exist before rename")
+        .isFalse();
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should not exist before rename")
+        .isFalse();
 
     Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, RENAMED_TABLE))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageContaining("Table does not exist");
 
-    Assert.assertFalse(
-        "Destination table should not exist after failed rename",
-        catalog.tableExists(RENAMED_TABLE));
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should not exist after failed rename")
+        .isFalse();
   }
 
   @Test
@@ -759,34 +779,40 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Source table should not exist before create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should not exist before create")
+        .isFalse();
+
     catalog.buildTable(TABLE, SCHEMA).create();
-    Assert.assertTrue("Source table should exist after create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should exist after create")
+        .isTrue();
 
-    Assert.assertFalse(
-        "Destination table should not exist before create", catalog.tableExists(RENAMED_TABLE));
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should not exist before create")
+        .isFalse();
+
     catalog.buildTable(RENAMED_TABLE, SCHEMA).create();
-    Assert.assertTrue(
-        "Destination table should exist after create", catalog.tableExists(RENAMED_TABLE));
-
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should exist after create")
+        .isTrue();
     Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, RENAMED_TABLE))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Table already exists");
-
-    Assert.assertTrue(
-        "Source table should still exist after failed rename", catalog.tableExists(TABLE));
-    Assert.assertTrue(
-        "Destination table should still exist after failed rename",
-        catalog.tableExists(RENAMED_TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should still exist after failed rename")
+        .isTrue();
+    Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("Destination table should still exist after failed rename")
+        .isTrue();
 
     String sourceTableUUID =
         ((HasTableOperations) catalog.loadTable(TABLE)).operations().current().uuid();
     String destinationTableUUID =
         ((HasTableOperations) catalog.loadTable(RENAMED_TABLE)).operations().current().uuid();
-    Assert.assertNotEquals(
-        "Source and destination table should remain distinct after failed rename",
-        sourceTableUUID,
-        destinationTableUUID);
+    Assertions.assertThat(sourceTableUUID)
+        .as("Source and destination table should remain distinct after failed rename")
+        .isNotEqualTo(destinationTableUUID);
   }
 
   @Test
@@ -797,14 +823,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Table should not exist before create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist before create")
+        .isFalse();
 
     catalog.buildTable(TABLE, SCHEMA).create();
-    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after create")
+        .isTrue();
 
     boolean dropped = catalog.dropTable(TABLE);
-    Assert.assertTrue("Should drop a table that does exist", dropped);
-    Assert.assertFalse("Table should not exist after drop", catalog.tableExists(TABLE));
+    Assertions.assertThat(dropped).as("Should drop a table that does exist").isTrue();
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after drop")
+        .isFalse();
   }
 
   @Test
@@ -815,14 +847,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Table should not exist before create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist before create")
+        .isFalse();
 
     catalog.buildTable(TABLE, SCHEMA).create();
-    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after create")
+        .isTrue();
 
     boolean dropped = catalog.dropTable(TABLE, true);
-    Assert.assertTrue("Should drop a table that does exist", dropped);
-    Assert.assertFalse("Table should not exist after drop", catalog.tableExists(TABLE));
+    Assertions.assertThat(dropped).as("Should drop a table that does exist").isTrue();
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after drop")
+        .isFalse();
   }
 
   @Test
@@ -833,15 +871,21 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Assert.assertFalse("Table should not exist before create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist before create")
+        .isFalse();
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
-    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after create")
+        .isTrue();
     Set<String> actualMetadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
 
     boolean dropped = catalog.dropTable(TABLE, false);
-    Assert.assertTrue("Should drop a table that does exist", dropped);
-    Assert.assertFalse("Table should not exist after drop", catalog.tableExists(TABLE));
+    Assertions.assertThat(dropped).as("Should drop a table that does exist").isTrue();
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after drop")
+        .isFalse();
     Set<String> expectedMetadataFileLocations =
         ReachableFileUtil.metadataFileLocations(table, false);
     Assertions.assertThat(actualMetadataFileLocations)
@@ -859,9 +903,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     }
 
     TableIdentifier noSuchTableIdent = TableIdentifier.of(NS, "notable");
-    Assert.assertFalse("Table should not exist", catalog.tableExists(noSuchTableIdent));
-    Assert.assertFalse(
-        "Should not drop a table that does not exist", catalog.dropTable(noSuchTableIdent));
+    Assertions.assertThat(catalog.tableExists(noSuchTableIdent))
+        .as("Table should not exist")
+        .isFalse();
+    Assertions.assertThat(catalog.dropTable(noSuchTableIdent))
+        .as("Should not drop a table that does not exist")
+        .isFalse();
   }
 
   @Test
@@ -885,50 +932,43 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.buildTable(ns1Table1, SCHEMA).create();
 
-    Assert.assertEquals(
-        "Should contain ns_1.table_1 after create",
-        ImmutableSet.of(ns1Table1),
-        Sets.newHashSet(catalog.listTables(ns1)));
+    Assertions.assertThat(catalog.listTables(ns1))
+        .as("Should contain ns_1.table_1 after create")
+        .containsExactlyInAnyOrder(ns1Table1);
 
     catalog.buildTable(ns2Table1, SCHEMA).create();
 
-    Assert.assertEquals(
-        "Should contain ns_2.table_1 after create",
-        ImmutableSet.of(ns2Table1),
-        Sets.newHashSet(catalog.listTables(ns2)));
-    Assert.assertEquals(
-        "Should not show changes to ns_2 in ns_1",
-        ImmutableSet.of(ns1Table1),
-        Sets.newHashSet(catalog.listTables(ns1)));
+    Assertions.assertThat(catalog.listTables(ns2))
+        .as("Should contain ns_2.table_1 after create")
+        .containsExactlyInAnyOrder(ns2Table1);
+    Assertions.assertThat(catalog.listTables(ns1))
+        .as("Should not show changes to ns_2 in ns_1")
+        .containsExactlyInAnyOrder(ns1Table1);
 
     catalog.buildTable(ns1Table2, SCHEMA).create();
 
-    Assert.assertEquals(
-        "Should not show changes to ns_1 in ns_2",
-        ImmutableSet.of(ns2Table1),
-        Sets.newHashSet(catalog.listTables(ns2)));
-    Assert.assertEquals(
-        "Should contain ns_1.table_2 after create",
-        ImmutableSet.of(ns1Table1, ns1Table2),
-        Sets.newHashSet(catalog.listTables(ns1)));
+    Assertions.assertThat(catalog.listTables(ns2))
+        .as("Should not show changes to ns_1 in ns_2")
+        .containsExactlyInAnyOrder(ns2Table1);
+    Assertions.assertThat(catalog.listTables(ns1))
+        .as("Should contain ns_1.table_2 after create")
+        .containsExactlyInAnyOrder(ns1Table1, ns1Table2);
 
     catalog.dropTable(ns1Table1);
 
-    Assert.assertEquals(
-        "Should not show changes to ns_1 in ns_2",
-        ImmutableSet.of(ns2Table1),
-        Sets.newHashSet(catalog.listTables(ns2)));
-    Assert.assertEquals(
-        "Should not contain ns_1.table_1 after drop",
-        ImmutableSet.of(ns1Table2),
-        Sets.newHashSet(catalog.listTables(ns1)));
+    Assertions.assertThat(catalog.listTables(ns2))
+        .as("Should not show changes to ns_1 in ns_2")
+        .containsExactlyInAnyOrder(ns2Table1);
+    Assertions.assertThat(catalog.listTables(ns1))
+        .as("Should not contain ns_1.table_1 after drop")
+        .containsExactlyInAnyOrder(ns1Table2);
 
     catalog.dropTable(ns1Table2);
 
-    Assert.assertEquals(
-        "Should not show changes to ns_1 in ns_2",
-        ImmutableSet.of(ns2Table1),
-        Sets.newHashSet(catalog.listTables(ns2)));
+    Assertions.assertThat(catalog.listTables(ns2))
+        .as("Should not show changes to ns_1 in ns_2")
+        .containsExactlyInAnyOrder(ns2Table1);
+
     assertEmpty("Should not contain ns_1.table_2 after drop", catalog, ns1);
 
     catalog.dropTable(ns2Table1);
@@ -952,10 +992,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        expected.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -969,7 +1008,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     UpdateSchema update = table.updateSchema().addColumn("new_col", Types.LongType.get());
 
-    Assert.assertTrue("Should successfully drop table", catalog.dropTable(TABLE));
+    Assertions.assertThat(catalog.dropTable(TABLE)).as("Should successfully drop table").isTrue();
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     String expectedMessage =
@@ -979,17 +1018,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .hasMessageContaining(expectedMessage);
 
     Table loaded = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        OTHER_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
   }
 
   @Test
   public void testUpdateTableSchemaServerSideRetry() {
-    Assume.assumeTrue(
-        "Schema update recovery is only supported with server-side retry",
-        supportsServerSideRetry());
+    Assumptions.assumeTrue(
+        supportsServerSideRetry(),
+        "Schema update recovery is only supported with server-side retry");
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1008,10 +1046,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     update.commit();
 
     Table loaded = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        expected.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1039,10 +1076,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .hasMessageContaining(expectedMessage);
 
     Table loaded = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        expected.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1073,10 +1109,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .hasMessageContaining(expectedMessage);
 
     Table loaded = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        expected.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1098,10 +1133,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     table.updateSchema().deleteColumn("col1").deleteColumn("col2").deleteColumn("col3").commit();
 
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
   }
 
   @Test
@@ -1122,14 +1156,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the spec ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected spec", expected.fields(), loaded.spec().fields());
+    Assertions.assertThat(loaded.spec().fields())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(expected.fields());
   }
 
   @Test
   public void testUpdateTableSpecServerSideRetry() {
-    Assume.assumeTrue(
-        "Spec update recovery is only supported with server-side retry", supportsServerSideRetry());
+    Assumptions.assumeTrue(
+        supportsServerSideRetry(), "Spec update recovery is only supported with server-side retry");
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1154,8 +1189,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the spec ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected spec", expected.fields(), loaded.spec().fields());
+    Assertions.assertThat(loaded.spec().fields())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(expected.fields());
   }
 
   @Test
@@ -1189,8 +1225,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the spec ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected spec", expected.fields(), loaded.spec().fields());
+    Assertions.assertThat(loaded.spec().fields())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(expected.fields());
   }
 
   @Test
@@ -1223,8 +1260,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the spec ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected spec", expected.fields(), loaded.spec().fields());
+    Assertions.assertThat(loaded.spec().fields())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(expected.fields());
   }
 
   @Test
@@ -1243,14 +1281,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withPartitionSpec(SPEC)
             .withProperty("format-version", "2")
             .create();
-    Assert.assertEquals(
-        "Should be a v2 table", 2, ((BaseTable) table).operations().current().formatVersion());
+    Assertions.assertThat(((BaseTable) table).operations().current().formatVersion())
+        .as("Should be a v2 table")
+        .isEqualTo(2);
 
     table.updateSpec().addField("id").commit();
 
     table.updateSpec().removeField("id").commit();
 
-    Assert.assertEquals("Loaded table should have expected spec", TABLE_SPEC, table.spec());
+    Assertions.assertThat(table.spec())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(TABLE_SPEC);
   }
 
   @Test
@@ -1271,15 +1312,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the sort order ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected order", expected.fields(), loaded.sortOrder().fields());
+    Assertions.assertThat(loaded.sortOrder().fields())
+        .as("Loaded table should have expected order")
+        .isEqualTo(expected.fields());
   }
 
   @Test
   public void testUpdateTableSortOrderServerSideRetry() {
-    Assume.assumeTrue(
-        "Sort order update recovery is only supported with server-side retry",
-        supportsServerSideRetry());
+    Assumptions.assumeTrue(
+        supportsServerSideRetry(),
+        "Sort order update recovery is only supported with server-side retry");
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1304,8 +1346,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table loaded = catalog.loadTable(TABLE);
 
     // the sort order ID may not match, so check equality of the fields
-    Assert.assertEquals(
-        "Loaded table should have expected order", expected.fields(), loaded.sortOrder().fields());
+    Assertions.assertThat(loaded.sortOrder().fields())
+        .as("Loaded table should have expected order")
+        .isEqualTo(expected.fields());
   }
 
   @Test
@@ -1322,8 +1365,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     table.replaceSortOrder().asc(Expressions.bucket("id", 16)).asc("id").commit();
 
-    Assert.assertEquals(
-        "Loaded table should have expected order", TABLE_WRITE_ORDER, table.sortOrder());
+    Assertions.assertThat(table.sortOrder())
+        .as("Loaded table should have expected order")
+        .isEqualTo(TABLE_WRITE_ORDER);
   }
 
   @Test
@@ -1337,7 +1381,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Assert.assertFalse("Should contain no files", tasks.iterator().hasNext());
+      Assertions.assertThat(tasks.iterator().hasNext()).as("Should contain no files").isFalse();
     }
 
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -1424,12 +1468,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Loaded table should have expected schema",
-        expectedSchema.asStruct(),
-        loaded.schema().asStruct());
-    Assert.assertEquals(
-        "Loaded table should have expected spec", expectedSpec.fields(), loaded.spec().fields());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Loaded table should have expected schema")
+        .isEqualTo(expectedSchema.asStruct());
+    Assertions.assertThat(loaded.spec().fields())
+        .as("Loaded table should have expected spec")
+        .isEqualTo(expectedSpec.fields());
 
     assertPreviousMetadataFileCount(loaded, 1);
   }
@@ -1444,16 +1488,21 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     create.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     Table table = catalog.loadTable(TABLE);
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
@@ -1478,33 +1527,39 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .createTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     create.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
-    Table table = catalog.loadTable(TABLE);
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Table should have create partition spec", TABLE_SPEC.fields(), table.spec().fields());
-    Assert.assertEquals(
-        "Table should have create sort order", TABLE_WRITE_ORDER, table.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Table table = catalog.loadTable(TABLE);
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec().fields())
+        .as("Table should have create partition spec")
+        .isEqualTo(TABLE_SPEC.fields());
+    Assertions.assertThat(table.sortOrder())
+        .as("Table should have create sort order")
+        .isEqualTo(TABLE_WRITE_ORDER);
+    Assertions.assertThat(table.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should match requested", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should match requested")
+          .isEqualTo("file:/tmp/ns/table");
     }
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);
@@ -1530,8 +1585,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .createTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
@@ -1557,11 +1613,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     create.newFastAppend().appendFile(anotherFile).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     create.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
+
     Table table = catalog.loadTable(TABLE);
 
     // initial IDs taken from TableMetadata constants
@@ -1572,27 +1633,31 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     final int updateSpecId = initialSpecId + 1;
     final int updateOrderId = initialOrderId + 1;
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        newSchema.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Table schema should match the new schema ID", updateSchemaId, table.schema().schemaId());
-    Assert.assertEquals(
-        "Table should have updated partition spec", newSpec.fields(), table.spec().fields());
-    Assert.assertEquals(
-        "Table should have updated partition spec ID", updateSpecId, table.spec().specId());
-    Assert.assertEquals(
-        "Table should have updated sort order", newSortOrder.fields(), table.sortOrder().fields());
-    Assert.assertEquals(
-        "Table should have updated sort order ID", updateOrderId, table.sortOrder().orderId());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(newSchema.asStruct());
+    Assertions.assertThat(table.schema().schemaId())
+        .as("Table schema should match the new schema ID")
+        .isEqualTo(updateSchemaId);
+    Assertions.assertThat(table.spec().fields())
+        .as("Table should have updated partition spec")
+        .isEqualTo(newSpec.fields());
+    Assertions.assertThat(table.spec().specId())
+        .as("Table should have updated partition spec ID")
+        .isEqualTo(updateSpecId);
+    Assertions.assertThat(table.sortOrder().fields())
+        .as("Table should have updated sort order")
+        .isEqualTo(newSortOrder.fields());
+    Assertions.assertThat(table.sortOrder().orderId())
+        .as("Table should have updated sort order ID")
+        .isEqualTo(updateOrderId);
+    Assertions.assertThat(table.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should match requested", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should match requested")
+          .isEqualTo("file:/tmp/ns/table");
     }
     assertFiles(table, FILE_A, anotherFile);
     assertFilePartitionSpec(table, FILE_A, initialSpecId);
@@ -1621,41 +1686,48 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .createTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     create.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     Table table = catalog.loadTable(TABLE);
 
     Map<String, String> expectedProps = Maps.newHashMap(properties);
+
     expectedProps.remove("format-version");
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Table should have create partition spec", TABLE_SPEC.fields(), table.spec().fields());
-    Assert.assertEquals(
-        "Table should have create sort order", TABLE_WRITE_ORDER, table.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        expectedProps.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals(
-        "Sequence number should start at 1 for v2 format",
-        1,
-        table.currentSnapshot().sequenceNumber());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec().fields())
+        .as("Table should have create partition spec")
+        .isEqualTo(TABLE_SPEC.fields());
+    Assertions.assertThat(table.sortOrder())
+        .as("Table should have create sort order")
+        .isEqualTo(TABLE_WRITE_ORDER);
+    Assertions.assertThat(Sets.intersection(properties.entrySet(), table.properties().entrySet()))
+        .as("Table properties should be a superset of the requested properties")
+        .containsExactlyInAnyOrderElementsOf(expectedProps.entrySet());
+    Assertions.assertThat(table.currentSnapshot().sequenceNumber())
+        .as("Sequence number should start at 1 for v2 format")
+        .isEqualTo(1);
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should match requested", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should match requested")
+          .isEqualTo("file:/tmp/ns/table");
     }
+
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
@@ -1671,12 +1743,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
@@ -1691,10 +1766,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
     assertNoFiles(table);
   }
 
@@ -1708,16 +1782,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     create.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     create.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
+
     Table table = catalog.loadTable(TABLE);
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
@@ -1742,34 +1822,42 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .createOrReplaceTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     createOrReplace.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     createOrReplace.commitTransaction();
 
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
+
     Table table = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Table should have create partition spec", TABLE_SPEC.fields(), table.spec().fields());
-    Assert.assertEquals(
-        "Table should have create sort order", TABLE_WRITE_ORDER, table.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec().fields())
+        .as("Table should have create partition spec")
+        .isEqualTo(TABLE_SPEC.fields());
+    Assertions.assertThat(table.sortOrder())
+        .as("Table should have create sort order")
+        .isEqualTo(TABLE_WRITE_ORDER);
+    Assertions.assertThat(table.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should match requested", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should match requested")
+          .isEqualTo("file:/tmp/ns/table");
     }
+
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
@@ -1785,36 +1873,41 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
-    Assert.assertTrue("Table should exist before replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist before replaceTransaction")
+        .isTrue();
 
     Transaction createOrReplace = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
 
-    Assert.assertTrue(
-        "Table should still exist after replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should still exist after replaceTransaction")
+        .isTrue();
 
     createOrReplace.newFastAppend().appendFile(FILE_A).commit();
 
     // validate table has not changed
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
+
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
+
     assertUUIDsMatch(original, table);
     assertNoFiles(table);
 
     createOrReplace.commitTransaction();
 
     // validate the table after replace
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     table.refresh(); // refresh should work with UUID validation
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1830,7 +1923,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
-    Assert.assertTrue("Table should exist before replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist before replaceTransaction")
+        .isTrue();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -1843,47 +1938,55 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .createOrReplaceTransaction();
 
-    Assert.assertTrue(
-        "Table should still exist after replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should still exist after replaceTransaction")
+        .isTrue();
 
     createOrReplace.newFastAppend().appendFile(FILE_A).commit();
 
     // validate table has not changed
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertTrue("Table should be unpartitioned", table.spec().isUnpartitioned());
-    Assert.assertTrue("Table should be unsorted", table.sortOrder().isUnsorted());
-    Assert.assertNotEquals(
-        "Created at should not match", table.properties().get("created-at"), "2022-02-25T00:38:19");
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
+    Assertions.assertThat(table.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
+    Assertions.assertThat(table.properties().get("created-at"))
+        .as("Created at should not match")
+        .isNotEqualTo("2022-02-25T00:38:19");
     assertUUIDsMatch(original, table);
     assertNoFiles(table);
 
     createOrReplace.commitTransaction();
 
     // validate the table after replace
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     table.refresh(); // refresh should work with UUID validation
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
-    Assert.assertEquals("Table should have replace partition spec", REPLACE_SPEC, loaded.spec());
-    Assert.assertEquals(
-        "Table should have replace sort order", REPLACE_WRITE_ORDER, loaded.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+    Assertions.assertThat(loaded.spec())
+        .as("Table should have replace partition spec")
+        .isEqualTo(REPLACE_SPEC);
+    Assertions.assertThat(loaded.sortOrder())
+        .as("Table should have replace sort order")
+        .isEqualTo(REPLACE_WRITE_ORDER);
+    Assertions.assertThat(loaded.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should be replaced", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should be replaced")
+          .isEqualTo("file:/tmp/ns/table");
     }
+
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1891,9 +1994,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testCreateOrReplaceTransactionConcurrentCreate() {
-    Assume.assumeTrue(
-        "Conversion to replace transaction is not supported by REST catalog",
-        supportsServerSideRetry());
+    Assumptions.assumeTrue(
+        supportsServerSideRetry(),
+        "Conversion to replace transaction is not supported by REST catalog");
 
     C catalog = catalog();
 
@@ -1903,12 +2006,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Transaction createOrReplace = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
 
-    Assert.assertFalse(
-        "Table should not exist after createTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after createTransaction")
+        .isFalse();
 
     createOrReplace.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should not exist after append commit")
+        .isFalse();
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
@@ -1922,10 +2028,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
     assertNoFiles(table);
   }
 
@@ -1939,36 +2044,40 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
-    Assert.assertTrue("Table should exist before replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist before replaceTransaction")
+        .isTrue();
 
     Transaction replace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
 
-    Assert.assertTrue(
-        "Table should still exist after replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should still exist after replaceTransaction")
+        .isTrue();
 
     replace.newFastAppend().appendFile(FILE_A).commit();
 
     // validate table has not changed
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
     assertUUIDsMatch(original, table);
     assertNoFiles(table);
 
     replace.commitTransaction();
 
     // validate the table after replace
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     table.refresh(); // refresh should work with UUID validation
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1984,7 +2093,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
-    Assert.assertTrue("Table should exist before replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist before replaceTransaction")
+        .isTrue();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -1997,47 +2108,57 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withProperties(properties)
             .replaceTransaction();
 
-    Assert.assertTrue(
-        "Table should still exist after replaceTransaction", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should still exist after replaceTransaction")
+        .isTrue();
 
     replace.newFastAppend().appendFile(FILE_A).commit();
 
     // validate table has not changed
     Table table = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match concurrent create",
-        OTHER_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertTrue("Table should be unpartitioned", table.spec().isUnpartitioned());
-    Assert.assertTrue("Table should be unsorted", table.sortOrder().isUnsorted());
-    Assert.assertNotEquals(
-        "Created at should not match", table.properties().get("created-at"), "2022-02-25T00:38:19");
+
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match concurrent create")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
+    Assertions.assertThat(table.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
+    Assertions.assertThat(table.properties().get("created-at"))
+        .as("Created at should not match")
+        .isNotEqualTo("2022-02-25T00:38:19");
+
     assertUUIDsMatch(original, table);
     assertNoFiles(table);
 
     replace.commitTransaction();
 
     // validate the table after replace
-    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Table should exist after append commit")
+        .isTrue();
     table.refresh(); // refresh should work with UUID validation
 
     Table loaded = catalog.loadTable(TABLE);
 
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        loaded.schema().asStruct());
-    Assert.assertEquals("Table should have replace partition spec", REPLACE_SPEC, loaded.spec());
-    Assert.assertEquals(
-        "Table should have replace sort order", REPLACE_WRITE_ORDER, loaded.sortOrder());
-    Assert.assertEquals(
-        "Table properties should be a superset of the requested properties",
-        properties.entrySet(),
-        Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
+    Assertions.assertThat(loaded.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+    Assertions.assertThat(loaded.spec())
+        .as("Table should have replace partition spec")
+        .isEqualTo(REPLACE_SPEC);
+    Assertions.assertThat(loaded.sortOrder())
+        .as("Table should have replace sort order")
+        .isEqualTo(REPLACE_WRITE_ORDER);
+    Assertions.assertThat(loaded.properties().entrySet())
+        .as("Table properties should be a superset of the requested properties")
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
-      Assert.assertEquals(
-          "Table location should be replaced", "file:/tmp/ns/table", table.location());
+      Assertions.assertThat(table.location())
+          .as("Table location should be replaced")
+          .isEqualTo("file:/tmp/ns/table");
     }
+
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -2079,24 +2200,30 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the original schema",
-        original.schema().asStruct(),
-        afterFirstReplace.schema().asStruct());
-    Assert.assertTrue("Table should be unpartitioned", afterFirstReplace.spec().isUnpartitioned());
-    Assert.assertTrue("Table should be unsorted", afterFirstReplace.sortOrder().isUnsorted());
+    Assertions.assertThat(afterFirstReplace.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(original.schema().asStruct());
+    Assertions.assertThat(afterFirstReplace.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
+    Assertions.assertThat(afterFirstReplace.sortOrder().isUnsorted())
+        .as("Table should be unsorted")
+        .isTrue();
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the original schema",
-        original.schema().asStruct(),
-        afterSecondReplace.schema().asStruct());
-    Assert.assertTrue("Table should be unpartitioned", afterSecondReplace.spec().isUnpartitioned());
-    Assert.assertTrue("Table should be unsorted", afterSecondReplace.sortOrder().isUnsorted());
+    Assertions.assertThat(afterSecondReplace.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(original.schema().asStruct());
+    Assertions.assertThat(afterSecondReplace.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
+    Assertions.assertThat(afterSecondReplace.sortOrder().isUnsorted())
+        .as("Table should be unsorted")
+        .isTrue();
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
@@ -2124,20 +2251,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        afterFirstReplace.schema().asStruct());
+    Assertions.assertThat(afterFirstReplace.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the original schema",
-        original.schema().asStruct(),
-        afterSecondReplace.schema().asStruct());
+    Assertions.assertThat(afterSecondReplace.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(original.schema().asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
@@ -2165,27 +2290,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the original schema",
-        original.schema().asStruct(),
-        afterFirstReplace.schema().asStruct());
+    Assertions.assertThat(afterFirstReplace.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(original.schema().asStruct());
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the new schema",
-        REPLACE_SCHEMA.asStruct(),
-        afterSecondReplace.schema().asStruct());
+    Assertions.assertThat(afterSecondReplace.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
 
   @Test
   public void testConcurrentReplaceTransactionSchemaConflict() {
-    Assume.assumeTrue("Schema conflicts are detected server-side", supportsServerSideRetry());
+    Assumptions.assumeTrue(supportsServerSideRetry(), "Schema conflicts are detected server-side");
 
     C catalog = catalog();
 
@@ -2208,10 +2331,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table schema should match the original schema",
-        REPLACE_SCHEMA.asStruct(),
-        afterFirstReplace.schema().asStruct());
+    Assertions.assertThat(afterFirstReplace.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
@@ -2247,17 +2370,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table spec should match the new spec",
-        TABLE_SPEC.fields(),
-        afterFirstReplace.spec().fields());
+    Assertions.assertThat(afterFirstReplace.spec().fields())
+        .as("Table spec should match the new spec")
+        .isEqualTo(TABLE_SPEC.fields());
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertTrue("Table should be unpartitioned", afterSecondReplace.spec().isUnpartitioned());
+    Assertions.assertThat(afterSecondReplace.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
@@ -2286,24 +2410,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertTrue("Table should be unpartitioned", afterFirstReplace.spec().isUnpartitioned());
+    Assertions.assertThat(afterFirstReplace.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table spec should match the new spec",
-        TABLE_SPEC.fields(),
-        afterSecondReplace.spec().fields());
+    Assertions.assertThat(afterSecondReplace.spec().fields())
+        .as("Table spec should match the new spec")
+        .isEqualTo(TABLE_SPEC.fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
 
   @Test
   public void testConcurrentReplaceTransactionPartitionSpecConflict() {
-    Assume.assumeTrue("Spec conflicts are detected server-side", supportsServerSideRetry());
+    Assumptions.assumeTrue(supportsServerSideRetry(), "Spec conflicts are detected server-side");
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -2327,10 +2452,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table spec should match the new spec",
-        TABLE_SPEC.fields(),
-        afterFirstReplace.spec().fields());
+    Assertions.assertThat(afterFirstReplace.spec().fields())
+        .as("Table spec should match the new spec")
+        .isEqualTo(TABLE_SPEC.fields());
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
@@ -2366,15 +2490,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table order should match the new order", TABLE_WRITE_ORDER, afterFirstReplace.sortOrder());
+    Assertions.assertThat(afterFirstReplace.sortOrder())
+        .as("Table order should match the new order")
+        .isEqualTo(TABLE_WRITE_ORDER);
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertTrue("Table should be unsorted", afterSecondReplace.sortOrder().isUnsorted());
+    Assertions.assertThat(afterSecondReplace.sortOrder().isUnsorted())
+        .as("Table should be unsorted")
+        .isTrue();
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
@@ -2408,17 +2535,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     firstReplace.commitTransaction();
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
-    Assert.assertTrue("Table order should be set", afterFirstReplace.sortOrder().isSorted());
+    Assertions.assertThat(afterFirstReplace.sortOrder().isSorted())
+        .as("Table order should be set")
+        .isTrue();
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    Assert.assertEquals(
-        "Table order should match the new order",
-        TABLE_WRITE_ORDER.fields(),
-        afterSecondReplace.sortOrder().fields());
+    Assertions.assertThat(afterSecondReplace.sortOrder().fields())
+        .as("Table order should match the new order")
+        .isEqualTo(TABLE_WRITE_ORDER.fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
   }
@@ -2489,30 +2617,28 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {
     try {
-      Assert.assertEquals(context, 0, catalog.listTables(ns).size());
+      Assertions.assertThat(catalog.listTables(ns)).as(context).isEmpty();
     } catch (NoSuchNamespaceException e) {
       // it is okay if the catalog throws NoSuchNamespaceException when it is empty
     }
   }
 
   public void assertUUIDsMatch(Table expected, Table actual) {
-    Assert.assertEquals(
-        "Table UUID should not change",
-        ((BaseTable) expected).operations().current().uuid(),
-        ((BaseTable) actual).operations().current().uuid());
+    Assertions.assertThat(((BaseTable) actual).operations().current().uuid())
+        .as("Table UUID should not change")
+        .isEqualTo(((BaseTable) expected).operations().current().uuid());
   }
 
   public void assertPreviousMetadataFileCount(Table table, int metadataFileCount) {
     TableOperations ops = ((BaseTable) table).operations();
-    Assert.assertEquals(
-        "Table should have correct number of previous metadata locations",
-        metadataFileCount,
-        ops.current().previousFiles().size());
+    Assertions.assertThat(ops.current().previousFiles().size())
+        .as("Table should have correct number of previous metadata locations")
+        .isEqualTo(metadataFileCount);
   }
 
   public void assertNoFiles(Table table) {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Assert.assertFalse("Should contain no files", tasks.iterator().hasNext());
+      Assertions.assertThat(tasks).as("Should contain no files").isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -2525,12 +2651,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
               .map(FileScanTask::file)
               .map(DataFile::path)
               .collect(Collectors.toList());
-      Assert.assertEquals(
-          "Should contain expected number of data files", files.length, paths.size());
-      Assert.assertEquals(
-          "Should contain correct file paths",
-          CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)),
-          CharSequenceSet.of(paths));
+      Assertions.assertThat(paths.size())
+          .as("Should contain expected number of data files")
+          .isEqualTo(files.length);
+      Assertions.assertThat(CharSequenceSet.of(paths))
+          .as("Should contain correct file paths")
+          .isEqualTo(CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -2541,7 +2667,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Streams.stream(tasks)
           .map(FileScanTask::file)
           .filter(file -> file.path().equals(dataFile.path()))
-          .forEach(file -> Assert.assertEquals(specId, file.specId()));
+          .forEach(
+              file ->
+                  Assertions.assertThat(file.specId())
+                      .as("Spec ID should match")
+                      .isEqualTo(specId));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -2551,7 +2681,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       Streams.stream(tasks)
           .map(FileScanTask::file)
-          .forEach(file -> Assert.assertEquals(table.spec().specId(), file.specId()));
+          .forEach(
+              file ->
+                  Assertions.assertThat(file.specId())
+                      .as("Spec ID should match")
+                      .isEqualTo(table.spec().specId()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

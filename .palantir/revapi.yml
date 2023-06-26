@@ -737,6 +737,12 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String)"
       justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method java.util.List<org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement>\
+        \ org.apache.iceberg.rest.requests.UpdateTableRequest::requirements()"
+      new: "method java.util.List<org.apache.iceberg.UpdateRequirement> org.apache.iceberg.rest.requests.UpdateTableRequest::requirements()"
+      justification: "Signature changed to an interface, but this is safe because\
+        \ of type erasure and the original type is always returned"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

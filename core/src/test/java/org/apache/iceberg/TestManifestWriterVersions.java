@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -111,11 +112,9 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV1WriteDelete() {
-    AssertHelpers.assertThrows(
-        "Should fail to write a delete manifest for v1",
-        IllegalArgumentException.class,
-        "Cannot write delete files in a v1 table",
-        () -> writeDeleteManifest(1));
+    Assertions.assertThatThrownBy(() -> writeDeleteManifest(1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot write delete files in a v1 table");
   }
 
   @Test

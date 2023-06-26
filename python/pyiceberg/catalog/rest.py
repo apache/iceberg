@@ -22,6 +22,7 @@ from typing import (
     Literal,
     Optional,
     Set,
+    Tuple,
     Type,
     Union,
 )
@@ -42,6 +43,8 @@ from pyiceberg.catalog import (
 from pyiceberg.exceptions import (
     AuthorizationExpiredError,
     BadRequestError,
+    CommitFailedException,
+    CommitStateUnknownException,
     ForbiddenError,
     NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
@@ -55,7 +58,12 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table import (
+    CommitTableRequest,
+    CommitTableResponse,
+    Table,
+    TableMetadata,
+)
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
@@ -68,7 +76,7 @@ class Endpoints:
     create_namespace: str = "namespaces"
     load_namespace_metadata: str = "namespaces/{namespace}"
     drop_namespace: str = "namespaces/{namespace}"
-    update_properties: str = "namespaces/{namespace}/properties"
+    update_namespace_properties: str = "namespaces/{namespace}/properties"
     list_tables: str = "namespaces/{namespace}/tables"
     create_table: str = "namespaces/{namespace}/tables"
     load_table: str = "namespaces/{namespace}/tables/{table}"
@@ -178,13 +186,13 @@ class RestCatalog(Catalog):
     _session: Session
 
     def __init__(self, name: str, **properties: str):
-        """Rest Catalog
+        """Rest Catalog.
 
         You either need to provide a client_id and client_secret, or an already valid token.
 
         Args:
-            name: Name to identify the catalog
-            properties: Properties that are passed along to the configuration
+            name: Name to identify the catalog.
+            properties: Properties that are passed along to the configuration.
         """
         super().__init__(name, **properties)
         self.uri = properties[URI]
@@ -192,7 +200,7 @@ class RestCatalog(Catalog):
         self._session = self._create_session()
 
     def _create_session(self) -> Session:
-        """Creates a request session with provided catalog configuration"""
+        """Creates a request session with provided catalog configuration."""
         session = Session()
 
         # Sets the client side and server side SSL cert verification, if provided as properties.
@@ -225,23 +233,22 @@ class RestCatalog(Catalog):
         return session
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
-        """The identifier should have at least one element"""
+        """The identifier should have at least one element."""
         identifier_tuple = Catalog.identifier_to_tuple(identifier)
         if len(identifier_tuple) < 1:
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
-        """Constructs the endpoint
+        """Constructs the endpoint.
 
         Args:
-            endpoint: Resource identifier that points to the REST catalog
-            prefixed: If the prefix return by the config needs to be appended
+            endpoint: Resource identifier that points to the REST catalog.
+            prefixed: If the prefix return by the config needs to be appended.
 
         Returns:
-            The base url of the rest catalog
+            The base url of the rest catalog.
         """
-
         url = self.uri
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
 
@@ -394,6 +401,17 @@ class RestCatalog(Catalog):
 
         session.mount(self.uri, SigV4Adapter(**self.properties))
 
+    def _response_to_table(self, identifier_tuple: Tuple[str, ...], table_response: TableResponse) -> Table:
+        return Table(
+            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
+            metadata_location=table_response.metadata_location,
+            metadata=table_response.metadata,
+            io=self._load_file_io(
+                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
+            ),
+            catalog=self,
+        )
+
     def create_table(
         self,
         identifier: Union[str, Identifier],
@@ -423,15 +441,7 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
         table_response = TableResponse(**response.json())
-
-        return Table(
-            identifier=(self.name,) + self.identifier_to_tuple(identifier),
-            metadata_location=table_response.metadata_location,
-            metadata=table_response.metadata,
-            io=self._load_file_io(
-                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
-            ),
-        )
+        return self._response_to_table(self.identifier_to_tuple(identifier), table_response)
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
@@ -456,14 +466,7 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError})
 
         table_response = TableResponse(**response.json())
-        return Table(
-            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
-            metadata_location=table_response.metadata_location,
-            metadata=table_response.metadata,
-            io=self._load_file_io(
-                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
-            ),
-        )
+        return self._response_to_table(identifier_tuple, table_response)
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         response = self._session.delete(
@@ -489,6 +492,36 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
 
         return self.load_table(to_identifier)
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        response = self._session.post(
+            self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
+            data=table_request.json(),
+        )
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            self._handle_non_200_response(
+                exc,
+                {
+                    409: CommitFailedException,
+                    500: CommitStateUnknownException,
+                    502: CommitStateUnknownException,
+                    504: CommitStateUnknownException,
+                },
+            )
+        return CommitTableResponse(**response.json())
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
@@ -542,7 +575,7 @@ class RestCatalog(Catalog):
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
-        response = self._session.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload)
+        response = self._session.post(self.url(Endpoints.update_namespace_properties, namespace=namespace), json=payload)
         try:
             response.raise_for_status()
         except HTTPError as exc:

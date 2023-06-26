@@ -26,12 +26,13 @@ from unittest import mock
 from click.testing import CliRunner
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
@@ -115,7 +116,11 @@ class MockCatalog(Catalog):
             metadata_location="s3://tmp/",
             metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
             io=load_file_io(),
+            catalog=self,
         )
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
@@ -125,6 +130,7 @@ class MockCatalog(Catalog):
                 metadata_location="s3://tmp/",
                 metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
                 io=load_file_io(),
+                catalog=NoopCatalog("NoopCatalog"),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {'.'.join(tuple_identifier)}")
@@ -147,6 +153,7 @@ class MockCatalog(Catalog):
                 metadata_location="s3://tmp/",
                 metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
                 io=load_file_io(),
+                catalog=NoopCatalog("NoopCatalog"),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {from_identifier}")
