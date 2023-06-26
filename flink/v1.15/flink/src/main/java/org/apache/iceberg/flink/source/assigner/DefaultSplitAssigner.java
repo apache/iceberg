@@ -20,7 +20,8 @@ package org.apache.iceberg.flink.source.assigner;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Deque;
+import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -28,24 +29,27 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 
 /**
  * Since all methods are called in the source coordinator thread by enumerator, there is no need for
  * locking.
  */
 @Internal
-public class SimpleSplitAssigner implements SplitAssigner {
+public class DefaultSplitAssigner implements SplitAssigner {
 
-  private final Deque<IcebergSourceSplit> pendingSplits;
+  private final Queue<IcebergSourceSplit> pendingSplits;
   private CompletableFuture<Void> availableFuture;
 
-  public SimpleSplitAssigner() {
-    this.pendingSplits = new ArrayDeque<>();
+  public DefaultSplitAssigner(SerializableComparator<IcebergSourceSplit> comparator) {
+    this.pendingSplits = comparator == null ? new ArrayDeque<>() : new PriorityQueue<>(comparator);
   }
 
-  public SimpleSplitAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    this.pendingSplits = new ArrayDeque<>(assignerState.size());
-    // Because simple assigner only tracks unassigned splits,
+  public DefaultSplitAssigner(
+      SerializableComparator<IcebergSourceSplit> comparator,
+      Collection<IcebergSourceSplitState> assignerState) {
+    this(comparator);
+    // Because default assigner only tracks unassigned splits,
     // there is no need to filter splits based on status (unassigned) here.
     assignerState.forEach(splitState -> pendingSplits.add(splitState.split()));
   }

@@ -18,20 +18,26 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
-import java.util.Collection;
-import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+import org.apache.iceberg.flink.source.SplitHelpers;
+import org.junit.Test;
 
-/** Create simple assigner that hands out splits without any guarantee in order or locality. */
-public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
-  public SimpleSplitAssignerFactory() {}
-
+public class TestDefaultSplitAssigner extends SplitAssignerTestBase {
   @Override
-  public SplitAssigner createAssigner() {
+  protected SplitAssigner splitAssigner() {
     return new DefaultSplitAssigner(null);
   }
 
-  @Override
-  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new DefaultSplitAssigner(null, assignerState);
+  /** Test the assigner when multiple files are in a single split */
+  @Test
+  public void testMultipleFilesInASplit() throws Exception {
+    SplitAssigner assigner = splitAssigner();
+    assigner.onDiscoveredSplits(
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2));
+
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+    assertSnapshot(assigner, 1);
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+    assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
+    assertSnapshot(assigner, 0);
   }
 }

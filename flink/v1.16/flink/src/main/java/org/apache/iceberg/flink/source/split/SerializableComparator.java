@@ -16,22 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.assigner;
+package org.apache.iceberg.flink.source.split;
 
-import java.util.Collection;
-import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+import java.io.Serializable;
+import java.util.Comparator;
 
-/** Create simple assigner that hands out splits without any guarantee in order or locality. */
-public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
-  public SimpleSplitAssignerFactory() {}
-
-  @Override
-  public SplitAssigner createAssigner() {
-    return new DefaultSplitAssigner(null);
-  }
-
-  @Override
-  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new DefaultSplitAssigner(null, assignerState);
-  }
-}
+public interface SerializableComparator<T> extends Comparator<T>, Serializable {}

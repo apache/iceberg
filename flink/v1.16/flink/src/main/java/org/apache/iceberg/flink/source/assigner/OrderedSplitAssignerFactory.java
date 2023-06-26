@@ -19,19 +19,28 @@
 package org.apache.iceberg.flink.source.assigner;
 
 import java.util.Collection;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 
-/** Create simple assigner that hands out splits without any guarantee in order or locality. */
-public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
-  public SimpleSplitAssignerFactory() {}
+/**
+ * Create default assigner with a comparator that hands out splits where the order of the splits
+ * will be defined by the {@link SerializableComparator}.
+ */
+public class OrderedSplitAssignerFactory implements SplitAssignerFactory {
+  private final SerializableComparator<IcebergSourceSplit> comparator;
+
+  public OrderedSplitAssignerFactory(SerializableComparator<IcebergSourceSplit> comparator) {
+    this.comparator = comparator;
+  }
 
   @Override
   public SplitAssigner createAssigner() {
-    return new DefaultSplitAssigner(null);
+    return new DefaultSplitAssigner(comparator);
   }
 
   @Override
   public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new DefaultSplitAssigner(null, assignerState);
+    return new DefaultSplitAssigner(comparator, assignerState);
   }
 }
