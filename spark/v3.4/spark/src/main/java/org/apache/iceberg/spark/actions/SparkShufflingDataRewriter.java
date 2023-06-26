@@ -64,7 +64,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   /**
    * The number of shuffle partitions to use for each output file. By default, this file rewriter
    * assumes each shuffle partition would become a separate output file. Attempting to generate
-   * large output files of 512 MB and more may strain the memory resources of the cluster as such
+   * large output files of 512 MB or higher may strain the memory resources of the cluster as such
    * rewrites would require lots of Spark memory. This parameter can be used to further divide up
    * the data which will end up in a single file. For example, if the target file size is 2 GB, but
    * the cluster can only handle shuffles of 512 MB, this parameter could be set to 4. Iceberg will

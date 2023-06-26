@@ -188,7 +188,6 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public void testRewriteDataFilesWithSortStrategyAndMultipleShufflePartitionsPerFile() {
     createTable();
     insertData(10 /* file count */);
-    List<Object[]> expectedRecords = currentData();
 
     List<Object[]> output =
         sql(
@@ -204,8 +203,20 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
 
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+    // as there is only one small output file, validate the query ordering (it will not change)
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null));
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -268,9 +279,8 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
 
-    // Due to Z_order, the data written will be in the below order.
-    // As there is only one small output file, we can validate the query ordering (as it will not
-    // change).
+    // due to z-ordering, the data will be written in the below order
+    // as there is only one small output file, validate the query ordering (it will not change)
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
             row(2, "bar", null),
