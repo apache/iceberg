@@ -315,10 +315,12 @@ class PyArrowFileIO(FileIO):
             }
             return HadoopFileSystem(**client_kwargs)
         elif scheme in {"gs", "gcs"}:
-            if access_token := self.properties.get("gs.access-token"):
+            access_token = self.properties.get("gs.token")
+            expiration = self.properties.get("gs.credential-token-expiration")
+            if (access_token is not None) and (expiration is not None):
                 client_kwargs = {
                     "access_token": access_token,
-                    "credential_token_expiration": self.properties.get("gs.credential-token-expiration"),
+                    "credential_token_expiration": expiration,
                 }
                 return GcsFileSystem(**client_kwargs)
             else:
