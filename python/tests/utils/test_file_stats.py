@@ -20,56 +20,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import math
 
-from pyiceberg.utils.file_stats import fill_parquet_file_metadata, serialize_to_binary, BOUND_TRUNCATED_LENGHT
+from pyiceberg.utils.file_stats import fill_parquet_file_metadata, parquet_schema_to_ids, BOUND_TRUNCATED_LENGHT
 from pyiceberg.manifest import DataFile
-import datetime
-import binascii
 import struct
-
-def test_boolean_scalar():
-    scalar1 = pa.scalar(True)
-    assert serialize_to_binary(scalar1) == struct.pack('?', True)
-
-    scalar2 = pa.scalar(False)
-    assert serialize_to_binary(scalar2) == struct.pack('?', False)
-
-def test_int8_scalar():
-    scalar = pa.scalar(123, type=pa.int8())
-    assert serialize_to_binary(scalar) == struct.pack('<b', 123)
-
-def test_int32_scalar():
-    scalar = pa.scalar(123456789, type=pa.int32())
-    assert serialize_to_binary(scalar) == struct.pack('<i', 123456789)
-
-def test_int64_scalar():
-    scalar = pa.scalar(1234567891011121314, type=pa.int64())
-    assert serialize_to_binary(scalar) == struct.pack('<q', 1234567891011121314)
-
-def test_float_scalar():
-    scalar = pa.scalar(123.456, type=pa.float32())
-    assert serialize_to_binary(scalar) == struct.pack('<f', 123.456)
-
-def test_double_scalar():
-    scalar = pa.scalar(123.456, type=pa.float64())
-    assert serialize_to_binary(scalar) == struct.pack('<d', 123.456)
-
-def test_string_scalar():
-    scalar = pa.scalar('abc')
-    assert serialize_to_binary(scalar) == 'abc'.encode()
-
-def test_date32_scalar():
-    scalar = pa.scalar(datetime.date(1970, 1, 2), type=pa.date32())
-    reference = (datetime.date(1970, 1, 2) - datetime.date(1970, 1, 1)).days
-    assert serialize_to_binary(scalar) == struct.pack('<i', reference)
-
-def test_time32_scalar():
-    scalar = pa.scalar(datetime.time(1, 2, 3, 456000), type=pa.time64('us'))
-    assert serialize_to_binary(scalar) == struct.pack('<q', int(1*60*60*1e6 + 2*60*1e6 + 3* 1e6 + 456000))
-
-def test_timestamp_scalar():
-    scalar = pa.scalar(datetime.datetime(2023, 1, 1, 1, 2, 3), type=pa.timestamp('us'))
-    reference = int((datetime.datetime(2023, 1, 1, 1,2,3) - datetime.datetime(1970, 1, 1, 0,0,0)).total_seconds()*1e6)
-    assert serialize_to_binary(scalar) == struct.pack('<q', reference)
+from pyiceberg.schema import Schema
 
 def construct_test_table() -> pa.Buffer:
 
@@ -103,36 +57,44 @@ def construct_test_table() -> pa.Buffer:
     table = pa.Table.from_pydict({"strings": _strings, "floats": _floats, "list": _list}, schema=schema)
     f = pa.BufferOutputStream()
 
-    pq.write_table(table, f)
+    metadata_collector = []
+    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
 
-    return f.getvalue()
+    writer.write_table(table)
+    writer.close()
+
+    print(writer.writer)
+    print(writer.writer.metadata)
+
+    return f.getvalue(), metadata_collector[0]
+
 
 def test_record_count() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert datafile.record_count   == 4
 
 
 def test_file_size() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
-    assert datafile.file_size_in_bytes   == 1558
+    assert datafile.file_size_in_bytes   == len(file_bytes)
 
 
 def test_value_counts() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.value_counts) == 3
     assert datafile.value_counts[1]   == 4
@@ -142,10 +104,10 @@ def test_value_counts() -> None:
 
 def test_column_sizes() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.column_sizes) == 3
     # these values are an artifact of how the write_table encodes the columns
@@ -156,28 +118,29 @@ def test_column_sizes() -> None:
 
 def test_null_and_nan_counts() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.null_value_counts) == 3
     assert datafile.null_value_counts[1]   == 1
     assert datafile.null_value_counts[2]   == 0
     assert datafile.null_value_counts[3]   == 1
 
-    assert len(datafile.nan_value_counts)  == 3
-    assert datafile.nan_value_counts[1]    == 0
-    assert datafile.nan_value_counts[2]    == 1
-    assert datafile.nan_value_counts[3]    == 0
+    ## arrow does not include this in the statistics
+    #assert len(datafile.nan_value_counts)  == 3
+    #assert datafile.nan_value_counts[1]    == 0
+    #assert datafile.nan_value_counts[2]    == 1
+    #assert datafile.nan_value_counts[3]    == 0
 
 
 def test_bounds() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.lower_bounds)          == 2
     assert datafile.lower_bounds[1].decode()   == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
@@ -190,10 +153,241 @@ def test_bounds() -> None:
 
 def test_offsets() -> None:
 
-    file_obj = pa.BufferReader(construct_test_table())
+    (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, file_obj)
+    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.split_offsets) == 1
     assert datafile.split_offsets[0]   == 4
+
+
+
+
+
+def test_dataset() -> pa.Buffer:
+
+    schema = pa.schema([
+        pa.field('ints',  pa.int64()),
+        pa.field('even',  pa.bool_())
+    ])
+
+    _ints = [0,2,4,8,1,3,5,7]
+    parity = [True,True,True,True,False,False,False,False]
+
+        
+    table = pa.Table.from_pydict({"ints": _ints, "even": parity}, schema=schema)
+    f = pa.BufferOutputStream()
+
+    visited_paths = []
+
+    def file_visitor(written_file):
+        visited_paths.append(written_file)
+
+    pq.write_to_dataset(table, "/tmp/dataset", partition_cols=["even"], file_visitor=file_visitor)
+
+
+    even = None
+    odd  = None
+
+    assert len(visited_paths) == 2
+
+    for written_file in visited_paths:
+
+        df = DataFile()
+
+        fill_parquet_file_metadata(df, written_file.metadata, {"ints": 1, "even": 2}, written_file.size)
+
+        if "even=true" in written_file.path:
+            even = df
+
+        if "even=false" in written_file.path:
+            odd  = df
+
+    assert even is not None
+    assert odd  is not None
+
+    assert len(even.value_counts) == 1
+    assert even.value_counts[1]   == 4
+    assert len(even.lower_bounds) == 1
+    assert even.lower_bounds[1]   == struct.pack('<q', 0)
+    assert len(even.upper_bounds) == 1
+    assert even.upper_bounds[1]   == struct.pack('<q', 8)
+
+
+    assert len(odd.value_counts) == 1
+    assert odd.value_counts[1]  == 4
+    assert len(odd.lower_bounds) == 1
+    assert odd.lower_bounds[1]   == struct.pack('<q', 1)
+    assert len(odd.upper_bounds) == 1
+    assert odd.upper_bounds[1]   == struct.pack('<q', 7)
+
+
+def test_schema_mapping():
+
+    json_schema = """
+    {
+    "type": "struct",
+    "schema-id": 0,
+    "fields": [
+        {
+        "id": 1,
+        "name": "_8bit",
+        "required": false,
+        "type": "int"
+        },
+        {
+        "id": 2,
+        "name": "_16bit",
+        "required": false,
+        "type": "int"
+        },
+        {
+        "id": 3,
+        "name": "_32bit",
+        "required": false,
+        "type": "int"
+        },
+        {
+        "id": 4,
+        "name": "_64bit",
+        "required": false,
+        "type": "long"
+        },
+        {
+        "id": 5,
+        "name": "_float",
+        "required": false,
+        "type": "float"
+        },
+        {
+        "id": 6,
+        "name": "_double",
+        "required": false,
+        "type": "double"
+        },
+        {
+        "id": 7,
+        "name": "_decimal",
+        "required": false,
+        "type": "decimal(10, 0)"
+        },
+        {
+        "id": 8,
+        "name": "_timestamp",
+        "required": false,
+        "type": "timestamptz"
+        },
+        {
+        "id": 9,
+        "name": "_date",
+        "required": false,
+        "type": "date"
+        },
+        {
+        "id": 10,
+        "name": "_string",
+        "required": false,
+        "type": "string"
+        },
+        {
+        "id": 11,
+        "name": "_varchar",
+        "required": false,
+        "type": "string"
+        },
+        {
+        "id": 12,
+        "name": "_char",
+        "required": false,
+        "type": "string"
+        },
+        {
+        "id": 13,
+        "name": "_boolean",
+        "required": false,
+        "type": "boolean"
+        },
+        {
+        "id": 14,
+        "name": "_binary",
+        "required": false,
+        "type": "binary"
+        },
+        {
+        "id": 15,
+        "name": "_array",
+        "required": false,
+        "type": {
+            "type": "list",
+            "element-id": 18,
+            "element": "int",
+            "element-required": false
+        }
+        },
+        {
+        "id": 16,
+        "name": "_map",
+        "required": false,
+        "type": {
+            "type": "map",
+            "key-id": 19,
+            "key": "int",
+            "value-id": 20,
+            "value": "int",
+            "value-required": false
+        }
+        },
+        {
+        "id": 17,
+        "name": "_struct",
+        "required": false,
+        "type": {
+            "type": "struct",
+            "fields": [
+            {
+                "id": 21,
+                "name": "_field1",
+                "required": false,
+                "type": "int"
+            },
+            {
+                "id": 22,
+                "name": "_field2",
+                "required": false,
+                "type": "int"
+            }
+            ]
+        }
+        }
+    ]
+    }
+    """
+
+    schema = Schema.parse_raw(json_schema)
+
+    mapping = parquet_schema_to_ids(schema)
+
+    print(mapping)
+
+    assert mapping == {
+        "_8bit": 1,
+        "_16bit": 2,
+        "_32bit": 3,
+        "_64bit": 4,
+        "_float": 5,
+        "_double": 6,
+        "_decimal": 7,
+        "_timestamp": 8,
+        "_date": 9,
+        "_string": 10,
+        "_varchar": 11,
+        "_char": 12,
+        "_boolean": 13,
+        "_binary": 14,
+        "_array.list.element": 18,
+        "_map.key_value.key": 19,
+        "_map.key_value.value": 20,
+        "_struct._field1": 21,
+        "_struct._field2": 22,
+    }

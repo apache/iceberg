@@ -16,11 +16,19 @@
 #  under the License.
 
 from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.types import (
+    IcebergType,
+    ListType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StructType,
+)
 import pyarrow.parquet as pq
-import pyarrow.compute as pc
-import pyarrow as pa
+import pyarrow.lib
 import struct
-import datetime
+from typing import Any, Dict, List, Union
 
 BOUND_TRUNCATED_LENGHT = 16
 
@@ -41,45 +49,81 @@ BOUND_TRUNCATED_LENGHT = 16
 # fixed(L)  Binary value
 # binary    Binary value (without length)
 #
-def serialize_to_binary(scalar: pa.Scalar) -> bytes:
-    value = scalar.as_py()
-    if isinstance(scalar, pa.BooleanScalar):
-        return struct.pack('?', value)
-    elif isinstance(scalar, (pa.Int8Scalar, pa.UInt8Scalar)):
-        return struct.pack('<b', value)
-    elif isinstance(scalar, (pa.Int16Scalar, pa.UInt16Scalar)):
-        return struct.pack('<h', value)
-    elif isinstance(scalar, (pa.Int32Scalar, pa.UInt32Scalar)):
-        return struct.pack('<i', value)
-    elif isinstance(scalar, (pa.Int64Scalar, pa.UInt64Scalar)):
-        return struct.pack('<q', value)
-    elif isinstance(scalar, pa.FloatScalar):
-        return struct.pack('<f', value)
-    elif isinstance(scalar, pa.DoubleScalar):
-        return struct.pack('<d', value)
-    elif isinstance(scalar, pa.StringScalar):
-        return value.encode('utf-8')
-    elif isinstance(scalar, pa.BinaryScalar):
-        return value
-    elif isinstance(scalar, (pa.Date32Scalar, pa.Date64Scalar)):
-        epoch = datetime.date(1970, 1, 1)
-        days = (value - epoch).days
-        return struct.pack('<i', days)
-    elif isinstance(scalar, (pa.Time32Scalar, pa.Time64Scalar)):
-        microseconds = int(value.hour * 60 * 60 * 1e6 +
-                        value.minute * 60 * 1e6 +
-                        value.second * 1e6 +
-                        value.microsecond)
-        return struct.pack('<q', microseconds)
-    elif isinstance(scalar, pa.TimestampScalar):
-        epoch = datetime.datetime(1970, 1, 1)
-        microseconds = int((value - epoch).total_seconds() * 1e6)
-        return struct.pack('<q', microseconds)
+
+def bool_to_avro(value: bool) -> bytes:
+    return struct.pack('?', value)
+
+def int32_to_avro(value: int) -> bytes:
+    return struct.pack('<i', value)
+
+def int64_to_avro(value: int) -> bytes:
+    return struct.pack('<q', value)
+
+def float_to_avro(value: float) -> bytes:
+    return struct.pack('<f', value)
+
+def double_to_avro(value: float) -> bytes:
+    return struct.pack('<d', value)
+
+def bytes_to_avro(value: Union[bytes,str]) -> bytes:
+    if type(value) == str:
+        return value.encode()
     else:
-        raise TypeError('Unsupported type: {}'.format(type(scalar)))
+        return value
+
+class StatsAggregator:
+
+    def __init__(self, type_string: str):
+
+        self.current_min: Any = None 
+        self.current_max: Any = None
+
+        if type_string == 'BOOLEAN':
+            self.serialize = bool_to_avro
+        elif type_string == 'INT32':
+            self.serialize = int32_to_avro
+        elif type_string == 'INT64':
+            self.serialize = int64_to_avro
+        elif type_string == 'INT96':
+            raise Exception("Statistics not implemented for INT96 physical type")
+        elif type_string == 'FLOAT':
+            self.serialize = float_to_avro
+        elif type_string == 'DOUBLE':
+            self.serialize = double_to_avro
+        elif type_string == 'BYTE_ARRAY':
+            self.serialize = bytes_to_avro
+        elif type_string == 'FIXED_LEN_BYTE_ARRAY':
+            self.serialize = bytes_to_avro
+        else:
+            raise Exception(f"Unknown physical type {type_string}")
+        
+    def add_min(self, val: bytes) -> None:
+
+        if not self.current_min:
+            self.current_min = val
+        elif val < self.current_min:
+            self.current_min = val
+
+    def add_max(self, val: bytes) -> None:
+
+        if not self.current_max:
+            self.current_max = val
+        elif self.current_max < val:
+            self.current_max = val
+
+    def get_min(self) -> bytes:
+        return self.serialize(self.current_min)[:BOUND_TRUNCATED_LENGHT]
+
+    def get_max(self) -> bytes:
+        return self.serialize(self.current_max)[:BOUND_TRUNCATED_LENGHT]
 
 
-def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile, table: pa.Table = None) -> None:
+def fill_parquet_file_metadata(
+        df: DataFile,
+        metadata: pq.FileMetaData,
+        col_path_2_iceberg_id: Dict[str,int],
+        file_size: int
+) -> None:
     """
     Computes and fills the following fields of the DataFile object:
 
@@ -96,65 +140,96 @@ def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile, table: 
     
     Args:
         df (DataFile): A DataFile object representing the Parquet file for which metadata is to be filled.
-        file_object (pa.NativeFile): A pyarrow NativeFile object pointing to the location where the 
-            Parquet file is stored.
-        table (pa.Table, optional): If the metadata is computed while writing a pyarrow Table to parquet
-            the table can be passed to compute the column statistics. If absent the table will be read
-            from file_object using pyarrow.parquet.read_table.
+        metadata (pyarrow.parquet.FileMetaData): A pyarrow metadata object.
+        col_path_2_iceberg_id: A mapping of column paths as in the `path_in_schema` attribute of the colum
+            metadata to iceberg schema IDs. For scalar columns this will be the column name. For complex types
+            it could be something like `my_map.key_value.value`
+        file_size (int): The total compressed file size cannot be retrieved from the metadata and hence has to
+            be passed here. Depending on the kind of file system and pyarrow library call used, different
+            ways to obtain this value might be appropriate.
     """
     
-    parquet_file = pq.ParquetFile(file_object)
-    metadata = parquet_file.metadata
+    col_index_2_id = {}
+
+    col_names = set(metadata.schema.names)
+
+    first_group = metadata.row_group(0)
+    
+    for c in range(metadata.num_columns):
+        column = first_group.column(c)
+        col_path = column.path_in_schema
+
+        if col_path in col_path_2_iceberg_id:
+            col_index_2_id[c] = col_path_2_iceberg_id[col_path]
+        else:
+            raise Exception(f"Column path {col_path} couldn't be mapped to an iceberg ID")
+
 
     column_sizes = {}
     value_counts = {}
-
-    for r in range(metadata.num_row_groups):
-        for c in range(metadata.num_columns):
-            column_sizes[c+1] = column_sizes.get(c+1, 0) + metadata.row_group(r).column(c).total_compressed_size
-            value_counts[c+1] = value_counts.get(c+1, 0) + metadata.row_group(r).column(c).num_values
-
-
-    # References:
-    # https://github.com/apache/iceberg/blob/fc381a81a1fdb8f51a0637ca27cd30673bd7aad3/parquet/src/main/java/org/apache/iceberg/parquet/ParquetUtil.java#L232
-    # https://github.com/apache/parquet-mr/blob/ac29db4611f86a07cc6877b416aa4b183e09b353/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java#L184
     split_offsets = []
+
+    null_value_counts = {}
+    nan_value_counts  = {}
+
+    col_aggs = {}
+
     for r in range(metadata.num_row_groups):
-        data_offset       = metadata.row_group(r).column(0).data_page_offset
-        dictionary_offset = metadata.row_group(r).column(0).dictionary_page_offset
-        if metadata.row_group(r).column(0).has_dictionary_page and dictionary_offset < data_offset:
+        # References:
+        # https://github.com/apache/iceberg/blob/fc381a81a1fdb8f51a0637ca27cd30673bd7aad3/parquet/src/main/java/org/apache/iceberg/parquet/ParquetUtil.java#L232
+        # https://github.com/apache/parquet-mr/blob/ac29db4611f86a07cc6877b416aa4b183e09b353/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java#L184
+    
+        row_group = metadata.row_group(r)
+
+        data_offset       = row_group.column(0).data_page_offset
+        dictionary_offset = row_group.column(0).dictionary_page_offset
+        
+        if row_group.column(0).has_dictionary_page and dictionary_offset < data_offset:
             split_offsets.append(dictionary_offset)
         else:
             split_offsets.append(data_offset)
 
+        for c in range(metadata.num_columns):
+
+            col_id = col_index_2_id[c]
+
+            column = row_group.column(c)
+
+            column_sizes[col_id] = column_sizes.get(col_id, 0) + column.total_compressed_size
+            value_counts[col_id] = value_counts.get(col_id, 0) + column.num_values
+
+            if column.is_stats_set:
+
+                try:
+                    statistics = column.statistics
+
+                    null_value_counts[col_id] = null_value_counts.get(col_id, 0) + statistics.null_count
+
+                    if column.path_in_schema in col_names:
+                        # Iceberg seems to only have statistics for scalar columns
+
+                        if col_id not in col_aggs:
+                            col_aggs[col_id] = StatsAggregator(statistics.physical_type)
+
+                        col_aggs[col_id].add_min(statistics.min)
+                        col_aggs[col_id].add_max(statistics.max)
+
+                    
+                except pyarrow.lib.ArrowNotImplementedError:
+                    pass
+
     split_offsets.sort()
 
-    if table is None:
-        table = pa.parquet.read_table(file_object)
+    lower_bounds = {}
+    upper_bounds = {}
 
-    null_value_counts = {}
-    nan_value_counts  = {}
-    lower_bounds      = {}
-    upper_bounds      = {}
-
-    for c in range(metadata.num_columns):
-        null_value_counts[c+1] = table.filter(pc.field(c).is_null(nan_is_null=False)).num_rows
-        nan_value_counts[c+1]  = table.filter(pc.field(c).is_null(nan_is_null=True)).num_rows - null_value_counts[c+1]
-
-        try:
-            lower = pc.min(table[c])
-            upper = pc.max(table[c])
-
-            lower_bounds[c+1] = serialize_to_binary(lower)[:BOUND_TRUNCATED_LENGHT]
-            upper_bounds[c+1] = serialize_to_binary(upper)[:BOUND_TRUNCATED_LENGHT]
-        except pa.lib.ArrowNotImplementedError:
-            # skip bound detection for types such as lists
-            pass
-
+    for (k, agg) in col_aggs.items():
+        lower_bounds[k] = agg.get_min()
+        upper_bounds[k] = agg.get_max()
 
     df.file_format        = FileFormat.PARQUET
-    df.record_count       = parquet_file.metadata.num_rows
-    df.file_size_in_bytes = file_object.size()
+    df.record_count       = metadata.num_rows
+    df.file_size_in_bytes = file_size
     df.column_sizes       = column_sizes
     df.value_counts       = value_counts
     df.null_value_counts  = null_value_counts
@@ -162,3 +237,95 @@ def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile, table: 
     df.lower_bounds       = lower_bounds
     df.upper_bounds       = upper_bounds
     df.split_offsets      = split_offsets
+
+
+
+class _IndexByParquetPath(SchemaVisitor[Dict[str, int]]):
+    """A schema visitor for generating a parquet path to field ID index."""
+
+    def __init__(self) -> None:
+        self._index: Dict[str, int] = {}
+        self._field_names: List[str] = []
+
+    def before_list_element(self, element: NestedField) -> None:
+        """Short field names omit element when the element is a StructType."""
+        self._field_names.append(element.name)
+
+    def after_list_element(self, element: NestedField) -> None:
+        self._field_names.pop()
+
+    def before_field(self, field: NestedField) -> None:
+        """Store the field name."""
+        self._field_names.append(field.name)
+
+    def after_field(self, field: NestedField) -> None:
+        """Remove the last field name stored."""
+        self._field_names.pop()
+
+    def schema(self, schema: Schema, struct_result: Dict[str, int]) -> Dict[str, int]:
+        return self._index
+
+    def struct(self, struct: StructType, field_results: List[Dict[str, int]]) -> Dict[str, int]:
+        return self._index
+
+    def field(self, field: NestedField, field_result: Dict[str, int]) -> Dict[str, int]:
+        """Add the field name to the index."""
+        if isinstance(field.field_type, PrimitiveType):
+            self._add_field(field.name, field.field_id)
+        return self._index
+
+    def list(self, list_type: ListType, element_result: Dict[str, int]) -> Dict[str, int]:
+        """Add the list element name to the index."""
+        self._add_field("list.element", list_type.element_field.field_id)
+        return self._index
+
+    def map(self, map_type: MapType, key_result: Dict[str, int], value_result: Dict[str, int]) -> Dict[str, int]:
+        """Add the key name and value name as individual items in the index"""
+        self._add_field("key_value.key", map_type.key_field.field_id)
+        self._add_field("key_value.value", map_type.value_field.field_id)
+        return self._index
+
+    def primitive(self, primitive: PrimitiveType) -> Dict[str, int]:
+        return self._index
+
+    def _add_field(self, name: str, field_id: int) -> None:
+        """Add a field name to the index, mapping its full name to its field ID.
+
+        Args:
+            name (str): The field name.
+            field_id (int): The field ID.
+
+        Raises:
+            ValueError: If the field name is already contained in the index.
+        """
+        full_name = name
+
+        if self._field_names:
+            full_name = ".".join([".".join(self._field_names), name])
+
+        if full_name in self._index:
+            raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
+        self._index[full_name] = field_id
+
+
+    def by_path(self) -> Dict[str, int]:
+        return self._index
+
+
+def parquet_schema_to_ids(schema_or_type: Union[Schema, IcebergType]) -> Dict[str, int]:
+    """Generate an index of field parquet paths to field IDs.
+
+    It can be used to compute the mapping pass to `fill_parquet_file_metadata`.
+
+    Args:
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
+
+    Returns:
+        Dict[str, int]: An index of field names to field IDs.
+    """
+    if len(schema_or_type.fields) > 0:
+        indexer = _IndexByParquetPath()
+        visit(schema_or_type, indexer)
+        return indexer.by_path()
+    else:
+        return {}
