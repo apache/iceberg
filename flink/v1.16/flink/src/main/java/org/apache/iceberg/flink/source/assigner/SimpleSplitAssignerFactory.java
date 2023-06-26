@@ -23,14 +23,15 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
 /** Create simple assigner that hands out splits without any guarantee in order or locality. */
 public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
+  public SimpleSplitAssignerFactory() {}
 
   @Override
-  public SimpleSplitAssigner createAssigner() {
-    return new SimpleSplitAssigner();
+  public SplitAssigner createAssigner() {
+    return new DefaultSplitAssigner(null);
   }
 
   @Override
-  public SimpleSplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new SimpleSplitAssigner(assignerState);
+  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
+    return new DefaultSplitAssigner(null, assignerState);
   }
 }

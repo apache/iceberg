@@ -38,9 +38,11 @@ class SortDirection(Enum):
     DESC = "desc"
 
     def __str__(self) -> str:
+        """Returns the string representation of the SortDirection class."""
         return self.name
 
     def __repr__(self) -> str:
+        """Returns the string representation of the SortDirection class."""
         return f"SortDirection.{self.name}"
 
 
@@ -49,21 +51,23 @@ class NullOrder(Enum):
     NULLS_LAST = "nulls-last"
 
     def __str__(self) -> str:
+        """Returns the string representation of the NullOrder class."""
         return self.name.replace("_", " ")
 
     def __repr__(self) -> str:
+        """Returns the string representation of the NullOrder class."""
         return f"NullOrder.{self.name}"
 
 
 class SortField(IcebergBaseModel):
-    """Sort order field
+    """Sort order field.
 
     Args:
-      source_id (int): Source column id from the table’s schema
+      source_id (int): Source column id from the table’s schema.
       transform (str): Transform that is used to produce values to be sorted on from the source column.
                        This is the same transform as described in partition transforms.
-      direction (SortDirection): Sort direction, that can only be either asc or desc
-      null_order (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last
+      direction (SortDirection): Sort direction, that can only be either asc or desc.
+      null_order (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last.
     """
 
     def __init__(
@@ -97,6 +101,7 @@ class SortField(IcebergBaseModel):
     null_order: NullOrder = Field(alias="null-order")
 
     def __str__(self) -> str:
+        """Returns the string representation of the SortField class."""
         if type(self.transform) == IdentityTransform:
             # In the case of an identity transform, we can omit the transform
             return f"{self.source_id} {self.direction} {self.null_order}"
@@ -108,7 +113,7 @@ INITIAL_SORT_ORDER_ID = 1
 
 
 class SortOrder(IcebergBaseModel):
-    """Describes how the data is sorted within the table
+    """Describes how the data is sorted within the table.
 
     Users can sort their data within partitions by columns to gain performance.
 
@@ -134,6 +139,7 @@ class SortOrder(IcebergBaseModel):
         return len(self.fields) == 0
 
     def __str__(self) -> str:
+        """Returns the string representation of the SortOrder class."""
         result_str = "["
         if self.fields:
             result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
@@ -141,6 +147,7 @@ class SortOrder(IcebergBaseModel):
         return result_str
 
     def __repr__(self) -> str:
+        """Returns the string representation of the SortOrder class."""
         fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
         return f"SortOrder({fields}order_id={self.order_id})"
 

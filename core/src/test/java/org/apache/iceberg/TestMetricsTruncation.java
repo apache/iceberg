@@ -27,6 +27,7 @@ import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import org.apache.iceberg.expressions.Literal;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -58,11 +59,9 @@ public class TestMetricsTruncation {
     Assert.assertTrue(
         "Truncating should not modify the input buffer",
         original.remaining() == 4 && original.position() == 0);
-    AssertHelpers.assertThrows(
-        "Should not allow a negative truncation length",
-        IllegalArgumentException.class,
-        "length should be non-negative",
-        () -> truncateBinary(original, -1));
+    Assertions.assertThatThrownBy(() -> truncateBinary(original, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Truncate length should be non-negative");
   }
 
   @Test

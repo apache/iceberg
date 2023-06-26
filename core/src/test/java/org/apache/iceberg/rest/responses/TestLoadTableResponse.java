@@ -24,7 +24,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,8 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResponse> {
 
@@ -98,11 +97,9 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
 
   @Test
   public void testFailures() {
-    AssertHelpers.assertThrows(
-        "Table metadata should be required",
-        NullPointerException.class,
-        "Invalid metadata: null",
-        () -> LoadTableResponse.builder().build());
+    Assertions.assertThatThrownBy(() -> LoadTableResponse.builder().build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid metadata: null");
   }
 
   @Test
@@ -126,11 +123,10 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testMissingSchemaType() throws Exception {
     // When the schema type (struct) is missing
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1MissingSchemaType.json");
-    AssertHelpers.assertThrows(
-        "Cannot parse type from json when there is no type",
-        IllegalArgumentException.class,
-        "Cannot parse type from json:",
-        () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson));
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse type from json:");
   }
 
   @Test
@@ -161,86 +157,105 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     LoadTableResponse actual = deserialize(json);
     LoadTableResponse expected = LoadTableResponse.builder().withTableMetadata(metadata).build();
     assertEquals(actual, expected);
-    Assert.assertEquals(
-        "Deserialized JSON with missing fields should have the default values",
-        ImmutableMap.of(),
-        actual.config());
+    Assertions.assertThat(actual.config())
+        .as("Deserialized JSON with missing fields should have the default values")
+        .isEqualTo(ImmutableMap.of());
   }
 
   @Override
   public void assertEquals(LoadTableResponse actual, LoadTableResponse expected) {
-    Assert.assertEquals("Should have the same configuration", expected.config(), actual.config());
+    Assertions.assertThat(actual.config())
+        .as("Should have the same configuration")
+        .isEqualTo(expected.config());
     assertEqualTableMetadata(actual.tableMetadata(), expected.tableMetadata());
-    Assert.assertEquals(
-        "Should have the same metadata location",
-        expected.metadataLocation(),
-        actual.metadataLocation());
+    Assertions.assertThat(actual.metadataLocation())
+        .as("Should have the same metadata location")
+        .isEqualTo(expected.metadataLocation());
   }
 
   private void assertEqualTableMetadata(TableMetadata actual, TableMetadata expected) {
-    Assert.assertEquals(
-        "Format version should match", expected.formatVersion(), actual.formatVersion());
-    Assert.assertEquals("Table UUID should match", expected.uuid(), actual.uuid());
-    Assert.assertEquals("Table location should match", expected.location(), actual.location());
-    Assert.assertEquals("Last column id", expected.lastColumnId(), actual.lastColumnId());
-    Assert.assertEquals(
-        "Schema should match", expected.schema().asStruct(), actual.schema().asStruct());
+    Assertions.assertThat(actual.formatVersion())
+        .as("Format version should match")
+        .isEqualTo(expected.formatVersion());
+    Assertions.assertThat(actual.uuid()).as("Table UUID should match").isEqualTo(expected.uuid());
+    Assertions.assertThat(actual.location())
+        .as("Table location should match")
+        .isEqualTo(expected.location());
+    Assertions.assertThat(actual.lastColumnId())
+        .as("Last column id")
+        .isEqualTo(expected.lastColumnId());
+    Assertions.assertThat(actual.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expected.schema().asStruct());
     assertSameSchemaList(expected.schemas(), actual.schemas());
-    Assert.assertEquals(
-        "Current schema id should match", expected.currentSchemaId(), actual.currentSchemaId());
-    Assert.assertEquals(
-        "Schema should match", expected.schema().asStruct(), actual.schema().asStruct());
-    Assert.assertEquals(
-        "Last sequence number should match",
-        expected.lastSequenceNumber(),
-        actual.lastSequenceNumber());
-    Assert.assertEquals(
-        "Partition spec should match", expected.spec().toString(), actual.spec().toString());
-    Assert.assertEquals(
-        "Default spec ID should match", expected.defaultSpecId(), actual.defaultSpecId());
-    Assert.assertEquals("PartitionSpec map should match", expected.specs(), actual.specs());
-    Assert.assertEquals(
-        "Default Sort ID should match", expected.defaultSortOrderId(), actual.defaultSortOrderId());
-    Assert.assertEquals("Sort order should match", expected.sortOrder(), actual.sortOrder());
-    Assert.assertEquals("Sort order map should match", expected.sortOrders(), actual.sortOrders());
-    Assert.assertEquals("Properties should match", expected.properties(), actual.properties());
-    Assert.assertEquals(
-        "Snapshots should match",
-        Lists.transform(expected.snapshots(), Snapshot::snapshotId),
-        Lists.transform(actual.snapshots(), Snapshot::snapshotId));
-    Assert.assertEquals("History should match", expected.snapshotLog(), actual.snapshotLog());
+    Assertions.assertThat(actual.currentSchemaId())
+        .as("Current schema id should match")
+        .isEqualTo(expected.currentSchemaId());
+    Assertions.assertThat(actual.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expected.schema().asStruct());
+    Assertions.assertThat(actual.lastSequenceNumber())
+        .as("Last sequence number should match")
+        .isEqualTo(expected.lastSequenceNumber());
+    Assertions.assertThat(actual.spec().toString())
+        .as("Partition spec should match")
+        .isEqualTo(expected.spec().toString());
+    Assertions.assertThat(actual.defaultSpecId())
+        .as("Default spec ID should match")
+        .isEqualTo(expected.defaultSpecId());
+    Assertions.assertThat(actual.specs())
+        .as("PartitionSpec map should match")
+        .isEqualTo(expected.specs());
+    Assertions.assertThat(actual.defaultSortOrderId())
+        .as("Default Sort ID should match")
+        .isEqualTo(expected.defaultSortOrderId());
+    Assertions.assertThat(actual.sortOrder())
+        .as("Sort order should match")
+        .isEqualTo(expected.sortOrder());
+    Assertions.assertThat(actual.sortOrders())
+        .as("Sort order map should match")
+        .isEqualTo(expected.sortOrders());
+    Assertions.assertThat(actual.properties())
+        .as("Properties should match")
+        .isEqualTo(expected.properties());
+    Assertions.assertThat(Lists.transform(actual.snapshots(), Snapshot::snapshotId))
+        .as("Snapshots should match")
+        .isEqualTo(Lists.transform(expected.snapshots(), Snapshot::snapshotId));
+    Assertions.assertThat(actual.snapshotLog())
+        .as("History should match")
+        .isEqualTo(expected.snapshotLog());
     Snapshot expectedCurrentSnapshot = expected.currentSnapshot();
     Snapshot actualCurrentSnapshot = actual.currentSnapshot();
-    Assert.assertTrue(
-        "Both expected and actual current snapshot should either be null or non-null",
-        (expectedCurrentSnapshot != null && actualCurrentSnapshot != null)
-            || (expectedCurrentSnapshot == null && actualCurrentSnapshot == null));
+    Assertions.assertThat(
+            expectedCurrentSnapshot != null && actualCurrentSnapshot != null
+                || expectedCurrentSnapshot == null && actualCurrentSnapshot == null)
+        .as("Both expected and actual current snapshot should either be null or non-null")
+        .isTrue();
     if (expectedCurrentSnapshot != null) {
-      Assert.assertEquals(
-          "Current snapshot ID should match",
-          expected.currentSnapshot().snapshotId(),
-          actual.currentSnapshot().snapshotId());
-      Assert.assertEquals(
-          "Parent snapshot ID should match",
-          expected.currentSnapshot().parentId(),
-          actual.currentSnapshot().parentId());
-      Assert.assertEquals(
-          "Schema ID for current snapshot should match",
-          expected.currentSnapshot().schemaId(),
-          actual.currentSnapshot().schemaId());
+      Assertions.assertThat(actual.currentSnapshot().snapshotId())
+          .as("Current snapshot ID should match")
+          .isEqualTo(expected.currentSnapshot().snapshotId());
+      Assertions.assertThat(actual.currentSnapshot().parentId())
+          .as("Parent snapshot ID should match")
+          .isEqualTo(expected.currentSnapshot().parentId());
+      Assertions.assertThat(actual.currentSnapshot().schemaId())
+          .as("Schema ID for current snapshot should match")
+          .isEqualTo(expected.currentSnapshot().schemaId());
     }
-    Assert.assertEquals(
-        "Metadata file location should match",
-        expected.metadataFileLocation(),
-        actual.metadataFileLocation());
-    Assert.assertEquals(
-        "Last column id should match", expected.lastColumnId(), actual.lastColumnId());
-    Assert.assertEquals(
-        "Schema should match", expected.schema().asStruct(), actual.schema().asStruct());
+    Assertions.assertThat(actual.metadataFileLocation())
+        .as("Metadata file location should match")
+        .isEqualTo(expected.metadataFileLocation());
+    Assertions.assertThat(actual.lastColumnId())
+        .as("Last column id should match")
+        .isEqualTo(expected.lastColumnId());
+    Assertions.assertThat(actual.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expected.schema().asStruct());
     assertSameSchemaList(expected.schemas(), actual.schemas());
-    Assert.assertEquals(
-        "Current schema id should match", expected.currentSchemaId(), actual.currentSchemaId());
-    Assert.assertEquals("Refs map should match", expected.refs(), actual.refs());
+    Assertions.assertThat(actual.currentSchemaId())
+        .as("Current schema id should match")
+        .isEqualTo(expected.currentSchemaId());
+    Assertions.assertThat(actual.refs()).as("Refs map should match").isEqualTo(expected.refs());
   }
 
   private String readTableMetadataInputFile(String fileName) throws Exception {

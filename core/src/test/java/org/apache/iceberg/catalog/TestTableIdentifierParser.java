@@ -19,8 +19,7 @@
 package org.apache.iceberg.catalog;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTableIdentifierParser {
 
@@ -28,40 +27,36 @@ public class TestTableIdentifierParser {
   public void testTableIdentifierToJson() {
     String json = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}";
     TableIdentifier identifier = TableIdentifier.of(Namespace.of("accounting", "tax"), "paid");
-    Assert.assertEquals(
-        "Should be able to serialize a table identifier with both namespace and name",
-        json,
-        TableIdentifierParser.toJson(identifier));
+    Assertions.assertThat(TableIdentifierParser.toJson(identifier))
+        .as("Should be able to serialize a table identifier with both namespace and name")
+        .isEqualTo(json);
 
     TableIdentifier identifierWithEmptyNamespace = TableIdentifier.of(Namespace.empty(), "paid");
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should be able to serialize a table identifier that uses the empty namespace",
-        jsonWithEmptyNamespace,
-        TableIdentifierParser.toJson(identifierWithEmptyNamespace));
+    Assertions.assertThat(TableIdentifierParser.toJson(identifierWithEmptyNamespace))
+        .as("Should be able to serialize a table identifier that uses the empty namespace")
+        .isEqualTo(jsonWithEmptyNamespace);
   }
 
   @Test
   public void testTableIdentifierFromJson() {
     String json = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}";
     TableIdentifier identifier = TableIdentifier.of(Namespace.of("accounting", "tax"), "paid");
-    Assert.assertEquals(
-        "Should be able to deserialize a valid table identifier",
-        identifier,
-        TableIdentifierParser.fromJson(json));
+    Assertions.assertThat(TableIdentifierParser.fromJson(json))
+        .as("Should be able to deserialize a valid table identifier")
+        .isEqualTo(identifier);
 
     TableIdentifier identifierWithEmptyNamespace = TableIdentifier.of(Namespace.empty(), "paid");
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should be able to deserialize a valid multi-level table identifier",
-        identifierWithEmptyNamespace,
-        TableIdentifierParser.fromJson(jsonWithEmptyNamespace));
+    Assertions.assertThat(TableIdentifierParser.fromJson(jsonWithEmptyNamespace))
+        .as("Should be able to deserialize a valid multi-level table identifier")
+        .isEqualTo(identifierWithEmptyNamespace);
 
     String identifierMissingNamespace = "{\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should implicitly convert a missing namespace into the the empty namespace when parsing",
-        identifierWithEmptyNamespace,
-        TableIdentifierParser.fromJson(identifierMissingNamespace));
+    Assertions.assertThat(TableIdentifierParser.fromJson(identifierMissingNamespace))
+        .as(
+            "Should implicitly convert a missing namespace into the the empty namespace when parsing")
+        .isEqualTo(identifierWithEmptyNamespace);
   }
 
   @Test

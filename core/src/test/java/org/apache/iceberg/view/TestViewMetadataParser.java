@@ -1,0 +1,184 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.view;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
+
+public class TestViewMetadataParser {
+
+  private static final Schema TEST_SCHEMA =
+      new Schema(
+          1,
+          Types.NestedField.required(1, "x", Types.LongType.get()),
+          Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
+          Types.NestedField.required(3, "z", Types.LongType.get()));
+
+  @Test
+  public void nullAndEmptyCheck() {
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson((String) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse view metadata from null string");
+
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson((JsonNode) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse view metadata from null object");
+
+    assertThatThrownBy(() -> ViewMetadataParser.toJson(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid view metadata: null");
+  }
+
+  @Test
+  public void readAndWriteValidViewMetadata() throws Exception {
+    ViewVersion version1 =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .timestampMillis(4353L)
+            .summary(ImmutableMap.of("operation", "create"))
+            .schemaId(1)
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select 'foo' foo")
+                    .dialect("spark-sql")
+                    .defaultCatalog("some-catalog")
+                    .build())
+            .build();
+
+    ViewHistoryEntry historyEntry1 =
+        ImmutableViewHistoryEntry.builder().timestampMillis(4353L).versionId(1).build();
+
+    ViewVersion version2 =
+        ImmutableViewVersion.builder()
+            .versionId(2)
+            .schemaId(1)
+            .timestampMillis(5555L)
+            .summary(ImmutableMap.of("operation", "replace"))
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select 1 id, 'abc' data")
+                    .defaultCatalog("some-catalog")
+                    .dialect("spark-sql")
+                    .build())
+            .build();
+
+    ViewHistoryEntry historyEntry2 =
+        ImmutableViewHistoryEntry.builder().timestampMillis(5555L).versionId(2).build();
+
+    String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
+    ViewMetadata expectedViewMetadata =
+        ImmutableViewMetadata.builder()
+            .currentSchemaId(1)
+            .schemas(ImmutableList.of(TEST_SCHEMA))
+            .versions(ImmutableList.of(version1, version2))
+            .history(ImmutableList.of(historyEntry1, historyEntry2))
+            .location("s3://bucket/test/location")
+            .properties(ImmutableMap.of("some-key", "some-value"))
+            .currentVersionId(2)
+            .formatVersion(1)
+            .build();
+
+    ViewMetadata actual = ViewMetadataParser.fromJson(json);
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(expectedViewMetadata);
+    for (Schema schema : expectedViewMetadata.schemas()) {
+      assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();
+    }
+
+    actual = ViewMetadataParser.fromJson(ViewMetadataParser.toJson(expectedViewMetadata));
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(expectedViewMetadata);
+    for (Schema schema : expectedViewMetadata.schemas()) {
+      assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();
+    }
+  }
+
+  @Test
+  public void readViewMetadataWithLimitedNumberVersionEntries() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataLimitedVersions.json");
+
+    ViewMetadata viewMetadata = ViewMetadataParser.fromJson(json);
+    assertThat(viewMetadata.versions()).hasSize(1);
+    assertThat(viewMetadata.history()).hasSize(1);
+  }
+
+  @Test
+  public void failReadingViewMetadataMissingLocation() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataMissingLocation.json");
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: location");
+  }
+
+  @Test
+  public void failReadingViewMetadataMissingCurrentSchema() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataMissingCurrentSchema.json");
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing int: current-schema-id");
+  }
+
+  @Test
+  public void failReadingViewMetadataInvalidSchemaId() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentSchema.json");
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find current schema with id 1234 in schemas: [1]");
+  }
+
+  @Test
+  public void failReadingViewMetadataMissingVersion() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataMissingCurrentVersion.json");
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing int: current-version-id");
+  }
+
+  @Test
+  public void failReadingViewMetadataInvalidVersionId() throws Exception {
+    String json =
+        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentVersion.json");
+    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find current version 1234 in view versions: [1, 2]");
+  }
+
+  private String readViewMetadataInputFile(String fileName) throws Exception {
+    Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
+    return String.join("", java.nio.file.Files.readAllLines(path));
+  }
+}

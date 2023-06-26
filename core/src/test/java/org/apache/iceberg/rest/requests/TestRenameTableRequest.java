@@ -24,8 +24,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableRequest> {
 
@@ -119,12 +118,12 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
 
   @Override
   public void assertEquals(RenameTableRequest actual, RenameTableRequest expected) {
-    Assert.assertEquals(
-        "Source table identifier should be equal", expected.source(), actual.source());
-    Assert.assertEquals(
-        "Destination table identifier should be equal",
-        expected.destination(),
-        actual.destination());
+    Assertions.assertThat(actual.source())
+        .as("Source table identifier should be equal")
+        .isEqualTo(expected.source());
+    Assertions.assertThat(actual.destination())
+        .as("Destination table identifier should be equal")
+        .isEqualTo(expected.destination());
   }
 
   @Override

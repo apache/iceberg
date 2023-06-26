@@ -41,8 +41,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestTableSerialization extends HadoopTableTestBase {
 
@@ -112,10 +112,10 @@ public class TestTableSerialization extends HadoopTableTestBase {
     Set<CharSequence> deserializedFiles = getFiles(deserialized);
 
     // Checks that the deserialized data stays the same
-    Assert.assertEquals(expected, deserializedFiles);
+    Assertions.assertThat(deserializedFiles).isEqualTo(expected);
 
     // We expect that the files changed in the meantime
-    Assert.assertNotEquals(getFiles(table), deserializedFiles);
+    Assertions.assertThat(deserializedFiles).isNotEqualTo(getFiles(table));
   }
 
   @Test
@@ -143,13 +143,13 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Set<CharSequence> deserializedFiles = getFiles(deserializeFromBytes(serialized.get(type)));
 
       // Checks that the deserialized data stays the same
-      Assert.assertEquals(expected.get(type), deserializedFiles);
+      Assertions.assertThat(deserializedFiles).isEqualTo(expected.get(type));
 
       // Collect the current data
       Set<CharSequence> newFiles = getFiles(getMetaDataTable(table, type));
 
       // Expect that the new data is changed in the meantime
-      Assert.assertNotEquals(newFiles, deserializedFiles);
+      Assertions.assertThat(deserializedFiles).isNotEqualTo(newFiles);
     }
   }
 

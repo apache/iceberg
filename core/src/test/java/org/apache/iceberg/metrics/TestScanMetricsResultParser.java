@@ -23,7 +23,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestScanMetricsResultParser {
 

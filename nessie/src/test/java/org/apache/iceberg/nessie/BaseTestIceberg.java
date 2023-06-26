@@ -73,7 +73,7 @@ import org.slf4j.LoggerFactory;
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@NessieApiVersions // test all versions
 public abstract class BaseTestIceberg {
 
   @NessieDbAdapter static DatabaseAdapter databaseAdapter;
@@ -88,6 +88,7 @@ public abstract class BaseTestIceberg {
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
+  protected String apiVersion;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String initialHashOfDefaultBranch;
@@ -122,6 +123,7 @@ public abstract class BaseTestIceberg {
       throws IOException {
     this.uri = nessieUri.toASCIIString();
     this.api = clientFactory.make();
+    this.apiVersion = clientFactory.apiVersion() == NessieApiVersion.V2 ? "2" : "1";
 
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
@@ -145,7 +147,8 @@ public abstract class BaseTestIceberg {
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString())
+            .put("client-api-version", apiVersion);
     if (null != hash) {
       options.put("ref.hash", hash);
     }

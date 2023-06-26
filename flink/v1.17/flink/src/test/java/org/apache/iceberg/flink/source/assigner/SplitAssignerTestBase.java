@@ -30,22 +30,24 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestSimpleSplitAssigner {
+public abstract class SplitAssignerTestBase {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   @Test
   public void testEmptyInitialization() {
-    SimpleSplitAssigner assigner = new SimpleSplitAssigner();
+    SplitAssigner assigner = splitAssigner();
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
   }
 
   /** Test a sequence of interactions for StaticEnumerator */
   @Test
   public void testStaticEnumeratorSequence() throws Exception {
-    SimpleSplitAssigner assigner = new SimpleSplitAssigner();
+    SplitAssigner assigner = splitAssigner();
     assigner.onDiscoveredSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2));
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 1));
 
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertSnapshot(assigner, 1);
     assigner.onUnassignedSplits(
@@ -61,7 +63,7 @@ public class TestSimpleSplitAssigner {
   /** Test a sequence of interactions for ContinuousEnumerator */
   @Test
   public void testContinuousEnumeratorSequence() throws Exception {
-    SimpleSplitAssigner assigner = new SimpleSplitAssigner();
+    SplitAssigner assigner = splitAssigner();
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
 
     List<IcebergSourceSplit> splits1 =
@@ -81,7 +83,7 @@ public class TestSimpleSplitAssigner {
   }
 
   private void assertAvailableFuture(
-      SimpleSplitAssigner assigner, int splitCount, Runnable addSplitsRunnable) {
+      SplitAssigner assigner, int splitCount, Runnable addSplitsRunnable) {
     // register callback
     AtomicBoolean futureCompleted = new AtomicBoolean();
     CompletableFuture<Void> future = assigner.isAvailable();
@@ -102,7 +104,7 @@ public class TestSimpleSplitAssigner {
     assertSnapshot(assigner, 0);
   }
 
-  private void assertGetNext(SimpleSplitAssigner assigner, GetSplitResult.Status expectedStatus) {
+  protected void assertGetNext(SplitAssigner assigner, GetSplitResult.Status expectedStatus) {
     GetSplitResult result = assigner.getNext(null);
     Assert.assertEquals(expectedStatus, result.status());
     switch (expectedStatus) {
@@ -118,8 +120,10 @@ public class TestSimpleSplitAssigner {
     }
   }
 
-  private void assertSnapshot(SimpleSplitAssigner assigner, int splitCount) {
+  protected void assertSnapshot(SplitAssigner assigner, int splitCount) {
     Collection<IcebergSourceSplitState> stateBeforeGet = assigner.state();
     Assert.assertEquals(splitCount, stateBeforeGet.size());
   }
+
+  protected abstract SplitAssigner splitAssigner();
 }

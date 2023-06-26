@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.encryption;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCiphers {
 
@@ -49,7 +50,7 @@ public class TestCiphers {
 
       Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(key);
       byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
-      Assert.assertArrayEquals("Key length " + keyLength, plaintext, decryptedText);
+      assertThat(decryptedText).as("Key length " + keyLength).isEqualTo(plaintext);
     }
   }
 }
