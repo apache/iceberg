@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -28,17 +29,33 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.spark.source.metrics.ResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.ScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
+import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
+import org.apache.iceberg.spark.source.metrics.TotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
@@ -58,6 +75,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final String branch;
+  private final Supplier<ScanReport> metricsReportSupplier;
 
   // lazy variables
   private StructType readSchema;
@@ -67,7 +85,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Table table,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
+      List<Expression> filters,
+      Supplier<ScanReport> metricsReportSupplier) {
+    this.metricsReportSupplier = metricsReportSupplier;
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
@@ -171,7 +191,34 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    ScanReport scanReport = metricsReportSupplier.get();
+    if (scanReport == null) {
+      return new CustomTaskMetric[0];
+    }
+
+    List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
+    driverMetrics.add(TaskTotalFileSize.from(scanReport));
+    driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
+    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
+    driverMetrics.add(TaskResultDataFiles.from(scanReport));
+    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
+    driverMetrics.add(TaskScannedDataManifests.from(scanReport));
+
+    return driverMetrics.toArray(new CustomTaskMetric[0]);
+  }
+
+  @Override
   public CustomMetric[] supportedCustomMetrics() {
-    return new CustomMetric[] {new NumSplits(), new NumDeletes()};
+    return new CustomMetric[] {
+      new NumSplits(),
+      new NumDeletes(),
+      new TotalFileSize(),
+      new TotalPlanningDuration(),
+      new ScannedDataManifests(),
+      new SkippedDataManifests(),
+      new ResultDataFiles(),
+      new SkippedDataFiles()
+    };
   }
 }

@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class ResultDataFiles implements CustomMetric {
+public class ResultDataFiles extends CustomSumMetric {
 
   static final String name = "resultDataFiles";
 
@@ -32,11 +31,6 @@ public class ResultDataFiles implements CustomMetric {
 
   @Override
   public String description() {
-    return "Result data files";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
+    return "result data files";
   }
 }

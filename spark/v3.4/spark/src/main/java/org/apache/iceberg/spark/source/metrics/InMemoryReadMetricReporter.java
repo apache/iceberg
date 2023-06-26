@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Optional;
+import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanReport;
 
-public class SparkReadMetricReporter implements MetricsReporter {
+public class InMemoryReadMetricReporter implements MetricsReporter, Supplier<ScanReport> {
 
   private MetricsReport metricsReport;
 
@@ -32,7 +32,8 @@ public class SparkReadMetricReporter implements MetricsReporter {
     this.metricsReport = report;
   }
 
-  public Optional<ScanReport> getScanReport() {
-    return Optional.ofNullable((ScanReport) metricsReport);
+  @Override
+  public ScanReport get() {
+    return (ScanReport) metricsReport;
   }
 }

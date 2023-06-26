@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 public class TaskScannedDataManifests implements CustomTaskMetric {
@@ -35,5 +37,11 @@ public class TaskScannedDataManifests implements CustomTaskMetric {
   @Override
   public long value() {
     return value;
+  }
+
+  public static TaskScannedDataManifests from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().scannedDataManifests();
+    long value = counter != null ? counter.value() : -1;
+    return new TaskScannedDataManifests(value);
   }
 }

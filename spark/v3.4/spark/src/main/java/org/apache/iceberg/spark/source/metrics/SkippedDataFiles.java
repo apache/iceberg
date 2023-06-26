@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class SkippedDataFiles implements CustomMetric {
+public class SkippedDataFiles extends CustomSumMetric {
 
   static final String name = "skippedDataFiles";
 
@@ -32,11 +31,6 @@ public class SkippedDataFiles implements CustomMetric {
 
   @Override
   public String description() {
-    return "Num skipped data files";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
+    return "num skipped data files";
   }
 }

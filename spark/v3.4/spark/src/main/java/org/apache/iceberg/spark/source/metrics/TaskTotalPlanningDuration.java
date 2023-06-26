@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.TimerResult;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 public class TaskTotalPlanningDuration implements CustomTaskMetric {
@@ -36,5 +38,11 @@ public class TaskTotalPlanningDuration implements CustomTaskMetric {
   @Override
   public long value() {
     return value;
+  }
+
+  public static TaskTotalFileSize from(ScanReport scanReport) {
+    TimerResult timerResult = scanReport.scanMetrics().totalPlanningDuration();
+    long value = timerResult != null ? timerResult.count() : -1;
+    return new TaskTotalFileSize(value);
   }
 }

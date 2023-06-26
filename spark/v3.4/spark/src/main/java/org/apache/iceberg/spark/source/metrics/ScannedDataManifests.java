@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class ScannedDataManifests implements CustomMetric {
+public class ScannedDataManifests extends CustomSumMetric {
 
   static final String name = "scannedDataManifests";
 
@@ -32,11 +31,6 @@ public class ScannedDataManifests implements CustomMetric {
 
   @Override
   public String description() {
-    return "Num scanned data manifests";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
+    return "num scanned data manifests";
   }
 }

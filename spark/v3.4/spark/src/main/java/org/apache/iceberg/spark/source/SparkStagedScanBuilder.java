@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.source.metrics.InMemoryReadMetricReporter;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -39,6 +40,6 @@ class SparkStagedScanBuilder implements ScanBuilder {
 
   @Override
   public Scan build() {
-    return new SparkStagedScan(spark, table, readConf);
+    return new SparkStagedScan(spark, table, readConf, new InMemoryReadMetricReporter());
   }
 }

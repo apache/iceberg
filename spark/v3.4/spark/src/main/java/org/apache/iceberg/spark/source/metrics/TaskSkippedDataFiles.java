@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 public class TaskSkippedDataFiles implements CustomTaskMetric {
@@ -35,5 +37,11 @@ public class TaskSkippedDataFiles implements CustomTaskMetric {
   @Override
   public long value() {
     return value;
+  }
+
+  public static TaskSkippedDataFiles from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().skippedDataFiles();
+    long value = counter != null ? counter.value() : -1;
+    return new TaskSkippedDataFiles(value);
   }
 }
