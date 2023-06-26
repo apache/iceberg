@@ -192,7 +192,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    ScanReport scanReport = metricsReportSupplier.get();
+    ScanReport scanReport = metricsReportSupplier != null ? metricsReportSupplier.get() : null;
     if (scanReport == null) {
       return new CustomTaskMetric[0];
     }

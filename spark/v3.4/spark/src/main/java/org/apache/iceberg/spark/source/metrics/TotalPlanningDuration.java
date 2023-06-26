@@ -23,7 +23,7 @@ import org.apache.spark.sql.connector.metric.CustomMetric;
 
 public class TotalPlanningDuration implements CustomMetric {
 
-  static final String name = "planningDuration";
+  static final String name = "totalPlanningDuration";
 
   @Override
   public String name() {
@@ -32,7 +32,7 @@ public class TotalPlanningDuration implements CustomMetric {
 
   @Override
   public String description() {
-    return "Planning duration";
+    return "total planning duration";
   }
 
   @Override

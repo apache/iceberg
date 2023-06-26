@@ -18,22 +18,22 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanReport;
 
-public class InMemoryReadMetricReporter implements MetricsReporter, Supplier<ScanReport> {
+public class InMemoryReadMetricReporter implements MetricsReporter {
 
-  private MetricsReport metricsReport;
+  private ScanReport metricsReport;
 
   @Override
   public void report(MetricsReport report) {
-    this.metricsReport = report;
+    if (report instanceof ScanReport) {
+      this.metricsReport = (ScanReport) report;
+    }
   }
 
-  @Override
-  public ScanReport get() {
-    return (ScanReport) metricsReport;
+  public ScanReport scanReport() {
+    return metricsReport;
   }
 }

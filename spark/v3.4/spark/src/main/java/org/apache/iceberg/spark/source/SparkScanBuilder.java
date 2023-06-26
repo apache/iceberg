@@ -454,7 +454,13 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
     return new SparkBatchQueryScan(
-        spark, table, scan, readConf, expectedSchema, filterExpressions, metricsReporter);
+        spark,
+        table,
+        scan,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
@@ -475,7 +481,13 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkBatchQueryScan(
-        spark, table, scan, readConf, expectedSchema, filterExpressions, metricsReporter);
+        spark,
+        table,
+        scan,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   public Scan buildChangelogScan() {
@@ -584,7 +596,7 @@ public class SparkScanBuilder
           readConf,
           schemaWithMetadataColumns(),
           filterExpressions,
-          metricsReporter);
+          metricsReporter::scanReport);
     }
 
     // remember the current snapshot ID for commit validation
@@ -608,7 +620,13 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkBatchQueryScan(
-        spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions, metricsReporter);
+        spark,
+        table,
+        scan,
+        adjustedReadConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   public Scan buildCopyOnWriteScan() {
@@ -616,7 +634,12 @@ public class SparkScanBuilder
 
     if (snapshot == null) {
       return new SparkCopyOnWriteScan(
-          spark, table, readConf, schemaWithMetadataColumns(), filterExpressions, metricsReporter);
+          spark,
+          table,
+          readConf,
+          schemaWithMetadataColumns(),
+          filterExpressions,
+          metricsReporter::scanReport);
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -633,7 +656,14 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkCopyOnWriteScan(
-        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions, metricsReporter);
+        spark,
+        table,
+        scan,
+        snapshot,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {

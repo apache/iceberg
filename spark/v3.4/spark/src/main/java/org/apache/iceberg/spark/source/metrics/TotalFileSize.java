@@ -32,7 +32,7 @@ public class TotalFileSize implements CustomMetric {
 
   @Override
   public String description() {
-    return "Total File Size";
+    return "total file size";
   }
 
   @Override

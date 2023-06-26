@@ -40,6 +40,7 @@ class SparkStagedScanBuilder implements ScanBuilder {
 
   @Override
   public Scan build() {
-    return new SparkStagedScan(spark, table, readConf, new InMemoryReadMetricReporter());
+    return new SparkStagedScan(
+        spark, table, readConf, (new InMemoryReadMetricReporter())::scanReport);
   }
 }
