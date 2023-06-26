@@ -16,48 +16,33 @@
 # under the License.
 
 
+import math
+import struct
+from typing import Any, List
+
 import pyarrow as pa
 import pyarrow.parquet as pq
-import math
 
-from pyiceberg.utils.file_stats import fill_parquet_file_metadata, parquet_schema_to_ids, BOUND_TRUNCATED_LENGHT
 from pyiceberg.manifest import DataFile
-import struct
 from pyiceberg.schema import Schema
+from pyiceberg.utils.file_stats import BOUND_TRUNCATED_LENGHT, fill_parquet_file_metadata, parquet_schema_to_ids
+
 
 def construct_test_table() -> pa.Buffer:
+    schema = pa.schema(
+        [pa.field("strings", pa.string()), pa.field("floats", pa.float64()), pa.field("list", pa.list_(pa.int64()))]
+    )
 
-    schema = pa.schema([
-        pa.field("strings", pa.string()),
-        pa.field('floats',  pa.float64()),
-        pa.field('list',    pa.list_(pa.int64()))
-    ])
-        
-    _strings = [
-        "zzzzzzzzzzzzzzzzzzzz",
-        "rrrrrrrrrrrrrrrrrrrr",
-        None,
-        "aaaaaaaaaaaaaaaaaaaa"
-    ]
+    _strings = ["zzzzzzzzzzzzzzzzzzzz", "rrrrrrrrrrrrrrrrrrrr", None, "aaaaaaaaaaaaaaaaaaaa"]
 
-    _floats = [
-        3.14,
-        math.nan,
-        1.69,
-        100
-    ]
+    _floats = [3.14, math.nan, 1.69, 100]
 
-    _list = [
-        [ 1, 2, 3],
-        [ 4, 5, 6],
-        None,
-        [ 7, 8, 9]
-    ]
-        
+    _list = [[1, 2, 3], [4, 5, 6], None, [7, 8, 9]]
+
     table = pa.Table.from_pydict({"strings": _strings, "floats": _floats, "list": _list}, schema=schema)
     f = pa.BufferOutputStream()
 
-    metadata_collector = []
+    metadata_collector: List[Any] = []
     writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
 
     writer.write_table(table)
@@ -70,40 +55,36 @@ def construct_test_table() -> pa.Buffer:
 
 
 def test_record_count() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
-    assert datafile.record_count   == 4
+    assert datafile.record_count == 4
 
 
 def test_file_size() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
-    assert datafile.file_size_in_bytes   == len(file_bytes)
+    assert datafile.file_size_in_bytes == len(file_bytes)
 
 
 def test_value_counts() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.value_counts) == 3
-    assert datafile.value_counts[1]   == 4
-    assert datafile.value_counts[2]   == 4
-    assert datafile.value_counts[3]   == 10 # 3 lists with 3 items and a None value
+    assert datafile.value_counts[1] == 4
+    assert datafile.value_counts[2] == 4
+    assert datafile.value_counts[3] == 10  # 3 lists with 3 items and a None value
 
 
 def test_column_sizes() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
@@ -111,89 +92,76 @@ def test_column_sizes() -> None:
 
     assert len(datafile.column_sizes) == 3
     # these values are an artifact of how the write_table encodes the columns
-    assert datafile.column_sizes[1]   == 116
-    assert datafile.column_sizes[2]   == 119
-    assert datafile.column_sizes[3]   == 151
+    assert datafile.column_sizes[1] == 116
+    assert datafile.column_sizes[2] == 119
+    assert datafile.column_sizes[3] == 151
 
 
 def test_null_and_nan_counts() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
     assert len(datafile.null_value_counts) == 3
-    assert datafile.null_value_counts[1]   == 1
-    assert datafile.null_value_counts[2]   == 0
-    assert datafile.null_value_counts[3]   == 1
+    assert datafile.null_value_counts[1] == 1
+    assert datafile.null_value_counts[2] == 0
+    assert datafile.null_value_counts[3] == 1
 
-    ## arrow does not include this in the statistics
-    #assert len(datafile.nan_value_counts)  == 3
-    #assert datafile.nan_value_counts[1]    == 0
-    #assert datafile.nan_value_counts[2]    == 1
-    #assert datafile.nan_value_counts[3]    == 0
+    # #arrow does not include this in the statistics
+    # assert len(datafile.nan_value_counts)  == 3
+    # assert datafile.nan_value_counts[1]    == 0
+    # assert datafile.nan_value_counts[2]    == 1
+    # assert datafile.nan_value_counts[3]    == 0
 
 
 def test_bounds() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
-    assert len(datafile.lower_bounds)          == 2
-    assert datafile.lower_bounds[1].decode()   == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.lower_bounds[2]            == struct.pack('<d', 1.69)
+    assert len(datafile.lower_bounds) == 2
+    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
+    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)
 
-    assert len(datafile.upper_bounds)          == 2
-    assert datafile.upper_bounds[1].decode()   == "zzzzzzzzzzzzzzzzzzzz"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.upper_bounds[2]            == struct.pack('<d', 100)
+    assert len(datafile.upper_bounds) == 2
+    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:BOUND_TRUNCATED_LENGHT]
+    assert datafile.upper_bounds[2] == struct.pack("<d", 100)
 
 
 def test_offsets() -> None:
-
     (file_bytes, metadata) = construct_test_table()
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
 
+    assert datafile.split_offsets is not None
     assert len(datafile.split_offsets) == 1
-    assert datafile.split_offsets[0]   == 4
-
-
-
+    assert datafile.split_offsets[0] == 4
 
 
 def test_dataset() -> pa.Buffer:
+    schema = pa.schema([pa.field("ints", pa.int64()), pa.field("even", pa.bool_())])
 
-    schema = pa.schema([
-        pa.field('ints',  pa.int64()),
-        pa.field('even',  pa.bool_())
-    ])
+    _ints = [0, 2, 4, 8, 1, 3, 5, 7]
+    parity = [True, True, True, True, False, False, False, False]
 
-    _ints = [0,2,4,8,1,3,5,7]
-    parity = [True,True,True,True,False,False,False,False]
-
-        
     table = pa.Table.from_pydict({"ints": _ints, "even": parity}, schema=schema)
-    f = pa.BufferOutputStream()
 
     visited_paths = []
 
-    def file_visitor(written_file):
+    def file_visitor(written_file: Any) -> None:
         visited_paths.append(written_file)
 
     pq.write_to_dataset(table, "/tmp/dataset", partition_cols=["even"], file_visitor=file_visitor)
 
-
     even = None
-    odd  = None
+    odd = None
 
     assert len(visited_paths) == 2
 
     for written_file in visited_paths:
-
         df = DataFile()
 
         fill_parquet_file_metadata(df, written_file.metadata, {"ints": 1, "even": 2}, written_file.size)
@@ -202,29 +170,27 @@ def test_dataset() -> pa.Buffer:
             even = df
 
         if "even=false" in written_file.path:
-            odd  = df
+            odd = df
 
     assert even is not None
-    assert odd  is not None
+    assert odd is not None
 
     assert len(even.value_counts) == 1
-    assert even.value_counts[1]   == 4
+    assert even.value_counts[1] == 4
     assert len(even.lower_bounds) == 1
-    assert even.lower_bounds[1]   == struct.pack('<q', 0)
+    assert even.lower_bounds[1] == struct.pack("<q", 0)
     assert len(even.upper_bounds) == 1
-    assert even.upper_bounds[1]   == struct.pack('<q', 8)
-
+    assert even.upper_bounds[1] == struct.pack("<q", 8)
 
     assert len(odd.value_counts) == 1
-    assert odd.value_counts[1]  == 4
+    assert odd.value_counts[1] == 4
     assert len(odd.lower_bounds) == 1
-    assert odd.lower_bounds[1]   == struct.pack('<q', 1)
+    assert odd.lower_bounds[1] == struct.pack("<q", 1)
     assert len(odd.upper_bounds) == 1
-    assert odd.upper_bounds[1]   == struct.pack('<q', 7)
+    assert odd.upper_bounds[1] == struct.pack("<q", 7)
 
 
-def test_schema_mapping():
-
+def test_schema_mapping() -> None:
     json_schema = """
     {
     "type": "struct",

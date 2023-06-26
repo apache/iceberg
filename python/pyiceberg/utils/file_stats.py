@@ -15,6 +15,17 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
+import struct
+from typing import (
+    Any,
+    Dict,
+    List,
+    Union,
+)
+
+import pyarrow.lib
+import pyarrow.parquet as pq
+
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.types import (
@@ -25,10 +36,6 @@ from pyiceberg.types import (
     PrimitiveType,
     StructType,
 )
-import pyarrow.parquet as pq
-import pyarrow.lib
-import struct
-from typing import Any, Dict, List, Union
 
 BOUND_TRUNCATED_LENGHT = 16
 
@@ -50,62 +57,67 @@ BOUND_TRUNCATED_LENGHT = 16
 # binary    Binary value (without length)
 #
 
+
 def bool_to_avro(value: bool) -> bytes:
-    return struct.pack('?', value)
+    return struct.pack("?", value)
+
 
 def int32_to_avro(value: int) -> bytes:
-    return struct.pack('<i', value)
+    return struct.pack("<i", value)
+
 
 def int64_to_avro(value: int) -> bytes:
-    return struct.pack('<q', value)
+    return struct.pack("<q", value)
+
 
 def float_to_avro(value: float) -> bytes:
-    return struct.pack('<f', value)
+    return struct.pack("<f", value)
+
 
 def double_to_avro(value: float) -> bytes:
-    return struct.pack('<d', value)
+    return struct.pack("<d", value)
 
-def bytes_to_avro(value: Union[bytes,str]) -> bytes:
+
+def bytes_to_avro(value: Union[bytes, str]) -> bytes:
     if type(value) == str:
         return value.encode()
     else:
+        assert isinstance(value, bytes)  # appeases mypy
         return value
 
+
 class StatsAggregator:
-
     def __init__(self, type_string: str):
-
-        self.current_min: Any = None 
+        self.current_min: Any = None
         self.current_max: Any = None
+        self.serialize: Any = None
 
-        if type_string == 'BOOLEAN':
+        if type_string == "BOOLEAN":
             self.serialize = bool_to_avro
-        elif type_string == 'INT32':
+        elif type_string == "INT32":
             self.serialize = int32_to_avro
-        elif type_string == 'INT64':
+        elif type_string == "INT64":
             self.serialize = int64_to_avro
-        elif type_string == 'INT96':
-            raise Exception("Statistics not implemented for INT96 physical type")
-        elif type_string == 'FLOAT':
+        elif type_string == "INT96":
+            raise NotImplementedError("Statistics not implemented for INT96 physical type")
+        elif type_string == "FLOAT":
             self.serialize = float_to_avro
-        elif type_string == 'DOUBLE':
+        elif type_string == "DOUBLE":
             self.serialize = double_to_avro
-        elif type_string == 'BYTE_ARRAY':
+        elif type_string == "BYTE_ARRAY":
             self.serialize = bytes_to_avro
-        elif type_string == 'FIXED_LEN_BYTE_ARRAY':
+        elif type_string == "FIXED_LEN_BYTE_ARRAY":
             self.serialize = bytes_to_avro
         else:
-            raise Exception(f"Unknown physical type {type_string}")
-        
-    def add_min(self, val: bytes) -> None:
+            raise AssertionError(f"Unknown physical type {type_string}")
 
+    def add_min(self, val: bytes) -> None:
         if not self.current_min:
             self.current_min = val
         elif val < self.current_min:
             self.current_min = val
 
     def add_max(self, val: bytes) -> None:
-
         if not self.current_max:
             self.current_max = val
         elif self.current_max < val:
@@ -119,13 +131,10 @@ class StatsAggregator:
 
 
 def fill_parquet_file_metadata(
-        df: DataFile,
-        metadata: pq.FileMetaData,
-        col_path_2_iceberg_id: Dict[str,int],
-        file_size: int
+    df: DataFile, metadata: pq.FileMetaData, col_path_2_iceberg_id: Dict[str, int], file_size: int
 ) -> None:
     """
-    Computes and fills the following fields of the DataFile object:
+    Computes and fills the following fields of the DataFile object.
 
     - file_format
     - record_count
@@ -137,7 +146,7 @@ def fill_parquet_file_metadata(
     - lower_bounds
     - upper_bounds
     - split_offsets
-    
+
     Args:
         df (DataFile): A DataFile object representing the Parquet file for which metadata is to be filled.
         metadata (pyarrow.parquet.FileMetaData): A pyarrow metadata object.
@@ -148,13 +157,12 @@ def fill_parquet_file_metadata(
             be passed here. Depending on the kind of file system and pyarrow library call used, different
             ways to obtain this value might be appropriate.
     """
-    
     col_index_2_id = {}
 
     col_names = set(metadata.schema.names)
 
     first_group = metadata.row_group(0)
-    
+
     for c in range(metadata.num_columns):
         column = first_group.column(c)
         col_path = column.path_in_schema
@@ -162,15 +170,14 @@ def fill_parquet_file_metadata(
         if col_path in col_path_2_iceberg_id:
             col_index_2_id[c] = col_path_2_iceberg_id[col_path]
         else:
-            raise Exception(f"Column path {col_path} couldn't be mapped to an iceberg ID")
+            raise AssertionError(f"Column path {col_path} couldn't be mapped to an iceberg ID")
 
+    column_sizes: Dict[int, int] = {}
+    value_counts: Dict[int, int] = {}
+    split_offsets: List[int] = []
 
-    column_sizes = {}
-    value_counts = {}
-    split_offsets = []
-
-    null_value_counts = {}
-    nan_value_counts  = {}
+    null_value_counts: Dict[int, int] = {}
+    nan_value_counts: Dict[int, int] = {}
 
     col_aggs = {}
 
@@ -178,19 +185,18 @@ def fill_parquet_file_metadata(
         # References:
         # https://github.com/apache/iceberg/blob/fc381a81a1fdb8f51a0637ca27cd30673bd7aad3/parquet/src/main/java/org/apache/iceberg/parquet/ParquetUtil.java#L232
         # https://github.com/apache/parquet-mr/blob/ac29db4611f86a07cc6877b416aa4b183e09b353/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java#L184
-    
+
         row_group = metadata.row_group(r)
 
-        data_offset       = row_group.column(0).data_page_offset
+        data_offset = row_group.column(0).data_page_offset
         dictionary_offset = row_group.column(0).dictionary_page_offset
-        
+
         if row_group.column(0).has_dictionary_page and dictionary_offset < data_offset:
             split_offsets.append(dictionary_offset)
         else:
             split_offsets.append(data_offset)
 
         for c in range(metadata.num_columns):
-
             col_id = col_index_2_id[c]
 
             column = row_group.column(c)
@@ -199,7 +205,6 @@ def fill_parquet_file_metadata(
             value_counts[col_id] = value_counts.get(col_id, 0) + column.num_values
 
             if column.is_stats_set:
-
                 try:
                     statistics = column.statistics
 
@@ -214,7 +219,6 @@ def fill_parquet_file_metadata(
                         col_aggs[col_id].add_min(statistics.min)
                         col_aggs[col_id].add_max(statistics.max)
 
-                    
                 except pyarrow.lib.ArrowNotImplementedError:
                     pass
 
@@ -223,21 +227,20 @@ def fill_parquet_file_metadata(
     lower_bounds = {}
     upper_bounds = {}
 
-    for (k, agg) in col_aggs.items():
+    for k, agg in col_aggs.items():
         lower_bounds[k] = agg.get_min()
         upper_bounds[k] = agg.get_max()
 
-    df.file_format        = FileFormat.PARQUET
-    df.record_count       = metadata.num_rows
+    df.file_format = FileFormat.PARQUET
+    df.record_count = metadata.num_rows
     df.file_size_in_bytes = file_size
-    df.column_sizes       = column_sizes
-    df.value_counts       = value_counts
-    df.null_value_counts  = null_value_counts
-    df.nan_value_counts   = nan_value_counts
-    df.lower_bounds       = lower_bounds
-    df.upper_bounds       = upper_bounds
-    df.split_offsets      = split_offsets
-
+    df.column_sizes = column_sizes
+    df.value_counts = value_counts
+    df.null_value_counts = null_value_counts
+    df.nan_value_counts = nan_value_counts
+    df.lower_bounds = lower_bounds
+    df.upper_bounds = upper_bounds
+    df.split_offsets = split_offsets
 
 
 class _IndexByParquetPath(SchemaVisitor[Dict[str, int]]):
@@ -265,7 +268,7 @@ class _IndexByParquetPath(SchemaVisitor[Dict[str, int]]):
     def schema(self, schema: Schema, struct_result: Dict[str, int]) -> Dict[str, int]:
         return self._index
 
-    def struct(self, struct: StructType, field_results: List[Dict[str, int]]) -> Dict[str, int]:
+    def struct(self, _struct: StructType, field_results: List[Dict[str, int]]) -> Dict[str, int]:
         return self._index
 
     def field(self, field: NestedField, field_result: Dict[str, int]) -> Dict[str, int]:
@@ -280,7 +283,7 @@ class _IndexByParquetPath(SchemaVisitor[Dict[str, int]]):
         return self._index
 
     def map(self, map_type: MapType, key_result: Dict[str, int], value_result: Dict[str, int]) -> Dict[str, int]:
-        """Add the key name and value name as individual items in the index"""
+        """Add the key name and value name as individual items in the index."""
         self._add_field("key_value.key", map_type.key_field.field_id)
         self._add_field("key_value.value", map_type.value_field.field_id)
         return self._index
@@ -306,7 +309,6 @@ class _IndexByParquetPath(SchemaVisitor[Dict[str, int]]):
         if full_name in self._index:
             raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
         self._index[full_name] = field_id
-
 
     def by_path(self) -> Dict[str, int]:
         return self._index
