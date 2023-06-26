@@ -67,7 +67,8 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
         "{\"identifiers\":[{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList))
         .isInstanceOf(JsonProcessingException.class)
-        .hasMessageContaining("Cannot parse from non-array value");
+        .hasMessageContaining(
+            "Cannot parse JSON array from non-array value: namespace: \"accounting.tax\"");
 
     String jsonWithInvalidIdentifiersInList2 =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"accounting.tax.paid\"]}";

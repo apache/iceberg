@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
@@ -123,7 +124,6 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
-    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -134,6 +134,8 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
+    private List<Integer> equalityFieldIds = null;
+    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -269,6 +271,14 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withEqualityFieldIds(List<Integer> equalityIds) {
+      if (equalityIds != null) {
+        this.equalityFieldIds = ImmutableList.copyOf(equalityIds);
+      }
+
+      return this;
+    }
+
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
       this.keyMetadata = newKeyMetadata;
       return this;
@@ -310,6 +320,7 @@ public class DataFiles {
               upperBounds),
           keyMetadata,
           splitOffsets,
+          ArrayUtil.toIntArray(equalityFieldIds),
           sortOrderId);
     }
   }
