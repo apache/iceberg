@@ -99,6 +99,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
    *     rows. Please query {@link SparkChangelogTable} instead for the use cases doesn't remove
    *     carry-over rows.
    */
+  @Deprecated
   private static final ProcedureParameter REMOVE_CARRYOVERS_PARAM =
       ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
 
