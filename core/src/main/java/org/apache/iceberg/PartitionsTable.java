@@ -82,7 +82,12 @@ public class PartitionsTable extends BaseMetadataTable {
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Id of snapshot that last updated this partition"));
+                "Id of snapshot that last updated this partition"),
+            Types.NestedField.required(
+                11,
+                "total_data_size_in_bytes",
+                Types.LongType.get(),
+                "Total bytes of data files in a partition"));
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -102,7 +107,8 @@ public class PartitionsTable extends BaseMetadataTable {
           "equality_delete_record_count",
           "equality_delete_file_count",
           "last_updated_at",
-          "last_updated_snapshot_id");
+          "last_updated_snapshot_id",
+          "total_data_size_in_bytes");
     }
     return schema;
   }
@@ -130,7 +136,8 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.eqDeleteRecordCount,
                   root.eqDeleteFileCount,
                   root.lastUpdatedAt,
-                  root.lastUpdatedSnapshotId));
+                  root.lastUpdatedSnapshotId,
+                  root.dataSizeInBytes));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -152,7 +159,8 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.eqDeleteRecordCount,
         partition.eqDeleteFileCount,
         partition.lastUpdatedAt,
-        partition.lastUpdatedSnapshotId);
+        partition.lastUpdatedSnapshotId,
+        partition.dataSizeInBytes);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
@@ -275,6 +283,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int eqDeleteFileCount;
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
+    private long dataSizeInBytes;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
@@ -285,6 +294,7 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
+      this.dataSizeInBytes = 0;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
@@ -301,6 +311,7 @@ public class PartitionsTable extends BaseMetadataTable {
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
           this.specId = file.specId();
+          this.dataSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount = file.recordCount();

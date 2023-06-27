@@ -436,7 +436,7 @@ SELECT * FROM prod.db.table$partitions;
 | {20211002, 10} | 1            | 1          | 0       |
 
 Note:
-For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+For unpartitioned tables, the partitions table will contain only the record_count, file_count and total_data_size_in_bytes columns.
 
 ### All Metadata Tables
 
