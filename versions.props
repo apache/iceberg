@@ -1,5 +1,5 @@
 org.slf4j:* = 1.7.36
-org.apache.avro:avro = 1.11.1
+org.apache.avro:avro = 1.11.2
 org.apache.calcite:* = 1.10.0
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:* = 2.3.9
