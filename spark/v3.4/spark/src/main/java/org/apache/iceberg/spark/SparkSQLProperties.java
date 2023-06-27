@@ -63,4 +63,7 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls the number of partitions used for distribution mode strategies - hash and range
+  public static final String NUM_OF_PARTITIONS = "num.of.partitions.disribution-mode";
 }

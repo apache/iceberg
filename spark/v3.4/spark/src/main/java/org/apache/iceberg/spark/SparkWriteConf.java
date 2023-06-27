@@ -217,7 +217,8 @@ public class SparkWriteConf {
       return SparkWriteRequirements.EMPTY;
     }
 
-    return SparkWriteUtil.writeRequirements(table, distributionMode(), fanoutWriterEnabled());
+    return SparkWriteUtil.writeRequirements(
+        table, distributionMode(), fanoutWriterEnabled(), numOfPartitions());
   }
 
   @VisibleForTesting
@@ -265,7 +266,11 @@ public class SparkWriteConf {
     }
 
     return SparkWriteUtil.copyOnWriteRequirements(
-        table, command, copyOnWriteDistributionMode(command), fanoutWriterEnabled());
+        table,
+        command,
+        copyOnWriteDistributionMode(command),
+        fanoutWriterEnabled(),
+        numOfPartitions());
   }
 
   @VisibleForTesting
@@ -289,7 +294,11 @@ public class SparkWriteConf {
     }
 
     return SparkWriteUtil.positionDeltaRequirements(
-        table, command, positionDeltaDistributionMode(command), fanoutWriterEnabled());
+        table,
+        command,
+        positionDeltaDistributionMode(command),
+        fanoutWriterEnabled(),
+        numOfPartitions());
   }
 
   @VisibleForTesting
@@ -369,6 +378,14 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .negate()
+        .parse();
+  }
+
+  private int numOfPartitions() {
+    return confParser
+        .intConf()
+        .sessionConf(SparkSQLProperties.NUM_OF_PARTITIONS)
+        .defaultValue(0)
         .parse();
   }
 

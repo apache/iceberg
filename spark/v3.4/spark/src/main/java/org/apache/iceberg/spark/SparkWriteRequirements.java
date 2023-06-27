@@ -26,14 +26,16 @@ import org.apache.spark.sql.connector.expressions.SortOrder;
 public class SparkWriteRequirements {
 
   public static final SparkWriteRequirements EMPTY =
-      new SparkWriteRequirements(Distributions.unspecified(), new SortOrder[0]);
+      new SparkWriteRequirements(Distributions.unspecified(), new SortOrder[0], 0);
 
   private final Distribution distribution;
   private final SortOrder[] ordering;
+  private int numOfpartitions;
 
-  SparkWriteRequirements(Distribution distribution, SortOrder[] ordering) {
+  SparkWriteRequirements(Distribution distribution, SortOrder[] ordering, int numOfpartitions) {
     this.distribution = distribution;
     this.ordering = ordering;
+    this.numOfpartitions = numOfpartitions;
   }
 
   public Distribution distribution() {
@@ -46,5 +48,9 @@ public class SparkWriteRequirements {
 
   public boolean hasOrdering() {
     return ordering.length != 0;
+  }
+
+  public int numOfPartitions() {
+    return numOfpartitions;
   }
 }

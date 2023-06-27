@@ -145,6 +145,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     return writeRequirements.ordering();
   }
 
+  @Override
+  public int requiredNumPartitions() {
+    return writeRequirements.numOfPartitions();
+  }
+
   BatchWrite asBatchAppend() {
     return new BatchAppend();
   }
