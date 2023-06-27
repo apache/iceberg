@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark;
 
 import java.util.Iterator;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
@@ -142,14 +144,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   private int[] generateIndicesToIdentifySameRow() {
-    int[] indices = new int[rowType.size() - 1];
-    for (int i = 0; i < indices.length; i++) {
-      if (i < changeTypeIndex()) {
-        indices[i] = i;
-      } else {
-        indices[i] = i + 1;
-      }
-    }
-    return indices;
+    Set<Integer> metadataColumnIndices = Sets.newHashSet(changeTypeIndex());
+    return generateIndicesToIdentifySameRow(rowType.size(), metadataColumnIndices);
   }
 }

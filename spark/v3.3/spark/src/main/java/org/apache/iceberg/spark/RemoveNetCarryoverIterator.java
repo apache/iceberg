@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark;
 
 import java.util.Iterator;
+import java.util.Set;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
@@ -120,17 +122,11 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
   }
 
   private int[] generateIndicesToIdentifySameRow() {
-    int changeOrdinalIndex = rowType.fieldIndex(MetadataColumns.CHANGE_ORDINAL.name());
-    int snapshotIdIndex = rowType.fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
-
-    int[] indices = new int[rowType.size() - 3];
-
-    for (int i = 0, j = 0; i < indices.length; i++) {
-      if (i != changeTypeIndex() && i != changeOrdinalIndex && i != snapshotIdIndex) {
-        indices[j] = i;
-        j++;
-      }
-    }
-    return indices;
+    Set<Integer> metadataColumnIndices =
+        Sets.newHashSet(
+            rowType.fieldIndex(MetadataColumns.CHANGE_ORDINAL.name()),
+            rowType.fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name()),
+            changeTypeIndex());
+    return generateIndicesToIdentifySameRow(rowType.size(), metadataColumnIndices);
   }
 }

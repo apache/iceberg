@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -100,5 +101,18 @@ public abstract class ChangelogIterator implements Iterator<Row> {
 
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
     return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
+  }
+
+  protected static int[] generateIndicesToIdentifySameRow(
+      int totalColumnCount, Set<Integer> metadataColumnIndices) {
+    int[] indices = new int[totalColumnCount - metadataColumnIndices.size()];
+
+    for (int i = 0, j = 0; i < indices.length; i++) {
+      if (!metadataColumnIndices.contains(i)) {
+        indices[j] = i;
+        j++;
+      }
+    }
+    return indices;
   }
 }
