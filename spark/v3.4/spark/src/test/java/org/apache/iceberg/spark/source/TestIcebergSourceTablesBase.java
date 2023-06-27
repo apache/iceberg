@@ -1295,8 +1295,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
-            .set("total_data_size_in_bytes",
-                StreamSupport.stream(table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
+            .set(
+                "total_data_size_in_bytes",
+                StreamSupport.stream(
+                        table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
                     .mapToLong(DataFile::fileSizeInBytes)
                     .sum())
             .build();
