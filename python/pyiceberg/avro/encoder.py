@@ -20,12 +20,7 @@ from datetime import date, datetime, time
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import OutputStream
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros
-
-
-def _time_object_to_micros(t: time) -> int:
-    return int(t.hour * 60 * 60 * 1e6 + t.minute * 60 * 1e6 + t.second * 1e6 + t.microsecond)
-
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 
 class BinaryEncoder:
     """Write leaf values."""
@@ -152,7 +147,7 @@ class BinaryEncoder:
 
         It stores the number of milliseconds from midnight, 00:00:00.000
         """
-        self.write_int(int(_time_object_to_micros(dt) / 1000))
+        self.write_int(int(time_object_to_micros(dt) / 1000))
 
     def write_time_micros_long(self, dt: time) -> None:
         """
@@ -160,7 +155,7 @@ class BinaryEncoder:
 
         It stores the number of microseconds from midnight, 00:00:00.000000
         """
-        self.write_int(_time_object_to_micros(dt))
+        self.write_int(time_object_to_micros(dt))
 
     def write_timestamp_millis_long(self, dt: datetime) -> None:
         """

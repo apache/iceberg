@@ -131,10 +131,8 @@ def test_write_manifest_entry_with_iceberg_read_with_fastavro() -> None:
         ) as out:
             out.write_block([entry])
 
-        schema = AvroSchemaConversion().iceberg_to_avro(MANIFEST_ENTRY_SCHEMA, schema_name="manifest_entry")
-
         with open(tmp_avro_file, "rb") as fo:
-            r = reader(fo=fo, reader_schema=schema)
+            r = reader(fo=fo)
             it = iter(r)
 
             fa_entry = next(it)

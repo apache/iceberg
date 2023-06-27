@@ -53,7 +53,7 @@ class Writer(Singleton):
 
 class NoneWriter(Writer):
     def write(self, _: BinaryEncoder, __: Any) -> None:
-        return None
+        pass
 
 
 class BooleanWriter(Writer):
