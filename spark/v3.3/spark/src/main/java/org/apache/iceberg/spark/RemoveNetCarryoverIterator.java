@@ -70,29 +70,26 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
       return cachedRow;
     }
 
-    Row currentRow = getCurrentRow();
-
-    // return it directly if the current row is the last row
+    cachedRow = getCurrentRow();
+    // return it directly if there is no more rows
     if (!rowIterator().hasNext()) {
-      return currentRow;
+      return cachedRow;
     }
-
-    Row nextRow = rowIterator().next();
-
-    cachedRow = currentRow;
     cachedRowCount = 1;
 
+    cachedNextRow = rowIterator().next();
+
     // pull rows from the iterator until two consecutive rows are different
-    while (isSameRecord(currentRow, nextRow, indicesToIdentifySameRow)) {
-      if (oppositeChangeType(currentRow, nextRow)) {
+    while (isSameRecord(cachedRow, cachedNextRow, indicesToIdentifySameRow)) {
+      if (oppositeChangeType(cachedRow, cachedNextRow)) {
         // two rows with opposite change types means no net changes, remove both
         cachedRowCount--;
-        nextRow = null;
+        cachedNextRow = null;
       } else {
         // two rows with same change types means potential net changes, cache the next row, reset it
         // to null
         cachedRowCount++;
-        nextRow = null;
+        cachedNextRow = null;
       }
 
       // stop pulling rows if there is no more rows or the next row is different
@@ -100,11 +97,9 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
         break;
       }
 
-      nextRow = rowIterator().next();
+      cachedNextRow = rowIterator().next();
     }
 
-    // if they are different rows, hit the boundary, cache the next row
-    cachedNextRow = nextRow;
     return null;
   }
 
@@ -138,5 +133,4 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     }
     return indices;
   }
-
 }

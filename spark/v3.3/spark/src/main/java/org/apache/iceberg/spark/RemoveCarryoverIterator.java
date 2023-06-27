@@ -152,5 +152,4 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     }
     return indices;
   }
-
 }
