@@ -86,16 +86,15 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
       if (oppositeChangeType(cachedRow, cachedNextRow)) {
         // two rows with opposite change types means no net changes, remove both
         cachedRowCount--;
-        cachedNextRow = null;
       } else {
-        // two rows with same change types means potential net changes, cache the next row, reset it
-        // to null
+        // two rows with same change types means potential net changes, cache the next row
         cachedRowCount++;
-        cachedNextRow = null;
       }
 
       // stop pulling rows if there is no more rows or the next row is different
       if (cachedRowCount <= 0 || !rowIterator().hasNext()) {
+        // reset the cached next row if there is no more rows
+        cachedNextRow = null;
         break;
       }
 
