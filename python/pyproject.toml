@@ -51,7 +51,7 @@ strictyaml = ">=1.7.0,<2.0.0" # CVE-2020-14343 was fixed in 5.4.
 pydantic = ">=1.9.0,<2.0.0"
 sortedcontainers = "2.4.0"
 fsspec = ">=2021.09.0,<2024.1.0" # `lexists()` was implemented in 2021.09.0. Upper bound set arbitrarily, to be reassessed in early 2024.
-pyparsing = ">=3.0.7,<4.0.0" # The `min` keyword argument for `delimited_list()` was added in 3.0.7.
+pyparsing = ">=3.0.7,<3.1.0" # The `min` keyword argument for `delimited_list()` was added in 3.0.7.
 zstandard = ">=0.13.0,<1.0.0"
 pyarrow = { version = ">=9.0.0,<13.0.0", optional = true }
 pandas = { version = ">=1.0.0,<3.0.0", optional = true }
