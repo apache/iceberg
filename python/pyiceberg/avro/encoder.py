@@ -22,6 +22,7 @@ from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import OutputStream
 from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 
+
 class BinaryEncoder:
     """Write leaf values."""
 

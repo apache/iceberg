@@ -250,6 +250,7 @@ class AvroOutputFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
+        """Performs cleanup when exiting the scope of a 'with' statement."""
         self.output_stream.close()
 
     def _write_header(self) -> None:
