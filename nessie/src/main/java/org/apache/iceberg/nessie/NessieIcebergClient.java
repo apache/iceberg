@@ -85,8 +85,12 @@ public class NessieIcebergClient implements AutoCloseable {
     return api;
   }
 
-  public UpdateableReference getRef() {
+  UpdateableReference getRef() {
     return reference.get();
+  }
+
+  public Reference getReference() {
+    return reference.get().getReference();
   }
 
   public void refresh() throws NessieNotFoundException {
