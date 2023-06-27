@@ -24,6 +24,8 @@ import java.time.temporal.ChronoUnit;
 public class DateTimeUtil {
   private static final LocalDate EPOCH_DAY = LocalDate.of(1970, 1, 1);
 
+  private DateTimeUtil() {}
+
   public static int hours(String isoTime) {
     long micros = org.apache.iceberg.util.DateTimeUtil.isoTimestampToMicros(isoTime);
     return org.apache.iceberg.util.DateTimeUtil.microsToHours(micros);
