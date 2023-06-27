@@ -1269,7 +1269,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Id of snapshot that last updated this partition"));
+                "Id of snapshot that last updated this partition"),
+            required(
+                11,
+                "total_data_size_in_bytes",
+                Types.LongType.get(),
+                "Total bytes of data files in a partition"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1290,6 +1295,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_data_size_in_bytes",
+                StreamSupport.stream(table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
+                    .mapToLong(DataFile::fileSizeInBytes)
+                    .sum())
             .build();
 
     List<Row> actual =
