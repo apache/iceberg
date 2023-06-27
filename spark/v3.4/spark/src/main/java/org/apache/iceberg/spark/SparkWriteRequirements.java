@@ -30,12 +30,12 @@ public class SparkWriteRequirements {
 
   private final Distribution distribution;
   private final SortOrder[] ordering;
-  private int numOfpartitions;
+  private int numOfPartitions;
 
-  SparkWriteRequirements(Distribution distribution, SortOrder[] ordering, int numOfpartitions) {
+  SparkWriteRequirements(Distribution distribution, SortOrder[] ordering, int numOfPartitions) {
     this.distribution = distribution;
     this.ordering = ordering;
-    this.numOfpartitions = numOfpartitions;
+    this.numOfPartitions = numOfPartitions;
   }
 
   public Distribution distribution() {
@@ -51,6 +51,6 @@ public class SparkWriteRequirements {
   }
 
   public int numOfPartitions() {
-    return numOfpartitions;
+    return numOfPartitions;
   }
 }
