@@ -159,8 +159,29 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
+          PredicateChildren<Object> eqChildren = predicateChildren(predicate);
+          if (eqChildren == null) {
+            return null;
+          }
+
+          if (EQ.equals(predicate.name())) {
+            // comparison with null in normal equality is always null. this is probably a
+            // mistake.
+            Preconditions.checkNotNull(
+                eqChildren.value,
+                "Expression is always false (eq is not null-safe): %s",
+                predicate);
+          }
+
+          return handleEqual(eqChildren);
+
         case NOT_EQ:
-          return handleEQPredicate(predicate);
+          PredicateChildren<Object> notEqChildren = predicateChildren(predicate);
+          if (notEqChildren == null) {
+            return null;
+          }
+
+          return handleNotEqual(notEqChildren);
 
         case IN:
           if (isSupportedInPredicate(predicate)) {
@@ -230,7 +251,7 @@ public class SparkV2Filters {
     return null;
   }
 
-  private static <T> UnboundPredicate<T> handleEQPredicate(Predicate predicate) {
+  private static <T> PredicateChildren<T> predicateChildren(Predicate predicate) {
     T value;
     UnboundTerm<T> term;
     if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
@@ -243,41 +264,30 @@ public class SparkV2Filters {
       return null;
     }
 
-    if (NOT_EQ.equals(predicate.name())) {
-      return handleNotEqual(term, value);
-    }
-
-    if (EQ.equals(predicate.name())) {
-      // comparison with null in normal equality is always null. this is probably a
-      // mistake.
-      Preconditions.checkNotNull(
-          value, "Expression is always false (eq is not null-safe): %s", predicate);
-    }
-
-    return handleEqual(term, value);
+    return new PredicateChildren<>(term, value);
   }
 
-  private static <T> UnboundPredicate<T> handleEqual(UnboundTerm<T> attribute, T value) {
-    if (value == null) {
-      return isNull(attribute);
+  private static <T> UnboundPredicate<T> handleEqual(PredicateChildren<T> children) {
+    if (children.value == null) {
+      return isNull(children.term);
     }
 
-    if (NaNUtil.isNaN(value)) {
-      return isNaN(attribute);
+    if (NaNUtil.isNaN(children.value)) {
+      return isNaN(children.term);
     } else {
-      return equal(attribute, value);
+      return equal(children.term, children.value);
     }
   }
 
-  private static <T> UnboundPredicate<T> handleNotEqual(UnboundTerm<T> attribute, T value) {
-    if (value == null) {
-      return notNull(attribute);
+  private static <T> UnboundPredicate<T> handleNotEqual(PredicateChildren<T> children) {
+    if (children.value == null) {
+      return notNull(children.term);
     }
 
-    if (NaNUtil.isNaN(value)) {
-      return notNaN(attribute);
+    if (NaNUtil.isNaN(children.value)) {
+      return notNaN(children.term);
     } else {
-      return notEqual(attribute, value);
+      return notEqual(children.term, children.value);
     }
   }
 
@@ -355,6 +365,16 @@ public class SparkV2Filters {
       return false;
     } else {
       return Arrays.stream(predicate.children()).skip(1).allMatch(SparkV2Filters::isLiteral);
+    }
+  }
+
+  private static class PredicateChildren<T> {
+    private final UnboundTerm<T> term;
+    private final T value;
+
+    private PredicateChildren(UnboundTerm<T> term, T value) {
+      this.term = term;
+      this.value = value;
     }
   }
 }
