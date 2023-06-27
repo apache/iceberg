@@ -831,8 +831,19 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  test {
-    useJUnitPlatform()
+  if (JavaVersion.current().isJava11Compatible()) {
+    test {
+      useJUnitPlatform()
+    }
+  } else {
+    // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
+    // which require Java 11+.
+    test {
+      enabled = false
+    }
+    compileTestJava {
+      enabled = false
+    }
   }
 
   dependencies {
@@ -844,21 +855,25 @@ project(':iceberg-nessie') {
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
-    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory"
-    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory-test"
-    // Need to "pull in" el-api explicitly :(
-    testImplementation "jakarta.el:jakarta.el-api"
-
     compileOnly "org.apache.hadoop:hadoop-common"
-    testImplementation "org.apache.avro:avro"
-
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
-    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
+
+    if (JavaVersion.current().isJava11Compatible()) {
+      testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
+      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-inmemory"
+      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-testextension"
+      // Need to "pull in" el-api explicitly :(
+      testImplementation "jakarta.el:jakarta.el-api"
+
+      testImplementation "org.apache.avro:avro"
+
+      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+
+      // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+    }
   }
 }
 

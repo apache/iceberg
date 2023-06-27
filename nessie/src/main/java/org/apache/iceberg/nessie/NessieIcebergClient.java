@@ -330,8 +330,8 @@ public class NessieIcebergClient implements AutoCloseable {
                 NessieUtil.buildCommitMetadata(
                     String.format("Iceberg rename table from '%s' to '%s'", from, to),
                     catalogOptions))
-            .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable, existingFromTable))
-            .operation(Operation.Delete.of(NessieUtil.toKey(from)));
+            .operation(Operation.Delete.of(NessieUtil.toKey(from)))
+            .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
 
     try {
       Tasks.foreach(operations)
