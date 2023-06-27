@@ -758,6 +758,9 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -860,6 +863,9 @@ project(':iceberg-nessie') {
 }
 
 project(':iceberg-dell') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
