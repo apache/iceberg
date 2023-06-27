@@ -51,7 +51,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -170,6 +170,7 @@ class GlueCatalog(Catalog):
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
     def _create_glue_table(self, database_name: str, table_name: str, table_input: Dict[str, Any]) -> None:
@@ -223,6 +224,20 @@ class GlueCatalog(Catalog):
         self._create_glue_table(database_name=database_name, table_name=table_name, table_input=table_input)
 
         return self.load_table(identifier=identifier)
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.

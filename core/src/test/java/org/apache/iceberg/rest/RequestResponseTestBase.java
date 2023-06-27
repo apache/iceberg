@@ -25,8 +25,7 @@ import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public abstract class RequestResponseTestBase<T extends RESTMessage> {
 
@@ -76,11 +75,13 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     try {
       JsonNode node = mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
       for (String field : fieldsFromSpec) {
-        Assert.assertTrue("Should have field: " + field, node.has(field));
+        Assertions.assertThat(node.has(field)).as("Should have field: %s", field).isTrue();
       }
 
       for (String field : ((Iterable<? extends String>) node::fieldNames)) {
-        Assert.assertTrue("Should not have field: " + field, fieldsFromSpec.contains(field));
+        Assertions.assertThat(fieldsFromSpec)
+            .as("Should not have field: %s", field)
+            .contains(field);
       }
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);

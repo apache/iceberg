@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility class for converting between Avro and Iceberg schemas."""
-from __future__ import annotations
-
 import logging
 from typing import (
     Any,

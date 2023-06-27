@@ -66,6 +66,7 @@ class IcebergType(IcebergBaseModel, Singleton):
 
     @classmethod
     def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
+        """Called to validate the input of the IcebergType class."""
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
@@ -112,9 +113,11 @@ class PrimitiveType(IcebergType):
     __root__: str = Field()
 
     def __repr__(self) -> str:
+        """Returns the string representation of the PrimitiveType class."""
         return f"{type(self).__name__}()"
 
     def __str__(self) -> str:
+        """Returns the string representation of the PrimitiveType class."""
         return self.__root__
 
 
@@ -142,12 +145,15 @@ class FixedType(PrimitiveType):
         self._len = length
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the FixedType class."""
         return self._len
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FixedType class."""
         return f"FixedType(length={self._len})"
 
     def __getnewargs__(self) -> Tuple[int]:
+        """A magic function for pickling the FixedType class."""
         return (self._len,)
 
 
@@ -193,9 +199,11 @@ class DecimalType(PrimitiveType):
         return self._scale
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DecimalType class."""
         return f"DecimalType(precision={self._precision}, scale={self._scale})"
 
     def __getnewargs__(self) -> Tuple[int, int]:
+        """A magic function for pickling the DecimalType class."""
         return (self._precision, self._scale)
 
 
@@ -250,11 +258,13 @@ class NestedField(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the NestedField class."""
         doc = "" if not self.doc else f" ({self.doc})"
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
     def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
+        """A magic function for pickling the NestedField class."""
         return (self.field_id, self.name, self.field_type, self.required, self.doc)
 
     @property
@@ -289,15 +299,19 @@ class StructType(IcebergType):
         return None
 
     def __str__(self) -> str:
+        """Returns the string representation of the StructType class."""
         return f"struct<{', '.join(map(str, self.fields))}>"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the StructType class."""
         return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the StructType class."""
         return len(self.fields)
 
     def __getnewargs__(self) -> Tuple[NestedField, ...]:
+        """A magic function for pickling the StructType class."""
         return self.fields
 
 
@@ -333,9 +347,11 @@ class ListType(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the ListType class."""
         return f"list<{self.element_type}>"
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
+        """A magic function for pickling the ListType class."""
         return (self.element_id, self.element_type, self.element_required)
 
 
@@ -381,9 +397,11 @@ class MapType(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the MapType class."""
         return f"map<{self.key_type}, {self.value_type}>"
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
+        """A magic function for pickling the MapType class."""
         return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
 
