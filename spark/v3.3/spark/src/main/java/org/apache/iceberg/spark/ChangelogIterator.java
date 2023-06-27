@@ -88,6 +88,16 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
+  protected boolean isSameRecord(Row currentRow, Row nextRow, int[] indicesToIdentifySameRow) {
+    for (int idx : indicesToIdentifySameRow) {
+      if (isDifferentValue(currentRow, nextRow, idx)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
     return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
   }

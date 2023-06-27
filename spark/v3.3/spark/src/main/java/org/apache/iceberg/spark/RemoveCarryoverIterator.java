@@ -100,7 +100,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
       // row is the same record
       while (nextRow != null
           && cachedDeletedRow != null
-          && isSameRecord(cachedDeletedRow, nextRow)) {
+          && isSameRecord(cachedDeletedRow, nextRow, indicesToIdentifySameRow)) {
         if (changeType(nextRow).equals(INSERT)) {
           deletedRowCount--;
           if (deletedRowCount == 0) {
@@ -153,21 +153,4 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     return indices;
   }
 
-  protected boolean isSameRecord(Row currentRow, Row nextRow) {
-    for (int idx : indicesToIdentifySameRow()) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  protected StructType rowType() {
-    return rowType;
-  }
-
-  protected int[] indicesToIdentifySameRow() {
-    return indicesToIdentifySameRow;
-  }
 }

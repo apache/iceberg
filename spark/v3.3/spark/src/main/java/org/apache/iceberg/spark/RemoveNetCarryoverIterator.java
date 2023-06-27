@@ -34,9 +34,10 @@ import org.apache.spark.sql.types.StructType;
  *       is 1-to-1 mapping to snapshot id.
  * </ul>
  */
-public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
+public class RemoveNetCarryoverIterator extends ChangelogIterator {
 
   private final int[] indicesToIdentifySameRow;
+  private final StructType rowType;
 
   private Row cachedNextRow = null;
   private Row cachedRow = null;
@@ -44,6 +45,7 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
   protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
+    this.rowType = rowType;
     this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
@@ -81,7 +83,7 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
     cachedRowCount = 1;
 
     // pull rows from the iterator until two consecutive rows are different
-    while (isSameRecord(currentRow, nextRow)) {
+    while (isSameRecord(currentRow, nextRow, indicesToIdentifySameRow)) {
       if (oppositeChangeType(currentRow, nextRow)) {
         // two rows with opposite change types means no net changes, remove both
         cachedRowCount--;
@@ -123,10 +125,10 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
   }
 
   private int[] generateIndicesToIdentifySameRow() {
-    int changeOrdinalIndex = rowType().fieldIndex(MetadataColumns.CHANGE_ORDINAL.name());
-    int snapshotIdIndex = rowType().fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
+    int changeOrdinalIndex = rowType.fieldIndex(MetadataColumns.CHANGE_ORDINAL.name());
+    int snapshotIdIndex = rowType.fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
 
-    int[] indices = new int[rowType().size() - 3];
+    int[] indices = new int[rowType.size() - 3];
 
     for (int i = 0, j = 0; i < indices.length; i++) {
       if (i != changeTypeIndex() && i != changeOrdinalIndex && i != snapshotIdIndex) {
@@ -137,8 +139,4 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
     return indices;
   }
 
-  @Override
-  protected int[] indicesToIdentifySameRow() {
-    return indicesToIdentifySameRow;
-  }
 }
