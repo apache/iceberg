@@ -296,7 +296,7 @@ class JDBCCatalog(Catalog):
                     return True
         return False
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = NAMESPACE_MINIMAL_PROPERTIES) -> None:
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
         Args:
@@ -306,6 +306,8 @@ class JDBCCatalog(Catalog):
         Raises:
             NamespaceAlreadyExistsError: If a namespace with the given name already exists.
         """
+        if not properties:
+            properties = NAMESPACE_MINIMAL_PROPERTIES
         database_name = self.identifier_to_database(namespace)
         if self._namespace_exists(database_name):
             raise NamespaceAlreadyExistsError(f"Database {database_name} already exists")
@@ -422,9 +424,9 @@ class JDBCCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database {database_name} does not exists")
 
         current_properties = self.load_namespace_properties(namespace=namespace)
-        properties_update_summary, updated_properties = self._get_updated_props_and_update_summary(
+        properties_update_summary = self._get_updated_props_and_update_summary(
             current_properties=current_properties, removals=removals, updates=updates
-        )
+        )[0]
 
         with self._get_db_connection(**self.properties) as conn:
             with conn.cursor() as curs:
