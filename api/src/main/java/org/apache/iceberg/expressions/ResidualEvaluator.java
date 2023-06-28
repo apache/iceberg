@@ -50,12 +50,38 @@ import org.apache.iceberg.util.NaNUtil;
  * <p>This class is thread-safe.
  */
 public class ResidualEvaluator implements Serializable {
+
+  public ResidualEvaluator addFilter(Expression newNonPartitionFilter) {
+    if (expr != null) {
+      return new ResidualEvaluator(
+          this.spec,
+          this.expr == Expressions.alwaysTrue()
+              ? newNonPartitionFilter
+              : Expressions.and(this.expr, newNonPartitionFilter),
+          this.caseSensitive);
+    } else {
+      return new ResidualEvaluator(this.spec, newNonPartitionFilter, this.caseSensitive);
+    }
+  }
+
   private static class UnpartitionedResidualEvaluator extends ResidualEvaluator {
     private final Expression expr;
 
     UnpartitionedResidualEvaluator(Expression expr) {
       super(PartitionSpec.unpartitioned(), expr, false);
       this.expr = expr;
+    }
+
+    @Override
+    public ResidualEvaluator addFilter(Expression newNonPartitionFilter) {
+      if (expr != null) {
+        return new UnpartitionedResidualEvaluator(
+            this.expr == Expressions.alwaysTrue()
+                ? newNonPartitionFilter
+                : Expressions.and(this.expr, newNonPartitionFilter));
+      } else {
+        return new UnpartitionedResidualEvaluator(newNonPartitionFilter);
+      }
     }
 
     @Override
@@ -201,6 +227,11 @@ public class ResidualEvaluator implements Serializable {
     @Override
     public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
       return literalSet.contains(ref.eval(struct)) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression rangeIn(BoundReference<T> ref, Set<T> literalSet) {
+      return in(ref, literalSet);
     }
 
     @Override

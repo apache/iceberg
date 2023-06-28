@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.transforms;
 
-import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,96 +27,18 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.Projections;
-import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
-public class TestBucketingProjection {
-
-  public void assertProjectionStrict(
-      PartitionSpec spec,
-      UnboundPredicate<?> filter,
-      Expression.Operation expectedOp,
-      String expectedLiteral) {
-
-    Expression projection = Projections.strict(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
-
-    assertThat(predicate.op())
-        .isEqualTo(expectedOp)
-        .as("Strict projection never runs for IN")
-        .isNotEqualTo(Expression.Operation.IN);
-
-    if (predicate.op() == Expression.Operation.NOT_IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual =
-          Lists.newArrayList(values).stream()
-              .sorted()
-              .map(String::valueOf)
-              .collect(Collectors.toList())
-              .toString();
-      assertThat(actual).isEqualTo(expectedLiteral);
-    } else {
-      Literal<?> literal = predicate.literal();
-      String output = String.valueOf(literal.value());
-      assertThat(output).isEqualTo(expectedLiteral);
-    }
-  }
-
-  public void assertProjectionStrictValue(
-      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
-    Expression projection = Projections.strict(spec).project(filter);
-    assertThat(expectedOp).isEqualTo(projection.op());
-  }
-
-  public void assertProjectionInclusiveValue(
-      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
-    Expression projection = Projections.inclusive(spec).project(filter);
-    assertThat(expectedOp).isEqualTo(projection.op());
-  }
-
-  public void assertProjectionInclusive(
-      PartitionSpec spec,
-      UnboundPredicate<?> filter,
-      Expression.Operation expectedOp,
-      String expectedLiteral) {
-    Expression projection = Projections.inclusive(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
-
-    assertThat(expectedOp).isEqualTo(predicate.op());
-
-    assertThat(predicate.op())
-        .as("Inclusive projection never runs for NOT_IN")
-        .isNotEqualTo(Expression.Operation.NOT_IN);
-
-    if (predicate.op() == Expression.Operation.IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual =
-          Lists.newArrayList(values).stream()
-              .sorted()
-              .map(String::valueOf)
-              .collect(Collectors.toList())
-              .toString();
-      assertThat(actual).isEqualTo(expectedLiteral);
-    } else {
-      Literal<?> literal = predicate.literal();
-      String output = String.valueOf(literal.value());
-      assertThat(output).isEqualTo(expectedLiteral);
-    }
-  }
+public class TestBucketingProjection extends BaseBucketingProjection {
 
   @Test
   public void testBucketIntegerStrict() {

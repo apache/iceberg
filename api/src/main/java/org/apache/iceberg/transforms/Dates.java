@@ -24,6 +24,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -143,7 +144,16 @@ enum Dates implements Transform<Integer, Integer> {
       if (this != DAY) {
         return ProjectionUtil.fixInclusiveTimeProjection(projected);
       }
+      return projected;
 
+    } else if (pred.op() == Expression.Operation.RANGE_IN) {
+      UnboundPredicate<Integer> projected;
+      if (this != DAY) {
+        projected =
+            ((UnBoundCreator) pred).createTransformAppliedUnboundPred(apply, fieldName, true);
+      } else {
+        projected = ((UnBoundCreator) pred).createTransformAppliedUnboundPred(apply, fieldName);
+      }
       return projected;
     }
 

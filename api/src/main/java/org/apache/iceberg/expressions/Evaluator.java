@@ -142,6 +142,11 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean rangeIn(Bound<T> valueExpr, Set<T> literalSet) {
+      return this.in(valueExpr, literalSet);
+    }
+
+    @Override
     public <T> Boolean notIn(Bound<T> valueExpr, Set<T> literalSet) {
       return !in(valueExpr, literalSet);
     }

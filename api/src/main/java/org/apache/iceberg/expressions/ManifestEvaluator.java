@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
@@ -307,6 +309,23 @@ public class ManifestEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSetX) {
+      NavigableSet<T> literalSet = (NavigableSet<T>) literalSetX;
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null and literalSet cannot contain null.
+      }
+      Supplier<T> lowerBoundsSupplier =
+          () -> Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+
+      Supplier<T> upperBoundsSupplier =
+          () -> Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
+
+      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
     }
 
     @Override

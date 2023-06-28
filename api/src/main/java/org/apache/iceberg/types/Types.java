@@ -92,6 +92,11 @@ public class Types {
     public String toString() {
       return "boolean";
     }
+
+    @Override
+    public boolean supportsRangePrunable() {
+      return false;
+    }
   }
 
   public static class IntegerType extends PrimitiveType {
@@ -274,6 +279,11 @@ public class Types {
     public String toString() {
       return "string";
     }
+
+    @Override
+    public boolean supportsRangePrunable() {
+      return true;
+    }
   }
 
   public static class UUIDType extends PrimitiveType {
@@ -291,6 +301,11 @@ public class Types {
     @Override
     public String toString() {
       return "uuid";
+    }
+
+    @Override
+    public boolean supportsRangePrunable() {
+      return false;
     }
   }
 
@@ -335,6 +350,11 @@ public class Types {
     public int hashCode() {
       return Objects.hash(FixedType.class, length);
     }
+
+    @Override
+    public boolean supportsRangePrunable() {
+      return false;
+    }
   }
 
   public static class BinaryType extends PrimitiveType {
@@ -352,6 +372,11 @@ public class Types {
     @Override
     public String toString() {
       return "binary";
+    }
+
+    @Override
+    public boolean supportsRangePrunable() {
+      return false;
     }
   }
 

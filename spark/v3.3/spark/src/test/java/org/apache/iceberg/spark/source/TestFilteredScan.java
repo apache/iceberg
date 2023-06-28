@@ -22,6 +22,7 @@ import static org.apache.iceberg.Files.localOutput;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -64,6 +65,7 @@ import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
@@ -115,23 +117,23 @@ public class TestFilteredScan {
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
 
     // define UDFs used by partition tests
-    Function<Object, Integer> bucket4 = Transforms.bucket(4).bind(Types.LongType.get());
+    Transform<Long, Integer> bucket4 = Transforms.bucket(Types.LongType.get(), 4);
     spark.udf().register("bucket4", (UDF1<Long, Integer>) bucket4::apply, IntegerType$.MODULE$);
 
-    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withZone());
+    Transform<Long, Integer> day = Transforms.day(Types.TimestampType.withZone());
     spark
         .udf()
         .register(
             "ts_day",
-            (UDF1<Timestamp, Integer>) timestamp -> day.apply(fromJavaTimestamp(timestamp)),
+            (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
             IntegerType$.MODULE$);
 
-    Function<Object, Integer> hour = Transforms.hour().bind(Types.TimestampType.withZone());
+    Transform<Long, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
     spark
         .udf()
         .register(
             "ts_hour",
-            (UDF1<Timestamp, Integer>) timestamp -> hour.apply(fromJavaTimestamp(timestamp)),
+            (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
             IntegerType$.MODULE$);
 
     spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
@@ -219,6 +221,31 @@ public class TestFilteredScan {
       assertEqualsSafe(
           SCHEMA.asStruct(), expected(i), read(unpartitioned.toString(), vectorized, "id = " + i));
     }
+  }
+
+  @Test
+  public void testUnpartitionedIDFiltersUsingRangeIn() {
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    Filter filter =
+        In.apply(
+            "id",
+            new Object[] {
+              new DummyBroadcastedJoinKeysWrapper(
+                  IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1)
+            });
+    pushFilters(builder, filter);
+    Batch scan = builder.build().toBatch();
+
+    InputPartition[] partitions = scan.planInputPartitions();
+    Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
+
+    // validate row filtering
+    assertEqualsSafe(
+        SCHEMA.asStruct(), expected(9), read(unpartitioned.toString(), vectorized, "id = " + 9));
   }
 
   @Test

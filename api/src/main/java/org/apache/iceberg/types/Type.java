@@ -63,6 +63,10 @@ public interface Type extends Serializable {
     return false;
   }
 
+  default boolean supportsRangePrunable() {
+    return false;
+  }
+
   default PrimitiveType asPrimitiveType() {
     throw new IllegalArgumentException("Not a primitive type: " + this);
   }
@@ -102,6 +106,11 @@ public interface Type extends Serializable {
   abstract class PrimitiveType implements Type {
     @Override
     public boolean isPrimitiveType() {
+      return true;
+    }
+
+    @Override
+    public boolean supportsRangePrunable() {
       return true;
     }
 

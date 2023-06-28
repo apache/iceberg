@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String sparkVersion = '3.3.2'
+String sparkVersion = '3.3.3-SNAPSHOT'
 String sparkMajorVersion = '3.3'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
@@ -75,6 +75,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation("org.apache.parquet:parquet-column")
     implementation("org.apache.parquet:parquet-hadoop")
+
+    implementation("com.github.ben-manes.caffeine:caffeine")
 
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'

@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -154,8 +155,9 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     } else if (predicate.isSetPredicate()
         && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
       return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), function);
+    } else if (predicate.op() == Expression.Operation.RANGE_IN) {
+      return ((UnBoundCreator) predicate).createTransformAppliedUnboundPred(function, name);
     }
-
     // comparison predicates can't be projected, notEq can't be projected
     // TODO: small ranges can be projected.
     // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.

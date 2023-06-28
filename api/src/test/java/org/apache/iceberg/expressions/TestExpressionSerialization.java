@@ -25,9 +25,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
-public class TestExpressionSerialization {
+public class TestExpressionSerialization extends BaseExpressionSerialization {
   @Test
   public void testExpressions() throws Exception {
     Schema schema =
@@ -77,7 +77,7 @@ public class TestExpressionSerialization {
   // lessThan("a", 3) is equivalent to not(greaterThanOrEqual("a", 4)). To avoid confusion, equals
   // only guarantees object identity.
 
-  private static boolean equals(Expression left, Expression right) {
+  protected static boolean equals(Expression left, Expression right) {
     if (left.op() != right.op()) {
       return false;
     }
@@ -106,7 +106,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  private static boolean equals(Term left, Term right) {
+  protected static boolean equals(Term left, Term right) {
     if (left instanceof Reference && right instanceof Reference) {
       return equals((Reference<?>) left, (Reference<?>) right);
     } else if (left instanceof UnboundTransform && right instanceof UnboundTransform) {
@@ -126,7 +126,7 @@ public class TestExpressionSerialization {
   }
 
   @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
-  private static boolean equals(Predicate left, Predicate right) {
+  protected static boolean equals(Predicate left, Predicate right) {
     if (left.op() != right.op()) {
       return false;
     }
@@ -179,14 +179,14 @@ public class TestExpressionSerialization {
     }
   }
 
-  private static boolean equals(Collection<Literal<?>> left, Collection<Literal<?>> right) {
+  protected static boolean equals(Collection<Literal<?>> left, Collection<Literal<?>> right) {
     if (left.size() != right.size()) {
       return false;
     }
     return left.containsAll(right);
   }
 
-  private static boolean equals(Reference<?> left, Reference<?> right) {
+  protected static boolean equals(Reference<?> left, Reference<?> right) {
     if (left instanceof NamedReference) {
       if (!(right instanceof NamedReference)) {
         return false;

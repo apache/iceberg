@@ -112,6 +112,11 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
 
+    public <T> R rangeIn(BoundReference<T> ref, Set<T> literalSet) {
+      throw new UnsupportedOperationException(
+          "range in expression is not supported by the visitor");
+    }
+
     public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
       throw new UnsupportedOperationException("notIn expression is not supported by the visitor");
     }
@@ -192,6 +197,8 @@ public class ExpressionVisitors {
             return in((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
           case NOT_IN:
             return notIn((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
+          case RANGE_IN:
+            return rangeIn((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
@@ -258,6 +265,11 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
     }
 
+    public <T> R rangeIn(Bound<T> ref, Set<T> literalSet) {
+      throw new UnsupportedOperationException(
+          "range in expression is not supported by the visitor");
+    }
+
     public <T> R startsWith(Bound<T> expr, Literal<T> lit) {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
@@ -313,6 +325,8 @@ public class ExpressionVisitors {
             return in(pred.term(), pred.asSetPredicate().literalSet());
           case NOT_IN:
             return notIn(pred.term(), pred.asSetPredicate().literalSet());
+          case RANGE_IN:
+            return rangeIn(pred.term(), pred.asSetPredicate().literalSet());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());

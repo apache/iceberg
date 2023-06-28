@@ -185,7 +185,7 @@ public class TestTables {
       this.ops = ops;
     }
 
-    TestTableOperations ops() {
+    public TestTableOperations ops() {
       return ops;
     }
   }

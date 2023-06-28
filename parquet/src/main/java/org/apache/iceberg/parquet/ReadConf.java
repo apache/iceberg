@@ -28,7 +28,9 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -104,9 +106,11 @@ class ReadConf<T> {
     ParquetDictionaryRowGroupFilter dictFilter = null;
     ParquetBloomRowGroupFilter bloomFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      Expression bound =
+          Binder.bind(expectedSchema.asStruct(), Expressions.rewriteNot(filter), caseSensitive);
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, bound, caseSensitive, true);
+      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, bound, caseSensitive, true);
+      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, bound, caseSensitive, true);
     }
 
     long computedTotalValues = 0L;

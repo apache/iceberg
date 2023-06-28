@@ -35,7 +35,8 @@ object SparkExpressionConverter {
     // Currently, it is a double conversion as we are converting Spark expression to Spark filter
     // and then converting Spark filter to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true)
+      .get).getElement2
   }
 
   @throws[AnalysisException]

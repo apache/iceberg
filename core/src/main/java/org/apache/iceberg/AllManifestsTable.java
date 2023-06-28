@@ -391,6 +391,11 @@ public class AllManifestsTable extends BaseMetadataTable {
       }
 
       @Override
+      public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSet) {
+        return this.in(ref, literalSet);
+      }
+
+      @Override
       public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
         return ROWS_MIGHT_MATCH;
       }

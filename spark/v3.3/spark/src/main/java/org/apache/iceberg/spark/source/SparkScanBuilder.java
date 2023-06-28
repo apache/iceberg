@@ -154,8 +154,13 @@ public class SparkScanBuilder
     List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
+      Tuple<Boolean, Expression> exprTuple = null;
+      Expression expr = null;
       try {
-        Expression expr = SparkFilters.convert(filter);
+        exprTuple = SparkFilters.convert(filter);
+        if (exprTuple != null) {
+          expr = exprTuple.getElement2();
+        }
 
         if (expr != null) {
           // try binding the expression to ensure it can be pushed down

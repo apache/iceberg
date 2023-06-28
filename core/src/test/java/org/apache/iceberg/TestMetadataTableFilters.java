@@ -18,181 +18,22 @@
  */
 package org.apache.iceberg;
 
-import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestMetadataTableFilters extends TableTestBase {
-
-  private static final Set<MetadataTableType> aggFileTables =
-      Sets.newHashSet(
-          MetadataTableType.ALL_DATA_FILES,
-          MetadataTableType.ALL_DATA_FILES,
-          MetadataTableType.ALL_FILES,
-          MetadataTableType.ALL_ENTRIES);
-
-  private final MetadataTableType type;
-
-  @Parameterized.Parameters(name = "table_type = {0}, format = {1}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      {MetadataTableType.DATA_FILES, 1},
-      {MetadataTableType.DATA_FILES, 2},
-      {MetadataTableType.DELETE_FILES, 2},
-      {MetadataTableType.FILES, 1},
-      {MetadataTableType.FILES, 2},
-      {MetadataTableType.ALL_DATA_FILES, 1},
-      {MetadataTableType.ALL_DATA_FILES, 2},
-      {MetadataTableType.ALL_DELETE_FILES, 2},
-      {MetadataTableType.ALL_FILES, 1},
-      {MetadataTableType.ALL_FILES, 2},
-      {MetadataTableType.ENTRIES, 1},
-      {MetadataTableType.ENTRIES, 2},
-      {MetadataTableType.ALL_ENTRIES, 1},
-      {MetadataTableType.ALL_ENTRIES, 2}
-    };
-  }
+public class TestMetadataTableFilters extends MetadataTableFiltersCommon {
 
   public TestMetadataTableFilters(MetadataTableType type, int formatVersion) {
-    super(formatVersion);
-    this.type = type;
-  }
-
-  @Before
-  @Override
-  public void setupTable() throws Exception {
-    super.setupTable();
-    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
-    table.newFastAppend().appendFile(FILE_A).commit();
-    table.newFastAppend().appendFile(FILE_C).commit();
-    table.newFastAppend().appendFile(FILE_D).commit();
-    table.newFastAppend().appendFile(FILE_B).commit();
-
-    if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
-    }
-
-    if (isAggFileTable(type)) {
-      // Clear all files from current snapshot to test whether 'all' Files tables scans previous
-      // files
-      table
-          .newDelete()
-          .deleteFromRowFilter(Expressions.alwaysTrue())
-          .commit(); // Moves file entries to DELETED state
-      table
-          .newDelete()
-          .deleteFromRowFilter(Expressions.alwaysTrue())
-          .commit(); // Removes all entries
-      Assert.assertEquals(
-          "Current snapshot should be made empty",
-          0,
-          table.currentSnapshot().allManifests(table.io()).size());
-    }
-  }
-
-  private Table createMetadataTable() {
-    switch (type) {
-      case FILES:
-        return new FilesTable(table);
-      case DATA_FILES:
-        return new DataFilesTable(table);
-      case DELETE_FILES:
-        return new DeleteFilesTable(table);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(table);
-      case ALL_DELETE_FILES:
-        return new AllDeleteFilesTable(table);
-      case ALL_FILES:
-        return new AllFilesTable(table);
-      case ENTRIES:
-        return new ManifestEntriesTable(table);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(table);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
-  }
-
-  private int expectedScanTaskCount(int partitions) {
-    switch (type) {
-      case FILES:
-      case ENTRIES:
-        if (formatVersion == 1) {
-          return partitions;
-        } else {
-          return partitions * 2; // Delete File and Data File per partition
-        }
-      case DATA_FILES:
-      case DELETE_FILES:
-      case ALL_DELETE_FILES:
-        return partitions;
-      case ALL_DATA_FILES:
-        return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
-      case ALL_FILES:
-      case ALL_ENTRIES:
-        if (formatVersion == 1) {
-          return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
-        } else {
-          return partitions * 4; // ScanTask for Delete and Data File in DELETED and ADDED states
-        }
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
-  }
-
-  private boolean isAggFileTable(MetadataTableType tableType) {
-    return aggFileTables.contains(tableType);
-  }
-
-  private String partitionColumn(String colName) {
-    switch (type) {
-      case FILES:
-      case DATA_FILES:
-      case DELETE_FILES:
-      case ALL_DATA_FILES:
-      case ALL_DELETE_FILES:
-      case ALL_FILES:
-        return String.format("partition.%s", colName);
-      case ENTRIES:
-      case ALL_ENTRIES:
-        return String.format("data_file.partition.%s", colName);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
-  }
-
-  /** @return a basic expression that always evaluates to true, to test AND logic */
-  private Expression dummyExpression() {
-    switch (type) {
-      case FILES:
-      case DATA_FILES:
-      case DELETE_FILES:
-      case ALL_DATA_FILES:
-      case ALL_DELETE_FILES:
-      case ALL_FILES:
-        return Expressions.greaterThan("record_count", 0);
-      case ENTRIES:
-      case ALL_ENTRIES:
-        return Expressions.greaterThan("data_file.record_count", 0);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
+    super(type, formatVersion);
   }
 
   @Test
@@ -614,37 +455,11 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
   }
 
-  private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(fileScanTasks.spliterator(), false)
-            .anyMatch(t -> manifestHasPartition(manifest(t), partValue)));
-  }
-
   private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
     Assert.assertTrue(
         "File scan tasks do not include correct partition value",
         StreamSupport.stream(tasks.spliterator(), false)
             .flatMap(c -> c.files().stream().map(this::manifest))
             .anyMatch(m -> manifestHasPartition(m, partValue)));
-  }
-
-  private boolean manifestHasPartition(ManifestFile mf, int partValue) {
-    int lower =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).lowerBound());
-    int upper =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
-    return (lower <= partValue) && (upper >= partValue);
-  }
-
-  private ManifestFile manifest(FileScanTask task) {
-    if (task instanceof BaseFilesTable.ManifestReadTask) {
-      return ((BaseFilesTable.ManifestReadTask) task).manifest();
-    } else if (task instanceof BaseEntriesTable.ManifestReadTask) {
-      return ((BaseEntriesTable.ManifestReadTask) task).manifest();
-    } else {
-      throw new IllegalArgumentException(
-          "Unexpected task type: " + task.getClass().getCanonicalName());
-    }
   }
 }

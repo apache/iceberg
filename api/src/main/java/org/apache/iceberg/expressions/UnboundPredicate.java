@@ -40,7 +40,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     this(op, term, Literals.from(value));
   }
 
-  UnboundPredicate(Operation op, UnboundTerm<T> term) {
+  public UnboundPredicate(Operation op, UnboundTerm<T> term) {
     super(op, term);
     this.literals = null;
   }
@@ -116,9 +116,9 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
       return bindInOperation(bound);
+    } else {
+      return bindLiteralOperation(bound);
     }
-
-    return bindLiteralOperation(bound);
   }
 
   private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
@@ -265,6 +265,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " notStartsWith \"" + literal() + "\"";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
+      case RANGE_IN:
+        return this.toString();
       case NOT_IN:
         return term() + " not in (" + COMMA.join(literals()) + ")";
       default:

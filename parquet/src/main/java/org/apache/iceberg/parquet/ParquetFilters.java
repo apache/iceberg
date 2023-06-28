@@ -19,6 +19,9 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.NavigableSet;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -29,6 +32,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -118,11 +122,14 @@ class ParquetFilters {
       Operation op = pred.op();
       BoundReference<T> ref = (BoundReference<T>) pred.term();
       String path = schema.idToAlias(ref.fieldId());
-      Literal<T> lit;
+      Literal<T> lit = null;
+      Set<Literal<?>> litSet = null;
       if (pred.isUnaryPredicate()) {
         lit = null;
       } else if (pred.isLiteralPredicate()) {
         lit = pred.asLiteralPredicate().literal();
+      } else if (pred.isSetPredicate()) {
+        litSet = (Set<Literal<?>>) pred.asSetPredicate().asSetPredicate().literalSet();
       } else {
         throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
       }
@@ -139,21 +146,54 @@ class ParquetFilters {
           break;
         case INTEGER:
         case DATE:
-          return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit));
+          Operators.IntColumn intCol = FilterApi.intColumn(path);
+          if (op == Operation.RANGE_IN) {
+            return FilterApi.userDefined(
+                intCol, new RangeInFilter<>(convertToNavigableSet(intCol, litSet)));
+          } else {
+            return pred(op, intCol, getParquetPrimitive(lit));
+          }
         case LONG:
         case TIME:
         case TIMESTAMP:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
+          Operators.LongColumn longCol = FilterApi.longColumn(path);
+          if (op == Operation.RANGE_IN) {
+            return FilterApi.userDefined(
+                longCol, new RangeInFilter<>(convertToNavigableSet(longCol, litSet)));
+          } else {
+            return pred(op, longCol, getParquetPrimitive(lit));
+          }
+
         case FLOAT:
-          return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit));
+          Operators.FloatColumn floatCol = FilterApi.floatColumn(path);
+          if (op == Operation.RANGE_IN) {
+            return FilterApi.userDefined(
+                floatCol, new RangeInFilter<>(convertToNavigableSet(floatCol, litSet)));
+          } else {
+            return pred(op, floatCol, getParquetPrimitive(lit));
+          }
+
         case DOUBLE:
-          return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit));
+          Operators.DoubleColumn doubleCol = FilterApi.doubleColumn(path);
+          if (op == Operation.RANGE_IN) {
+            return FilterApi.userDefined(
+                doubleCol, new RangeInFilter<>(convertToNavigableSet(doubleCol, litSet)));
+          } else {
+            return pred(op, doubleCol, getParquetPrimitive(lit));
+          }
+
         case STRING:
         case UUID:
         case FIXED:
         case BINARY:
         case DECIMAL:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
+          Operators.BinaryColumn binaryColumn = FilterApi.binaryColumn(path);
+          if (op == Operation.RANGE_IN) {
+            return FilterApi.userDefined(
+                binaryColumn, new RangeInFilter<>(convertToNavigableSet(binaryColumn, litSet)));
+          } else {
+            return pred(op, binaryColumn, getParquetPrimitive(lit));
+          }
       }
 
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
@@ -214,6 +254,16 @@ class ParquetFilters {
     }
   }
 
+  /*
+  @SuppressWarnings("checkstyle:MethodTypeParameterName")
+  private static <
+          C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsEqNotEq>
+      FilterPredicate predIn(COL col, Set<Literal<?>> value) {
+    return FilterApi.in(
+        col, value.stream().map(x -> (C) getParquetPrimitive(x)).collect(Collectors.toSet()));
+  }
+  */
+
   @SuppressWarnings("unchecked")
   private static <C extends Comparable<C>> C getParquetPrimitive(Literal<?> lit) {
     if (lit == null) {
@@ -231,6 +281,15 @@ class ParquetFilters {
     }
     throw new UnsupportedOperationException(
         "Type not supported yet: " + value.getClass().getName());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <C extends Comparable<C>> NavigableSet<C> convertToNavigableSet(
+      Operators.Column<C> col, Set<Literal<?>> set) {
+    Iterator<Literal<?>> iter = set.iterator();
+    NavigableSet<C> tempSet = Sets.newTreeSet();
+    iter.forEachRemaining(x -> tempSet.add(getParquetPrimitive(x)));
+    return tempSet;
   }
 
   private static class AlwaysTrue implements FilterPredicate {

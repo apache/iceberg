@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -79,7 +80,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
-    this.filterExpressions = filters != null ? filters : Collections.emptyList();
+    // data filters can be added now as part of runtime filter pushdown
+    this.filterExpressions = filters != null ? filters : new LinkedList<>();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
     this.branch = readConf.branch();
   }
@@ -101,7 +103,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected List<Expression> filterExpressions() {
-    return filterExpressions;
+    return Collections.unmodifiableList(filterExpressions);
   }
 
   protected Types.StructType groupingKeyType() {
@@ -136,6 +138,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Statistics estimateStatistics() {
     return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
+  }
+
+  protected void addFilterExpression(Expression filter) {
+    this.filterExpressions.add(filter);
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {

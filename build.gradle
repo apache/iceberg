@@ -136,7 +136,16 @@ allprojects {
   version = projectVersion
   repositories {
     mavenCentral()
-    mavenLocal()
+    exclusiveContent {
+      forRepository {
+        mavenLocal()
+      }
+      filter {
+        // this repository *only* contains artifacts with group "my.company"
+        includeGroup "org.apache.spark"
+      }
+    }
+
   }
 }
 
@@ -569,7 +578,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.2") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.3-SNAPSHOT") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
