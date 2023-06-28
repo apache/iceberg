@@ -1634,6 +1634,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
+            .set(
+                "total_data_file_size_in_bytes",
+                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
     expected.add(
         builder
@@ -1647,6 +1650,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", posDeleteCommitId)
+            .set(
+                "total_data_file_size_in_bytes",
+                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
 
     for (int i = 0; i < 2; i += 1) {
