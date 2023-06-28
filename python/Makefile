@@ -40,11 +40,10 @@ test-integration:
 	# docker-compose -f dev/docker-compose-integration.yml exec -T spark-iceberg ipython ./provision.py
 	# poetry run pytest tests/catalog/integration_test_jdbc_postgres.py -v -m integration ${PYTEST_ARGS}
 	# Env:
-	# AWS_TEST_BUCKET=test
-	# AWS_REGION=us-east-1
-	# AWS_ACCESS_KEY_ID=admin
-	# AWS_SECRET_ACCESS_KEY=password
-	#
+	export AWS_TEST_BUCKET=test
+	export AWS_REGION=us-east-1
+	export AWS_ACCESS_KEY_ID=admin
+	export AWS_SECRET_ACCESS_KEY=password
 	poetry run pytest tests/catalog/integration_test_jdbc_postgres.py -v ${PYTEST_ARGS}
 
 test-integration-rebuild:
