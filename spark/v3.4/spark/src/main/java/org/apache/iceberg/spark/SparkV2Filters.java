@@ -48,6 +48,7 @@ import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.And;
@@ -159,16 +160,15 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
-          PredicateChildren<Object> eqChildren = predicateChildren(predicate);
+          Pair<UnboundTerm<Object>, Object> eqChildren = predicateChildren(predicate);
           if (eqChildren == null) {
             return null;
           }
 
-          if (EQ.equals(predicate.name())) {
-            // comparison with null in normal equality is always null. this is probably a
-            // mistake.
+          if (predicate.name().equals(EQ)) {
+            // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(
-                eqChildren.value,
+                eqChildren.second(),
                 "Expression is always false (eq is not null-safe): %s",
                 predicate);
           }
@@ -176,7 +176,7 @@ public class SparkV2Filters {
           return handleEqual(eqChildren);
 
         case NOT_EQ:
-          PredicateChildren<Object> notEqChildren = predicateChildren(predicate);
+          Pair<UnboundTerm<Object>, Object> notEqChildren = predicateChildren(predicate);
           if (notEqChildren == null) {
             return null;
           }
@@ -251,7 +251,7 @@ public class SparkV2Filters {
     return null;
   }
 
-  private static <T> PredicateChildren<T> predicateChildren(Predicate predicate) {
+  private static <T> Pair<UnboundTerm<T>, T> predicateChildren(Predicate predicate) {
     T value;
     UnboundTerm<T> term;
     if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
@@ -264,31 +264,7 @@ public class SparkV2Filters {
       return null;
     }
 
-    return new PredicateChildren<>(term, value);
-  }
-
-  private static <T> UnboundPredicate<T> handleEqual(PredicateChildren<T> children) {
-    if (children.value == null) {
-      return isNull(children.term);
-    }
-
-    if (NaNUtil.isNaN(children.value)) {
-      return isNaN(children.term);
-    } else {
-      return equal(children.term, children.value);
-    }
-  }
-
-  private static <T> UnboundPredicate<T> handleNotEqual(PredicateChildren<T> children) {
-    if (children.value == null) {
-      return notNull(children.term);
-    }
-
-    if (NaNUtil.isNaN(children.value)) {
-      return notNaN(children.term);
-    } else {
-      return notEqual(children.term, children.value);
-    }
+    return Pair.of(term, value);
   }
 
   @SuppressWarnings("unchecked")
@@ -336,6 +312,30 @@ public class SparkV2Filters {
     return (T) literal.value();
   }
 
+  private static <T> UnboundPredicate<T> handleEqual(Pair<UnboundTerm<T>, T> children) {
+    if (children.second() == null) {
+      return isNull(children.first());
+    }
+
+    if (NaNUtil.isNaN(children.second())) {
+      return isNaN(children.first());
+    } else {
+      return equal(children.first(), children.second());
+    }
+  }
+
+  private static <T> UnboundPredicate<T> handleNotEqual(Pair<UnboundTerm<T>, T> children) {
+    if (children.second() == null) {
+      return notNull(children.first());
+    }
+
+    if (NaNUtil.isNaN(children.second())) {
+      return notNaN(children.first());
+    } else {
+      return notEqual(children.first(), children.second());
+    }
+  }
+
   private static boolean hasNoInFilter(Predicate predicate) {
     Operation op = FILTERS.get(predicate.name());
 
@@ -365,16 +365,6 @@ public class SparkV2Filters {
       return false;
     } else {
       return Arrays.stream(predicate.children()).skip(1).allMatch(SparkV2Filters::isLiteral);
-    }
-  }
-
-  private static class PredicateChildren<T> {
-    private final UnboundTerm<T> term;
-    private final T value;
-
-    private PredicateChildren(UnboundTerm<T> term, T value) {
-      this.term = term;
-      this.value = value;
     }
   }
 }
