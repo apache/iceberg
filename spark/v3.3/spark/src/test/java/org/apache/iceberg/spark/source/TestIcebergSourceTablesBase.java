@@ -1263,6 +1263,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
                 "Count of equality delete files"),
+            required(
+                11,
+                "total_data_size_in_bytes",
+                Types.LongType.get(),
+                "Total bytes of data files in a partition"),
             optional(
                 9,
                 "last_updated_at",
@@ -1272,12 +1277,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Id of snapshot that last updated this partition"),
-            required(
-                11,
-                "total_data_size_in_bytes",
-                Types.LongType.get(),
-                "Total bytes of data files in a partition"));
+                "Id of snapshot that last updated this partition"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
