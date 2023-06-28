@@ -23,7 +23,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
+import org.apache.spark.sql.catalyst.plans.logical.RebalancePartitions
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.connector.distributions.ClusteredDistribution
 import org.apache.spark.sql.connector.distributions.OrderedDistribution
@@ -52,15 +52,10 @@ object ExtendedDistributionAndOrderingUtils {
       }
 
       val queryWithDistribution = if (distribution.nonEmpty) {
-        val finalNumPartitions = if (numPartitions > 0) {
-          numPartitions
-        } else {
-          conf.numShufflePartitions
-        }
         // the conversion to catalyst expressions above produces SortOrder expressions
         // for OrderedDistribution and generic expressions for ClusteredDistribution
-        // this allows RepartitionByExpression to pick either range or hash partitioning
-        RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
+        // this allows RebalancePartitions to pick either range or hash partitioning
+        RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {
