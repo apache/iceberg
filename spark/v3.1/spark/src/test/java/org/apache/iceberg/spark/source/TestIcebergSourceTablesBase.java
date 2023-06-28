@@ -1360,6 +1360,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
+            .set(
+                "total_data_file_size_in_bytes",
+                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
     expected.add(
         builder
@@ -1373,6 +1376,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
+            .set(
+                "total_data_file_size_in_bytes",
+                getDataFileSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
             .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
