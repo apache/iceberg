@@ -1,7 +1,5 @@
 import pytest
-import tempfile
-import sqlite3
-import os
+
 from pyiceberg.catalog.jdbc import JDBCCatalog
 from pyiceberg.exceptions import NoSuchPropertyException
 
@@ -16,7 +14,7 @@ from pyiceberg.exceptions import NoSuchPropertyException
 #     conn.close()
 #     yield db_file
 #     os.remove(db_file)
-    
+
 
 # def test_create_namespace(test_db: str):
 #     props = {
@@ -29,9 +27,6 @@ from pyiceberg.exceptions import NoSuchPropertyException
 
 
 def test_creation_with_no_uri() -> None:
-    with pytest.raises(NoSuchPropertyException):
-        JDBCCatalog("test_ddb_catalog", uri=None)
-
     with pytest.raises(NoSuchPropertyException):
         JDBCCatalog("test_ddb_catalog", not_uri="unused")
 

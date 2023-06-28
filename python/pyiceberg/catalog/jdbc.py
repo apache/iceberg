@@ -10,6 +10,7 @@ from typing import (
 from urllib.parse import urlparse
 
 import psycopg2 as db
+from psycopg2.errors import UniqueViolation
 from psycopg2.extras import DictCursor
 
 from pyiceberg.catalog import (
@@ -26,6 +27,7 @@ from pyiceberg.exceptions import (
     NoSuchNamespaceError,
     NoSuchPropertyException,
     NoSuchTableError,
+    TableAlreadyExistsError,
 )
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -48,7 +50,9 @@ TABLE_NAME = "table_name"
 CREATE_CATALOG_TABLE = f"CREATE TABLE {CATALOG_TABLE_NAME} ({CATALOG_NAME} VARCHAR(255) NOT NULL, {TABLE_NAMESPACE} VARCHAR(255) NOT NULL, {TABLE_NAME} VARCHAR(255) NOT NULL, {METADATA_LOCATION} VARCHAR(1000), {PREVIOUS_METADATA_LOCATION} VARCHAR(1000), PRIMARY KEY ({CATALOG_NAME}, {TABLE_NAMESPACE}, {TABLE_NAME}))"
 LIST_TABLES_SQL = f"SELECT * FROM {CATALOG_TABLE_NAME} WHERE {CATALOG_NAME} = %s AND {TABLE_NAMESPACE} = %s"
 GET_TABLE_SQL = f"SELECT * FROM {CATALOG_TABLE_NAME} WHERE {CATALOG_NAME} = %s AND {TABLE_NAMESPACE} = %s AND {TABLE_NAME} = %s"
-DROP_TABLE_SQL = f"DELETE FROM {CATALOG_TABLE_NAME} WHERE {CATALOG_NAME} = %s AND {TABLE_NAMESPACE} = %s AND {TABLE_NAME} = %s "
+DROP_TABLE_SQL = (
+    f"DELETE FROM {CATALOG_TABLE_NAME} WHERE {CATALOG_NAME} = %s AND {TABLE_NAMESPACE} = %s AND {TABLE_NAME} = %s RETURNING *"
+)
 DO_COMMIT_CREATE_TABLE_SQL = f"INSERT INTO {CATALOG_TABLE_NAME} ({CATALOG_NAME}, {TABLE_NAMESPACE} , {TABLE_NAME} , {METADATA_LOCATION}, {PREVIOUS_METADATA_LOCATION}) VALUES (%s,%s,%s,%s,null)"
 RENAME_TABLE_SQL = f"UPDATE {CATALOG_TABLE_NAME} SET {TABLE_NAMESPACE} = %s, {TABLE_NAME} = %s WHERE {CATALOG_NAME} = %s AND {TABLE_NAMESPACE} = %s AND {TABLE_NAME} = %s "
 
@@ -199,7 +203,11 @@ class JDBCCatalog(Catalog):
 
         with self._get_db_connection(**self.properties) as conn:
             with conn.cursor() as curs:
-                curs.execute(DO_COMMIT_CREATE_TABLE_SQL, (self.name, database_name, table_name, metadata_location))
+                try:
+                    curs.execute(DO_COMMIT_CREATE_TABLE_SQL, (self.name, database_name, table_name, metadata_location))
+                    conn.commit()
+                except UniqueViolation as e:
+                    raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
         return self.load_table(identifier=identifier)
 
@@ -223,7 +231,9 @@ class JDBCCatalog(Catalog):
             with conn.cursor(cursor_factory=DictCursor) as curs:
                 curs.execute(GET_TABLE_SQL, (self.name, database_name, table_name))
                 row = curs.fetchone()
-                return self._convert_jdbc_to_iceberg(row)
+                if row:
+                    return self._convert_jdbc_to_iceberg(row)
+                raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
@@ -238,7 +248,10 @@ class JDBCCatalog(Catalog):
         with self._get_db_connection(**self.properties) as conn:
             with conn.cursor() as curs:
                 curs.execute(DROP_TABLE_SQL, (self.name, database_name, table_name))
-        # TODO: Check if table did not exist
+                deleted_rows = curs.fetchall()
+                if len(deleted_rows) < 1:
+                    raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
+                conn.commit()
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name.
@@ -252,17 +265,24 @@ class JDBCCatalog(Catalog):
 
         Raises:
             NoSuchTableError: If a table with the name does not exist.
+            TableAlreadyExistsError: If a table with the new name already exist.
+            NoSuchNamespaceError: If the target namespace does not exist.
         """
         from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
         to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
         with self._get_db_connection(**self.properties) as conn:
             with conn.cursor() as curs:
-                curs.execute(RENAME_TABLE_SQL, (to_database_name, to_table_name, self.name, from_database_name, from_table_name))
-        # TODO:
-        # except NoSuchObjectException as e:
-        #     raise NoSuchTableError(f"Table does not exist: {from_table_name}") from e
-        # except InvalidOperationException as e:
-        #     raise NoSuchNamespaceError(f"Database does not exists: {to_database_name}") from e
+                try:
+                    if not self._namespace_exists(to_database_name):
+                        raise NoSuchNamespaceError(f"Namespace does not exist: {to_database_name}")
+                    curs.execute(
+                        RENAME_TABLE_SQL, (to_database_name, to_table_name, self.name, from_database_name, from_table_name)
+                    )
+                    if curs.rowcount == 0:
+                        raise NoSuchTableError(f"Table does not exist: {from_table_name}")
+                    conn.commit()
+                except UniqueViolation as e:
+                    raise TableAlreadyExistsError(f"Table {to_database_name}.{to_table_name} already exists") from e
         return self.load_table(to_identifier)
 
     def _namespace_exists(self, namespace: str) -> bool:
