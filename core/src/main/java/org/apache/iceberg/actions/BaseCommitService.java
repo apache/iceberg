@@ -169,7 +169,11 @@ abstract class BaseCommitService<T> implements Closeable {
 
     if (!completedRewrites.isEmpty() && timeout) {
       LOG.error("Attempting to cleanup uncommitted file groups");
-      completedRewrites.forEach(this::abortFileGroup);
+      synchronized (completedRewrites) {
+        while (!completedRewrites.isEmpty()) {
+          abortFileGroup(completedRewrites.poll());
+        }
+      }
     }
 
     Preconditions.checkArgument(
