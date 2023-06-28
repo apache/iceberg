@@ -1,0 +1,18 @@
+***************
+*** 184,190 ****
+    public String description() {
+      String filters =
+          filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+-     return String.format("%s [filters=%s]", table, filters);
+    }
+  
+    @Override
+--- 190,197 ----
+    public String description() {
+      String filters =
+          filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
++     return String.format(
++         "%s [scan class = %s] [filters=%s]", table, this.getClass().getSimpleName(), filters);
+    }
+  
+    @Override
