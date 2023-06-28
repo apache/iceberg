@@ -1262,7 +1262,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "Count of equality delete files"),
             required(
                 11,
-                "total_data_size_in_bytes",
+                "total_data_file_size_in_bytes",
                 Types.LongType.get(),
                 "Total bytes of data files in a partition"),
             optional(
@@ -1296,7 +1296,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set(
-                "total_data_size_in_bytes",
+                "total_data_file_size_in_bytes",
                 StreamSupport.stream(
                         table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
                     .mapToLong(DataFile::fileSizeInBytes)

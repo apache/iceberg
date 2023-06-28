@@ -75,7 +75,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 "Count of equality delete files"),
             Types.NestedField.required(
                 11,
-                "total_data_size_in_bytes",
+                "total_data_file_size_in_bytes",
                 Types.LongType.get(),
                 "Total bytes of data files in a partition"),
             Types.NestedField.optional(
@@ -135,7 +135,7 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.posDeleteFileCount,
                   root.eqDeleteRecordCount,
                   root.eqDeleteFileCount,
-                  root.dataSizeInBytes,
+                  root.dataFileSizeInBytes,
                   root.lastUpdatedAt,
                   root.lastUpdatedSnapshotId));
     } else {
@@ -158,7 +158,7 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.posDeleteFileCount,
         partition.eqDeleteRecordCount,
         partition.eqDeleteFileCount,
-        partition.dataSizeInBytes,
+        partition.dataFileSizeInBytes,
         partition.lastUpdatedAt,
         partition.lastUpdatedSnapshotId);
   }
@@ -283,7 +283,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int eqDeleteFileCount;
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
-    private long dataSizeInBytes;
+    private long dataFileSizeInBytes;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
@@ -294,7 +294,7 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
-      this.dataSizeInBytes = 0;
+      this.dataFileSizeInBytes = 0;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
@@ -311,7 +311,7 @@ public class PartitionsTable extends BaseMetadataTable {
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
           this.specId = file.specId();
-          this.dataSizeInBytes += file.fileSizeInBytes();
+          this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount = file.recordCount();
