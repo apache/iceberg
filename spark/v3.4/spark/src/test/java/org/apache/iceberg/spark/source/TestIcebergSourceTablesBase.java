@@ -1297,10 +1297,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_file_count", 0)
             .set(
                 "total_data_file_size_in_bytes",
-                StreamSupport.stream(
-                        table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
-                    .mapToLong(DataFile::fileSizeInBytes)
-                    .sum())
+                getDataFileSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
             .build();
 
     List<Row> actual =
@@ -2233,5 +2230,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private long getDataFileSizeInBytes(Iterable<DataFile> dataFiles) {
+    return StreamSupport.stream(dataFiles.spliterator(), false)
+        .mapToLong(DataFile::fileSizeInBytes)
+        .sum();
   }
 }
