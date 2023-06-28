@@ -151,7 +151,7 @@ class JDBCCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(table_namespace, table_name),
+            identifier=(self.name, table_namespace, table_name),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
@@ -224,7 +224,6 @@ class JDBCCatalog(Catalog):
                 curs.execute(GET_TABLE_SQL, (self.name, database_name, table_name))
                 row = curs.fetchone()
                 return self._convert_jdbc_to_iceberg(row)
-        # io = load_file_io({**self.properties, **hive_table.parameters}, hive_table.sd.location)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.

@@ -1,10 +1,11 @@
 from typing import Generator, List
 
+import boto3
 import pytest
 
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.jdbc import JDBCCatalog
-from pyiceberg.exceptions import NamespaceAlreadyExistsError, NamespaceNotEmptyError, NoSuchNamespaceError
+from pyiceberg.exceptions import NamespaceAlreadyExistsError, NamespaceNotEmptyError, NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.schema import Schema
 from tests.conftest import clean_up, get_bucket_name, get_s3_path
 import os
@@ -13,7 +14,7 @@ import os
 @pytest.fixture(name="test_catalog", scope="module")
 def fixture_test_catalog() -> Generator[JDBCCatalog, None, None]:
     """The pre- and post-setting of JDBC integration test."""
-    os.environ["AWS_TEST_BUCKET"] = "test"
+    os.environ["AWS_TEST_BUCKET"] = "warehouse"
     os.environ["AWS_REGION"] = "us-east-1"
     os.environ["AWS_ACCESS_KEY_ID"] = "admin"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "password"
@@ -31,16 +32,17 @@ def fixture_test_catalog() -> Generator[JDBCCatalog, None, None]:
     clean_up(test_catalog)
 
 
-# def test_create_table(
-#     test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, database_name: str, table_name: str
-# ) -> None:
-#     identifier = (database_name, table_name)
-#     test_catalog.create_namespace(database_name)
-#     test_catalog.create_table(identifier, table_schema_nested, get_s3_path(get_bucket_name(), database_name, table_name))
-#     table = test_catalog.load_table(identifier)
-#     assert table.identifier == (test_catalog.name,) + identifier
-#     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
-#     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
+@pytest.mark.integration
+def test_create_table(
+    test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
+    identifier = (database_name, table_name)
+    test_catalog.create_namespace(database_name)
+    test_catalog.create_table(identifier, table_schema_nested, get_s3_path(get_bucket_name(), database_name, table_name))
+    table = test_catalog.load_table(identifier)
+    assert table.identifier == (test_catalog.name,) + identifier
+    metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
+    s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
 
 # def test_create_table_with_invalid_location(table_schema_nested: Schema, database_name: str, table_name: str) -> None:
@@ -119,6 +121,7 @@ def test_create_table_with_invalid_database(test_catalog: Catalog, table_schema_
 #         test_catalog.load_table(identifier)
 
 
+# @pytest.mark.integration
 # def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema, table_name: str, database_name: str) -> None:
 #     identifier = (database_name, table_name)
 #     test_catalog.create_namespace(database_name)
