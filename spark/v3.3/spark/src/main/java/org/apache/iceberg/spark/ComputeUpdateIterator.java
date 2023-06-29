@@ -81,15 +81,13 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     // either a cached record which is not an UPDATE or the next record in the iterator.
     Row currentRow = currentRow();
 
-    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
+    if (changeType(currentRow).equals(DELETE) && rowIterator().hasNext()) {
       Row nextRow = rowIterator().next();
       cachedRow = nextRow;
 
       if (sameLogicalRow(currentRow, nextRow)) {
-        String nextRowChangeType = nextRow.getString(changeTypeIndex());
-
         Preconditions.checkState(
-            nextRowChangeType.equals(INSERT),
+            changeType(nextRow).equals(INSERT),
             "Cannot compute updates because there are multiple rows with the same identifier"
                 + " fields([%s]). Please make sure the rows are unique.",
             String.join(",", identifierFields));
@@ -118,7 +116,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   }
 
   private boolean cachedUpdateRecord() {
-    return cachedRow != null && cachedRow.getString(changeTypeIndex()).equals(UPDATE_AFTER);
+    return cachedRow != null && changeType(cachedRow).equals(UPDATE_AFTER);
   }
 
   private Row currentRow() {
