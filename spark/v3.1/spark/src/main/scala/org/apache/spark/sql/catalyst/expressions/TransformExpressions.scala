@@ -96,6 +96,9 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
       // TODO: pass bytes without the copy out of the InternalRow
       val t = Transforms.bucket[ByteBuffer](Types.BinaryType.get(), numBuckets)
       s: Any => t(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)).toInt
+    case _: BinaryType =>
+      val t = Transforms.bucket[Any](numBuckets).bind(icebergInputType)
+      b: Any => t(ByteBuffer.wrap(b.asInstanceOf[Array[Byte]])).toInt
     case _ =>
       val t = Transforms.bucket[Any](icebergInputType, numBuckets)
       a: Any => t(a).toInt
