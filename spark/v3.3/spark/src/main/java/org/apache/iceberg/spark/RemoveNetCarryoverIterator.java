@@ -39,15 +39,13 @@ import org.apache.spark.sql.types.StructType;
 public class RemoveNetCarryoverIterator extends ChangelogIterator {
 
   private final int[] indicesToIdentifySameRow;
-  private final StructType rowType;
 
-  private Row cachedNextRow = null;
-  private Row cachedRow = null;
-  private long cachedRowCount = 0;
+  private Row cachedNextRow;
+  private Row cachedRow;
+  private long cachedRowCount;
 
   protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.rowType = rowType;
     this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
@@ -123,9 +121,9 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
   private int[] generateIndicesToIdentifySameRow() {
     Set<Integer> metadataColumnIndices =
         Sets.newHashSet(
-            rowType.fieldIndex(MetadataColumns.CHANGE_ORDINAL.name()),
-            rowType.fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name()),
+            rowType().fieldIndex(MetadataColumns.CHANGE_ORDINAL.name()),
+            rowType().fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name()),
             changeTypeIndex());
-    return generateIndicesToIdentifySameRow(rowType.size(), metadataColumnIndices);
+    return generateIndicesToIdentifySameRow(rowType().size(), metadataColumnIndices);
   }
 }

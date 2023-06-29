@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
@@ -36,9 +37,11 @@ public abstract class ChangelogIterator implements Iterator<Row> {
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
+  private final StructType rowType;
 
   protected ChangelogIterator(Iterator<Row> rowIterator, StructType rowType) {
     this.rowIterator = rowIterator;
+    this.rowType = rowType;
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
   }
 
@@ -46,8 +49,14 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return changeTypeIndex;
   }
 
+  protected StructType rowType() {
+    return rowType;
+  }
+
   protected String changeType(Row row) {
-    return row.getString(changeTypeIndex());
+    String changeType = row.getString(changeTypeIndex());
+    Preconditions.checkNotNull(changeType, "Change type should not be null");
+    return changeType;
   }
 
   protected Iterator<Row> rowIterator() {

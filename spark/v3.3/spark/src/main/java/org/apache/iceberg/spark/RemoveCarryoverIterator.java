@@ -50,7 +50,6 @@ import org.apache.spark.sql.types.StructType;
  */
 class RemoveCarryoverIterator extends ChangelogIterator {
   private final int[] indicesToIdentifySameRow;
-  private final StructType rowType;
 
   private Row cachedDeletedRow = null;
   private long deletedRowCount = 0;
@@ -58,7 +57,6 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   RemoveCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.rowType = rowType;
     this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
@@ -145,6 +143,6 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   private int[] generateIndicesToIdentifySameRow() {
     Set<Integer> metadataColumnIndices = Sets.newHashSet(changeTypeIndex());
-    return generateIndicesToIdentifySameRow(rowType.size(), metadataColumnIndices);
+    return generateIndicesToIdentifySameRow(rowType().size(), metadataColumnIndices);
   }
 }
