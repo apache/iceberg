@@ -187,8 +187,8 @@ For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/
 #### Skip Name Validation
 
 Allow user to skip name validation for table name and namespaces.
-It is recommended to stick to Glue best practice in
-https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html to make sure operations are Hive compatible.
+It is recommended to stick to [Glue best practices](https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html)
+to make sure operations are Hive compatible.
 This is only added for users that have existing conventions using non-standard characters. When database name
 and table name validation are skipped, there is no guarantee that downstream systems would all support the names.
 
