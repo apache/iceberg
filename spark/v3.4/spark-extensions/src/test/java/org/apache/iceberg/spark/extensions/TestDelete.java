@@ -1276,9 +1276,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteToCustomWapBranchWithoutWhereClause() throws NoSuchTableException {
     assumeThat(branch)
-            .as("Run only if custom WAP branch is not main")
-            .isNotNull()
-            .isNotEqualTo(SnapshotRef.MAIN_BRANCH);
+        .as("Run only if custom WAP branch is not main")
+        .isNotNull()
+        .isNotEqualTo(SnapshotRef.MAIN_BRANCH);
 
     createAndInitPartitionedTable();
     sql(

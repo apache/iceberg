@@ -690,9 +690,9 @@ public class SparkTableUtil {
 
   public static boolean wapEnabled(Table table) {
     return PropertyUtil.propertyAsBoolean(
-            table.properties(),
-            TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
-            Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+        table.properties(),
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
+        Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   /** Class representing a table partition. */
