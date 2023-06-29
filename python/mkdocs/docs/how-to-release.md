@@ -44,7 +44,7 @@ export LAST_COMMIT_ID=$(git rev-list ${GIT_TAG} 2> /dev/null | head -n 1)
 
 The `-s` option will sign the commit. If you don't have a key yet, you can find the instructions [here](http://www.apache.org/dev/openpgp.html#key-gen-generate-key). To install gpg on a M1 based Mac, a couple of additional steps are required: https://gist.github.com/phortuin/cf24b1cca3258720c71ad42977e1ba57
 
-Next step is to clean remove the `dist/` directory to make sure that we have a clean start. Create a source distribution (`sdist`) which will generate a `.tar.gz` with all the source files using `poetry build`. These files need to be uploaded to the Apache SVN.
+Next step is to remove the `dist/` directory to make sure that we have a clean start. Create a source distribution (`sdist`) which will generate a `.tar.gz` with all the source files using `poetry build`. These files need to be uploaded to the Apache SVN.
 
 ```sh
 rm -rf dist/
