@@ -390,7 +390,7 @@ def test_load_table(hive_table: HiveTable) -> None:
         last_sequence_number=34,
     )
 
-    assert table.identifier == ("default", "new_tabl2e")
+    assert table.identifier == (HIVE_CATALOG_NAME, "default", "new_tabl2e")
     assert expected == table.metadata
 
 
