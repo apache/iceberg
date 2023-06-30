@@ -173,7 +173,7 @@ public class SparkV2Filters {
                 predicate);
           }
 
-          return handleEqual(eqChildren);
+          return handleEqual(eqChildren.first(), eqChildren.second());
 
         case NOT_EQ:
           Pair<UnboundTerm<Object>, Object> notEqChildren = predicateChildren(predicate);
@@ -181,7 +181,7 @@ public class SparkV2Filters {
             return null;
           }
 
-          return handleNotEqual(notEqChildren);
+          return handleNotEqual(notEqChildren.first(), notEqChildren.second());
 
         case IN:
           if (isSupportedInPredicate(predicate)) {
@@ -311,28 +311,27 @@ public class SparkV2Filters {
     return literal.value();
   }
 
-  private static UnboundPredicate<Object> handleEqual(Pair<UnboundTerm<Object>, Object> children) {
-    if (children.second() == null) {
-      return isNull(children.first());
+  private static UnboundPredicate<Object> handleEqual(UnboundTerm<Object> term, Object value) {
+    if (value == null) {
+      return isNull(term);
     }
 
-    if (NaNUtil.isNaN(children.second())) {
-      return isNaN(children.first());
+    if (NaNUtil.isNaN(value)) {
+      return isNaN(term);
     } else {
-      return equal(children.first(), children.second());
+      return equal(term, value);
     }
   }
 
-  private static UnboundPredicate<Object> handleNotEqual(
-      Pair<UnboundTerm<Object>, Object> children) {
-    if (children.second() == null) {
-      return notNull(children.first());
+  private static UnboundPredicate<Object> handleNotEqual(UnboundTerm<Object> term, Object value) {
+    if (value == null) {
+      return notNull(term);
     }
 
-    if (NaNUtil.isNaN(children.second())) {
-      return notNaN(children.first());
+    if (NaNUtil.isNaN(value)) {
+      return notNaN(term);
     } else {
-      return notEqual(children.first(), children.second());
+      return notEqual(term, value);
     }
   }
 
