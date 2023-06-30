@@ -1262,7 +1262,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 11,
                 "total_data_file_size_in_bytes",
                 Types.LongType.get(),
-                "Total bytes of data files in a partition"),
+                "Total size in bytes"),
             optional(
                 9,
                 "last_updated_at",
@@ -1295,7 +1295,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_file_count", 0)
             .set(
                 "total_data_file_size_in_bytes",
-                getDataFileSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+                sumDataFileSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
             .build();
 
     List<Row> actual =
@@ -1367,7 +1367,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", firstCommitId)
             .set(
                 "total_data_file_size_in_bytes",
-                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
     expected.add(
         builder
@@ -1383,7 +1383,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", secondCommitId)
             .set(
                 "total_data_file_size_in_bytes",
-                getDataFileSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+                sumDataFileSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
             .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
@@ -1634,7 +1634,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", firstCommitId)
             .set(
                 "total_data_file_size_in_bytes",
-                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
     expected.add(
         builder
@@ -1650,7 +1650,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", posDeleteCommitId)
             .set(
                 "total_data_file_size_in_bytes",
-                getDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .build());
 
     for (int i = 0; i < 2; i += 1) {
@@ -2180,7 +2180,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
-  private long getDataFileSizeInBytes(Iterable<DataFile> dataFiles) {
+  private long sumDataFileSizeInBytes(Iterable<DataFile> dataFiles) {
     return StreamSupport.stream(dataFiles.spliterator(), false)
         .mapToLong(DataFile::fileSizeInBytes)
         .sum();

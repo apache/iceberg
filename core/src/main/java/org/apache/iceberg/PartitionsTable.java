@@ -77,7 +77,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 11,
                 "total_data_file_size_in_bytes",
                 Types.LongType.get(),
-                "Total bytes of data files in a partition"),
+                "Total size in bytes"),
             Types.NestedField.optional(
                 9,
                 "last_updated_at",
@@ -277,13 +277,13 @@ public class PartitionsTable extends BaseMetadataTable {
     private int specId;
     private long dataRecordCount;
     private int dataFileCount;
+    private long dataFileSizeInBytes;
     private long posDeleteRecordCount;
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
-    private long dataFileSizeInBytes;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
