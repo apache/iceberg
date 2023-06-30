@@ -1483,6 +1483,29 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
+
+    List<DataFile> dataFilesFromFirstCommit =
+        listDataFilesFromCommitId(table, firstCommitId);
+    Assert.assertEquals(
+        "First commit should have two data files", 2, dataFilesFromFirstCommit.size());
+    Assert.assertEquals(
+        "First data file belong to partition of id 1",
+        1,
+        dataFilesFromFirstCommit.get(0).partition().get(0, Integer.class).intValue());
+    Assert.assertEquals(
+        "Second data file belong to partition of id 2",
+        2,
+        dataFilesFromFirstCommit.get(1).partition().get(0, Integer.class).intValue());
+
+    List<DataFile> dataFilesFromSecondCommit =
+        listDataFilesFromCommitId(table, secondCommitId);
+    Assert.assertEquals(
+        "Second commit should have one data file", 1, dataFilesFromSecondCommit.size());
+    Assert.assertEquals(
+        "First data file belong to partition of id 2",
+        2,
+        dataFilesFromSecondCommit.get(0).partition().get(0, Integer.class).intValue());
+
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
         builder
@@ -1496,6 +1519,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
+            .set("total_data_file_size_in_bytes", dataFilesFromFirstCommit.get(0).fileSizeInBytes())
             .build());
     expected.add(
         builder
@@ -1509,6 +1533,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
+            .set(
+                "total_data_file_size_in_bytes",
+                dataFilesFromFirstCommit.get(1).fileSizeInBytes()
+                    + dataFilesFromSecondCommit.get(0).fileSizeInBytes())
             .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
@@ -1546,6 +1574,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("spec_id", 0)
             .set("last_updated_at", null)
             .set("last_updated_snapshot_id", null)
+            .set("total_data_file_size_in_bytes", dataFilesFromFirstCommit.get(0).fileSizeInBytes())
             .build();
     expected.remove(0);
     expected.add(0, newPartitionRecord);
@@ -2047,5 +2076,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     return StreamSupport.stream(dataFiles.spliterator(), false)
         .mapToLong(DataFile::fileSizeInBytes)
         .sum();
+  }
+
+  private List<DataFile> listDataFilesFromCommitId(Table table, long commitId) {
+    return StreamSupport.stream(
+            table.snapshot(commitId).addedDataFiles(table.io()).spliterator(), false)
+        .collect(Collectors.toList());
   }
 }
