@@ -36,7 +36,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
   public TestCreateChangelogViewProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
+          String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -80,17 +80,17 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     sql(
-        "CALL %s.system.create_changelog_view("
-            + "table => '%s',"
-            + "options => map('%s','%s','%s','%s'),"
-            + "changelog_view => '%s')",
-        catalogName,
-        tableName,
-        SparkReadOptions.START_SNAPSHOT_ID,
-        snap1.snapshotId(),
-        SparkReadOptions.END_SNAPSHOT_ID,
-        snap2.snapshotId(),
-        "cdc_view");
+            "CALL %s.system.create_changelog_view("
+                    + "table => '%s',"
+                    + "options => map('%s','%s','%s','%s'),"
+                    + "changelog_view => '%s')",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_SNAPSHOT_ID,
+            snap1.snapshotId(),
+            SparkReadOptions.END_SNAPSHOT_ID,
+            snap2.snapshotId(),
+            "cdc_view");
 
     long rowCount = sql("select * from %s", "cdc_view").stream().count();
     Assert.assertEquals(2, rowCount);
@@ -112,19 +112,19 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(" + "table => '%s')",
-            catalogName, tableName, "cdc_view");
+            sql(
+                    "CALL %s.system.create_changelog_view(" + "table => '%s')",
+                    catalogName, tableName, "cdc_view");
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap0.snapshotId()),
-            row(2, "b", INSERT, 1, snap1.snapshotId()),
-            row(-2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", DELETE, 2, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", INSERT, 0, snap0.snapshotId()),
+                    row(2, "b", INSERT, 1, snap1.snapshotId()),
+                    row(-2, "b", INSERT, 2, snap2.snapshotId()),
+                    row(2, "b", DELETE, 2, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id", viewName));
   }
 
   @Test
@@ -147,44 +147,44 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
     long afterInsertOverwrite = waitUntilAfter(snap2.timestampMillis());
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', "
-                + "options => map('%s', '%s','%s', '%s'))",
-            catalogName,
-            tableName,
-            SparkReadOptions.START_TIMESTAMP,
-            beginning,
-            SparkReadOptions.END_TIMESTAMP,
-            afterInsertOverwrite);
+            sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', "
+                            + "options => map('%s', '%s','%s', '%s'))",
+                    catalogName,
+                    tableName,
+                    SparkReadOptions.START_TIMESTAMP,
+                    beginning,
+                    SparkReadOptions.END_TIMESTAMP,
+                    afterInsertOverwrite);
 
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap0.snapshotId()),
-            row(2, "b", INSERT, 1, snap1.snapshotId()),
-            row(-2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", DELETE, 2, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", INSERT, 0, snap0.snapshotId()),
+                    row(2, "b", INSERT, 1, snap1.snapshotId()),
+                    row(-2, "b", INSERT, 2, snap2.snapshotId()),
+                    row(2, "b", DELETE, 2, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
 
     // query the timestamps starting from the second insert
     returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', "
-                + "options => map('%s', '%s', '%s', '%s'))",
-            catalogName,
-            tableName,
-            SparkReadOptions.START_TIMESTAMP,
-            afterFirstInsert,
-            SparkReadOptions.END_TIMESTAMP,
-            afterInsertOverwrite);
+            sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', "
+                            + "options => map('%s', '%s', '%s', '%s'))",
+                    catalogName,
+                    tableName,
+                    SparkReadOptions.START_TIMESTAMP,
+                    afterFirstInsert,
+                    SparkReadOptions.END_TIMESTAMP,
+                    afterInsertOverwrite);
 
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(2, "b", INSERT, 0, snap1.snapshotId()),
-            row(-2, "b", INSERT, 1, snap2.snapshotId()),
-            row(2, "b", DELETE, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+            "Rows should match",
+            ImmutableList.of(
+                    row(2, "b", INSERT, 0, snap1.snapshotId()),
+                    row(-2, "b", INSERT, 1, snap2.snapshotId()),
+                    row(2, "b", DELETE, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
   @Test
@@ -203,23 +203,23 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "remove_carryovers => false,"
-                + "table => '%s')",
-            catalogName, tableName, "cdc_view");
+            sql(
+                    "CALL %s.system.create_changelog_view("
+                            + "remove_carryovers => false,"
+                            + "table => '%s')",
+                    catalogName, tableName, "cdc_view");
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap0.snapshotId()),
-            row(2, "b", INSERT, 1, snap1.snapshotId()),
-            row(-2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", DELETE, 2, snap2.snapshotId()),
-            row(2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", INSERT, 2, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, _change_type", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", INSERT, 0, snap0.snapshotId()),
+                    row(2, "b", INSERT, 1, snap1.snapshotId()),
+                    row(-2, "b", INSERT, 2, snap2.snapshotId()),
+                    row(2, "b", DELETE, 2, snap2.snapshotId()),
+                    row(2, "b", INSERT, 2, snap2.snapshotId()),
+                    row(2, "b", INSERT, 2, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, _change_type", viewName));
   }
 
   @Test
@@ -237,20 +237,20 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap1.snapshotId()),
-            row(2, "b", INSERT, 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(3, "c", INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+                    row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+                    row(3, "c", INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -266,19 +266,19 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', compute_updates => true)",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', compute_updates => true)",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(2, "b", INSERT, 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(3, "c", INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(2, "b", INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+                    row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+                    row(3, "c", INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -296,21 +296,21 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap1.snapshotId()),
-            row(2, "b", INSERT, 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId())),
-        // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
-        // phase
-        sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+                    row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId())),
+            // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
+            // phase
+            sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -326,23 +326,23 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "identifier_columns => array('id','age'),"
-                + "table => '%s')",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view("
+                            + "identifier_columns => array('id','age'),"
+                            + "table => '%s')",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
+                    row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
+                    row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
+                    row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -359,24 +359,24 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "identifier_columns => array('id','age'), "
-                + "table => '%s')",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view("
+                            + "identifier_columns => array('id','age'), "
+                            + "table => '%s')",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
-            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+                    row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
+                    row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
+                    row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -393,22 +393,22 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
+            sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
 
     // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed, even
     // though update-row is not computed
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
-            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
-            row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+                    row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
+                    row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
+                    row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
@@ -425,26 +425,26 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "remove_carryovers => false,"
-                + "table => '%s')",
-            catalogName, tableName);
+            sql(
+                    "CALL %s.system.create_changelog_view("
+                            + "remove_carryovers => false,"
+                            + "table => '%s')",
+                    catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
 
     assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
-            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
-            row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
-            // the following two rows are carry-over rows
-            row(2, "e", 12, DELETE, 1, snap2.snapshotId()),
-            row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data, _change_type", viewName));
+            "Rows should match",
+            ImmutableList.of(
+                    row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+                    row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+                    row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
+                    row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
+                    // the following two rows are carry-over rows
+                    row(2, "e", 12, DELETE, 1, snap2.snapshotId()),
+                    row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
+                    row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+            sql("select * from %s order by _change_ordinal, id, data, _change_type", viewName));
   }
 }

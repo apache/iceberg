@@ -60,10 +60,10 @@ public abstract class ChangelogIterator implements Iterator<Row> {
    * @return a new iterator instance
    */
   public static Iterator<Row> computeUpdates(
-      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
+          Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     Iterator<Row> carryoverRemoveIterator = removeCarryovers(rowIterator, rowType);
     ChangelogIterator changelogIterator =
-        new ComputeUpdateIterator(carryoverRemoveIterator, rowType, identifierFields);
+            new ComputeUpdateIterator(carryoverRemoveIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
