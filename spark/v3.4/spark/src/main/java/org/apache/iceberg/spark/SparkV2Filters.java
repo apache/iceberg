@@ -251,9 +251,9 @@ public class SparkV2Filters {
     return null;
   }
 
-  private static <T> Pair<UnboundTerm<T>, T> predicateChildren(Predicate predicate) {
-    T value;
-    UnboundTerm<T> term;
+  private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {
+    Object value;
+    UnboundTerm<Object> term;
     if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
       term = ref(SparkUtil.toColumnName(leftChild(predicate)));
       value = convertLiteral(rightChild(predicate));
@@ -304,15 +304,14 @@ public class SparkV2Filters {
     return expr instanceof Literal;
   }
 
-  @SuppressWarnings("unchecked")
-  private static <T> T convertLiteral(Literal<?> literal) {
+  private static Object convertLiteral(Literal<?> literal) {
     if (literal.value() instanceof UTF8String) {
-      return (T) ((UTF8String) literal.value()).toString();
+      return ((UTF8String) literal.value()).toString();
     }
-    return (T) literal.value();
+    return literal.value();
   }
 
-  private static <T> UnboundPredicate<T> handleEqual(Pair<UnboundTerm<T>, T> children) {
+  private static UnboundPredicate<Object> handleEqual(Pair<UnboundTerm<Object>, Object> children) {
     if (children.second() == null) {
       return isNull(children.first());
     }
@@ -324,7 +323,8 @@ public class SparkV2Filters {
     }
   }
 
-  private static <T> UnboundPredicate<T> handleNotEqual(Pair<UnboundTerm<T>, T> children) {
+  private static UnboundPredicate<Object> handleNotEqual(
+      Pair<UnboundTerm<Object>, Object> children) {
     if (children.second() == null) {
       return notNull(children.first());
     }
