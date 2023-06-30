@@ -1259,10 +1259,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 Types.IntegerType.get(),
                 "Count of equality delete files"),
             required(
-                11,
-                "total_data_file_size_in_bytes",
-                Types.LongType.get(),
-                "Total size in bytes"),
+                11, "total_data_file_size_in_bytes", Types.LongType.get(), "Total size in bytes"),
             optional(
                 9,
                 "last_updated_at",
@@ -1489,8 +1486,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
 
-    List<DataFile> dataFilesFromFirstCommit =
-        listDataFilesFromCommitId(table, firstCommitId);
+    List<DataFile> dataFilesFromFirstCommit = listDataFilesFromCommitId(table, firstCommitId);
     Assert.assertEquals(
         "First commit should have two data files", 2, dataFilesFromFirstCommit.size());
     Assert.assertEquals(
@@ -1502,8 +1498,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         2,
         dataFilesFromFirstCommit.get(1).partition().get(0, Integer.class).intValue());
 
-    List<DataFile> dataFilesFromSecondCommit =
-        listDataFilesFromCommitId(table, secondCommitId);
+    List<DataFile> dataFilesFromSecondCommit = listDataFilesFromCommitId(table, secondCommitId);
     Assert.assertEquals(
         "Second commit should have one data file", 1, dataFilesFromSecondCommit.size());
     Assert.assertEquals(
