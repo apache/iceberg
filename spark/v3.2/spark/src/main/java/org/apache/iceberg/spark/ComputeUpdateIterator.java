@@ -57,7 +57,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   ComputeUpdateIterator(Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     super(rowIterator, rowType);
     this.identifierFieldIdx =
-            Arrays.stream(identifierFields).map(rowType::fieldIndex).collect(Collectors.toList());
+        Arrays.stream(identifierFields).map(rowType::fieldIndex).collect(Collectors.toList());
     this.identifierFields = identifierFields;
   }
 
@@ -89,10 +89,10 @@ public class ComputeUpdateIterator extends ChangelogIterator {
         String nextRowChangeType = nextRow.getString(changeTypeIndex());
 
         Preconditions.checkState(
-                nextRowChangeType.equals(INSERT),
-                "Cannot compute updates because there are multiple rows with the same identifier"
-                        + " fields([%s]). Please make sure the rows are unique.",
-                String.join(",", identifierFields));
+            nextRowChangeType.equals(INSERT),
+            "Cannot compute updates because there are multiple rows with the same identifier"
+                + " fields([%s]). Please make sure the rows are unique.",
+            String.join(",", identifierFields));
 
         currentRow = modify(currentRow, changeTypeIndex(), UPDATE_BEFORE);
         cachedRow = modify(nextRow, changeTypeIndex(), UPDATE_AFTER);
