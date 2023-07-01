@@ -23,27 +23,19 @@ from typing import Any, Callable, Dict, Union
 from urllib.parse import urlparse
 
 import requests
+from requests import HTTPError
+
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
-from pyiceberg.io import (
-    S3_ACCESS_KEY_ID,
-    S3_ENDPOINT,
-    S3_PROXY_URI,
-    S3_REGION,
-    S3_SECRET_ACCESS_KEY,
-    S3_SESSION_TOKEN,
-    FileIO,
-    InputFile,
-    InputStream,
-    OutputFile,
-    OutputStream,
-)
+from pyiceberg.io import (S3_ACCESS_KEY_ID, S3_ENDPOINT, S3_PROXY_URI,
+                          S3_REGION, S3_SECRET_ACCESS_KEY, S3_SESSION_TOKEN,
+                          FileIO, InputFile, InputStream, OutputFile,
+                          OutputStream)
 from pyiceberg.typedef import Properties
-from requests import HTTPError
 
 logger = logging.getLogger(__name__)
 

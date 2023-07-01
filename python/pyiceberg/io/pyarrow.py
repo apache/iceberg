@@ -31,21 +31,8 @@ from functools import lru_cache, singledispatch
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 from multiprocessing.sharedctypes import Synchronized
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable,
+                    List, Optional, Set, Tuple, TypeVar, Union, cast)
 from urllib.parse import urlparse
 
 import numpy as np
@@ -53,71 +40,31 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
 from pyarrow import ChunkedArray
-from pyarrow.fs import (
-    FileInfo,
-    FileSystem,
-    FileType,
-    FSSpecHandler,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
-)
+from pyarrow.fs import (FileInfo, FileSystem, FileType, FSSpecHandler,
+                        LocalFileSystem, PyFileSystem, S3FileSystem)
 from pyiceberg.avro.resolver import ResolveError
-from pyiceberg.expressions import AlwaysTrue, BooleanExpression, BoundTerm, Literal
-from pyiceberg.expressions.visitors import (
-    BoundBooleanExpressionVisitor,
-    bind,
-    extract_field_ids,
-    translate_column_names,
-)
+from pyiceberg.expressions import (AlwaysTrue, BooleanExpression, BoundTerm,
+                                   Literal)
+from pyiceberg.expressions.visitors import (BoundBooleanExpressionVisitor,
+                                            bind, extract_field_ids,
+                                            translate_column_names)
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
-from pyiceberg.io import (
-    S3_ACCESS_KEY_ID,
-    S3_ENDPOINT,
-    S3_PROXY_URI,
-    S3_REGION,
-    S3_SECRET_ACCESS_KEY,
-    S3_SESSION_TOKEN,
-    FileIO,
-    InputFile,
-    InputStream,
-    OutputFile,
-    OutputStream,
-)
+from pyiceberg.io import (S3_ACCESS_KEY_ID, S3_ENDPOINT, S3_PROXY_URI,
+                          S3_REGION, S3_SECRET_ACCESS_KEY, S3_SESSION_TOKEN,
+                          FileIO, InputFile, InputStream, OutputFile,
+                          OutputStream)
 from pyiceberg.manifest import DataFile, FileFormat
-from pyiceberg.schema import (
-    PartnerAccessor,
-    Schema,
-    SchemaVisitorPerPrimitiveType,
-    SchemaWithPartnerVisitor,
-    promote,
-    prune_columns,
-    visit,
-    visit_with_partner,
-)
+from pyiceberg.schema import (PartnerAccessor, Schema,
+                              SchemaVisitorPerPrimitiveType,
+                              SchemaWithPartnerVisitor, promote, prune_columns,
+                              visit, visit_with_partner)
 from pyiceberg.typedef import EMPTY_DICT, Properties
-from pyiceberg.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FixedType,
-    FloatType,
-    IcebergType,
-    IntegerType,
-    ListType,
-    LongType,
-    MapType,
-    NestedField,
-    PrimitiveType,
-    StringType,
-    StructType,
-    TimestampType,
-    TimestamptzType,
-    TimeType,
-    UUIDType,
-)
+from pyiceberg.types import (BinaryType, BooleanType, DateType, DecimalType,
+                             DoubleType, FixedType, FloatType, IcebergType,
+                             IntegerType, ListType, LongType, MapType,
+                             NestedField, PrimitiveType, StringType,
+                             StructType, TimestampType, TimestamptzType,
+                             TimeType, UUIDType)
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -289,7 +236,7 @@ class PyArrowFileIO(FileIO):
                 "session_token": self.properties.get(S3_SESSION_TOKEN),
                 "region": self.properties.get(S3_REGION),
             }
-            
+
             if proxy_uri := self.properties.get(S3_PROXY_URI):
                 client_kwargs["proxy_options"] = proxy_uri
 
