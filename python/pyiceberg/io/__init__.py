@@ -42,8 +42,7 @@ S3_ACCESS_KEY_ID = "s3.access-key-id"
 S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
-S3_PROXY_HTTP = "s3.proxy.http"
-S3_PROXY_HTTPS = "s3.proxy.https"
+S3_PROXY_URI = "s3.proxy.uri"
 
 
 @runtime_checkable
