@@ -290,7 +290,7 @@ class PyArrowFileIO(FileIO):
                 "session_token": self.properties.get(S3_SESSION_TOKEN),
                 "region": self.properties.get(S3_REGION),
             }
-
+            config_kwargs = {}
             proxies = {}
             if http_proxy := self.properties.propertiesperties.get(S3_PROXY_HTTP):
                 proxies["http"] = http_proxy
@@ -298,7 +298,7 @@ class PyArrowFileIO(FileIO):
                 proxies["https"] = https_proxy
 
             if proxies:
-                config_kwargs = {"proxies": proxies}
+                config_kwargs["proxies"] = proxies
 
             return S3FileSystem(**client_kwargs, config_kwargs=config_kwargs)
         elif scheme == "file":
