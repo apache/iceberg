@@ -62,14 +62,8 @@ from pyarrow.fs import (
     PyFileSystem,
     S3FileSystem,
 )
-
 from pyiceberg.avro.resolver import ResolveError
-from pyiceberg.expressions import (
-    AlwaysTrue,
-    BooleanExpression,
-    BoundTerm,
-    Literal,
-)
+from pyiceberg.expressions import AlwaysTrue, BooleanExpression, BoundTerm, Literal
 from pyiceberg.expressions.visitors import (
     BoundBooleanExpressionVisitor,
     bind,
@@ -80,6 +74,8 @@ from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
+    S3_PROXY_HTTP,
+    S3_PROXY_HTTPS,
     S3_REGION,
     S3_SECRET_ACCESS_KEY,
     S3_SESSION_TOKEN,
@@ -294,7 +290,17 @@ class PyArrowFileIO(FileIO):
                 "session_token": self.properties.get(S3_SESSION_TOKEN),
                 "region": self.properties.get(S3_REGION),
             }
-            return S3FileSystem(**client_kwargs)
+
+            proxies = {}
+            if http_proxy := self.properties.propertiesperties.get(S3_PROXY_HTTP):
+                proxies["http"] = http_proxy
+            if https_proxy := self.properties.get(S3_PROXY_HTTPS):
+                proxies["https"] = https_proxy
+
+            if proxies:
+                config_kwargs = {"proxies": proxies}
+
+            return S3FileSystem(**client_kwargs, config_kwargs=config_kwargs)
         elif scheme == "file":
             return LocalFileSystem()
         else:

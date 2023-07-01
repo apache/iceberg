@@ -30,15 +30,7 @@ import warnings
 from abc import ABC, abstractmethod
 from io import SEEK_SET
 from types import TracebackType
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Protocol,
-    Type,
-    Union,
-    runtime_checkable,
-)
+from typing import Dict, List, Optional, Protocol, Type, Union, runtime_checkable
 from urllib.parse import urlparse
 
 from pyiceberg.typedef import EMPTY_DICT, Properties
@@ -50,6 +42,8 @@ S3_ACCESS_KEY_ID = "s3.access-key-id"
 S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
+S3_PROXY_HTTP = "s3.proxy.http"
+S3_PROXY_HTTPS = "s3.proxy.https"
 
 
 @runtime_checkable
