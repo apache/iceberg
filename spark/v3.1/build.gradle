@@ -28,7 +28,7 @@ def sparkProjects = [
 configure(sparkProjects) {
 
   configurations {
-    all {
+    configureEach {
       resolutionStrategy {
         force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson211.get()}"
         force "com.fasterxml.jackson.core:jackson-paranamer:${libs.versions.jackson211.get()}"
@@ -106,7 +106,7 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     testImplementation libs.sqlite.jdbc
   }
 
-  tasks.withType(Test) {
+  tasks.withType(Test).configureEach {
     // For vectorized reads
     // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
     systemProperty("arrow.enable_unsafe_memory_access", "true")
@@ -173,7 +173,7 @@ project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
     antlr libs.antlr.antlr4
   }
 
-  generateGrammarSource {
+  tasks.named("generateGrammarSource", AntlrTask).configure {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
   }
@@ -182,7 +182,7 @@ project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
 project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  tasks.jar.dependsOn tasks.shadowJar
+  tasks.named('jar').configure { dependsOn tasks.named('shadowJar') }
 
   sourceSets {
     integration {
@@ -242,7 +242,7 @@ project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
     integrationCompileOnly project(':iceberg-api')
   }
 
-  shadowJar {
+  tasks.named("shadowJar").configure {
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
@@ -276,18 +276,19 @@ project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
     archiveClassifier.set(null)
   }
 
-  task integrationTest(type: Test) {
+  tasks.register("integrationTest", Test.class).configure {
     description = "Test Spark3 Runtime Jar against Spark 3.1"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
+    dependsOn(tasks.named("shadowJar"))
   }
-  integrationTest.dependsOn shadowJar
-  check.dependsOn integrationTest
 
-  jar {
+  tasks.named("check").configure { dependsOn(tasks.named('integrationTest')) }
+
+  tasks.named("jar").configure {
     enabled = false
   }
 }

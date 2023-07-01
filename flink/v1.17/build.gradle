@@ -130,7 +130,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  tasks.jar.dependsOn tasks.shadowJar
+  tasks.named('jar').configure { dependsOn tasks.named('shadowJar') }
 
   sourceSets {
     integration {
@@ -223,7 +223,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     }
   }
 
-  shadowJar {
+  tasks.named("shadowJar").configure {
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
@@ -250,18 +250,19 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     archiveClassifier.set(null)
   }
 
-  task integrationTest(type: Test) {
+  tasks.register("integrationTest", Test.class).configure {
     description = "Test Flink Runtime Jar against Flink ${flinkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
+    dependsOn(tasks.named("shadowJar"))
   }
-  integrationTest.dependsOn shadowJar
-  check.dependsOn integrationTest
 
-  jar {
+  tasks.named("check").configure { dependsOn(tasks.named('integrationTest')) }
+
+  tasks.named("jar").configure {
     enabled = false
   }
 }

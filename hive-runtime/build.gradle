@@ -22,7 +22,7 @@ def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getPrope
 project(':iceberg-hive-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  tasks.jar.dependsOn tasks.shadowJar
+  tasks.named("jar").configure { dependsOn(tasks.named("shadowJar")) }
 
   configurations {
     implementation {

@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.Memoized
 import java.util.regex.Matcher
 import java.util.regex.Pattern
@@ -102,12 +103,12 @@ gitProperties {
 generateGitProperties.outputs.upToDateWhen { false }
 
 if (file("${rootDir}/iceberg-build.properties").exists()) {
-  tasks.register('buildInfo', Exec) {
+  tasks.register('buildInfo', Exec).configure {
     project.logger.info('Using build info from iceberg-build.properties')
     commandLine 'cp', "${rootDir}/iceberg-build.properties", 'build/iceberg-build.properties'
   }
 } else {
-  tasks.register('buildInfo') {
+  tasks.register('buildInfo').configure {
     project.logger.info('Generating iceberg-build.properties from git')
     dependsOn generateGitProperties
   }
@@ -136,7 +137,7 @@ subprojects {
       oldVersion = "1.3.0"
     }
 
-    tasks.register('showDeprecationRulesOnRevApiFailure') {
+    tasks.register('showDeprecationRulesOnRevApiFailure').configure {
       doLast {
         throw new RuntimeException("==================================================================================" +
                 "\nAPI/ABI breaks detected.\n" +
@@ -152,7 +153,7 @@ subprojects {
 
     tasks.configureEach { rootTask ->
       if (rootTask.name == 'revapi') {
-        rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
+        rootTask.finalizedBy(tasks.named("showDeprecationRulesOnRevApiFailure"))
       }
     }
   }
@@ -169,7 +170,7 @@ subprojects {
       exclude group: 'org.apache.spark', module: 'spark-network-common_2.12'
     }
 
-    all {
+    configureEach {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
       exclude group: 'com.sun.jersey'
@@ -180,15 +181,15 @@ subprojects {
     testArtifacts
   }
 
-  compileJava {
+  tasks.named("compileJava", JavaCompile).configure {
     options.encoding = "UTF-8"
   }
 
-  compileTestJava {
+  tasks.named("compileTestJava", JavaCompile).configure {
     options.encoding = "UTF-8"
   }
 
-  javadoc {
+  tasks.named("javadoc", Javadoc).configure {
     options.encoding = 'UTF-8'
   }
 
@@ -207,7 +208,7 @@ subprojects {
     testImplementation libs.assertj.core
   }
 
-  test {
+  tasks.named("test", Test).configure {
     def logDir = "${rootDir}/build/testlogs"
     def logFile = "${logDir}/${project.name}.log"
     mkdir("${logDir}")
@@ -235,8 +236,8 @@ subprojects {
     }
   }
 
-  plugins.withType(ScalaPlugin.class) {
-    tasks.withType(ScalaCompile.class) {
+  plugins.withType(ScalaPlugin.class).configureEach {
+    tasks.withType(ScalaCompile.class).configureEach {
       scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
     }
   }
@@ -245,7 +246,7 @@ subprojects {
 project(':iceberg-bundled-guava') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  tasks.jar.dependsOn tasks.shadowJar
+  tasks.named("jar").configure { dependsOn(tasks.named("shadowJar")) }
 
   dependencies {
     compileOnly(libs.guava.guava) {
@@ -256,7 +257,7 @@ project(':iceberg-bundled-guava') {
     }
   }
 
-  shadowJar {
+  tasks.named("shadowJar", ShadowJar).configure {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
     zip64 true
@@ -277,13 +278,13 @@ project(':iceberg-bundled-guava') {
     minimize()
   }
 
-  jar {
+  tasks.named("jar", Jar).configure {
     archiveClassifier.set('empty')
   }
 }
 
 project(':iceberg-api') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
 
@@ -297,7 +298,7 @@ project(':iceberg-api') {
     testImplementation libs.esotericsoftware.kryo
   }
 
-  tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+  tasks.named("processTestResources").configure { dependsOn(rootProject.tasks.named("buildInfo")) }
 
   // Workaround to prevent:
   // Task ':iceberg-api:processTestResources' uses this output of task
@@ -305,7 +306,7 @@ project(':iceberg-api') {
   // This can lead to incorrect results being produced, depending on what order the tasks are executed.
   rootProject.tasks.configureEach { rootTask ->
     if (rootTask.name == 'spotlessInternalRegisterDependencies') {
-      tasks.processTestResources.dependsOn rootTask
+      tasks.named("processTestResources").configure { dependsOn rootTask }
     }
   }
 
@@ -325,7 +326,7 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
   dependencies {
@@ -405,7 +406,7 @@ project(':iceberg-data') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
-  test {
+  tasks.named("test", Test).configure {
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
   }
@@ -445,7 +446,7 @@ project(':iceberg-aliyun') {
 }
 
 project(':iceberg-aws') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
   dependencies {
@@ -513,7 +514,7 @@ project(':iceberg-aws') {
     integrationRuntime.extendsFrom testRuntimeOnly
   }
 
-  task integrationTest(type: Test) {
+  tasks.register("integrationTest", Test.class).configure {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
@@ -588,17 +589,17 @@ project(':iceberg-delta-lake') {
       }
     }
 
-    task integrationTest(type: Test) {
+    tasks.register("integrationTest", Test.class).configure {
       testClassesDirs = sourceSets.integration.output.classesDirs
       classpath = sourceSets.integration.runtimeClasspath
       jvmArgs += project.property('extraJvmArgs')
     }
-    check.dependsOn integrationTest
+    tasks.named("check").configure { dependsOn(tasks.named("integrationTest")) }
   }
 }
 
 project(':iceberg-gcp') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
 
@@ -769,7 +770,7 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
   dependencies {
@@ -809,7 +810,7 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-pig') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
 
@@ -843,20 +844,20 @@ project(':iceberg-pig') {
 
 project(':iceberg-nessie') {
   if (JavaVersion.current().isJava11Compatible()) {
-    test {
+    tasks.named("test", Test).configure {
       useJUnitPlatform()
     }
-    compileTestJava {
+    tasks.named("compileTestJava", JavaCompile).configure {
       sourceCompatibility = "11"
       targetCompatibility = "11"
     }
   } else {
     // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
     // which require Java 11+.
-    test {
+    tasks.named("test", Test).configure {
       enabled = false
     }
-    compileTestJava {
+    tasks.named("compileTestJava", JavaCompile).configure {
       enabled = false
     }
   }
@@ -894,7 +895,7 @@ project(':iceberg-nessie') {
 }
 
 project(':iceberg-dell') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
   dependencies {
@@ -911,7 +912,7 @@ project(':iceberg-dell') {
 }
 
 project(':iceberg-snowflake') {
-  test {
+  tasks.named("test", Test).configure {
     useJUnitPlatform()
   }
 

@@ -76,7 +76,7 @@ project(':iceberg-mr') {
     testImplementation libs.tez08.mapreduce
   }
 
-  test {
+  tasks.named("test", Test).configure {
     // testJoinTables / testScanTable
     maxHeapSize '2500m'
   }

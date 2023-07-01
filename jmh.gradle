@@ -69,11 +69,11 @@ configure(jmhProjects) {
     jmhReportOutput = file(jmhReportDir)
   }
 
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+  pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+    tasks.named('jmhCompileGeneratedClasses', JavaCompile.class).configure {
       options.errorprone.enabled = false
     }
   }
 
-  tasks.jmh.finalizedBy tasks.jmhReport
+  tasks.named("jmh").configure { finalizedBy tasks.named("jmhReport") }
 }
