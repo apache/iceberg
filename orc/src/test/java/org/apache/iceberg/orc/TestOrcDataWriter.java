@@ -60,6 +60,7 @@ public class TestOrcDataWriter {
           Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
 
   private List<Record> records;
+
   @TempDir File temp;
 
   @BeforeEach
