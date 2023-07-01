@@ -387,9 +387,12 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     ops.refresh();
 
-    Assertions.assertThat(ops.current())
-        .as("Current metadata should have changed")
-        .isNotEqualTo(metadataV2);
+    Assertions.assertThat(ops.current().location())
+        .as("Current metadata should have changed to metadata V1")
+        .isEqualTo(metadataV1.location());
+    Assertions.assertThat(ops.current().schema().toString())
+        .as("Current schema should changed to the schema of metadata V1")
+        .isEqualTo(metadataV1.schema().toString());
     Assertions.assertThat(metadataFileExists(ops.current()))
         .as("Current metadata file should still exist")
         .isTrue();
