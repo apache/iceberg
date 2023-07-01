@@ -31,7 +31,7 @@ buildscript {
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
     // well.
-    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
+    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.1.0"
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -40,14 +40,7 @@ buildscript {
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:1.0.0'
-    classpath ('org.eclipse.jgit:org.eclipse.jgit') {
-      // gradle-git-version automatically uses a jgit version that requires JDK11
-      // so we need to enforce the latest jgit version that works with JDK8
-      version {
-        strictly('5.13.1.202206130422-r')
-      }
-    }
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
   }
 }
 
@@ -838,6 +831,10 @@ project(':iceberg-nessie') {
     test {
       useJUnitPlatform()
     }
+    compileTestJava {
+      sourceCompatibility = "11"
+      targetCompatibility = "11"
+    }
   } else {
     // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
     // which require Java 11+.
@@ -963,4 +960,3 @@ apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
-
