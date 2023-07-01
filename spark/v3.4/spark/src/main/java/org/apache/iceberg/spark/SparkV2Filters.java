@@ -252,19 +252,19 @@ public class SparkV2Filters {
   }
 
   private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {
-    Object value;
-    UnboundTerm<Object> term;
     if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-      term = ref(SparkUtil.toColumnName(leftChild(predicate)));
-      value = convertLiteral(rightChild(predicate));
+      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(leftChild(predicate)));
+      Object value = convertLiteral(rightChild(predicate));
+      return Pair.of(term, value);
+
     } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-      term = ref(SparkUtil.toColumnName(rightChild(predicate)));
-      value = convertLiteral(leftChild(predicate));
+      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(rightChild(predicate)));
+      Object value = convertLiteral(leftChild(predicate));
+      return Pair.of(term, value);
+
     } else {
       return null;
     }
-
-    return Pair.of(term, value);
   }
 
   @SuppressWarnings("unchecked")
@@ -314,9 +314,7 @@ public class SparkV2Filters {
   private static UnboundPredicate<Object> handleEqual(UnboundTerm<Object> term, Object value) {
     if (value == null) {
       return isNull(term);
-    }
-
-    if (NaNUtil.isNaN(value)) {
+    } else if (NaNUtil.isNaN(value)) {
       return isNaN(term);
     } else {
       return equal(term, value);
@@ -326,9 +324,7 @@ public class SparkV2Filters {
   private static UnboundPredicate<Object> handleNotEqual(UnboundTerm<Object> term, Object value) {
     if (value == null) {
       return notNull(term);
-    }
-
-    if (NaNUtil.isNaN(value)) {
+    } else if (NaNUtil.isNaN(value)) {
       return notNaN(term);
     } else {
       return notEqual(term, value);
