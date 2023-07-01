@@ -30,7 +30,15 @@ import warnings
 from abc import ABC, abstractmethod
 from io import SEEK_SET
 from types import TracebackType
-from typing import Dict, List, Optional, Protocol, Type, Union, runtime_checkable
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Type,
+    Union,
+    runtime_checkable,
+)
 from urllib.parse import urlparse
 
 from pyiceberg.typedef import EMPTY_DICT, Properties
