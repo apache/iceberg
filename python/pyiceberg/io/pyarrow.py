@@ -292,7 +292,7 @@ class PyArrowFileIO(FileIO):
             }
             config_kwargs = {}
             proxies = {}
-            if http_proxy := self.properties.propertiesperties.get(S3_PROXY_HTTP):
+            if http_proxy := self.properties.get(S3_PROXY_HTTP):
                 proxies["http"] = http_proxy
             if https_proxy := self.properties.get(S3_PROXY_HTTPS):
                 proxies["https"] = https_proxy
