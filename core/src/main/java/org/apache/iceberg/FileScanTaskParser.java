@@ -33,6 +33,8 @@ public class FileScanTaskParser {
   private static final String SCHEMA = "schema";
   private static final String SPEC = "spec";
   private static final String DATA_FILE = "data-file";
+  private static final String START = "start";
+  private static final String LENGTH = "length";
   private static final String DELETE_FILES = "delete-files";
   private static final String RESIDUAL = "residual-filter";
 
@@ -60,6 +62,9 @@ public class FileScanTaskParser {
       generator.writeFieldName(DATA_FILE);
       ContentFileParser.toJson(fileScanTask.file(), spec, generator);
     }
+
+    generator.writeNumberField(START, fileScanTask.start());
+    generator.writeNumberField(LENGTH, fileScanTask.length());
 
     if (fileScanTask.deletes() != null) {
       generator.writeArrayFieldStart(DELETE_FILES);
@@ -98,6 +103,9 @@ public class FileScanTaskParser {
       dataFile = (DataFile) ContentFileParser.fromJson(jsonNode.get(DATA_FILE), spec);
     }
 
+    long start = JsonUtil.getLong(START, jsonNode);
+    long length = JsonUtil.getLong(LENGTH, jsonNode);
+
     DeleteFile[] deleteFiles = null;
     if (jsonNode.has(DELETE_FILES)) {
       JsonNode deletesArray = jsonNode.get(DELETE_FILES);
@@ -121,6 +129,8 @@ public class FileScanTaskParser {
     }
 
     ResidualEvaluator residualEvaluator = ResidualEvaluator.of(spec, filter, caseSensitive);
-    return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, residualEvaluator);
+    BaseFileScanTask baseFileScanTask =
+        new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, residualEvaluator);
+    return new BaseFileScanTask.SplitScanTask(start, length, baseFileScanTask);
   }
 }
