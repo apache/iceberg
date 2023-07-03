@@ -667,6 +667,13 @@ public class SparkTableUtil {
         spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
   }
 
+  /**
+   * Get WAP branch if it's configured
+   *
+   * @param spark a Spark Session
+   * @param branch branch to return if there is no WAP branch
+   * @return WAP branch
+   */
   public static String wapBranch(SparkSession spark, String branch) {
     String wapId = spark.conf().get(SparkSQLProperties.WAP_ID, null);
     String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
