@@ -34,27 +34,33 @@ from __future__ import annotations
 import re
 from typing import (
     Any,
+    Callable,
     ClassVar,
     Dict,
     Generator,
     Literal,
     Optional,
     Tuple,
+    Type,
+    TypeVar,
 )
 
-from pydantic import Field, PrivateAttr
-from pydantic.typing import AnyCallable
+from pydantic import (
+    Field,
+    PrivateAttr,
+    RootModel,
+    model_validator,
+)
 
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
-from pyiceberg.utils.singleton import Singleton
 
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
 FIXED = "fixed"
 FIXED_PARSER = ParseNumberFromBrackets(FIXED)
 
 
-class IcebergType(IcebergBaseModel, Singleton):
+class IcebergType(IcebergBaseModel):
     """Base type for all Iceberg Types.
 
     Example:
@@ -65,7 +71,7 @@ class IcebergType(IcebergBaseModel, Singleton):
     """
 
     @classmethod
-    def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
+    def __get_validators__(cls) -> Generator[Callable, None, None]:
         """Called to validate the input of the IcebergType class."""
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
@@ -107,10 +113,10 @@ class IcebergType(IcebergBaseModel, Singleton):
         return isinstance(self, StructType)
 
 
-class PrimitiveType(IcebergType):
+class PrimitiveType(RootModel[str], IcebergType):
     """Base class for all Iceberg Primitive Types."""
 
-    __root__: str = Field()
+    root: str = Field()
 
     def __repr__(self) -> str:
         """Returns the string representation of the PrimitiveType class."""
@@ -118,7 +124,7 @@ class PrimitiveType(IcebergType):
 
     def __str__(self) -> str:
         """Returns the string representation of the PrimitiveType class."""
-        return self.__root__
+        return self.root
 
 
 class FixedType(PrimitiveType):
@@ -133,7 +139,7 @@ class FixedType(PrimitiveType):
         False
     """
 
-    __root__: str = Field()
+    root: str = Field()
     _len: int = PrivateAttr()
 
     @staticmethod
@@ -141,7 +147,7 @@ class FixedType(PrimitiveType):
         return FixedType(length=FIXED_PARSER.match(str_repr))
 
     def __init__(self, length: int):
-        super().__init__(__root__=f"fixed[{length}]")
+        super().__init__(root=f"fixed[{length}]")
         self._len = length
 
     def __len__(self) -> int:
@@ -167,7 +173,7 @@ class DecimalType(PrimitiveType):
         True
     """
 
-    __root__: str = Field()
+    root: str = Field()
 
     _precision: int = PrivateAttr()
     _scale: int = PrivateAttr()
@@ -184,7 +190,7 @@ class DecimalType(PrimitiveType):
 
     def __init__(self, precision: int, scale: int):
         super().__init__(
-            __root__=f"decimal({precision}, {scale})",
+            root=f"decimal({precision}, {scale})",
         )
         # assert precision < scale, "precision should be smaller than scale"
         self._precision = precision
@@ -232,16 +238,16 @@ class NestedField(IcebergType):
 
     field_id: int = Field(alias="id")
     name: str = Field()
-    field_type: IcebergType = Field(alias="type")
+    field_type: IcebergSubTypes = Field(alias="type")
     required: bool = Field(default=True)
     doc: Optional[str] = Field(default=None, repr=False)
-    initial_default: Any = Field(alias="initial-default", repr=False)
+    initial_default: Optional[Any] = Field(alias="initial-default", default=None, repr=False)
 
     def __init__(
         self,
         field_id: Optional[int] = None,
         name: Optional[str] = None,
-        field_type: Optional[IcebergType] = None,
+        field_type: Optional[Type[IcebergType]] = None,
         required: bool = True,
         doc: Optional[str] = None,
         initial_default: Optional[Any] = None,
@@ -249,13 +255,22 @@ class NestedField(IcebergType):
     ):
         # We need an init when we want to use positional arguments, but
         # need also to support the aliases.
-        data["field_id"] = data["id"] if "id" in data else field_id
+        data["id"] = data["id"] if "id" in data else field_id
         data["name"] = name
-        data["field_type"] = data["type"] if "type" in data else field_type
+        data["type"] = data["type"] if "type" in data else field_type
         data["required"] = required
         data["doc"] = doc
-        data["initial_default"] = initial_default
+        data["initial-default"] = initial_default
+
+        # This is a pydantic 2.0, it only parses dicts automatically
+        if "type" in data and isinstance(data["type"], str):
+            data["type"] = IcebergType.validate(data["type"])
+
         super().__init__(**data)
+
+    @model_validator(mode="before")
+    def parse_type(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        return values
 
     def __str__(self) -> str:
         """Returns the string representation of the NestedField class."""
@@ -335,14 +350,14 @@ class ListType(IcebergType):
     def __init__(
         self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data: Any
     ):
-        data["element_id"] = data["element-id"] if "element-id" in data else element_id
-        data["element_type"] = element or data["element_type"]
-        data["element_required"] = data["element-required"] if "element-required" in data else element_required
+        data["element-id"] = data["element-id"] if "element-id" in data else element_id
+        data["element"] = element or data["element_type"]
+        data["element-required"] = data["element-required"] if "element-required" in data else element_required
         data["element_field"] = NestedField(
             name="element",
-            required=data["element_required"],
-            field_id=data["element_id"],
-            field_type=data["element_type"],
+            field_id=data["element-id"],
+            field_type=data["element"],
+            required=data["element-required"],
         )
         super().__init__(**data)
 
@@ -384,15 +399,15 @@ class MapType(IcebergType):
         value_required: bool = True,
         **data: Any,
     ):
-        data["key_id"] = key_id or data["key-id"]
-        data["key_type"] = key_type or data["key"]
-        data["value_id"] = value_id or data["value-id"]
-        data["value_type"] = value_type or data["value"]
-        data["value_required"] = value_required if value_required is not None else data["value_required"]
+        data["key-id"] = data["key-id"] if "key-id" in data else key_id
+        data["key"] = data["key"] if "key" in data else key_type
+        data["value-id"] = data["value-id"] if "value-id" in data else value_id
+        data["value"] = data["value"] if "value" in data else value_type
+        data["value_required"] = data["value_required"] if "value_required" in data else value_required
 
-        data["key_field"] = NestedField(name="key", field_id=data["key_id"], field_type=data["key_type"], required=True)
+        data["key_field"] = NestedField(name="key", field_id=data["key-id"], field_type=data["key"], required=True)
         data["value_field"] = NestedField(
-            name="value", field_id=data["value_id"], field_type=data["value_type"], required=data["value_required"]
+            name="value", field_id=data["value-id"], field_type=data["value"], required=data["value_required"]
         )
         super().__init__(**data)
 
@@ -416,7 +431,7 @@ class BooleanType(PrimitiveType):
         BooleanType()
     """
 
-    __root__ = "boolean"
+    root: str = "boolean"
 
 
 class IntegerType(PrimitiveType):
@@ -439,7 +454,7 @@ class IntegerType(PrimitiveType):
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
 
-    __root__ = "int"
+    root: str = "int"
 
 
 class LongType(PrimitiveType):
@@ -466,7 +481,7 @@ class LongType(PrimitiveType):
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
 
-    __root__ = "long"
+    root: str = "long"
 
 
 class FloatType(PrimitiveType):
@@ -491,7 +506,7 @@ class FloatType(PrimitiveType):
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
 
-    __root__ = "float"
+    root: str = "float"
 
 
 class DoubleType(PrimitiveType):
@@ -507,7 +522,7 @@ class DoubleType(PrimitiveType):
         DoubleType()
     """
 
-    __root__ = "double"
+    root: str = "double"
 
 
 class DateType(PrimitiveType):
@@ -523,7 +538,7 @@ class DateType(PrimitiveType):
         DateType()
     """
 
-    __root__ = "date"
+    root: str = "date"
 
 
 class TimeType(PrimitiveType):
@@ -539,7 +554,7 @@ class TimeType(PrimitiveType):
         TimeType()
     """
 
-    __root__ = "time"
+    root: str = "time"
 
 
 class TimestampType(PrimitiveType):
@@ -555,7 +570,7 @@ class TimestampType(PrimitiveType):
         TimestampType()
     """
 
-    __root__ = "timestamp"
+    root: str = "timestamp"
 
 
 class TimestamptzType(PrimitiveType):
@@ -571,7 +586,7 @@ class TimestamptzType(PrimitiveType):
         TimestamptzType()
     """
 
-    __root__ = "timestamptz"
+    root: str = "timestamptz"
 
 
 class StringType(PrimitiveType):
@@ -587,7 +602,7 @@ class StringType(PrimitiveType):
         StringType()
     """
 
-    __root__ = "string"
+    root: str = "string"
 
 
 class UUIDType(PrimitiveType):
@@ -603,7 +618,7 @@ class UUIDType(PrimitiveType):
         UUIDType()
     """
 
-    __root__ = "uuid"
+    root: str = "uuid"
 
 
 class BinaryType(PrimitiveType):
@@ -619,7 +634,7 @@ class BinaryType(PrimitiveType):
         BinaryType()
     """
 
-    __root__ = "binary"
+    root: str = "binary"
 
 
 PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
@@ -636,3 +651,25 @@ PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
     "uuid": UUIDType(),
     "binary": BinaryType(),
 }
+
+IcebergSubTypes = TypeVar(
+    "IcebergSubTypes",
+    BooleanType,
+    IntegerType,
+    LongType,
+    FloatType,
+    DoubleType,
+    DateType,
+    TimeType,
+    TimestampType,
+    TimestamptzType,
+    FixedType,
+    DecimalType,
+    StringType,
+    UUIDType,
+    BinaryType,
+    MapType,
+    ListType,
+    StructType,
+    NestedField,
+)

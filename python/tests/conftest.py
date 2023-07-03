@@ -294,7 +294,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
             ],
         }
     ],
-    "properties": {"read.split.target.size": 134217728},
+    "properties": {"read.split.target.size": "134217728"},
     "current-snapshot-id": 3055729675574597004,
     "snapshots": [
         {

@@ -23,7 +23,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, PrivateAttr, root_validator
+from pydantic import Field, PrivateAttr
 
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
@@ -59,29 +59,20 @@ class Summary(IcebergBaseModel):
     like snapshot expiration, to skip processing certain snapshots.
     """
 
-    __root__: Dict[str, Union[str, Operation]]
+    root: Dict[str, Union[str, Operation]]
     _additional_properties: Dict[str, str] = PrivateAttr()
 
-    @root_validator
-    def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[str, Dict[str, Union[str, Operation]]]:
-        if operation := values["__root__"].get(OPERATION):
-            if isinstance(operation, str):
-                values["__root__"][OPERATION] = Operation(operation.lower())
-        else:
-            raise ValueError("Operation not set")
-        return values
-
     def __init__(
-        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
+        self, operation: Optional[Operation] = None, root: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
     ) -> None:
-        super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
+        super().__init__(root={"operation": operation, **data} if not root else root)
         self._additional_properties = {
-            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
+            k: v for k, v in self.root.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
         }
 
     @property
     def operation(self) -> Operation:
-        operation = self.__root__[OPERATION]
+        operation = self.root[OPERATION]
         if isinstance(operation, Operation):
             return operation
         else:
@@ -100,7 +91,7 @@ class Summary(IcebergBaseModel):
 
 class Snapshot(IcebergBaseModel):
     snapshot_id: int = Field(alias="snapshot-id")
-    parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id")
+    parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id", default=None)
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
     manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
@@ -128,5 +119,5 @@ class MetadataLogEntry(IcebergBaseModel):
 
 
 class SnapshotLogEntry(IcebergBaseModel):
-    snapshot_id: str = Field(alias="snapshot-id")
+    snapshot_id: int = Field(alias="snapshot-id")
     timestamp_ms: int = Field(alias="timestamp-ms")

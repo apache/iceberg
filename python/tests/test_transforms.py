@@ -187,7 +187,7 @@ def test_string_with_surrogate_pair() -> None:
         (17501, DayTransform(), "2017-12-01"),
     ],
 )
-def test_date_to_human_string(date_val: int, date_transform: TimeTransform[Any], expected: str) -> None:
+def test_date_to_human_string(date_val: int, date_transform: TimeTransform, expected: str) -> None:
     assert date_transform.to_human_string(DateType(), date_val) == expected
 
 
@@ -199,7 +199,7 @@ def test_date_to_human_string(date_val: int, date_transform: TimeTransform[Any],
         DayTransform(),
     ],
 )
-def test_none_date_to_human_string(date_transform: TimeTransform[Any]) -> None:
+def test_none_date_to_human_string(date_transform: TimeTransform) -> None:
     assert date_transform.to_human_string(DateType(), None) == "null"
 
 
@@ -217,7 +217,7 @@ def test_hour_to_human_string() -> None:
         (-1, HourTransform(), "1969-12-31-23"),
     ],
 )
-def test_negative_value_to_human_string(negative_value: int, time_transform: TimeTransform[Any], expected: str) -> None:
+def test_negative_value_to_human_string(negative_value: int, time_transform: TimeTransform, expected: str) -> None:
     assert time_transform.to_human_string(TimestampType(), negative_value) == expected
 
 
@@ -261,7 +261,7 @@ def test_time_methods(type_var: PrimitiveType) -> None:
         (DayTransform(), TimestampType(), -1, -1),
     ],
 )
-def test_time_apply_method(transform: TimeTransform[Any], type_var: PrimitiveType, value: int, expected: int) -> None:
+def test_time_apply_method(transform: TimeTransform, type_var: PrimitiveType, value: int, expected: int) -> None:
     assert transform.transform(type_var)(value) == expected
 
 
@@ -290,7 +290,7 @@ def test_hour_method(type_var: PrimitiveType) -> None:
         (DayTransform(), HourTransform()),
     ],
 )
-def test_satisfies_order_of_method(transform: TimeTransform[Any], other_transform: TimeTransform[Any]) -> None:
+def test_satisfies_order_of_method(transform: TimeTransform, other_transform: TimeTransform) -> None:
     assert transform.satisfies_order_of(transform)
     assert other_transform.satisfies_order_of(transform)
     assert not transform.satisfies_order_of(other_transform)
@@ -425,7 +425,7 @@ def test_void_transform() -> None:
 
 
 class TestType(IcebergBaseModel):
-    __root__: Transform[Any, Any]
+    root: TimeTransform
 
 
 def test_bucket_transform_serialize() -> None:
@@ -433,7 +433,7 @@ def test_bucket_transform_serialize() -> None:
 
 
 def test_bucket_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"bucket[22]"').__root__
+    transform = TestType.parse_raw('"bucket[22]"').root
     assert transform == BucketTransform(num_buckets=22)
 
 
@@ -450,7 +450,7 @@ def test_truncate_transform_serialize() -> None:
 
 
 def test_unknown_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"unknown"').__root__
+    transform = TestType.parse_raw('"unknown"').root
     assert transform == UnknownTransform("unknown")
 
 
@@ -467,7 +467,7 @@ def test_void_transform_serialize() -> None:
 
 
 def test_void_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"void"').__root__
+    transform = TestType.parse_raw('"void"').root
     assert transform == VoidTransform()
 
 
@@ -484,7 +484,7 @@ def test_year_transform_serialize() -> None:
 
 
 def test_year_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"year"').__root__
+    transform = TestType.parse_raw('"year"').root
     assert transform == YearTransform()
 
 
@@ -493,7 +493,7 @@ def test_month_transform_serialize() -> None:
 
 
 def test_month_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"month"').__root__
+    transform = TestType.parse_raw('"month"').root
     assert transform == MonthTransform()
 
 
@@ -502,7 +502,7 @@ def test_day_transform_serialize() -> None:
 
 
 def test_day_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"day"').__root__
+    transform = TestType.parse_raw('"day"').root
     assert transform == DayTransform()
 
 
@@ -511,7 +511,7 @@ def test_hour_transform_serialize() -> None:
 
 
 def test_hour_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"hour"').__root__
+    transform = TestType.parse_raw('"hour"').root
     assert transform == HourTransform()
 
 
@@ -524,7 +524,7 @@ def test_hour_transform_deserialize() -> None:
         (HourTransform(), "hour"),
     ],
 )
-def test_datetime_transform_str(transform: TimeTransform[Any], transform_str: str) -> None:
+def test_datetime_transform_str(transform: TimeTransform, transform_str: str) -> None:
     assert str(transform) == transform_str
 
 
@@ -537,7 +537,7 @@ def test_datetime_transform_str(transform: TimeTransform[Any], transform_str: st
         (HourTransform(), "HourTransform()"),
     ],
 )
-def test_datetime_transform_repr(transform: TimeTransform[Any], transform_repr: str) -> None:
+def test_datetime_transform_repr(transform: TimeTransform, transform_repr: str) -> None:
     assert repr(transform) == transform_repr
 
 

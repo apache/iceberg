@@ -46,14 +46,14 @@ class PartitionField(IcebergBaseModel):
 
     source_id: int = Field(alias="source-id")
     field_id: int = Field(alias="field-id")
-    transform: Transform[Any, Any] = Field()
+    transform: Transform = Field()
     name: str = Field()
 
     def __init__(
         self,
         source_id: Optional[int] = None,
         field_id: Optional[int] = None,
-        transform: Optional[Transform[Any, Any]] = None,
+        transform: Optional[Transform] = None,
         name: Optional[str] = None,
         **data: Any,
     ):
@@ -65,6 +65,9 @@ class PartitionField(IcebergBaseModel):
             data["transform"] = transform
         if name is not None:
             data["name"] = name
+
+        data["transform"] = Transform.validate(data["transform"])
+
         super().__init__(**data)
 
     def __str__(self) -> str:

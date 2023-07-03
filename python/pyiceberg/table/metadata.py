@@ -18,6 +18,7 @@ import datetime
 import uuid
 from copy import copy
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     List,
@@ -26,7 +27,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, root_validator
+from pydantic import Field, model_validator
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
@@ -42,6 +43,9 @@ from pyiceberg.table.sorting import (
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties
 from pyiceberg.utils.datetime import datetime_to_micros
 
+if TYPE_CHECKING:
+    from pyiceberg.table.metadata import TableMetadataV2
+
 CURRENT_SNAPSHOT_ID = "current_snapshot_id"
 CURRENT_SCHEMA_ID = "current_schema_id"
 SCHEMAS = "schemas"
@@ -56,22 +60,22 @@ INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
 
 
-def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
+def check_schemas(metadata: "TableMetadataV2") -> "TableMetadataV2":
     """Validator to check if the current-schema-id is actually present in schemas."""
-    current_schema_id = values[CURRENT_SCHEMA_ID]
+    current_schema_id = metadata.current_schema_id
 
-    for schema in values[SCHEMAS]:
+    for schema in metadata.schemas:
         if schema.schema_id == current_schema_id:
-            return values
+            return metadata
 
     raise ValidationError(f"current-schema-id {current_schema_id} can't be found in the schemas")
 
 
-def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
+def check_partition_specs(values: "TableMetadataV2") -> "TableMetadataV2":
     """Validator to check if the default-spec-id is present in partition-specs."""
-    default_spec_id = values["default_spec_id"]
+    default_spec_id = values.default_spec_id
 
-    partition_specs: List[PartitionSpec] = values[PARTITION_SPECS]
+    partition_specs: List[PartitionSpec] = values.partition_specs
     for spec in partition_specs:
         if spec.spec_id == default_spec_id:
             return values
@@ -79,12 +83,12 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
 
 
-def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
+def check_sort_orders(values: "TableMetadataV2") -> "TableMetadataV2":
     """Validator to check if the default_sort_order_id is present in sort-orders."""
-    default_sort_order_id: int = values["default_sort_order_id"]
+    default_sort_order_id: int = values.default_sort_order_id
 
     if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
-        sort_orders: List[SortOrder] = values[SORT_ORDERS]
+        sort_orders: List[SortOrder] = values.sort_orders
         for sort_order in sort_orders:
             if sort_order.order_id == default_sort_order_id:
                 return values
@@ -99,15 +103,15 @@ class TableMetadataCommonFields(IcebergBaseModel):
     https://iceberg.apache.org/spec/#iceberg-table-spec
     """
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="before")
     def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data[CURRENT_SNAPSHOT_ID] == -1:
+        if CURRENT_SNAPSHOT_ID in data and data[CURRENT_SNAPSHOT_ID] == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
             data[CURRENT_SNAPSHOT_ID] = None
         return data
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="before")
     def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         # This is going to be much nicer as soon as refs is an actual pydantic object
         if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
@@ -212,7 +216,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
 
-    @root_validator
+    @model_validator(mode="after")
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2.
 
@@ -228,7 +232,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
         return data
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="after")
     def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the schema into schemas.
 
@@ -249,7 +253,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             check_schemas(data)
         return data
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="after")
     def construct_partition_specs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the partition_spec into partition_specs.
 
@@ -277,7 +281,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
         return data
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="before")
     def set_sort_orders(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets the sort_orders if not provided.
 
@@ -329,15 +333,15 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     https://iceberg.apache.org/spec/#version-2-row-level-deletes
     """
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="after")
     def check_schemas(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_schemas(values)
 
-    @root_validator
+    @model_validator(mode="after")
     def check_partition_specs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_partition_specs(values)
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="after")
     def check_sort_orders(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_sort_orders(values)
 

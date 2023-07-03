@@ -225,7 +225,7 @@ def test_non_parameterized_type_equality(
 
 
 class IcebergTestType(IcebergBaseModel):
-    __root__: IcebergType
+    root: IcebergType
 
 
 def test_serialization_boolean() -> None:

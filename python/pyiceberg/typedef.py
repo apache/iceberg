@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from decimal import Decimal
-from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -34,7 +33,7 @@ from typing import (
 )
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from pyiceberg.types import StructType
@@ -104,10 +103,7 @@ class IcebergBaseModel(BaseModel):
     https://pydantic-docs.helpmanual.io/usage/model_config/#change-behaviour-globally
     """
 
-    class Config:
-        keep_untouched = (cached_property,)
-        allow_population_by_field_name = True
-        frozen = True
+    model_config = ConfigDict(populate_by_name=True, frozen=True)
 
     def _exclude_private_properties(self, exclude: Optional[Set[str]] = None) -> Set[str]:
         # A small trick to exclude private properties. Properties are serialized by pydantic,
