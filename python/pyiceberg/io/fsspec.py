@@ -114,8 +114,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
             raise ValueError(f"Signer not available: {signer}")
 
     if proxy_uri := properties.get(S3_PROXY_URI):
-        uri = urlparse(proxy_uri)
-        config_kwargs["proxies"] = {uri.scheme: proxy_uri}
+        config_kwargs["proxies"] = {"http": proxy_uri, "https": proxy_uri}
 
     fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 
