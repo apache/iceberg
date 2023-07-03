@@ -603,15 +603,10 @@ public class TestGlueCatalog {
     Map<String, String> properties = glueCatalog.properties();
     Assertions.assertThat(properties)
         .isNotEmpty()
-        .containsKey("table-default.key1")
         .containsEntry("table-default.key1", "catalog-default-key1")
-        .containsKey("table-default.key2")
         .containsEntry("table-default.key2", "catalog-default-key2")
-        .containsKey("table-default.key3")
         .containsEntry("table-default.key3", "catalog-default-key3")
-        .containsKey("table-override.key3")
         .containsEntry("table-override.key3", "catalog-override-key3")
-        .containsKey("table-override.key4")
         .containsEntry("table-override.key4", "catalog-override-key4");
   }
 
@@ -654,16 +649,10 @@ public class TestGlueCatalog {
     Map<String, String> tableCatalogProperties = glueTableOperations.tableCatalogProperties();
 
     Assertions.assertThat(tableCatalogProperties)
-        .containsKey(AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE))
-        .containsKey(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
-    Assertions.assertThat(
-            tableCatalogProperties.get(
-                AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE)))
-        .isEqualTo("table");
-    Assertions.assertThat(
-            tableCatalogProperties.get(
-                AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)))
-        .isEqualTo("db");
+        .containsEntry(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE), "table")
+        .containsEntry(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE),
+            "db");
   }
 }
