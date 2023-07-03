@@ -250,6 +250,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
         commitStatus = CommitStatus.SUCCESS;
       } catch (LockException le) {
+        commitStatus = CommitStatus.UNKNOWN;
         throw new CommitStateUnknownException(
             "Failed to heartbeat for hive lock while "
                 + "committing changes. This can lead to a concurrent commit attempt be able to overwrite this commit. "
