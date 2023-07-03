@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.orc;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,11 +48,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
 import org.apache.orc.StripeInformation;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcDataWriter {
   private static final Schema SCHEMA =
@@ -62,9 +61,9 @@ public class TestOrcDataWriter {
 
   private List<Record> records;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File temp;
 
-  @Before
+  @BeforeEach
   public void createRecords() {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
@@ -91,7 +90,7 @@ public class TestOrcDataWriter {
 
   @Test
   public void testDataWriter() throws IOException {
-    OutputFile file = Files.localOutput(temp.newFile());
+    OutputFile file = Files.localOutput(temp);
 
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
@@ -113,15 +112,13 @@ public class TestOrcDataWriter {
     }
 
     DataFile dataFile = dataWriter.toDataFile();
-    Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile));
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals(
-        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
-
+    Assertions.assertThat(dataFile.splitOffsets()).isEqualTo(stripeOffsetsFromReader(dataFile));
+    Assertions.assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
+    Assertions.assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
+    Assertions.assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    Assertions.assertThat(dataFile.partition().size()).isEqualTo(0);
+    Assertions.assertThat(dataFile.sortOrderId()).isEqualTo(sortOrder.orderId());
+    Assertions.assertThat(dataFile.keyMetadata()).isNull();
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         ORC.read(file.toInputFile())
@@ -130,8 +127,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
-
-    Assert.assertEquals("Written records should match", records, writtenRecords);
+    Assertions.assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
   @Test
@@ -141,7 +137,7 @@ public class TestOrcDataWriter {
     // local files that would be the LocalFileSystem. To prevent this we use the Proxy classes to
     // use a scheme `dummy` that is not handled. Note that Hadoop 2.7.3 throws IOException
     // while latest Hadoop versions throw UnsupportedFileSystemException (extends IOException)
-    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
+    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp));
     Assertions.assertThatThrownBy(
             () -> new Path(outFile.location()).getFileSystem(new Configuration()))
         .isInstanceOf(IOException.class)
@@ -171,13 +167,13 @@ public class TestOrcDataWriter {
         OrcFile.readerOptions(new Configuration())
             .filesystem(new FileIOFSUtil.InputFileSystem(outFile.toInputFile()))
             .maxLength(outFile.toInputFile().getLength());
-    Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile, options));
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
-
+    Assertions.assertThat(dataFile.splitOffsets())
+        .isEqualTo(stripeOffsetsFromReader(dataFile, options));
+    Assertions.assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
+    Assertions.assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
+    Assertions.assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    Assertions.assertThat(dataFile.partition().size()).isEqualTo(0);
+    Assertions.assertThat(dataFile.keyMetadata()).isNull();
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         ORC.read(outFile.toInputFile())
@@ -186,8 +182,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
-
-    Assert.assertEquals("Written records should match", records, writtenRecords);
+    Assertions.assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
   private static class ProxyInputFile implements InputFile {

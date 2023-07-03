@@ -697,6 +697,9 @@ project(':iceberg-hive-metastore') {
 }
 
 project(':iceberg-orc') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
