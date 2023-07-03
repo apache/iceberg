@@ -74,7 +74,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 Types.IntegerType.get(),
                 "Count of equality delete files"),
             Types.NestedField.required(
-                11, "total_data_file_size_in_bytes", Types.LongType.get(), "Total size in bytes"),
+                11, "total_data_file_size_in_bytes", Types.LongType.get(), "Total size in bytes of data files"),
             Types.NestedField.optional(
                 9,
                 "last_updated_at",

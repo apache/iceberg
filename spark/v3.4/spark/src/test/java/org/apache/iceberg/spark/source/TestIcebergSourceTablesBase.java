@@ -1261,7 +1261,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 Types.IntegerType.get(),
                 "Count of equality delete files"),
             required(
-                11, "total_data_file_size_in_bytes", Types.LongType.get(), "Total size in bytes"),
+                11, "total_data_file_size_in_bytes", Types.LongType.get(), "Total size in bytes of data files"),
             optional(
                 9,
                 "last_updated_at",
