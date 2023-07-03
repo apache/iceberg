@@ -49,7 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcDataReader implements WithAssertions {
 
-  @TempDir static File temp;
+  @TempDir private static File temp;
 
   private static final Schema SCHEMA =
       new Schema(

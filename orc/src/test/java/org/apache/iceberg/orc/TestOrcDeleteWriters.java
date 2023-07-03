@@ -54,7 +54,7 @@ public class TestOrcDeleteWriters {
 
   private List<Record> records;
 
-  @TempDir File temp;
+  @TempDir private File temp;
 
   @BeforeEach
   public void createDeleteRecords() {
@@ -72,9 +72,7 @@ public class TestOrcDeleteWriters {
 
   @Test
   public void testEqualityDeleteWriter() throws IOException {
-    File deleteFile = temp;
-
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     EqualityDeleteWriter<Record> deleteWriter =
         ORC.writeDeletes(out)
             .createWriterFunc(GenericOrcWriter::buildWriter)
@@ -111,8 +109,6 @@ public class TestOrcDeleteWriters {
 
   @Test
   public void testPositionDeleteWriter() throws IOException {
-    File deleteFile = temp;
-
     Schema deleteSchema =
         new Schema(
             MetadataColumns.DELETE_FILE_PATH,
@@ -124,7 +120,7 @@ public class TestOrcDeleteWriters {
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Record> deleteWriter =
         ORC.writeDeletes(out)
             .createWriterFunc(GenericOrcWriter::buildWriter)
@@ -169,8 +165,6 @@ public class TestOrcDeleteWriters {
 
   @Test
   public void testPositionDeleteWriterWithEmptyRow() throws IOException {
-    File deleteFile = temp;
-
     Schema deleteSchema =
         new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
@@ -178,7 +172,7 @@ public class TestOrcDeleteWriters {
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Void> deleteWriter =
         ORC.writeDeletes(out)
             .createWriterFunc(GenericOrcWriter::buildWriter)

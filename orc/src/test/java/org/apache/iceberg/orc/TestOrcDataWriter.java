@@ -61,7 +61,7 @@ public class TestOrcDataWriter {
 
   private List<Record> records;
 
-  @TempDir File temp;
+  @TempDir private File temp;
 
   @BeforeEach
   public void createRecords() {
@@ -137,7 +137,7 @@ public class TestOrcDataWriter {
     // local files that would be the LocalFileSystem. To prevent this we use the Proxy classes to
     // use a scheme `dummy` that is not handled. Note that Hadoop 2.7.3 throws IOException
     // while latest Hadoop versions throw UnsupportedFileSystemException (extends IOException)
-    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(String.valueOf(temp.isFile())));
+    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp));
     Assertions.assertThatThrownBy(
             () -> new Path(outFile.location()).getFileSystem(new Configuration()))
         .isInstanceOf(IOException.class)

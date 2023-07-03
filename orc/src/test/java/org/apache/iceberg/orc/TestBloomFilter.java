@@ -52,7 +52,7 @@ public class TestBloomFilter {
           required(101, "name", Types.StringType.get()),
           required(102, "price", Types.DoubleType.get()));
 
-  @TempDir File testFile;
+  @TempDir private File testFile;
 
   @Test
   public void testWriteOption() throws Exception {

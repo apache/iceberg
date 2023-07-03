@@ -49,8 +49,8 @@ public class TestTableProperties {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-  @TempDir File folder;
-  @TempDir File testFile;
+  @TempDir private File folder;
+  @TempDir private File testFile;
 
   @Test
   public void testOrcTableProperties() throws Exception {
