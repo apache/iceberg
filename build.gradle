@@ -164,6 +164,9 @@ subprojects {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
     }
+    tasks.named("revapiAnalyze").configure {
+      dependsOn(":iceberg-common:jar")
+    }
   }
 
   configurations {
