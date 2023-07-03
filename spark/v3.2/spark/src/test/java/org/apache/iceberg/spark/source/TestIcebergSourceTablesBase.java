@@ -1433,6 +1433,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
+  @SuppressWarnings("MethodLength")
   @Test
   public void testPartitionsTableLastUpdatedSnapshot() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
