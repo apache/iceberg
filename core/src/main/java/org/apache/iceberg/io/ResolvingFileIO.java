@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -34,11 +36,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation that uses location scheme to choose the correct FileIO implementation. */
-public class ResolvingFileIO implements FileIO, HadoopConfigurable {
+public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulkOperations {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
@@ -81,6 +84,29 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   @Override
   public void deleteFile(String location) {
     io(location).deleteFile(location);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    Map<FileIO, List<String>> pathByFileIO =
+        StreamSupport.stream(pathsToDelete.spliterator(), false)
+            .collect(Collectors.groupingBy(this::io));
+    for (Map.Entry<FileIO, List<String>> entries : pathByFileIO.entrySet()) {
+      FileIO io = entries.getKey();
+      if (io instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io).deleteFiles(entries.getValue());
+      } else {
+        LOG.warn(
+            "IO {} does not support bulk operations. Using non-bulk deletes.",
+            io.getClass().getName());
+        Tasks.Builder<String> deleteTasks =
+            Tasks.foreach(entries.getValue())
+                .noRetry()
+                .suppressFailureWhenFinished()
+                .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+        deleteTasks.run(io::deleteFile);
+      }
+    }
   }
 
   @Override
