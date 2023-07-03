@@ -29,8 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -45,23 +44,22 @@ public class TestAwsClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assert.assertEquals(
-        "default client should be singleton",
-        AwsClientFactories.defaultFactory(),
-        AwsClientFactories.defaultFactory());
+    Assertions.assertThat(AwsClientFactories.defaultFactory())
+        .as("default client should be singleton")
+        .isSameAs(AwsClientFactories.defaultFactory());
 
-    Assert.assertTrue(
-        "should load default when not configured",
-        AwsClientFactories.from(Maps.newHashMap())
-            instanceof AwsClientFactories.DefaultAwsClientFactory);
+    Assertions.assertThat(AwsClientFactories.from(Maps.newHashMap()))
+        .as("should load default when not configured")
+        .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
   @Test
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assert.assertTrue(
-        "should load custom class", AwsClientFactories.from(properties) instanceof CustomFactory);
+    Assertions.assertThat(AwsClientFactories.from(properties))
+        .as("should load custom class")
+        .isInstanceOf(CustomFactory.class);
   }
 
   @Test

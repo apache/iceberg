@@ -25,8 +25,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.Table;
 
@@ -36,14 +35,14 @@ public class TestGlueToIcebergConverter {
   public void testToNamespace() {
     Database database = Database.builder().name("db").build();
     Namespace namespace = Namespace.of("db");
-    Assert.assertEquals(namespace, GlueToIcebergConverter.toNamespace(database));
+    Assertions.assertThat(GlueToIcebergConverter.toNamespace(database)).isEqualTo(namespace);
   }
 
   @Test
   public void testToTableId() {
     Table table = Table.builder().databaseName("db").name("name").build();
     TableIdentifier icebergId = TableIdentifier.of("db", "name");
-    Assert.assertEquals(icebergId, GlueToIcebergConverter.toTableId(table));
+    Assertions.assertThat(GlueToIcebergConverter.toTableId(table)).isEqualTo(icebergId);
   }
 
   @Test
