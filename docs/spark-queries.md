@@ -319,7 +319,7 @@ SELECT * FROM prod.db.table.partitions;
 |  {20211002, 10}|           1|         1|         0|
 
 Note:
-1. For unpartitioned tables, the partitions table will contain only the record_count, file_count, position_delete_record_count, position_delete_file_count, equality_delete_record_count, equality_delete_file_count, last_updated_ms, last_updated_snapshot_id and total_data_file_size_in_bytes columns.
+1. For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
 
