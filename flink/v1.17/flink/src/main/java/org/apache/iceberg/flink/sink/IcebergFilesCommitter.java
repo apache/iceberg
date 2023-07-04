@@ -288,12 +288,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+    if (totalFiles != 0) {
       if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       } else {
         commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       }
+
+      continuousEmptyCheckpoints = 0;
+    } else if (continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+      commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       continuousEmptyCheckpoints = 0;
     } else {
       LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);

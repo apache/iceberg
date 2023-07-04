@@ -158,28 +158,137 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   @Test
   public void testMaxContinuousEmptyCommits() throws Exception {
-    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
-
+    cleanupTables();
     JobID jobId = new JobID();
     long checkpointId = 0;
     long timestamp = 0;
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
+    for (boolean overwrite : new boolean[] {true, false}) {
+      table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
+      table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
+      try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+          createStreamSink(jobId, overwrite)) {
+        harness.setup();
+        harness.open();
 
-      assertSnapshotSize(0);
+        assertSnapshotSize(0);
 
-      for (int i = 1; i <= 9; i++) {
-        harness.snapshot(++checkpointId, ++timestamp);
-        harness.notifyOfCompletedCheckpoint(checkpointId);
+        for (int i = 1; i <= 9; i++) {
+          harness.snapshot(++checkpointId, ++timestamp);
+          harness.notifyOfCompletedCheckpoint(checkpointId);
 
-        assertSnapshotSize(i / 3);
+          assertSnapshotSize(i / 3);
+        }
+      } finally {
+        cleanupTables();
       }
     }
   }
 
   private WriteResult of(DataFile dataFile) {
     return WriteResult.builder().addDataFiles(dataFile).build();
+  }
+
+  @Test
+  public void testReplacePartitions() throws Exception {
+    table.updateSpec().addField("data").commit();
+
+    long timestamp = 0;
+
+    JobID jobID = new JobID();
+    OperatorID operatorId;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+        createStreamSink(jobID, true)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+
+      String partitionValue = "partition1";
+      StructLike partition = new PartitionData(table.spec().partitionType());
+      partition.set(0, partitionValue);
+      for (int i = 1; i <= 3; i++) {
+        RowData rowData = SimpleDataUtil.createRowData(i, partitionValue);
+        DataFile dataFile =
+            writeDataFile("data-" + i, ImmutableList.of(rowData), table.spec(), partition);
+
+        harness.processElement(of(dataFile), ++timestamp);
+
+        harness.snapshot(i, ++timestamp);
+        assertFlinkManifests(1);
+
+        harness.notifyOfCompletedCheckpoint(i);
+        assertFlinkManifests(0);
+
+        SimpleDataUtil.assertTableRows(table, Lists.newArrayList(rowData), branch);
+        assertSnapshotSize(i);
+        assertMaxCommittedCheckpointId(jobID, operatorId, i);
+        Assert.assertEquals(
+            TestIcebergFilesCommitter.class.getName(),
+            SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
+      }
+    }
+  }
+
+  @Test
+  public void testReplacePartitionsMultiplePartitions() throws Exception {
+    table.updateSpec().addField("data").commit();
+
+    long timestamp = 0;
+
+    JobID jobID = new JobID();
+    OperatorID operatorId;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+        createStreamSink(jobID, true)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+
+      String partitionValue1 = "partition1";
+      StructLike partition1 = new PartitionData(table.spec().partitionType());
+      partition1.set(0, partitionValue1);
+
+      StructLike partition2 = new PartitionData(table.spec().partitionType());
+      String partitionValue2 = "partition2";
+      partition2.set(0, partitionValue2);
+
+      for (int i = 1; i <= 3; i++) {
+        RowData rowData1 = SimpleDataUtil.createRowData(i, partitionValue1);
+        RowData rowData2 = SimpleDataUtil.createRowData(i, partitionValue2);
+
+        DataFile dataFile1 =
+            writeDataFile(
+                "data-" + partitionValue1 + "-" + i,
+                ImmutableList.of(rowData1),
+                table.spec(),
+                partition1);
+
+        DataFile dataFile2 =
+            writeDataFile(
+                "data-" + partitionValue2 + "-" + i,
+                ImmutableList.of(rowData2),
+                table.spec(),
+                partition2);
+
+        harness.processElement(of(dataFile1), ++timestamp);
+        harness.processElement(of(dataFile2), ++timestamp);
+
+        harness.snapshot(i, ++timestamp);
+        assertFlinkManifests(1);
+
+        harness.notifyOfCompletedCheckpoint(i);
+        assertFlinkManifests(0);
+
+        SimpleDataUtil.assertTableRows(table, Lists.newArrayList(rowData1, rowData2), branch);
+        assertSnapshotSize(i);
+        assertMaxCommittedCheckpointId(jobID, operatorId, i);
+        Assert.assertEquals(
+            TestIcebergFilesCommitter.class.getName(),
+            SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
+      }
+    }
   }
 
   @Test
@@ -1095,7 +1204,13 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch, table.spec());
+    return createStreamSink(jobID, false);
+  }
+
+  private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(
+      JobID jobID, boolean overwrite) throws Exception {
+    TestOperatorFactory factory =
+        TestOperatorFactory.of(table.location(), branch, table.spec(), overwrite);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -1115,17 +1230,21 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   private static class TestOperatorFactory extends AbstractStreamOperatorFactory<Void>
       implements OneInputStreamOperatorFactory<WriteResult, Void> {
     private final String tablePath;
+    private final boolean overwrite;
     private final String branch;
     private final PartitionSpec spec;
 
-    private TestOperatorFactory(String tablePath, String branch, PartitionSpec spec) {
+    private TestOperatorFactory(
+        String tablePath, String branch, PartitionSpec spec, boolean overwrite) {
       this.tablePath = tablePath;
       this.branch = branch;
       this.spec = spec;
+      this.overwrite = overwrite;
     }
 
-    private static TestOperatorFactory of(String tablePath, String branch, PartitionSpec spec) {
-      return new TestOperatorFactory(tablePath, branch, spec);
+    private static TestOperatorFactory of(
+        String tablePath, String branch, PartitionSpec spec, boolean overwrite) {
+      return new TestOperatorFactory(tablePath, branch, spec, overwrite);
     }
 
     @Override
@@ -1135,7 +1254,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       IcebergFilesCommitter committer =
           new IcebergFilesCommitter(
               new TestTableLoader(tablePath),
-              false,
+              overwrite,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,
