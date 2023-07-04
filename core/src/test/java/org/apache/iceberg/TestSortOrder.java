@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -65,7 +66,8 @@ public class TestSortOrder {
                           Types.StructType.of(
                               optional(19, "i", Types.IntegerType.get()),
                               optional(20, "s", Types.StringType.get())))))),
-          required(30, "ext", Types.StringType.get()));
+          required(30, "ext", Types.StringType.get()),
+          required(42, "Ext1", Types.StringType.get()));
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
   private File tableDir = null;
@@ -98,16 +100,14 @@ public class TestSortOrder {
         SortOrder.unsorted(),
         SortOrder.builderFor(SCHEMA).withOrderId(0).build());
 
-    AssertHelpers.assertThrows(
-        "Should not allow sort orders ID 0",
-        IllegalArgumentException.class,
-        "order ID 0 is reserved for unsorted order",
-        () -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build());
-    AssertHelpers.assertThrows(
-        "Should not allow unsorted orders with arbitrary IDs",
-        IllegalArgumentException.class,
-        "order ID must be 0",
-        () -> SortOrder.builderFor(SCHEMA).withOrderId(1).build());
+    Assertions.assertThatThrownBy(
+            () -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Sort order ID 0 is reserved for unsorted order");
+
+    Assertions.assertThatThrownBy(() -> SortOrder.builderFor(SCHEMA).withOrderId(1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsorted order ID must be 0");
   }
 
   @Test
@@ -142,7 +142,7 @@ public class TestSortOrder {
     Assert.assertEquals(
         "Order ID must be fresh", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
     Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must be fresh", 7, actualOrder.fields().get(0).sourceId());
+    Assert.assertEquals("Field id must be fresh", 8, actualOrder.fields().get(0).sourceId());
     Assert.assertEquals("Field id must be fresh", 2, actualOrder.fields().get(1).sourceId());
   }
 
@@ -298,7 +298,7 @@ public class TestSortOrder {
     Assert.assertEquals(
         "Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
     Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must match", 7, actualOrder.fields().get(0).sourceId());
+    Assert.assertEquals("Field id must match", 8, actualOrder.fields().get(0).sourceId());
     Assert.assertEquals("Field id must match", 2, actualOrder.fields().get(1).sourceId());
   }
 
@@ -320,6 +320,9 @@ public class TestSortOrder {
         "Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID + 1, actualOrder.orderId());
     Assert.assertEquals(
         "Schema must have one less column", initialColSize - 1, table.schema().columns().size());
+
+    // ensure that the table metadata can be serialized and reloaded with an invalid order
+    TableMetadataParser.fromJson(TableMetadataParser.toJson(table.ops().current()));
   }
 
   @Test
@@ -330,11 +333,9 @@ public class TestSortOrder {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
 
-    AssertHelpers.assertThrows(
-        "Should reject deletion of sort columns",
-        ValidationException.class,
-        "Cannot find source column",
-        () -> table.updateSchema().deleteColumn("s.id").commit());
+    Assertions.assertThatThrownBy(() -> table.updateSchema().deleteColumn("s.id").commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find source column for sort field");
   }
 
   @Test
@@ -361,5 +362,24 @@ public class TestSortOrder {
             .build();
     Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
     Assert.assertEquals(ImmutableSet.of("data"), sortedCols);
+  }
+
+  @Test
+  public void testCaseSensitiveSortedColumnNames() {
+    String fieldName = "ext1";
+    Assertions.assertThatThrownBy(
+            () ->
+                SortOrder.builderFor(SCHEMA)
+                    .caseSensitive(true)
+                    .withOrderId(10)
+                    .asc(fieldName)
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(String.format("Cannot find field '%s' in struct", fieldName));
+
+    SortOrder ext1 =
+        SortOrder.builderFor(SCHEMA).caseSensitive(false).withOrderId(10).asc("ext1").build();
+    SortField sortField = ext1.fields().get(0);
+    Assert.assertEquals(sortField.sourceId(), SCHEMA.findField("Ext1").fieldId());
   }
 }

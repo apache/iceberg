@@ -31,6 +31,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -72,13 +73,14 @@ public class TestCatalogUtil {
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
-    AssertHelpers.assertThrows(
-        "must have no-arg constructor",
-        IllegalArgumentException.class,
-        "NoSuchMethodException: org.apache.iceberg.TestCatalogUtil$TestCatalogBadConstructor.<init>()",
-        () ->
-            CatalogUtil.loadCatalog(
-                TestCatalogBadConstructor.class.getName(), name, options, hadoopConf));
+    Assertions.assertThatThrownBy(
+            () ->
+                CatalogUtil.loadCatalog(
+                    TestCatalogBadConstructor.class.getName(), name, options, hadoopConf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize Catalog implementation")
+        .hasMessageContaining(
+            "NoSuchMethodException: org.apache.iceberg.TestCatalogUtil$TestCatalogBadConstructor.<init>()");
   }
 
   @Test
@@ -88,13 +90,13 @@ public class TestCatalogUtil {
     Configuration hadoopConf = new Configuration();
     String name = "custom";
 
-    AssertHelpers.assertThrows(
-        "must implement catalog",
-        IllegalArgumentException.class,
-        "does not implement Catalog",
-        () ->
-            CatalogUtil.loadCatalog(
-                TestCatalogNoInterface.class.getName(), name, options, hadoopConf));
+    Assertions.assertThatThrownBy(
+            () ->
+                CatalogUtil.loadCatalog(
+                    TestCatalogNoInterface.class.getName(), name, options, hadoopConf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize Catalog")
+        .hasMessageContaining("does not implement Catalog");
   }
 
   @Test
@@ -105,11 +107,10 @@ public class TestCatalogUtil {
     String name = "custom";
 
     String impl = TestCatalogErrorConstructor.class.getName();
-    AssertHelpers.assertThrows(
-        "must be able to initialize catalog",
-        IllegalArgumentException.class,
-        "NoClassDefFoundError: Error while initializing class",
-        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+    Assertions.assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize Catalog implementation")
+        .hasMessageContaining("NoClassDefFoundError: Error while initializing class");
   }
 
   @Test
@@ -119,11 +120,10 @@ public class TestCatalogUtil {
     Configuration hadoopConf = new Configuration();
     String name = "custom";
     String impl = "CatalogDoesNotExist";
-    AssertHelpers.assertThrows(
-        "catalog must exist",
-        IllegalArgumentException.class,
-        "java.lang.ClassNotFoundException: CatalogDoesNotExist",
-        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+    Assertions.assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize Catalog implementation")
+        .hasMessageContaining("java.lang.ClassNotFoundException: CatalogDoesNotExist");
   }
 
   @Test
@@ -158,20 +158,20 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomFileIO_badArg() {
-    AssertHelpers.assertThrows(
-        "cannot find constructor",
-        IllegalArgumentException.class,
-        "missing no-arg constructor",
-        () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null));
+    Assertions.assertThatThrownBy(
+            () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize FileIO, missing no-arg constructor");
   }
 
   @Test
   public void loadCustomFileIO_badClass() {
-    AssertHelpers.assertThrows(
-        "cannot cast",
-        IllegalArgumentException.class,
-        "does not implement FileIO",
-        () -> CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null));
+    Assertions.assertThatThrownBy(
+            () ->
+                CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize FileIO")
+        .hasMessageContaining("does not implement FileIO");
   }
 
   @Test
@@ -181,28 +181,31 @@ public class TestCatalogUtil {
     options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, "hive");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
-
-    AssertHelpers.assertThrows(
-        "Should complain about both configs being set",
-        IllegalArgumentException.class,
-        "both type and catalog-impl are set",
-        () -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf));
+    Assertions.assertThatThrownBy(() -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot create catalog custom, both type and catalog-impl are set: type=hive, catalog-impl=CustomCatalog");
   }
 
   @Test
   public void loadCustomMetricsReporter_noArg() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
+    properties.put(
+        CatalogProperties.METRICS_REPORTER_IMPL, TestMetricsReporterDefault.class.getName());
 
-    MetricsReporter metricsReporter =
-        CatalogUtil.loadMetricsReporter(TestMetricsReporterDefault.class.getName());
+    MetricsReporter metricsReporter = CatalogUtil.loadMetricsReporter(properties);
     Assertions.assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
   }
 
   @Test
   public void loadCustomMetricsReporter_badArg() {
     Assertions.assertThatThrownBy(
-            () -> CatalogUtil.loadMetricsReporter(TestMetricsReporterBadArg.class.getName()))
+            () ->
+                CatalogUtil.loadMetricsReporter(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_REPORTER_IMPL,
+                        TestMetricsReporterBadArg.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing no-arg constructor");
   }
@@ -210,7 +213,11 @@ public class TestCatalogUtil {
   @Test
   public void loadCustomMetricsReporter_badClass() {
     Assertions.assertThatThrownBy(
-            () -> CatalogUtil.loadMetricsReporter(TestFileIONotImpl.class.getName()))
+            () ->
+                CatalogUtil.loadMetricsReporter(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_REPORTER_IMPL,
+                        TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
   }

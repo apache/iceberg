@@ -41,6 +41,10 @@ import org.apache.iceberg.util.TableScanUtil;
  */
 public class PositionDeletesTable extends BaseMetadataTable {
 
+  public static final String PARTITION = "partition";
+  public static final String SPEC_ID = "spec_id";
+  public static final String DELETE_FILE_PATH = "delete_file_path";
+
   private final Schema schema;
   private final int defaultSpecId;
   private final Map<Integer, PartitionSpec> specs;
@@ -100,17 +104,17 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 MetadataColumns.DELETE_FILE_ROW_DOC),
             Types.NestedField.required(
                 MetadataColumns.PARTITION_COLUMN_ID,
-                "partition",
+                PARTITION,
                 partitionType,
                 "Partition that position delete row belongs to"),
             Types.NestedField.required(
                 MetadataColumns.SPEC_ID_COLUMN_ID,
-                "spec_id",
+                SPEC_ID,
                 Types.IntegerType.get(),
                 MetadataColumns.SPEC_ID_COLUMN_DOC),
             Types.NestedField.required(
                 MetadataColumns.FILE_PATH_COLUMN_ID,
-                "delete_file_path",
+                DELETE_FILE_PATH,
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
 
@@ -127,7 +131,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
       extends SnapshotScan<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> implements BatchScan {
 
     protected PositionDeletesBatchScan(Table table, Schema schema) {
-      super(table, schema, new TableScanContext());
+      super(table, schema, TableScanContext.empty());
     }
 
     protected PositionDeletesBatchScan(Table table, Schema schema, TableScanContext context) {

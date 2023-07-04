@@ -39,7 +39,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Build
         working-directory: ./python/mkdocs
-        run: mkdocs build
+        run: mkdocs build --strict
       - name: Copy
         working-directory: ./python/mkdocs
         run: mv ./site /tmp/site

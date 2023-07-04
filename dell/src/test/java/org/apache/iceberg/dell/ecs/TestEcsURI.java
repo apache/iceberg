@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.dell.ecs;
 
-import org.apache.iceberg.AssertHelpers;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.exceptions.ValidationException;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestEcsURI {
 
@@ -48,16 +49,14 @@ public class TestEcsURI {
   }
 
   private void assertURI(String bucket, String name, EcsURI ecsURI) {
-    Assert.assertEquals("bucket", bucket, ecsURI.bucket());
-    Assert.assertEquals("name", name, ecsURI.name());
+    assertThat(ecsURI.bucket()).as("bucket").isEqualTo(bucket);
+    assertThat(ecsURI.name()).as("name").isEqualTo(name);
   }
 
   @Test
   public void testInvalidLocation() {
-    AssertHelpers.assertThrows(
-        "Invalid location should cause exception",
-        ValidationException.class,
-        "http://bucket/a",
-        () -> new EcsURI("http://bucket/a"));
+    Assertions.assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid ecs location: http://bucket/a");
   }
 }

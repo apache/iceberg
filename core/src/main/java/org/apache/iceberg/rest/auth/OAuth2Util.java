@@ -362,15 +362,6 @@ public class OAuth2Util {
     private final String scope;
     private volatile boolean keepRefreshed = true;
 
-    /**
-     * @deprecated will be removed in 1.3.0; use {@link AuthSession#AuthSession(Map, String, String,
-     *     String, String)} instead.
-     */
-    @Deprecated
-    public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
-      this(baseHeaders, token, tokenType, null, OAuth2Properties.CATALOG_SCOPE);
-    }
-
     public AuthSession(
         Map<String, String> baseHeaders,
         String token,
@@ -566,7 +557,7 @@ public class OAuth2Util {
         expiresAtMillis = defaultExpiresAtMillis;
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
@@ -614,7 +605,7 @@ public class OAuth2Util {
         expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 

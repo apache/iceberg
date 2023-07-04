@@ -4,6 +4,7 @@ url: jdbc
 menu:
     main:
         parent: Integrations
+        identifier: jdbc_integration
         weight: 0
 ---
 <!--

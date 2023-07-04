@@ -299,7 +299,7 @@ public class TableMetadataParser {
     return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
-  static TableMetadata fromJson(InputFile file, JsonNode node) {
+  public static TableMetadata fromJson(InputFile file, JsonNode node) {
     return fromJson(file.location(), node);
   }
 
@@ -308,7 +308,7 @@ public class TableMetadataParser {
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+  public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -420,7 +420,7 @@ public class TableMetadataParser {
       defaultSortOrderId = JsonUtil.getInt(DEFAULT_SORT_ORDER_ID, node);
       ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.builder();
       for (JsonNode sortOrder : sortOrderArray) {
-        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder));
+        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder, defaultSortOrderId));
       }
       sortOrders = sortOrdersBuilder.build();
     } else {

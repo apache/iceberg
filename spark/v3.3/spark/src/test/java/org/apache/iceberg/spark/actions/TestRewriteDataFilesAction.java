@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -89,7 +90,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
@@ -99,6 +100,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.Assert;
@@ -123,7 +125,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private String tableLocation = null;
 
   @Before
@@ -533,6 +535,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testPartialProgressEnabled() {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
+
+    table.updateProperties().set(COMMIT_NUM_RETRIES, "10").commit();
 
     List<Object[]> originalData = currentData();
     long dataSizeBefore = testDataSize(table);
@@ -1229,23 +1233,25 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testInvalidAPIUsage() {
     Table table = createTable(1);
 
+    SortOrder sortOrder = SortOrder.builderFor(table.schema()).asc("c2").build();
+
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
+        "Must use only one rewriter type",
         () -> actions().rewriteDataFiles(table).binPack().sort());
 
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
-        () -> actions().rewriteDataFiles(table).sort().binPack());
+        "Must use only one rewriter type",
+        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
 
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
-        () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+        "Must use only one rewriter type",
+        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
   }
 
   @Test
@@ -1378,7 +1384,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
-    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
+    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
         rewrite.planFileGroups(table.currentSnapshot().snapshotId());
 
     return rewrite.toGroupStream(
@@ -1675,8 +1681,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private Set<String> cacheContents(Table table) {
     return ImmutableSet.<String>builder()
-        .addAll(manager.fetchSetIDs(table))
-        .addAll(coordinator.fetchSetIDs(table))
+        .addAll(manager.fetchSetIds(table))
+        .addAll(coordinator.fetchSetIds(table))
         .build();
   }
 

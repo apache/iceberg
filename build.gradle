@@ -26,32 +26,21 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+    classpath 'com.github.johnrengelman:shadow:8.1.1'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
     // well.
-    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
-    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-    // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934
-    // So, bump checkstyle to the latest java 8 supported version(9.3) which contains the fix.
-    classpath "com.puppycrawl.tools:checkstyle:9.3"
+    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.1.0"
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.0'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.1'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
-    classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
+    classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:1.0.0'
-    classpath ('org.eclipse.jgit:org.eclipse.jgit') {
-      // gradle-git-version automatically uses a jgit version that requires JDK11
-      // so we need to enforce the latest jgit version that works with JDK8
-      version {
-        strictly('5.13.1.202206130422-r')
-      }
-    }
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
   }
 }
 
@@ -72,10 +61,36 @@ try {
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.jdkVersion = '8'
+  project.ext.extraJvmArgs = []
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
+  project.ext.extraJvmArgs = []
+} else if (JavaVersion.current() == JavaVersion.VERSION_17) {
+  project.ext.jdkVersion = '17'
+  project.ext.extraJvmArgs = ["-XX:+IgnoreUnrecognizedVMOptions",
+                              "--add-opens", "java.base/java.io=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.math=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.net=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.text=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.time=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.concurrent=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.regex=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util=ALL-UNNAMED",
+                              "--add-opens", "java.base/jdk.internal.ref=ALL-UNNAMED",
+                              "--add-opens", "java.base/jdk.internal.reflect=ALL-UNNAMED",
+                              "--add-opens", "java.sql/java.sql=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.nio.cs=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
 }
 
 apply plugin: 'com.gorylenko.gradle-git-properties'
@@ -127,7 +142,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.1.0"
+      oldVersion = "1.3.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -148,6 +163,9 @@ subprojects {
       if (rootTask.name == 'revapi') {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
+    }
+    tasks.named("revapiAnalyze").configure {
+      dependsOn(":iceberg-common:jar")
     }
   }
 
@@ -221,6 +239,8 @@ subprojects {
 
     maxHeapSize = "1500m"
 
+    jvmArgs += project.property('extraJvmArgs')
+
     testLogging {
       events "failed"
       exceptionFormat "full"
@@ -275,6 +295,10 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -429,6 +453,9 @@ project(':iceberg-aliyun') {
 }
 
 project(':iceberg-aws') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -473,6 +500,7 @@ project(':iceberg-aws') {
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
     testImplementation 'org.mock-server:mockserver-netty'
     testImplementation 'org.mock-server:mockserver-client-java'
+    testImplementation 'javax.xml.bind:jaxb-api'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
@@ -493,6 +521,7 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
@@ -511,6 +540,8 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
     implementation "com.fasterxml.jackson.core:jackson-databind"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     compileOnly "io.delta:delta-standalone_${scalaVersion}"
 
@@ -534,7 +565,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.2") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
@@ -561,12 +592,17 @@ project(':iceberg-delta-lake') {
     task integrationTest(type: Test) {
       testClassesDirs = sourceSets.integration.output.classesDirs
       classpath = sourceSets.integration.runtimeClasspath
+      jvmArgs += project.property('extraJvmArgs')
     }
     check.dependsOn integrationTest
   }
 }
 
 project(':iceberg-gcp') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -596,6 +632,8 @@ project(':iceberg-hive-metastore') {
     implementation project(':iceberg-core')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     implementation "com.github.ben-manes.caffeine:caffeine"
 
@@ -659,6 +697,9 @@ project(':iceberg-hive-metastore') {
 }
 
 project(':iceberg-orc') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -716,6 +757,9 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -753,6 +797,10 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-pig') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -782,8 +830,23 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  test {
-    useJUnitPlatform()
+  if (JavaVersion.current().isJava11Compatible()) {
+    test {
+      useJUnitPlatform()
+    }
+    compileTestJava {
+      sourceCompatibility = "11"
+      targetCompatibility = "11"
+    }
+  } else {
+    // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
+    // which require Java 11+.
+    test {
+      enabled = false
+    }
+    compileTestJava {
+      enabled = false
+    }
   }
 
   dependencies {
@@ -791,29 +854,36 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie:nessie-client"
+    implementation "org.projectnessie.nessie:nessie-client"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
-    // Need to "pull in" el-api explicitly :(
-    testImplementation "jakarta.el:jakarta.el-api"
-
     compileOnly "org.apache.hadoop:hadoop-common"
-    testImplementation "org.apache.avro:avro"
-
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
-    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
+
+    if (JavaVersion.current().isJava11Compatible()) {
+      testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
+      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-inmemory"
+      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-testextension"
+      // Need to "pull in" el-api explicitly :(
+      testImplementation "jakarta.el:jakarta.el-api"
+
+      testImplementation "org.apache.avro:avro"
+
+      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+
+      // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+    }
   }
 }
 
 project(':iceberg-dell') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')

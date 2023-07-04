@@ -58,6 +58,12 @@ import org.apache.spark.sql.types.StructField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A Spark strategy to zOrder data.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SparkZOrderDataRewriter} instead.
+ */
+@Deprecated
 public class SparkZOrderStrategy extends SparkSortStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderStrategy.class);
 
@@ -214,7 +220,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, groupID)
               .load(groupID);
 
       Column[] originalColumns =

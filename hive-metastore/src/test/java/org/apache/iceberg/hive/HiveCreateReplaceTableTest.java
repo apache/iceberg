@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -37,6 +36,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -97,11 +97,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
     Assert.assertTrue("Table should be created", catalog.tableExists(TABLE_IDENTIFIER));
 
-    AssertHelpers.assertThrows(
-        "Create table txn should fail",
-        AlreadyExistsException.class,
-        "Table already exists: hivedb.tbl",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: hivedb.tbl");
   }
 
   @Test
@@ -137,13 +135,12 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
     Assert.assertTrue("Table should be created", catalog.tableExists(TABLE_IDENTIFIER));
 
-    AssertHelpers.assertThrows(
-        "Should not be possible to start a new create table txn",
-        AlreadyExistsException.class,
-        "Table already exists: hivedb.tbl",
-        () ->
-            catalog.newCreateTableTransaction(
-                TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap()));
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.newCreateTableTransaction(
+                    TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: hivedb.tbl");
   }
 
   @Test
@@ -162,11 +159,10 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
   @Test
   public void testReplaceTableTxnTableNotExists() {
-    AssertHelpers.assertThrows(
-        "Should not be possible to start a new replace table txn",
-        NoSuchTableException.class,
-        "Table does not exist: hivedb.tbl",
-        () -> catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, false));
+    Assertions.assertThatThrownBy(
+            () -> catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, false))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: hivedb.tbl");
   }
 
   @Test
@@ -180,11 +176,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
     txn.updateProperties().set("prop", "value").commit();
 
-    AssertHelpers.assertThrows(
-        "Replace table txn should fail",
-        NoSuchTableException.class,
-        "No such table: hivedb.tbl",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("No such table: hivedb.tbl");
   }
 
   @Test

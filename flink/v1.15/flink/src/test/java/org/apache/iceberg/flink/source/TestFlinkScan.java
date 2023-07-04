@@ -88,7 +88,12 @@ public abstract class TestFlinkScan {
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
 
-  protected abstract List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception;
+  protected abstract List<Row> runWithFilter(
+      Expression filter, String sqlFilter, boolean caseSensitive) throws Exception;
+
+  protected List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception {
+    return runWithFilter(filter, sqlFilter, true);
+  }
 
   protected abstract List<Row> runWithOptions(Map<String, String> options) throws Exception;
 
@@ -409,7 +414,7 @@ public abstract class TestFlinkScan {
   }
 
   @Test
-  public void testFilterExp() throws Exception {
+  public void testFilterExpPartition() throws Exception {
     Table table =
         catalogResource
             .catalog()
@@ -428,9 +433,41 @@ public abstract class TestFlinkScan {
             RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
     TestHelpers.assertRecords(
-        runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
+        runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'", true),
         expectedRecords,
         TestFixtures.SCHEMA);
+  }
+
+  private void testFilterExp(Expression filter, String sqlFilter, boolean caseSensitive)
+      throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
+    expectedRecords.get(0).set(0, "a");
+    expectedRecords.get(1).set(0, "b");
+    expectedRecords.get(2).set(0, "c");
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    DataFile dataFile = helper.writeFile(expectedRecords);
+    helper.appendToTable(dataFile);
+
+    List<Row> actual =
+        runWithFilter(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+
+    TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testFilterExp() throws Exception {
+    testFilterExp(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+  }
+
+  @Test
+  public void testFilterExpCaseInsensitive() throws Exception {
+    // sqlFilter does not support case-insensitive filtering:
+    // https://issues.apache.org/jira/browse/FLINK-16175
+    testFilterExp(Expressions.greaterThanOrEqual("DATA", "b"), "where data>='b'", false);
   }
 
   @Test

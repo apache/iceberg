@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0621
-"""
-Avro reader for reading Avro files
-"""
+"""Avro reader for reading Avro files."""
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from enum import Enum
 from types import TracebackType
 from typing import (
     Callable,
@@ -77,7 +76,7 @@ class AvroFileHeader(Record):
         """Get the file's compression codec algorithm from the file's metadata.
 
         In the case of a null codec, we return a None indicating that we
-        don't need to compress/decompress
+        don't need to compress/decompress.
         """
         codec_name = self.meta.get(_CODEC_KEY, "null")
         if codec_name not in KNOWN_CODECS:
@@ -105,12 +104,14 @@ class Block(Generic[D]):
     position: int = 0
 
     def __iter__(self) -> Block[D]:
+        """Returns an iterator for the Block class."""
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
     def __next__(self) -> D:
+        """Returns the next item when iterating over the Block class."""
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
@@ -121,6 +122,7 @@ class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
     read_types: Dict[int, Callable[..., StructProtocol]]
+    read_enums: Dict[int, Callable[..., Enum]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -134,15 +136,15 @@ class AvroFile(Generic[D]):
         input_file: InputFile,
         read_schema: Optional[Schema] = None,
         read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
+        read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
     ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
         self.read_types = read_types
+        self.read_enums = read_enums
 
     def __enter__(self) -> AvroFile[D]:
-        """
-        Opens the file and reads the header and generates
-        a reader tree to start reading the payload
+        """Generates a reader tree for the payload within an avro file.
 
         Returns:
             A generator returning the AvroStructs
@@ -154,16 +156,18 @@ class AvroFile(Generic[D]):
         if not self.read_schema:
             self.read_schema = self.schema
 
-        self.reader = resolve(self.schema, self.read_schema, self.read_types)
+        self.reader = resolve(self.schema, self.read_schema, self.read_types, self.read_enums)
 
         return self
 
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
+        """Performs cleanup when exiting the scope of a 'with' statement."""
         self.input_stream.close()
 
     def __iter__(self) -> AvroFile[D]:
+        """Returns an iterator for the AvroFile class."""
         return self
 
     def _read_block(self) -> int:
@@ -185,6 +189,7 @@ class AvroFile(Generic[D]):
         return block_records
 
     def __next__(self) -> D:
+        """Returns the next item when iterating over the AvroFile class."""
         if self.block and self.block.has_next():
             return next(self.block)
 

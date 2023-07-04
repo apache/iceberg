@@ -33,14 +33,15 @@ class ViewRepresentationParser {
   static void toJson(ViewRepresentation representation, JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(representation != null, "Invalid view representation: null");
-    switch (representation.type()) {
+    switch (representation.type().toLowerCase(Locale.ENGLISH)) {
       case ViewRepresentation.Type.SQL:
         SQLViewRepresentationParser.toJson((SQLViewRepresentation) representation, generator);
         break;
 
       default:
-        throw new IllegalArgumentException(
-            String.format("Cannot serialize view representation type: %s", representation.type()));
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot serialize unsupported view representation: %s", representation.type()));
     }
   }
 

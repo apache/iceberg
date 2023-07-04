@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
  - contributor license agreements.  See the NOTICE file distributed with
@@ -21,21 +26,21 @@ The goal is that the python library will provide a functional, performant subset
 
 ## Metadata
 
-| Operation                | Java  | Python |
-|:-------------------------|:-----:|:------:|
-| Get Schema               |    X  |   X    |
-| Get Snapshots            |    X  |   X    |
-| Plan Scan                |    X  |   X    |
-| Plan Scan for Snapshot   |    X  |   X    |
-| Update Current Snapshot  |    X  |        |
-| Create Table             |    X  |   X    |
-| Rename Table             |    X  |   X    |
-| Drop Table               |    X  |   X    |
-| Alter Table              |    X  |        |
-| Set Table Properties     |    X  |        |
-| Create Namespace         |    X  |   X    |
-| Drop Namespace           |    X  |   X    |
-| Set Namespace Properties |    X  |   X    |
+| Operation                | Java | Python |
+| :----------------------- | :--: | :----: |
+| Get Schema               |  X   |   X    |
+| Get Snapshots            |  X   |   X    |
+| Plan Scan                |  X   |   X    |
+| Plan Scan for Snapshot   |  X   |   X    |
+| Update Current Snapshot  |  X   |        |
+| Create Table             |  X   |   X    |
+| Rename Table             |  X   |   X    |
+| Drop Table               |  X   |   X    |
+| Alter Table              |  X   |        |
+| Set Table Properties     |  X   |        |
+| Create Namespace         |  X   |   X    |
+| Drop Namespace           |  X   |   X    |
+| Set Namespace Properties |  X   |   X    |
 
 ## Types
 

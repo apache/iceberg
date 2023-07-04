@@ -18,36 +18,38 @@
  */
 package org.apache.iceberg;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestSnapshotRef {
 
   @Test
   public void testTagDefault() {
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.TAG, ref.type());
-    Assert.assertNull(ref.minSnapshotsToKeep());
-    Assert.assertNull(ref.maxSnapshotAgeMs());
-    Assert.assertNull(ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.TAG);
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
+    assertThat(ref.maxRefAgeMs()).isNull();
   }
 
   @Test
   public void testBranchDefault() {
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertNull(ref.minSnapshotsToKeep());
-    Assert.assertNull(ref.maxSnapshotAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
   }
 
   @Test
   public void testTagWithOverride() {
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).maxRefAgeMs(10L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertEquals(10L, (long) ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat((long) ref.maxRefAgeMs()).isEqualTo(10L);
   }
 
   @Test
@@ -58,61 +60,48 @@ public class TestSnapshotRef {
             .maxSnapshotAgeMs(20L)
             .maxRefAgeMs(30L)
             .build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertEquals(10, (int) ref.minSnapshotsToKeep());
-    Assert.assertEquals(20L, (long) ref.maxSnapshotAgeMs());
-    Assert.assertEquals(30L, (long) ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat((int) ref.minSnapshotsToKeep()).isEqualTo(10);
+    assertThat((long) ref.maxSnapshotAgeMs()).isEqualTo(20L);
+    assertThat((long) ref.maxRefAgeMs()).isEqualTo(30L);
   }
 
   @Test
   public void testNoTypeFailure() {
-    AssertHelpers.assertThrows(
-        "Snapshot reference type must be specified",
-        IllegalArgumentException.class,
-        "Snapshot reference type must not be null",
-        () -> SnapshotRef.builderFor(1L, null).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.builderFor(1L, null).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshot reference type must not be null");
   }
 
   @Test
   public void testTagBuildFailures() {
-    AssertHelpers.assertThrows(
-        "Max reference age must be greater than 0 for tag",
-        IllegalArgumentException.class,
-        "Max reference age must be greater than 0",
-        () -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Max reference age must be greater than 0");
 
-    AssertHelpers.assertThrows(
-        "Tags do not support setting minSnapshotsToKeep",
-        IllegalArgumentException.class,
-        "Tags do not support setting minSnapshotsToKeep",
-        () -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tags do not support setting minSnapshotsToKeep");
 
-    AssertHelpers.assertThrows(
-        "Tags do not support setting maxSnapshotAgeMs",
-        IllegalArgumentException.class,
-        "Tags do not support setting maxSnapshotAgeMs",
-        () -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tags do not support setting maxSnapshotAgeMs");
   }
 
   @Test
   public void testBranchBuildFailures() {
-    AssertHelpers.assertThrows(
-        "Max snapshot age must be greater than 0",
-        IllegalArgumentException.class,
-        "Max snapshot age must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Max snapshot age must be greater than 0 ms");
 
-    AssertHelpers.assertThrows(
-        "Min snapshots to keep must be greater than 0",
-        IllegalArgumentException.class,
-        "Min snapshots to keep must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build());
+    Assertions.assertThatThrownBy(
+            () -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Min snapshots to keep must be greater than 0");
 
-    AssertHelpers.assertThrows(
-        "Max reference age must be greater than 0 for branch",
-        IllegalArgumentException.class,
-        "Max reference age must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build());
+    Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Max reference age must be greater than 0");
   }
 }

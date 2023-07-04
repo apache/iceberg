@@ -21,7 +21,7 @@ package org.apache.iceberg.io;
 import java.io.Closeable;
 import java.io.IOException;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class TestCloseableGroup {

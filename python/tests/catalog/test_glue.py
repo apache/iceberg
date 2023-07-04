@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 from typing import List
+from unittest import mock
 
 import pytest
 from moto import mock_glue
@@ -421,3 +422,22 @@ def test_update_namespace_properties_overlap_update_removal(
         test_catalog.update_namespace_properties(database_name, removals, updates)
     # should not modify the properties
     assert test_catalog.load_namespace_properties(database_name) == test_properties
+
+
+@mock_glue
+def test_passing_profile_name() -> None:
+    session_properties = {
+        "aws_secret_key_id": "abc",
+        "aws_secret_access_key": "def",
+        "aws_session_token": "ghi",
+        "region_name": "eu-central-1",
+        "profile_name": "sandbox",
+    }
+    test_properties = {"type": "glue"}
+    test_properties.update(session_properties)
+
+    with mock.patch("boto3.Session") as mock_session:
+        test_catalog = GlueCatalog("glue", **test_properties)
+
+    mock_session.assert_called_with(**session_properties)
+    assert test_catalog.glue is mock_session().client()

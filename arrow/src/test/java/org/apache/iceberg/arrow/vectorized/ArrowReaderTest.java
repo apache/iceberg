@@ -19,11 +19,11 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
@@ -84,10 +85,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.assertj.core.api.Assertions;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Test cases for {@link ArrowReader}.
@@ -123,14 +123,19 @@ public class ArrowReaderTest {
           "time",
           "time_nullable",
           "uuid",
-          "uuid_nullable");
-
-  @Rule public final TemporaryFolder temp = new TemporaryFolder();
+          "uuid_nullable",
+          "decimal",
+          "decimal_nullable");
+  @TempDir private File tempDir;
 
   private HadoopTables tables;
-
   private String tableLocation;
   private List<GenericRecord> rowsWritten;
+
+  @BeforeEach
+  public void before() {
+    tableLocation = tempDir.toURI().toString();
+  }
 
   /**
    * Read all rows and columns from the table without any filter. The test asserts that the Arrow
@@ -149,67 +154,11 @@ public class ArrowReaderTest {
   /**
    * This test writes each partition with constant value rows. The Arrow vectors returned are mostly
    * of type int32 which is unexpected. This is happening because of dictionary encoding at the
-   * storage level.
-   *
-   * <p>Following are the expected and actual Arrow schema:
-   *
-   * <pre>
-   * Expected Arrow Schema:
-   * timestamp: Timestamp(MICROSECOND, null) not null,
-   * timestamp_nullable: Timestamp(MICROSECOND, null),
-   * boolean: Bool not null,
-   * boolean_nullable: Bool,
-   * int: Int(32, true) not null,
-   * int_nullable: Int(32, true),
-   * long: Int(64, true) not null,
-   * long_nullable: Int(64, true),
-   * float: FloatingPoint(SINGLE) not null,
-   * float_nullable: FloatingPoint(SINGLE),
-   * double: FloatingPoint(DOUBLE) not null,
-   * double_nullable: FloatingPoint(DOUBLE),
-   * timestamp_tz: Timestamp(MICROSECOND, UTC) not null,
-   * timestamp_tz_nullable: Timestamp(MICROSECOND, UTC),
-   * string: Utf8 not null,
-   * string_nullable: Utf8,
-   * bytes: Binary not null,
-   * bytes_nullable: Binary,
-   * date: Date(DAY) not null,
-   * date_nullable: Date(DAY),
-   * int_promotion: Int(32, true) not null
-   *
-   * Actual Arrow Schema:
-   * timestamp: Int(32, true) not null,
-   * timestamp_nullable: Int(32, true),
-   * boolean: Bool not null,
-   * boolean_nullable: Bool,
-   * int: Int(32, true) not null,
-   * int_nullable: Int(32, true),
-   * long: Int(32, true) not null,
-   * long_nullable: Int(32, true),
-   * float: Int(32, true) not null,
-   * float_nullable: Int(32, true),
-   * double: Int(32, true) not null,
-   * double_nullable: Int(32, true),
-   * timestamp_tz: Int(32, true) not null,
-   * timestamp_tz_nullable: Int(32, true),
-   * string: Int(32, true) not null,
-   * string_nullable: Int(32, true),
-   * bytes: Int(32, true) not null,
-   * bytes_nullable: Int(32, true),
-   * date: Date(DAY) not null,
-   * date_nullable: Date(DAY),
-   * int_promotion: Int(32, true) not null
-   * </pre>
-   *
-   * <p>TODO: fix the returned Arrow vectors to have vector types consistent with Iceberg types.
-   *
-   * <p>Read all rows and columns from the table without any filter. The test asserts that the Arrow
-   * {@link VectorSchemaRoot} contains the expected schema and expected vector types. Then the test
-   * asserts that the vectors contains expected values. The test also asserts the total number of
-   * rows match the expected value.
+   * storage level. The test asserts that the Arrow {@link VectorSchemaRoot} contains the expected
+   * schema and expected vector types. Then the test asserts that the vectors contains expected
+   * values. The test also asserts the total number of rows match the expected value.
    */
   @Test
-  @Ignore
   public void testReadAllWithConstantRecords() throws Exception {
     writeTableWithConstantRecords();
     Table table = tables.load(tableLocation);
@@ -278,7 +227,7 @@ public class ArrowReaderTest {
         numRoots++;
       }
     }
-    assertEquals(0, numRoots);
+    assertThat(numRoots).isZero();
   }
 
   /**
@@ -375,14 +324,14 @@ public class ArrowReaderTest {
       for (ColumnarBatch batch : itr) {
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
         checkAllVectorTypes(root, columnSet);
         checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
         rowIndex += numRowsPerRoot;
         totalRows += root.getRowCount();
       }
     }
-    assertEquals(expectedTotalRows, totalRows);
+    assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
   private void readAndCheckHasNextIsIdempotent(
@@ -402,12 +351,12 @@ public class ArrowReaderTest {
         // Call hasNext() a few extra times.
         // This should not affect the total number of rows read.
         for (int i = 0; i < numExtraCallsToHasNext; i++) {
-          assertTrue(iterator.hasNext());
+          assertThat(iterator).hasNext();
         }
 
         ColumnarBatch batch = iterator.next();
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
         checkAllVectorTypes(root, columnSet);
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
         checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
@@ -415,7 +364,7 @@ public class ArrowReaderTest {
         totalRows += root.getRowCount();
       }
     }
-    assertEquals(expectedTotalRows, totalRows);
+    assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
   @SuppressWarnings("MethodLength")
@@ -431,8 +380,8 @@ public class ArrowReaderTest {
     }
     Set<String> columnSet = columnNameToIndex.keySet();
 
-    assertEquals(expectedNumRows, batch.numRows());
-    assertEquals(columns.size(), batch.numCols());
+    assertThat(batch.numRows()).isEqualTo(expectedNumRows);
+    assertThat(batch.numCols()).isEqualTo(columns.size());
 
     checkColumnarArrayValues(
         expectedNumRows,
@@ -665,6 +614,26 @@ public class ArrowReaderTest {
         "time_nullable",
         (records, i) -> records.get(i).getField("time_nullable"),
         (array, i) -> LocalTime.ofNanoOfDay(array.getLong(i) * 1000));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("decimal"),
+        columnSet,
+        "decimal",
+        (records, i) -> records.get(i).getField("decimal"),
+        (array, i) -> array.getDecimal(i, 9, 2));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("decimal_nullable"),
+        columnSet,
+        "decimal_nullable",
+        (records, i) -> records.get(i).getField("decimal_nullable"),
+        (array, i) -> array.getDecimal(i, 9, 2));
   }
 
   private static void checkColumnarArrayValues(
@@ -700,7 +669,7 @@ public class ArrowReaderTest {
   private void writeTable(boolean constantRecords) throws Exception {
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
-    tableLocation = temp.newFolder("test").toString();
+    tableLocation = tempDir.toURI().toString();
 
     Schema schema =
         new Schema(
@@ -728,7 +697,9 @@ public class ArrowReaderTest {
             Types.NestedField.required(22, "time", Types.TimeType.get()),
             Types.NestedField.optional(23, "time_nullable", Types.TimeType.get()),
             Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
-            Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()));
+            Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
+            Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
+            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
@@ -809,7 +780,10 @@ public class ArrowReaderTest {
             new Field(
                 "uuid_nullable",
                 new FieldType(true, new ArrowType.FixedSizeBinary(16), null),
-                null));
+                null),
+            new Field("decimal", new FieldType(false, new ArrowType.Decimal(9, 2), null), null),
+            new Field(
+                "decimal_nullable", new FieldType(true, new ArrowType.Decimal(9, 2), null), null));
     List<Field> filteredFields =
         allFields.stream()
             .filter(f -> columnSet.contains(f.getName()))
@@ -851,6 +825,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("decimal", new BigDecimal("14.0" + i % 10));
+      rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
       records.add(rec);
     }
     return records;
@@ -888,6 +864,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("decimal", new BigDecimal("14.20"));
+      rec.setField("decimal_nullable", new BigDecimal("14.20"));
       records.add(rec);
     }
     return records;
@@ -895,8 +873,8 @@ public class ArrowReaderTest {
 
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
     rowsWritten.addAll(records);
-    File parquetFile = temp.newFile();
-    assertTrue(parquetFile.delete());
+    File parquetFile = File.createTempFile("junit", null, tempDir);
+    assertThat(parquetFile.delete()).isTrue();
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(table.schema())
@@ -966,12 +944,14 @@ public class ArrowReaderTest {
     assertEqualsForField(root, columnSet, "uuid", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "uuid_nullable", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
+    assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
   }
 
   private void assertEqualsForField(
       VectorSchemaRoot root, Set<String> columnSet, String columnName, Class<?> expected) {
     if (columnSet.contains(columnName)) {
-      assertEquals(expected, root.getVector(columnName).getClass());
+      assertThat(root.getVector(columnName).getClass()).isEqualTo(expected);
     }
   }
 
@@ -981,7 +961,7 @@ public class ArrowReaderTest {
       List<GenericRecord> expectedRows,
       VectorSchemaRoot root,
       Set<String> columnSet) {
-    assertEquals(expectedNumRows, root.getRowCount());
+    assertThat(root.getRowCount()).isEqualTo(expectedNumRows);
 
     checkVectorValues(
         expectedNumRows,
@@ -1188,6 +1168,24 @@ public class ArrowReaderTest {
         "time_nullable",
         (records, i) -> records.get(i).getField("time_nullable"),
         (vector, i) -> LocalTime.ofNanoOfDay(((TimeMicroVector) vector).get(i) * 1000));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "decimal",
+        (records, i) -> records.get(i).getField("decimal"),
+        (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "decimal_nullable",
+        (records, i) -> records.get(i).getField("decimal_nullable"),
+        (vector, i) -> ((DecimalVector) vector).getObject(i));
   }
 
   private static void checkVectorValues(
@@ -1200,7 +1198,7 @@ public class ArrowReaderTest {
       BiFunction<FieldVector, Integer, Object> vectorValueExtractor) {
     if (columnSet.contains(columnName)) {
       FieldVector vector = root.getVector(columnName);
-      assertEquals(expectedNumRows, vector.getValueCount());
+      assertThat(vector.getValueCount()).isEqualTo(expectedNumRows);
       for (int i = 0; i < expectedNumRows; i++) {
         Object expectedValue = expectedValueExtractor.apply(expectedRows, i);
         Object actualValue = vectorValueExtractor.apply(vector, i);

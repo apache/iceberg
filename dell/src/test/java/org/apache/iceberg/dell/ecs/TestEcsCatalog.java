@@ -19,10 +19,10 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -128,33 +128,35 @@ public class TestEcsCatalog {
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
 
-    AssertHelpers.assertThrows(
-        "Drop an unknown namespace should throw exception",
-        NoSuchNamespaceException.class,
-        () -> ecsCatalog.dropNamespace(Namespace.of("unknown")));
+    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("unknown")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace unknown does not exist");
 
-    AssertHelpers.assertThrows(
-        "Drop not empty namespace should throw exception",
-        NamespaceNotEmptyException.class,
-        () -> ecsCatalog.dropNamespace(Namespace.of("a")));
+    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace a is not empty");
 
-    Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
+    assertThat(ecsCatalog.dropNamespace(Namespace.of("a", "b1")))
+        .as("Drop namespace [a, b1]")
+        .isTrue();
 
-    Assert.assertFalse(
-        "The [a, b1] is absent", ecsCatalog.namespaceExists(Namespace.of("a", "b1")));
-    Assert.assertTrue(
-        "The [a, b1] is not in list result of [a]",
-        ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
+    assertThat(ecsCatalog.namespaceExists(Namespace.of("a", "b1")))
+        .as("The [a, b1] is absent")
+        .isFalse();
+    assertThat(ecsCatalog.listNamespaces(Namespace.of("a")))
+        .as("The [a, b1] is not in list result of [a]")
+        .isEmpty();
   }
 
   @Test
   public void testDropTable() {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 
-    Assert.assertFalse(
-        "Drop an unknown table return false", ecsCatalog.dropTable(TableIdentifier.of("unknown")));
+    assertThat(ecsCatalog.dropTable(TableIdentifier.of("unknown")))
+        .as("Drop an unknown table return false")
+        .isFalse();
 
-    Assert.assertTrue("Drop a table", ecsCatalog.dropTable(TableIdentifier.of("a"), true));
+    assertThat(ecsCatalog.dropTable(TableIdentifier.of("a"), true)).as("Drop a table").isTrue();
   }
 
   @Test
@@ -163,23 +165,28 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
     ecsCatalog.createNamespace(Namespace.of("b"));
 
-    AssertHelpers.assertThrows(
-        "Rename an unknown table should throw exception",
-        NoSuchTableException.class,
-        () -> ecsCatalog.renameTable(TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")));
+    Assertions.assertThatThrownBy(
+            () ->
+                ecsCatalog.renameTable(
+                    TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Cannot rename table because table unknown does not exist");
 
-    AssertHelpers.assertThrows(
-        "Rename to an unknown namespace should throw exception",
-        NoSuchNamespaceException.class,
-        () ->
-            ecsCatalog.renameTable(
-                TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
+    Assertions.assertThatThrownBy(
+            () ->
+                ecsCatalog.renameTable(
+                    TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Cannot rename a.t1 to unknown.t2 because namespace unknown does not exist");
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 
-    Assert.assertFalse(
-        "Old table does not exist", ecsCatalog.tableExists(TableIdentifier.of("a", "t1")));
-    Assert.assertTrue("New table exists", ecsCatalog.tableExists(TableIdentifier.of("b", "t2")));
+    assertThat(ecsCatalog.tableExists(TableIdentifier.of("a", "t1")))
+        .as("Old table does not exist")
+        .isFalse();
+    assertThat(ecsCatalog.tableExists(TableIdentifier.of("b", "t2")))
+        .as("New table exists")
+        .isTrue();
   }
 
   @Test

@@ -22,10 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -77,7 +78,7 @@ public class TestManifestWriterVersions {
 
   private static final DataFile DATA_FILE =
       new GenericDataFile(
-          0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS, SORT_ORDER_ID);
+          0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS, null, SORT_ORDER_ID);
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] {1};
@@ -93,6 +94,7 @@ public class TestManifestWriterVersions {
           METRICS,
           EQUALITY_ID_ARR,
           SORT_ORDER_ID,
+          null,
           null);
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
@@ -110,11 +112,9 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV1WriteDelete() {
-    AssertHelpers.assertThrows(
-        "Should fail to write a delete manifest for v1",
-        IllegalArgumentException.class,
-        "Cannot write delete files in a v1 table",
-        () -> writeDeleteManifest(1));
+    Assertions.assertThatThrownBy(() -> writeDeleteManifest(1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot write delete files in a v1 table");
   }
 
   @Test

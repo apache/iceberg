@@ -21,24 +21,33 @@ package org.apache.iceberg.spark;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestSparkSessionCatalog extends SparkTestBase {
-  @Test
-  public void testValidateHmsUri() {
-    String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
-    String catalogHmsUriKey = "spark.sql.catalog.spark_catalog.uri";
-    String hmsUri = hiveConf.get(METASTOREURIS.varname);
+  private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
+  private final String catalogHmsUriKey = "spark.sql.catalog.spark_catalog.uri";
+  private final String hmsUri = hiveConf.get(METASTOREURIS.varname);
 
+  @BeforeClass
+  public static void setUpCatalog() {
     spark
         .conf()
         .set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
+  }
 
-    // HMS uris match
+  @Before
+  public void setupHmsUri() {
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().set(catalogHmsUriKey, hmsUri);
+  }
+
+  @Test
+  public void testValidateHmsUri() {
+    // HMS uris match
     Assert.assertTrue(
         spark
             .sessionState()
@@ -85,5 +94,20 @@ public class TestSparkSessionCatalog extends SparkTestBase {
             .v2SessionCatalog()
             .defaultNamespace()[0]
             .equals("default"));
+  }
+
+  @Test
+  public void testLoadFunction() {
+    String functionClass = "org.apache.hadoop.hive.ql.udf.generic.GenericUDFUpper";
+
+    // load permanent UDF in Hive via FunctionCatalog
+    spark.sql(String.format("CREATE FUNCTION perm_upper AS '%s'", functionClass));
+    Assert.assertEquals("Load permanent UDF in Hive", "XYZ", scalarSql("SELECT perm_upper('xyz')"));
+
+    // load temporary UDF in Hive via FunctionCatalog
+    spark.sql(String.format("CREATE TEMPORARY FUNCTION temp_upper AS '%s'", functionClass));
+    Assert.assertEquals("Load temporary UDF in Hive", "XYZ", scalarSql("SELECT temp_upper('xyz')"));
+
+    // TODO: fix loading Iceberg built-in functions in SessionCatalog
   }
 }

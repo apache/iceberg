@@ -45,7 +45,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -63,6 +62,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -86,12 +86,12 @@ public class TestS3OutputStream {
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
   private final String newTmpDirectory = "/tmp/newStagingDirectory";
 
-  private final AwsProperties properties =
-      new AwsProperties(
+  private final S3FileIOProperties properties =
+      new S3FileIOProperties(
           ImmutableMap.of(
-              AwsProperties.S3FILEIO_MULTIPART_SIZE,
+              S3FileIOProperties.MULTIPART_SIZE,
               Integer.toString(5 * 1024 * 1024),
-              AwsProperties.S3FILEIO_STAGING_DIRECTORY,
+              S3FileIOProperties.STAGING_DIRECTORY,
               tmpDir.toString(),
               "s3.write.tags.abc",
               "123",
@@ -104,8 +104,8 @@ public class TestS3OutputStream {
 
   @Before
   public void before() {
-    properties.setS3ChecksumEnabled(false);
-    s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+    properties.setChecksumEnabled(false);
+    createBucket(BUCKET);
   }
 
   @After
@@ -168,9 +168,9 @@ public class TestS3OutputStream {
 
   @Test
   public void testStagingDirectoryCreation() throws IOException {
-    AwsProperties newStagingDirectoryAwsProperties =
-        new AwsProperties(
-            ImmutableMap.of(AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
+    S3FileIOProperties newStagingDirectoryAwsProperties =
+        new S3FileIOProperties(
+            ImmutableMap.of(S3FileIOProperties.STAGING_DIRECTORY, newTmpDirectory));
     S3OutputStream stream =
         new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
@@ -178,7 +178,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testWriteWithChecksumEnabled() {
-    properties.setS3ChecksumEnabled(true);
+    properties.setChecksumEnabled(true);
     writeTest();
   }
 
@@ -247,7 +247,7 @@ public class TestS3OutputStream {
 
   private void checkUploadPartRequestContent(
       byte[] data, ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<UploadPartRequest> uploadPartRequests =
           uploadPartRequestArgumentCaptor.getAllValues().stream()
               .sorted(Comparator.comparingInt(UploadPartRequest::partNumber))
@@ -262,17 +262,17 @@ public class TestS3OutputStream {
 
   private void checkPutObjectRequestContent(
       byte[] data, ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
     }
   }
 
   private void checkTags(ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       String tagging = putObjectRequests.get(0).tagging();
-      assertEquals(getTags(properties.s3WriteTags()), tagging);
+      assertEquals(getTags(properties.writeTags()), tagging);
     }
   }
 
@@ -334,5 +334,13 @@ public class TestS3OutputStream {
 
   private S3URI randomURI() {
     return new S3URI(String.format("s3://%s/data/%s.dat", BUCKET, UUID.randomUUID()));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // do nothing
+    }
   }
 }

@@ -89,16 +89,25 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>This supports the following catalog configuration options:
  *
  * <ul>
- *   <li><code>type</code> - catalog type, "hive" or "hadoop". To specify a non-hive or hadoop
- *       catalog, use the <code>catalog-impl</code> option.
- *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)
+ *   <li><code>type</code> - catalog type, "hive" or "hadoop" or "rest". To specify a non-hive or
+ *       hadoop catalog, use the <code>catalog-impl</code> option.
+ *   <li><code>uri</code> - the Hive Metastore URI for Hive catalog or REST URI for REST catalog
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)
  *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use
+ *   <li><code>io-impl</code> - a custom {@link org.apache.iceberg.io.FileIO} implementation to use
+ *   <li><code>metrics-reporter-impl</code> - a custom {@link
+ *       org.apache.iceberg.metrics.MetricsReporter} implementation to use
  *   <li><code>default-namespace</code> - a namespace to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
+ *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
+ *       identifiers in a case sensitive way
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from
  *       catalog cache. Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further
  *       details and significant values.
+ *   <li><code>table-default.$tablePropertyKey</code> - table property $tablePropertyKey default at
+ *       catalog level
+ *   <li><code>table-override.$tablePropertyKey</code> - table property $tablePropertyKey enforced
+ *       at catalog level
  * </ul>
  *
  * <p>
@@ -172,7 +181,12 @@ public class SparkCatalog extends BaseCatalog {
         ValidationException.check(
             ref != null,
             "Cannot find matching snapshot ID or reference name for version " + version);
-        return sparkTable.copyWithSnapshotId(ref.snapshotId());
+
+        if (ref.isBranch()) {
+          return sparkTable.copyWithBranch(version);
+        } else {
+          return sparkTable.copyWithSnapshotId(ref.snapshotId());
+        }
       }
 
     } else if (table instanceof SparkChangelogTable) {
@@ -517,6 +531,12 @@ public class SparkCatalog extends BaseCatalog {
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
+    boolean cacheCaseSensitive =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            CatalogProperties.CACHE_CASE_SENSITIVE,
+            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
             options,
@@ -538,7 +558,9 @@ public class SparkCatalog extends BaseCatalog {
     this.tables =
         new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
     this.icebergCatalog =
-        cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
+        cacheEnabled
+            ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)
+            : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {
@@ -659,10 +681,7 @@ public class SparkCatalog extends BaseCatalog {
 
       Matcher branch = BRANCH.matcher(ident.name());
       if (branch.matches()) {
-        Snapshot branchSnapshot = table.snapshot(branch.group(1));
-        if (branchSnapshot != null) {
-          return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
-        }
+        return new SparkTable(table, branch.group(1), !cacheEnabled);
       }
 
       Matcher tag = TAG.matcher(ident.name());
@@ -759,10 +778,7 @@ public class SparkCatalog extends BaseCatalog {
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
 
     } else if (branch != null) {
-      Snapshot branchSnapshot = table.snapshot(branch);
-      Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
-      return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+      return new SparkTable(table, branch, !cacheEnabled);
 
     } else if (tag != null) {
       Snapshot tagSnapshot = table.snapshot(tag);

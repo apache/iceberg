@@ -44,7 +44,7 @@ def fixture_glue_client() -> boto3.client:
 
 @pytest.fixture(name="test_catalog", scope="module")
 def fixture_test_catalog() -> Generator[Catalog, None, None]:
-    """The pre- and post-setting of aws integration test"""
+    """The pre- and post-setting of aws integration test."""
     test_catalog = GlueCatalog("glue", warehouse=get_s3_path(get_bucket_name()))
     yield test_catalog
     clean_up(test_catalog)

@@ -25,7 +25,6 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -87,7 +86,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, fullTableName(name(), identifier));
+    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override
@@ -202,7 +201,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
     }
 
     @Override
@@ -308,11 +307,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   private MetricsReporter metricsReporter() {
     if (metricsReporter == null) {
-      metricsReporter =
-          properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
-              ? CatalogUtil.loadMetricsReporter(
-                  properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
-              : LoggingMetricsReporter.instance();
+      metricsReporter = CatalogUtil.loadMetricsReporter(properties());
     }
 
     return metricsReporter;

@@ -24,9 +24,10 @@ from unittest.mock import MagicMock, patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from pyarrow.fs import FileType
+from pyarrow.fs import FileType, LocalFileSystem
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -57,11 +58,12 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    _read_deletes,
     expression_to_pyarrow,
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
@@ -303,24 +305,58 @@ def test_deleting_s3_file_not_found() -> None:
 def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
+  -- field metadata --
+  field_id: '1'
 bar: int32 not null
+  -- field metadata --
+  field_id: '2'
 baz: bool
-qux: list<item: string> not null
-  child 0, item: string
+  -- field metadata --
+  field_id: '3'
+qux: list<element: string not null> not null
+  child 0, element: string not null
+    -- field metadata --
+    field_id: '5'
+  -- field metadata --
+  field_id: '4'
 quux: map<string, map<string, int32>> not null
-  child 0, entries: struct<key: string not null, value: map<string, int32>> not null
+  child 0, entries: struct<key: string not null, value: map<string, int32> not null> not null
       child 0, key: string not null
-      child 1, value: map<string, int32>
-          child 0, entries: struct<key: string not null, value: int32> not null
+      -- field metadata --
+      field_id: '7'
+      child 1, value: map<string, int32> not null
+          child 0, entries: struct<key: string not null, value: int32 not null> not null
               child 0, key: string not null
-              child 1, value: int32
-location: list<item: struct<latitude: float, longitude: float>> not null
-  child 0, item: struct<latitude: float, longitude: float>
+          -- field metadata --
+          field_id: '9'
+              child 1, value: int32 not null
+          -- field metadata --
+          field_id: '10'
+      -- field metadata --
+      field_id: '8'
+  -- field metadata --
+  field_id: '6'
+location: list<element: struct<latitude: float, longitude: float> not null> not null
+  child 0, element: struct<latitude: float, longitude: float> not null
       child 0, latitude: float
+      -- field metadata --
+      field_id: '13'
       child 1, longitude: float
+      -- field metadata --
+      field_id: '14'
+    -- field metadata --
+    field_id: '12'
+  -- field metadata --
+  field_id: '11'
 person: struct<name: string, age: int32 not null>
   child 0, name: string
-  child 1, age: int32 not null"""
+    -- field metadata --
+    field_id: '16'
+  child 1, age: int32 not null
+    -- field metadata --
+    field_id: '17'
+  -- field metadata --
+  field_id: '15'"""
     assert repr(actual) == expected
 
 
@@ -395,9 +431,9 @@ def test_binary_type_to_pyarrow() -> None:
 def test_struct_type_to_pyarrow(table_schema_simple: Schema) -> None:
     expected = pa.struct(
         [
-            pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"id": "3"}),
+            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
         ]
     )
     assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
@@ -411,7 +447,10 @@ def test_map_type_to_pyarrow() -> None:
         value_type=StringType(),
         value_required=True,
     )
-    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(pa.int32(), pa.string())
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(
+        pa.field("key", pa.int32(), nullable=False, metadata={"field_id": "1"}),
+        pa.field("value", pa.string(), nullable=False, metadata={"field_id": "2"}),
+    )
 
 
 def test_list_type_to_pyarrow() -> None:
@@ -420,7 +459,9 @@ def test_list_type_to_pyarrow() -> None:
         element_type=IntegerType(),
         element_required=True,
     )
-    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(pa.int32())
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(
+        pa.field("element", pa.int32(), nullable=False, metadata={"field_id": "1"})
+    )
 
 
 @pytest.fixture
@@ -450,17 +491,11 @@ def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 
 def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
-    )
+    assert repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference))) == "<pyarrow.compute.Expression is_nan(foo)>"
 
 
 def test_expr_not_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
-    )
+    assert repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference))) == "<pyarrow.compute.Expression invert(is_nan(foo))>"
 
 
 def test_expr_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
@@ -765,7 +800,14 @@ def project(
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    content=DataFileContent.DATA,
+                    file_path=file,
+                    file_format=FileFormat.PARQUET,
+                    partition={},
+                    record_count=3,
+                    file_size_in_bytes=3,
+                )
             )
             for file in files
         ],
@@ -780,6 +822,7 @@ def project(
             ),
             metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         expr or AlwaysTrue(),
         schema,
@@ -823,19 +866,28 @@ def test_projection_add_column(file_int: str) -> None:
 
     for actual, expected in zip(result_table.columns[3], [None, None, None]):
         assert actual.as_py() == expected
-
     assert (
         repr(result_table.schema)
         == """id: int32
-list: list<item: int32>
-  child 0, item: int32
+list: list<element: int32>
+  child 0, element: int32
+    -- field metadata --
+    field_id: '21'
 map: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
+      -- field metadata --
+      field_id: '31'
       child 1, value: string
+      -- field metadata --
+      field_id: '32'
 location: struct<lat: double, lon: double>
   child 0, lat: double
-  child 1, lon: double"""
+    -- field metadata --
+    field_id: '41'
+  child 1, lon: double
+    -- field metadata --
+    field_id: '42'"""
     )
 
 
@@ -879,13 +931,16 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
     # Everything should be None
     for r in result_table.columns[0]:
         assert r.as_py() is None
-
     assert (
         repr(result_table.schema)
         == """id: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
-      child 1, value: string"""
+      -- field metadata --
+      field_id: '3'
+      child 1, value: string
+      -- field metadata --
+      field_id: '4'"""
     )
 
 
@@ -929,7 +984,12 @@ def test_projection_concat_files(schema_int: Schema, file_int: str) -> None:
 def test_projection_filter(schema_int: Schema, file_int: str) -> None:
     result_table = project(schema_int, [file_int], GreaterThan("id", 4))
     assert len(result_table.columns[0]) == 0
-    assert repr(result_table.schema) == "id: int32"
+    assert (
+        repr(result_table.schema)
+        == """id: int32
+  -- field metadata --
+  field_id: '1'"""
+    )
 
 
 def test_projection_filter_renamed_column(file_int: str) -> None:
@@ -1105,7 +1165,11 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
         repr(result_table.schema)
         == """location: struct<lat: double, long: double>
   child 0, lat: double
-  child 1, long: double"""
+    -- field metadata --
+    field_id: '41'
+  child 1, long: double
+    -- field metadata --
+    field_id: '42'"""
     )
 
 
@@ -1132,6 +1196,106 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.fixture
+def deletes_file(tmp_path: str, example_task: FileScanTask) -> str:
+    path = example_task.file.file_path
+    table = pa.table({"file_path": [path, path, path], "pos": [1, 3, 5]})
+
+    deletes_file_path = f"{tmp_path}/deletes.parquet"
+    pq.write_table(table, deletes_file_path)
+
+    return deletes_file_path
+
+
+def test_read_deletes(deletes_file: str, example_task: FileScanTask) -> None:
+    deletes = _read_deletes(LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET))
+    assert set(deletes.keys()) == {example_task.file.file_path}
+    assert list(deletes.values())[0] == pa.chunked_array([[1, 3, 5]])
+
+
+def test_delete(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET)},
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
+def test_delete_duplicates(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+        },
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
 def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
     metadata_location = "file://a/b/c.json"
     projection = project_table(
@@ -1148,6 +1312,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
             ),
             metadata_location=metadata_location,
             io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,
         projected_schema=table_schema_simple,

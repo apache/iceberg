@@ -94,6 +94,6 @@ public class ReportMetricsRequestParser {
           .build();
     }
 
-    throw new IllegalArgumentException(String.format("Cannot build metrics request from %s", json));
+    return ReportMetricsRequest.unknown();
   }
 }

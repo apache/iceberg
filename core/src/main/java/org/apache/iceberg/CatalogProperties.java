@@ -41,6 +41,11 @@ public class CatalogProperties {
 
   public static final boolean CACHE_ENABLED_DEFAULT = true;
 
+  /** Controls whether the caching catalog will cache table entries using case sensitive keys. */
+  public static final String CACHE_CASE_SENSITIVE = "cache.case-sensitive";
+
+  public static final boolean CACHE_CASE_SENSITIVE_DEFAULT = true;
+
   /**
    * Controls the duration for which entries in the catalog are cached.
    *
@@ -119,6 +124,13 @@ public class CatalogProperties {
       "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
+  /**
+   * A comma separated list of elements used, in addition to the {@link #URI}, to compose the key of
+   * the client pool cache.
+   *
+   * <p>Supported key elements in a Catalog are implementation-dependent.
+   */
+  public static final String CLIENT_POOL_CACHE_KEYS = "client-pool-cache-keys";
 
   public static final String LOCK_IMPL = "lock-impl";
 
@@ -141,9 +153,6 @@ public class CatalogProperties {
 
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
-
-  public static final String AUTH_DEFAULT_REFRESH_ENABLED = "auth.default-refresh-enabled";
-  public static final boolean AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT = false;
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);

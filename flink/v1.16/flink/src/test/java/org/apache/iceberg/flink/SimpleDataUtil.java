@@ -22,7 +22,6 @@ import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,10 +43,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -134,6 +135,20 @@ public class SimpleDataUtil {
       String filename,
       List<RowData> rows)
       throws IOException {
+    return writeFile(table, schema, spec, conf, location, filename, rows, null);
+  }
+
+  /** Write the list of {@link RowData} to the given path and with the given partition data */
+  public static DataFile writeFile(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      Configuration conf,
+      String location,
+      String filename,
+      List<RowData> rows,
+      StructLike partition)
+      throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
@@ -148,10 +163,16 @@ public class SimpleDataUtil {
       closeableAppender.addAll(rows);
     }
 
-    return DataFiles.builder(spec)
-        .withInputFile(HadoopInputFile.fromPath(path, conf))
-        .withMetrics(appender.metrics())
-        .build();
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withInputFile(HadoopInputFile.fromPath(path, conf))
+            .withMetrics(appender.metrics());
+
+    if (partition != null) {
+      builder = builder.withPartition(partition);
+    }
+
+    return builder.build();
   }
 
   public static DeleteFile writeEqDeleteFile(
@@ -328,7 +349,10 @@ public class SimpleDataUtil {
 
   public static StructLikeSet expectedRowSet(Table table, Record... records) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    Collections.addAll(set, records);
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(table.schema().asStruct());
+    for (Record record : records) {
+      set.add(wrapper.copyFor(record));
+    }
     return set;
   }
 
@@ -340,12 +364,13 @@ public class SimpleDataUtil {
       throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(table.schema().asStruct());
     try (CloseableIterable<Record> reader =
         IcebergGenerics.read(table)
             .useSnapshot(snapshotId == null ? table.currentSnapshot().snapshotId() : snapshotId)
             .select(columns)
             .build()) {
-      reader.forEach(set::add);
+      reader.forEach(record -> set.add(wrapper.copyFor(record)));
     }
     return set;
   }

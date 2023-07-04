@@ -208,7 +208,7 @@ public class TestSingleMessageEncoding {
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(AvroRuntimeException.class)
-        .hasMessage("Decoding datum failed");
+        .hasMessageContaining("Decoding datum failed");
   }
 
   @Test

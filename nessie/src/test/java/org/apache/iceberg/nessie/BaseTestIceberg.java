@@ -35,7 +35,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -58,27 +60,23 @@ import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
-import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
-import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
-import org.projectnessie.versioned.persist.tests.extension.DatabaseAdapterExtension;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapter;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapterName;
-import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabase;
+import org.projectnessie.versioned.storage.common.persist.Persist;
+import org.projectnessie.versioned.storage.inmemory.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.testextension.NessieBackend;
+import org.projectnessie.versioned.storage.testextension.NessiePersist;
+import org.projectnessie.versioned.storage.testextension.PersistExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@ExtendWith(DatabaseAdapterExtension.class)
-@NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
-@NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@ExtendWith(PersistExtension.class)
+@NessieBackend(InmemoryBackendTestFactory.class)
+@NessieApiVersions // test all versions
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
+  @NessiePersist static Persist persist;
 
   @RegisterExtension
-  static NessieJaxRsExtension server =
-      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
+  static NessieJaxRsExtension server = NessieJaxRsExtension.jaxRsExtension(() -> persist);
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
@@ -86,6 +84,7 @@ public abstract class BaseTestIceberg {
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
+  protected String apiVersion;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String initialHashOfDefaultBranch;
@@ -120,6 +119,7 @@ public abstract class BaseTestIceberg {
       throws IOException {
     this.uri = nessieUri.toASCIIString();
     this.api = clientFactory.make();
+    this.apiVersion = clientFactory.apiVersion() == NessieApiVersion.V2 ? "2" : "1";
 
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
@@ -143,7 +143,8 @@ public abstract class BaseTestIceberg {
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString())
+            .put("client-api-version", apiVersion);
     if (null != hash) {
       options.put("ref.hash", hash);
     }
@@ -153,6 +154,7 @@ public abstract class BaseTestIceberg {
 
   protected Table createTable(TableIdentifier tableIdentifier, int count) {
     try {
+      createMissingNamespaces(tableIdentifier);
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
       LOG.error("unable to do create " + tableIdentifier.toString(), t);
@@ -161,8 +163,35 @@ public abstract class BaseTestIceberg {
   }
 
   protected void createTable(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(tableIdentifier);
     Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
     catalog.createTable(tableIdentifier, schema).location();
+  }
+
+  protected Table createTable(TableIdentifier tableIdentifier, Schema schema) {
+    createMissingNamespaces(tableIdentifier);
+    return catalog.createTable(tableIdentifier, schema);
+  }
+
+  protected void createMissingNamespaces(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier);
+  }
+
+  protected static void createMissingNamespaces(
+      NessieCatalog catalog, TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier.namespace());
+  }
+
+  protected static void createMissingNamespaces(NessieCatalog catalog, Namespace namespace) {
+    List<String> elements = Lists.newArrayList();
+    for (int i = 0; i < namespace.length(); i++) {
+      elements.add(namespace.level(i));
+      try {
+        catalog.createNamespace(Namespace.of(elements.toArray(new String[0])));
+      } catch (AlreadyExistsException ignore) {
+        // ignore
+      }
+    }
   }
 
   protected static Schema schema(int count) {

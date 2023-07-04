@@ -20,7 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestOAuthErrorResponseParser {
 

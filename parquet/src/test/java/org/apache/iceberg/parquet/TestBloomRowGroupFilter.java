@@ -70,6 +70,7 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.parquet.column.values.bloomfilter.BloomFilter;
 import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
@@ -197,6 +198,7 @@ public class TestBloomRowGroupFilter {
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, "false")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_id", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_double", "true")
@@ -248,7 +250,7 @@ public class TestBloomRowGroupFilter {
         structNotNull.put("_int_field", INT_MIN_VALUE + i);
         builder.set("_struct_not_null", structNotNull); // struct with int
         builder.set("_no_stats", TOO_LONG_FOR_STATS); // value longer than 4k will produce no stats
-        builder.set("_boolean", (i % 2 == 0) ? true : false);
+        builder.set("_boolean", i % 2 == 0);
         builder.set("_time", instant.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_date", instant.plusSeconds(i * 86400).getEpochSecond());
         builder.set("_timestamp", instant.plusSeconds(i * 86400).toEpochMilli());

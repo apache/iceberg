@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -36,7 +34,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -46,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
@@ -61,14 +60,14 @@ import org.slf4j.LoggerFactory;
  * exploration.
  */
 public class NessieCatalog extends BaseMetastoreCatalog
-    implements AutoCloseable, SupportsNamespaces, Configurable {
+    implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final String NAMESPACE_LOCATION_PROPS = "location";
   private NessieIcebergClient client;
   private String warehouseLocation;
-  private Configuration config;
+  private Object config;
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
@@ -80,7 +79,9 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> options) {
     Map<String, String> catalogOptions = ImmutableMap.copyOf(options);
-    String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
+    String fileIOImpl =
+        options.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
     // remove nessie prefix
     final Function<String, String> removePrefix =
         x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
@@ -88,18 +89,33 @@ public class NessieCatalog extends BaseMetastoreCatalog
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
-    NessieApiV1 api =
+
+    NessieClientBuilder<?> nessieClientBuilder =
         createNessieClientBuilder(
                 options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-            .fromConfig(x -> options.get(removePrefix.apply(x)))
-            .build(NessieApiV1.class);
+            .fromConfig(x -> options.get(removePrefix.apply(x)));
+    // default version is set to v1.
+    final String apiVersion =
+        options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
+    NessieApiV1 api;
+    switch (apiVersion) {
+      case "1":
+        api = nessieClientBuilder.build(NessieApiV1.class);
+        break;
+      case "2":
+        api = nessieClientBuilder.build(NessieApiV2.class);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format(
+                "Unsupported %s: %s. Can only be 1 or 2",
+                removePrefix.apply(NessieUtil.CLIENT_API_VERSION), apiVersion));
+    }
 
     initialize(
         name,
         new NessieIcebergClient(api, requestedRef, requestedHash, catalogOptions),
-        fileIOImpl == null
-            ? new HadoopFileIO(config)
-            : CatalogUtil.loadFileIO(fileIOImpl, options, config),
+        CatalogUtil.loadFileIO(fileIOImpl, options, config),
         catalogOptions);
   }
 
@@ -299,13 +315,8 @@ public class NessieCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     this.config = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return config;
   }
 
   @VisibleForTesting

@@ -41,7 +41,7 @@ def test_bin_packing(splits: List[int], lookback: int, split_size: int, open_cos
         return max(x, open_cost)
 
     item_list_sums: List[int] = [sum(item) for item in PackingIterator(splits, split_size, lookback, weight_func)]
-    assert all([split_size >= item_sum >= 0 for item_sum in item_list_sums])
+    assert all(split_size >= item_sum >= 0 for item_sum in item_list_sums)
 
 
 @pytest.mark.parametrize(

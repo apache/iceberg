@@ -39,15 +39,14 @@ import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -68,15 +67,15 @@ public class TestHTTPClient {
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder().uri(URI).build();
+    restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopServer() throws IOException {
     mockServer.stop();
     restClient.close();
@@ -147,10 +146,9 @@ public class TestHTTPClient {
         doExecuteRequest(method, path, body, onError, h -> assertThat(h).isNotEmpty());
 
     if (method.usesRequestBody()) {
-      Assert.assertEquals(
-          "On a successful " + method + ", the correct response body should be returned",
-          successResponse,
-          body);
+      Assertions.assertThat(body)
+          .as("On a successful " + method + ", the correct response body should be returned")
+          .isEqualTo(successResponse);
     }
 
     verify(onError, never()).accept(any());
@@ -171,12 +169,11 @@ public class TestHTTPClient {
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
-    AssertHelpers.assertThrows(
-        "A response indicating a failed request should throw",
-        RuntimeException.class,
-        String.format(
-            "Called error handler for method %s due to status code: %d", method, statusCode),
-        () -> doExecuteRequest(method, path, body, onError, h -> {}));
+    Assertions.assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            String.format(
+                "Called error handler for method %s due to status code: %d", method, statusCode));
 
     verify(onError).accept(any());
   }

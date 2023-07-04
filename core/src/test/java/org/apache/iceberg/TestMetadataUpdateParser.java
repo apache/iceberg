@@ -56,11 +56,9 @@ public class TestMetadataUpdateParser {
         ImmutableList.of("{\"action\":null,\"format-version\":2}", "{\"format-version\":2}");
 
     for (String json : invalidJson) {
-      AssertHelpers.assertThrows(
-          "MetadataUpdate without a recognized action should fail to deserialize",
-          IllegalArgumentException.class,
-          "Cannot parse metadata update. Missing field: action",
-          () -> MetadataUpdateParser.fromJson(json));
+      Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot parse metadata update. Missing field: action");
     }
   }
 
@@ -119,6 +117,17 @@ public class TestMetadataUpdateParser {
         String.format(
             "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
             SchemaParser.toJson(schema), lastColumnId);
+    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testAddSchemaFromJsonWithoutLastColumnId() {
+    String action = MetadataUpdateParser.ADD_SCHEMA;
+    Schema schema = ID_DATA_SCHEMA;
+    int lastColumnId = schema.highestFieldId();
+    String json =
+        String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
     MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
     assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
   }
@@ -691,11 +700,9 @@ public class TestMetadataUpdateParser {
     props.put("prop2", null);
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":null}";
     String json = String.format("{\"action\":\"%s\",\"updated\":%s}", action, propsMap);
-    AssertHelpers.assertThrows(
-        "Parsing updates from SetProperties with a property set to null should throw",
-        IllegalArgumentException.class,
-        "Cannot parse to a string value: prop2: null",
-        () -> MetadataUpdateParser.fromJson(json));
+    Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: prop2: null");
   }
 
   @Test
@@ -773,24 +780,26 @@ public class TestMetadataUpdateParser {
   @Test
   public void testSetStatistics() {
     String json =
-        "{\"action\":\"set-statistics\",\"snapshot-id\":42,\"statistics\":{\"snapshot-id\":42,"
+        "{\"action\":\"set-statistics\",\"snapshot-id\":1940541653261589030,\"statistics\":{\"snapshot-id\":1940541653261589030,"
             + "\"statistics-path\":\"s3://bucket/warehouse/stats.puffin\",\"file-size-in-bytes\":124,"
             + "\"file-footer-size-in-bytes\":27,\"blob-metadata\":[{\"type\":\"boring-type\","
-            + "\"snapshot-id\":42,\"sequence-number\":2,\"fields\":[1],"
+            + "\"snapshot-id\":1940541653261589030,\"sequence-number\":2,\"fields\":[1],"
             + "\"properties\":{\"prop-key\":\"prop-value\"}}]}}";
+
+    long snapshotId = 1940541653261589030L;
     MetadataUpdate expected =
         new MetadataUpdate.SetStatistics(
-            42,
+            snapshotId,
             new GenericStatisticsFile(
-                42,
+                snapshotId,
                 "s3://bucket/warehouse/stats.puffin",
-                124,
-                27,
+                124L,
+                27L,
                 ImmutableList.of(
                     new GenericBlobMetadata(
                         "boring-type",
-                        42,
-                        2,
+                        snapshotId,
+                        2L,
                         ImmutableList.of(1),
                         ImmutableMap.of("prop-key", "prop-value")))));
     assertEquals(
@@ -803,8 +812,8 @@ public class TestMetadataUpdateParser {
 
   @Test
   public void testRemoveStatistics() {
-    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":42}";
-    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(42);
+    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":1940541653261589030}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(1940541653261589030L);
     assertEquals(
         MetadataUpdateParser.REMOVE_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
     Assert.assertEquals(

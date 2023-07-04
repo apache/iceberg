@@ -283,6 +283,32 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
+  /** Method for reading a batch of values of TimestampInt96 data type. */
+  class TimestampInt96PageReader extends BagePageReader {
+    @Override
+    protected void nextVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextDictEncodedBatch(
+              vector,
+              numVals,
+              typeWidth,
+              batchSize,
+              holder,
+              dictionaryEncodedValuesReader,
+              dictionary);
+    }
+  }
+
   /** Method for reading a batch of values of FLOAT data type. */
   class FloatPageReader extends BagePageReader {
 
@@ -345,7 +371,10 @@ public class VectorizedPageIterator extends BasePageIterator {
    * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since
    * Arrow stores all decimals in 16 bytes, byte arrays are appropriately padded before being
    * written to Arrow data buffers.
+   *
+   * @deprecated will be removed in 1.4.0
    */
+  @Deprecated
   class IntBackedDecimalPageReader extends BagePageReader {
     @Override
     protected void nextVal(
@@ -371,6 +400,8 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   class LongBackedDecimalPageReader extends BagePageReader {
     @Override
     protected void nextVal(
@@ -403,7 +434,10 @@ public class VectorizedPageIterator extends BasePageIterator {
    * Parquet stores fixed length decimals as big endian. So, this method uses {@link
    * DecimalVector#setBigEndian(int, byte[])} method so that the data in Arrow vector is indeed
    * little endian.
+   *
+   * @deprecated will be removed in 1.4.0
    */
+  @Deprecated
   class FixedLengthDecimalPageReader extends BagePageReader {
     @Override
     protected void nextVal(
@@ -539,6 +573,10 @@ public class VectorizedPageIterator extends BasePageIterator {
     return new TimestampMillisPageReader();
   }
 
+  TimestampInt96PageReader timestampInt96PageReader() {
+    return new TimestampInt96PageReader();
+  }
+
   FloatPageReader floatPageReader() {
     return new FloatPageReader();
   }
@@ -547,14 +585,20 @@ public class VectorizedPageIterator extends BasePageIterator {
     return new DoublePageReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   IntBackedDecimalPageReader intBackedDecimalPageReader() {
     return new IntBackedDecimalPageReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   LongBackedDecimalPageReader longBackedDecimalPageReader() {
     return new LongBackedDecimalPageReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   FixedLengthDecimalPageReader fixedLengthDecimalPageReader() {
     return new FixedLengthDecimalPageReader();
   }
