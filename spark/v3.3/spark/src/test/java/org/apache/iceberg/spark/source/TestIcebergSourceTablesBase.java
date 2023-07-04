@@ -1438,7 +1438,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
-  @SuppressWarnings("MethodLength")
   @Test
   public void testPartitionsTableLastUpdatedSnapshot() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
@@ -1489,24 +1488,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .collectAsList();
 
     List<DataFile> dataFilesFromFirstCommit = listDataFilesFromCommitId(table, firstCommitId);
-    Assert.assertEquals(
-        "First commit should have two data files", 2, dataFilesFromFirstCommit.size());
-    Assert.assertEquals(
-        "First data file belong to partition of id 1",
-        1,
-        dataFilesFromFirstCommit.get(0).partition().get(0, Integer.class).intValue());
-    Assert.assertEquals(
-        "Second data file belong to partition of id 2",
-        2,
-        dataFilesFromFirstCommit.get(1).partition().get(0, Integer.class).intValue());
-
     List<DataFile> dataFilesFromSecondCommit = listDataFilesFromCommitId(table, secondCommitId);
-    Assert.assertEquals(
-        "Second commit should have one data file", 1, dataFilesFromSecondCommit.size());
-    Assert.assertEquals(
-        "First data file belong to partition of id 2",
-        2,
-        dataFilesFromSecondCommit.get(0).partition().get(0, Integer.class).intValue());
+    assertPartitionIdFromDataFiles(dataFilesFromFirstCommit, dataFilesFromSecondCommit);
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
@@ -2285,5 +2268,25 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     return StreamSupport.stream(
             table.snapshot(commitId).addedDataFiles(table.io()).spliterator(), false)
         .collect(Collectors.toList());
+  }
+
+  private void assertPartitionIdFromDataFiles(
+      List<DataFile> dataFilesFromFirstCommit, List<DataFile> dataFilesFromSecondCommit) {
+    Assert.assertEquals(
+        "First commit should have two data files", 2, dataFilesFromFirstCommit.size());
+    Assert.assertEquals(
+        "First data file belong to partition of id 1",
+        1,
+        dataFilesFromFirstCommit.get(0).partition().get(0, Integer.class).intValue());
+    Assert.assertEquals(
+        "Second data file belong to partition of id 2",
+        2,
+        dataFilesFromFirstCommit.get(1).partition().get(0, Integer.class).intValue());
+    Assert.assertEquals(
+        "Second commit should have one data file", 1, dataFilesFromSecondCommit.size());
+    Assert.assertEquals(
+        "First data file belong to partition of id 2",
+        2,
+        dataFilesFromSecondCommit.get(0).partition().get(0, Integer.class).intValue());
   }
 }
