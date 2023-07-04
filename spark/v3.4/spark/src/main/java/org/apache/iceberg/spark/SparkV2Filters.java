@@ -181,6 +181,12 @@ public class SparkV2Filters {
             return null;
           }
 
+          // comparison with null in normal equality is always null. this is probably a mistake.
+          Preconditions.checkNotNull(
+              notEqChildren.second(),
+              "Expression is always false (notEq is not null-safe): %s",
+              predicate);
+
           return handleNotEqual(notEqChildren.first(), notEqChildren.second());
 
         case IN:
@@ -322,9 +328,7 @@ public class SparkV2Filters {
   }
 
   private static UnboundPredicate<Object> handleNotEqual(UnboundTerm<Object> term, Object value) {
-    if (value == null) {
-      return notNull(term);
-    } else if (NaNUtil.isNaN(value)) {
+    if (NaNUtil.isNaN(value)) {
       return notNaN(term);
     } else {
       return notEqual(term, value);
