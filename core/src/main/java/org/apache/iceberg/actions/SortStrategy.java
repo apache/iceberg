@@ -39,6 +39,7 @@ import org.apache.iceberg.util.SortOrderUtil;
  * <p>In the future other algorithms for determining files to rewrite will be provided.
  *
  * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SizeBasedFileRewriter} instead.
+ *     Note: This can only be removed once Spark 3.1 + 3.2 isn't using this API anymore.
  */
 @Deprecated
 public abstract class SortStrategy extends BinPackStrategy {
