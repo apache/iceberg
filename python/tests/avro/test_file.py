@@ -123,16 +123,23 @@ def test_write_manifest_entry_with_iceberg_read_with_fastavro() -> None:
         data_file=data_file,
     )
 
+    additional_metadata = {"foo": "bar"}
+
     with TemporaryDirectory() as tmpdir:
         tmp_avro_file = tmpdir + "/manifest_entry.avro"
 
         with avro.AvroOutputFile[ManifestEntry](
-            PyArrowFileIO().new_output(tmp_avro_file), MANIFEST_ENTRY_SCHEMA, "manifest_entry"
+            PyArrowFileIO().new_output(tmp_avro_file), MANIFEST_ENTRY_SCHEMA, "manifest_entry", additional_metadata
         ) as out:
             out.write_block([entry])
 
         with open(tmp_avro_file, "rb") as fo:
             r = reader(fo=fo)
+
+            for k, v in additional_metadata.items():
+                assert k in r.metadata
+                assert v == r.metadata[k]
+
             it = iter(r)
 
             fa_entry = next(it)

@@ -225,12 +225,13 @@ class AvroOutputFile(Generic[D]):
     sync_bytes: bytes
     writer: Writer
 
-    def __init__(self, output_file: OutputFile, schema: Schema, schema_name: str) -> None:
+    def __init__(self, output_file: OutputFile, schema: Schema, schema_name: str, metadata: Dict[str, str] = EMPTY_DICT) -> None:
         self.output_file = output_file
         self.schema = schema
         self.schema_name = schema_name
         self.sync_bytes = os.urandom(SYNC_SIZE)
         self.writer = construct_writer(self.schema)
+        self.metadata = metadata
 
     def __enter__(self) -> AvroOutputFile[D]:
         """
@@ -255,7 +256,8 @@ class AvroOutputFile(Generic[D]):
 
     def _write_header(self) -> None:
         json_schema = json.dumps(AvroSchemaConversion().iceberg_to_avro(self.schema, schema_name=self.schema_name))
-        header = AvroFileHeader(magic=MAGIC, meta={_SCHEMA_KEY: json_schema, _CODEC_KEY: "null"}, sync=self.sync_bytes)
+        meta = {**self.metadata, _SCHEMA_KEY: json_schema, _CODEC_KEY: "null"}
+        header = AvroFileHeader(magic=MAGIC, meta=meta, sync=self.sync_bytes)
         construct_writer(META_SCHEMA).write(self.encoder, header)
 
     def write_block(self, objects: List[D]) -> None:
