@@ -120,7 +120,7 @@ public class TestUpdateTableRequestParser {
   public void roundTripSerde() {
     String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
     UpdateTableRequest request =
-        new UpdateTableRequest(
+        UpdateTableRequest.create(
             TableIdentifier.of("ns1", "table1"),
             ImmutableList.of(
                 new org.apache.iceberg.UpdateRequirement.AssertTableUUID(uuid),
@@ -198,7 +198,7 @@ public class TestUpdateTableRequestParser {
   @Test
   public void emptyRequirementsAndUpdates() {
     UpdateTableRequest request =
-        new UpdateTableRequest(
+        UpdateTableRequest.create(
             TableIdentifier.of("ns1", "table1"), ImmutableList.of(), ImmutableList.of());
 
     String json =

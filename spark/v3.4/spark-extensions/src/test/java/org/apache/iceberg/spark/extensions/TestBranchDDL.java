@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.extensions;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -83,11 +82,10 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    AssertHelpers.assertThrows(
-        "Cannot create an existing branch",
-        IllegalArgumentException.class,
-        "Ref b1 already exists",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref b1 already exists");
   }
 
   @Test
@@ -179,12 +177,13 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertNull(ref.maxRefAgeMs());
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "no viable alternative at input 'WITH SNAPSHOT RETENTION'",
-        () ->
-            sql("ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION",
+                    tableName, branchName))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("no viable alternative at input 'WITH SNAPSHOT RETENTION'");
   }
 
   @Test
@@ -200,26 +199,24 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}",
-        () ->
-            sql(
-                "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
-                tableName, branchName, maxRefAge));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
+                    tableName, branchName, maxRefAge))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}");
   }
 
   @Test
@@ -241,11 +238,10 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropBranchDoesNotExist() {
-    AssertHelpers.assertThrows(
-        "Cannot perform drop branch on branch which does not exist",
-        IllegalArgumentException.class,
-        "Branch does not exist: nonExistingBranch",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: nonExistingBranch");
   }
 
   @Test
@@ -254,29 +250,23 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform drop branch on tag",
-        IllegalArgumentException.class,
-        "Ref b1 is a tag not a branch",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref b1 is a tag not a branch");
   }
 
   @Test
   public void testDropBranchNonConformingName() {
-    AssertHelpers.assertThrows(
-        "Non-conforming branch name",
-        IcebergParseException.class,
-        "mismatched input '123'",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input '123'");
   }
 
   @Test
   public void testDropMainBranchFails() {
-    AssertHelpers.assertThrows(
-        "Cannot drop the main branch",
-        IllegalArgumentException.class,
-        "Cannot remove main branch",
-        () -> sql("ALTER TABLE %s DROP BRANCH main", tableName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot remove main branch");
   }
 
   @Test

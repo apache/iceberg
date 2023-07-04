@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Map;
@@ -135,23 +136,27 @@ public class TestEcsCatalog {
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace a is not empty");
 
-    Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
+    assertThat(ecsCatalog.dropNamespace(Namespace.of("a", "b1")))
+        .as("Drop namespace [a, b1]")
+        .isTrue();
 
-    Assert.assertFalse(
-        "The [a, b1] is absent", ecsCatalog.namespaceExists(Namespace.of("a", "b1")));
-    Assert.assertTrue(
-        "The [a, b1] is not in list result of [a]",
-        ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
+    assertThat(ecsCatalog.namespaceExists(Namespace.of("a", "b1")))
+        .as("The [a, b1] is absent")
+        .isFalse();
+    assertThat(ecsCatalog.listNamespaces(Namespace.of("a")))
+        .as("The [a, b1] is not in list result of [a]")
+        .isEmpty();
   }
 
   @Test
   public void testDropTable() {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 
-    Assert.assertFalse(
-        "Drop an unknown table return false", ecsCatalog.dropTable(TableIdentifier.of("unknown")));
+    assertThat(ecsCatalog.dropTable(TableIdentifier.of("unknown")))
+        .as("Drop an unknown table return false")
+        .isFalse();
 
-    Assert.assertTrue("Drop a table", ecsCatalog.dropTable(TableIdentifier.of("a"), true));
+    assertThat(ecsCatalog.dropTable(TableIdentifier.of("a"), true)).as("Drop a table").isTrue();
   }
 
   @Test
@@ -176,9 +181,12 @@ public class TestEcsCatalog {
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 
-    Assert.assertFalse(
-        "Old table does not exist", ecsCatalog.tableExists(TableIdentifier.of("a", "t1")));
-    Assert.assertTrue("New table exists", ecsCatalog.tableExists(TableIdentifier.of("b", "t2")));
+    assertThat(ecsCatalog.tableExists(TableIdentifier.of("a", "t1")))
+        .as("Old table does not exist")
+        .isFalse();
+    assertThat(ecsCatalog.tableExists(TableIdentifier.of("b", "t2")))
+        .as("New table exists")
+        .isTrue();
   }
 
   @Test

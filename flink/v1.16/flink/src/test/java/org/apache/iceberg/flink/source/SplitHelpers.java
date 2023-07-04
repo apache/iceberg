@@ -20,27 +20,27 @@ package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
 public class SplitHelpers {
-
-  private static final AtomicLong splitLengthIncrement = new AtomicLong();
 
   private SplitHelpers() {}
 
@@ -54,16 +54,53 @@ public class SplitHelpers {
    *
    *     <p>Since the table and data files are deleted before this method return, caller shouldn't
    *     attempt to read the data files.
+   *
+   *     <p>By default, v1 Iceberg table is created. For v2 table use {@link
+   *     SplitHelpers#createSplitsFromTransientHadoopTable(TemporaryFolder, int, int, String)}
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
+    return createSplitsFromTransientHadoopTable(temporaryFolder, fileCount, filesPerSplit, "1");
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param version The table version to create
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String version)
+      throws Exception {
     final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
     final String warehouse = "file:" + warehouseFile;
     Configuration hadoopConf = new Configuration();
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
+    ImmutableMap<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, version);
     try {
-      final Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+      final Table table =
+          catalog.createTable(
+              TestFixtures.TABLE_IDENTIFIER,
+              TestFixtures.SCHEMA,
+              PartitionSpec.unpartitioned(),
+              null,
+              properties);
       final GenericAppenderHelper dataAppender =
           new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {

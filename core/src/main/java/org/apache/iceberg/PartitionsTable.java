@@ -72,7 +72,17 @@ public class PartitionsTable extends BaseMetadataTable {
                 8,
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
-                "Count of equality delete files"));
+                "Count of equality delete files"),
+            Types.NestedField.optional(
+                9,
+                "last_updated_ms",
+                Types.TimestampType.withZone(),
+                "Commit time of snapshot that last updated this partition"),
+            Types.NestedField.optional(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Id of snapshot that last updated this partition"));
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -90,7 +100,9 @@ public class PartitionsTable extends BaseMetadataTable {
           "position_delete_record_count",
           "position_delete_file_count",
           "equality_delete_record_count",
-          "equality_delete_file_count");
+          "equality_delete_file_count",
+          "last_updated_ms",
+          "last_updated_snapshot_id");
     }
     return schema;
   }
@@ -116,7 +128,9 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.posDeleteRecordCount,
                   root.posDeleteFileCount,
                   root.eqDeleteRecordCount,
-                  root.eqDeleteFileCount));
+                  root.eqDeleteFileCount,
+                  root.lastUpdatedMs,
+                  root.lastUpdatedSnapshotId));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -136,19 +150,22 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.posDeleteRecordCount,
         partition.posDeleteFileCount,
         partition.eqDeleteRecordCount,
-        partition.eqDeleteFileCount);
+        partition.eqDeleteFileCount,
+        partition.lastUpdatedMs,
+        partition.lastUpdatedSnapshotId);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap(partitionType);
-
-    try (CloseableIterable<ContentFile<?>> files = planFiles(scan)) {
-      for (ContentFile<?> file : files) {
+    try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
+      for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
+        Snapshot snapshot = table.snapshot(entry.snapshotId());
+        ContentFile<?> file = entry.file();
         StructLike partition =
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
-        partitions.get(partition).update(file);
+        partitions.get(partition).update(file, snapshot);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -158,23 +175,30 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @VisibleForTesting
-  static CloseableIterable<ContentFile<?>> planFiles(StaticTableScan scan) {
+  static CloseableIterable<ManifestEntry<?>> planEntries(StaticTableScan scan) {
     Table table = scan.table();
 
     CloseableIterable<ManifestFile> filteredManifests =
         filteredManifests(scan, table, scan.snapshot().allManifests(table.io()));
 
-    Iterable<CloseableIterable<ContentFile<?>>> tasks =
-        CloseableIterable.transform(
-            filteredManifests,
-            manifest ->
-                CloseableIterable.transform(
-                    ManifestFiles.open(manifest, table.io(), table.specs())
-                        .caseSensitive(scan.isCaseSensitive())
-                        .select(scanColumns(manifest.content())), // don't select stats columns
-                    t -> (ContentFile<?>) t));
+    Iterable<CloseableIterable<ManifestEntry<?>>> tasks =
+        CloseableIterable.transform(filteredManifests, manifest -> readEntries(manifest, scan));
 
     return new ParallelIterable<>(tasks, scan.planExecutor());
+  }
+
+  private static CloseableIterable<ManifestEntry<?>> readEntries(
+      ManifestFile manifest, StaticTableScan scan) {
+    Table table = scan.table();
+    return CloseableIterable.transform(
+        ManifestFiles.open(manifest, table.io(), table.specs())
+            .caseSensitive(scan.isCaseSensitive())
+            .select(scanColumns(manifest.content())) // don't select stats columns
+            .entries(),
+        t ->
+            (ManifestEntry<? extends ContentFile<?>>)
+                // defensive copy of manifest entry without stats columns
+                t.copyWithoutStats());
   }
 
   private static List<String> scanColumns(ManifestContent content) {
@@ -249,19 +273,29 @@ public class PartitionsTable extends BaseMetadataTable {
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
+    private Long lastUpdatedMs;
+    private Long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
       this.specId = 0;
-      this.dataRecordCount = 0;
+      this.dataRecordCount = 0L;
       this.dataFileCount = 0;
-      this.posDeleteRecordCount = 0;
+      this.posDeleteRecordCount = 0L;
       this.posDeleteFileCount = 0;
-      this.eqDeleteRecordCount = 0;
+      this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
     }
 
-    void update(ContentFile<?> file) {
+    void update(ContentFile<?> file, Snapshot snapshot) {
+      if (snapshot != null) {
+        long snapshotCommitTime = snapshot.timestampMillis() * 1000;
+        if (this.lastUpdatedMs == null || snapshotCommitTime > this.lastUpdatedMs) {
+          this.lastUpdatedMs = snapshotCommitTime;
+          this.lastUpdatedSnapshotId = snapshot.snapshotId();
+        }
+      }
+
       switch (file.content()) {
         case DATA:
           this.dataRecordCount += file.recordCount();

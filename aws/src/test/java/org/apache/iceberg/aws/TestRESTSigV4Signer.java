@@ -29,10 +29,10 @@ import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.Header;
 import org.mockserver.model.HttpRequest;
@@ -44,7 +44,7 @@ public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;
   private static HTTPClient client;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     mockServer = ClientAndServer.startClientAndServer();
 
@@ -66,13 +66,13 @@ public class TestRESTSigV4Signer {
             .build();
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() throws IOException {
     mockServer.stop();
     client.close();
   }
 
-  @Before
+  @BeforeEach
   public void before() {
     mockServer.reset();
   }
