@@ -230,4 +230,4 @@ class JsonOutput(Output):
         self._out({"uuid": str(uuid) if uuid else "missing"})
 
     def result_table(self, rows: List[Tuple[Any]]) -> None:
-        print(json.dumps(rows))
+        self._out(rows)
