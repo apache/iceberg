@@ -15,293 +15,159 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import os
-from typing import (
-    List,
-    Optional,
-    Set,
-    Union,
-)
-from unittest import mock
 
+import pytest
 from click.testing import CliRunner
+from pytest_mock import MockFixture
 
-from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
-from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.cli.console import run
-from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
-from pyiceberg.io import load_file_io
-from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
-from pyiceberg.table.metadata import TableMetadataV2
-from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
+from pyiceberg.transforms import IdentityTransform
+from pyiceberg.typedef import Properties
 from pyiceberg.utils.config import Config
-
-EXAMPLE_TABLE_METADATA_V2 = {
-    "format-version": 2,
-    "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
-    "location": "s3://bucket/test/location",
-    "last-sequence-number": 34,
-    "last-updated-ms": 1602638573590,
-    "last-column-id": 3,
-    "current-schema-id": 1,
-    "schemas": [
-        {"type": "struct", "schema-id": 0, "fields": [{"id": 1, "name": "x", "required": True, "type": "long"}]},
-        {
-            "type": "struct",
-            "schema-id": 1,
-            "identifier-field-ids": [1, 2],
-            "fields": [
-                {"id": 1, "name": "x", "required": True, "type": "long"},
-                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-                {"id": 3, "name": "z", "required": True, "type": "long"},
-            ],
-        },
-    ],
-    "default-spec-id": 0,
-    "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
-    "last-partition-id": 1000,
-    "default-sort-order-id": 3,
-    "sort-orders": [
-        {
-            "order-id": 3,
-            "fields": [
-                {"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"},
-                {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"},
-            ],
-        }
-    ],
-    "properties": {"read.split.target.size": 134217728},
-    "current-snapshot-id": 3055729675574597004,
-    "snapshots": [
-        {
-            "snapshot-id": 3051729675574597004,
-            "timestamp-ms": 1515100955770,
-            "sequence-number": 0,
-            "summary": {"operation": "append"},
-            "manifest-list": "s3://a/b/1.avro",
-        },
-        {
-            "snapshot-id": 3055729675574597004,
-            "parent-snapshot-id": 3051729675574597004,
-            "timestamp-ms": 1555100955770,
-            "sequence-number": 1,
-            "summary": {"operation": "append"},
-            "manifest-list": "s3://a/b/2.avro",
-            "schema-id": 1,
-        },
-    ],
-    "snapshot-log": [
-        {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
-        {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
-    ],
-    "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}],
-    "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}},
-}
+from tests.catalog.test_base import InMemoryCatalog
 
 
-class MockCatalog(Catalog):
-    def create_table(
-        self,
-        identifier: Union[str, Identifier],
-        schema: Schema,
-        location: Optional[str] = None,
-        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-        sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Properties = EMPTY_DICT,
-    ) -> Table:
-        return Table(
-            identifier=Catalog.identifier_to_tuple(identifier),
-            metadata_location="s3://tmp/",
-            metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
-            io=load_file_io(),
-            catalog=self,
-        )
+def test_missing_uri(mocker: MockFixture, empty_home_dir_path: str) -> None:
+    # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
+    mocker.patch.dict(os.environ, values={"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path})
+    mocker.patch("pyiceberg.catalog._ENV_CONFIG", return_value=Config())
 
-    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        raise NotImplementedError
+    runner = CliRunner()
+    result = runner.invoke(run, ["list"])
 
-    def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        tuple_identifier = Catalog.identifier_to_tuple(identifier)
-        if tuple_identifier == ("default", "foo"):
-            return Table(
-                identifier=tuple_identifier,
-                metadata_location="s3://tmp/",
-                metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
-                io=load_file_io(),
-                catalog=NoopCatalog("NoopCatalog"),
-            )
-        else:
-            raise NoSuchTableError(f"Table does not exist: {'.'.join(tuple_identifier)}")
-
-    def drop_table(self, identifier: Union[str, Identifier]) -> None:
-        tuple_identifier = Catalog.identifier_to_tuple(identifier)
-        if tuple_identifier == ("default", "foo"):
-            return None
-        else:
-            raise NoSuchTableError(f"Table does not exist: {identifier}")
-
-    def purge_table(self, identifier: Union[str, Identifier]) -> None:
-        self.drop_table(identifier)
-
-    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        tuple_identifier = Catalog.identifier_to_tuple(from_identifier)
-        if tuple_identifier == ("default", "foo"):
-            return Table(
-                identifier=tuple_identifier,
-                metadata_location="s3://tmp/",
-                metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
-                io=load_file_io(),
-                catalog=NoopCatalog("NoopCatalog"),
-            )
-        else:
-            raise NoSuchTableError(f"Table does not exist: {from_identifier}")
-
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
-        return None
-
-    def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        tuple_identifier = Catalog.identifier_to_tuple(namespace)
-        if tuple_identifier == ("default",):
-            return None
-        else:
-            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
-
-    def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        return [
-            ("default", "foo"),
-            ("default", "bar"),
-        ]
-
-    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        # No hierarchical namespaces for now
-        if namespace == ():
-            return [("default",), ("personal",)]
-        else:
-            return []
-
-    def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
-        identifier = Catalog.identifier_to_tuple(namespace)
-        if identifier == ("default",):
-            return {"location": "s3://warehouse/database/location"}
-        else:
-            raise NoSuchNamespaceError(f"Namespace does not exist: {'.'.join(namespace)}")
-
-    def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
-    ) -> PropertiesUpdateSummary:
-        identifier = Catalog.identifier_to_tuple(namespace)
-
-        if identifier == ("default",):
-            return PropertiesUpdateSummary(removed=["location"], updated=[], missing=[])
-        else:
-            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
+    assert result.exit_code == 1
+    assert result.output == "Could not initialize catalog with the following properties: {}\n"
 
 
-MOCK_CATALOG = MockCatalog("production", uri="http://somewhere")
+@pytest.fixture(autouse=True)
+def env_vars(mocker: MockFixture) -> None:
+    mocker.patch.dict(os.environ, MOCK_ENVIRONMENT)
+
+
+@pytest.fixture(name="catalog")
+def fixture_catalog(mocker: MockFixture) -> InMemoryCatalog:
+    in_memory_catalog = InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
+    mocker.patch("pyiceberg.cli.console.load_catalog", return_value=in_memory_catalog)
+    return in_memory_catalog
+
+
+@pytest.fixture(name="namespace_properties")
+def fixture_namespace_properties() -> Properties:
+    return TEST_NAMESPACE_PROPERTIES.copy()
+
+
+TEST_TABLE_IDENTIFIER = ("default", "my_table")
+TEST_TABLE_NAMESPACE = "default"
+TEST_NAMESPACE_PROPERTIES = {"location": "s3://warehouse/database/location"}
+TEST_TABLE_NAME = "my_table"
+TEST_TABLE_SCHEMA = Schema(schema_id=0)
+TEST_TABLE_LOCATION = "protocol://some/location"
+TEST_TABLE_PARTITION_SPEC = PartitionSpec(PartitionField(name="x", transform=IdentityTransform(), source_id=1, field_id=1000))
+TEST_TABLE_PROPERTIES = {"read.split.target.size": "134217728"}
 MOCK_ENVIRONMENT = {"PYICEBERG_CATALOG__PRODUCTION__URI": "test://doesnotexist"}
 
 
-def test_missing_uri(empty_home_dir_path: str) -> None:
-    # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
-    with mock.patch.dict(os.environ, {"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path}):
-        with mock.patch("pyiceberg.catalog._ENV_CONFIG", Config()):
-            runner = CliRunner()
-            result = runner.invoke(run, ["list"])
-            assert result.exit_code == 1
-            assert (
-                result.output
-                == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
-            )
+def test_list_root(catalog: InMemoryCatalog) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE)
 
-
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_list_root(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["list"])
+
     assert result.exit_code == 0
-    assert result.output == "default \npersonal\n"
+    assert TEST_TABLE_NAMESPACE in result.output
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_list_namespace(_: MockCatalog) -> None:
+def test_list_namespace(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
     result = runner.invoke(run, ["list", "default"])
+
     assert result.exit_code == 0
-    assert result.output == "default.foo\ndefault.bar\n"
+    assert result.output == "default.my_table\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_namespace(_: MockCatalog) -> None:
+def test_describe_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "default"])
+
     assert result.exit_code == 0
     assert result.output == "location  s3://warehouse/database/location\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_namespace_does_not_exists(_: MockCatalog) -> None:
+def test_describe_namespace_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "doesnotexist"])
+
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexist\n"
+    assert result.output == "Namespace does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_table(_: MockCatalog) -> None:
+def test_describe_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["describe", "default.foo"])
+    result = runner.invoke(run, ["describe", "default.my_table"])
     assert result.exit_code == 0
     assert (
         # Strip the whitespace on the end
         "\n".join([line.rstrip() for line in result.output.split("\n")])
-        == """Table format version  2
-Metadata location     s3://tmp/
-Table UUID            9c12d441-03fe-4693-9a96-a0705ddf69c1
-Last Updated          1602638573590
+        == """Table format version  1
+Metadata location     s3://warehouse/default/my_table/metadata/metadata.json
+Table UUID            d20125c8-7284-442c-9aea-15fee620737c
+Last Updated          1602638573874
 Partition spec        [
                         1000: x: identity(1)
                       ]
-Sort order            [
-                        2 ASC NULLS FIRST
-                        bucket[4](3) DESC NULLS LAST
-                      ]
-Current schema        Schema, id=1
+Sort order            []
+Current schema        Schema, id=0
                       ├── 1: x: required long
                       ├── 2: y: required long (comment)
                       └── 3: z: required long
-Current snapshot      Operation.APPEND: id=3055729675574597004,
-                      parent_id=3051729675574597004, schema_id=1
+Current snapshot      None
 Snapshots             Snapshots
-                      ├── Snapshot 3051729675574597004, schema None:
-                      │   s3://a/b/1.avro
-                      └── Snapshot 3055729675574597004, schema 1:
-                          s3://a/b/2.avro
-Properties            read.split.target.size  134217728
+                      └── Snapshot 1925, schema None
+Properties
 """
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_table_does_not_exists(_: MockCatalog) -> None:
+def test_describe_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["describe", "default.doesnotexit"])
+    result = runner.invoke(run, ["describe", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table or namespace does not exist: default.doesnotexit\n"
+    assert result.output == "Table or namespace does not exist: default.doesnotexist\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_schema(_: MockCatalog) -> None:
+def test_schema(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["schema", "default.foo"])
+    result = runner.invoke(run, ["schema", "default.my_table"])
     assert result.exit_code == 0
     assert (
         "\n".join([line.rstrip() for line in result.output.split("\n")])
@@ -312,20 +178,25 @@ z  long
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_schema_does_not_exists(_: MockCatalog) -> None:
+def test_schema_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["schema", "default.doesnotexit"])
+    result = runner.invoke(run, ["schema", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_spec(_: MockCatalog) -> None:
+def test_spec(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["spec", "default.foo"])
+    result = runner.invoke(run, ["spec", "default.my_table"])
     assert result.exit_code == 0
     assert (
         result.output
@@ -336,334 +207,409 @@ def test_spec(_: MockCatalog) -> None:
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_spec_does_not_exists(_: MockCatalog) -> None:
+def test_spec_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["spec", "default.doesnotexit"])
+    result = runner.invoke(run, ["spec", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_uuid(_: MockCatalog) -> None:
+def test_uuid(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["uuid", "default.foo"])
+    result = runner.invoke(run, ["uuid", "default.my_table"])
     assert result.exit_code == 0
-    assert result.output == """9c12d441-03fe-4693-9a96-a0705ddf69c1\n"""
+    assert result.output == """d20125c8-7284-442c-9aea-15fee620737c\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_uuid_does_not_exists(_: MockCatalog) -> None:
+def test_uuid_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["uuid", "default.doesnotexit"])
+    result = runner.invoke(run, ["uuid", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_location(_: MockCatalog) -> None:
+def test_location(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["location", "default.foo"])
+    result = runner.invoke(run, ["location", "default.my_table"])
     assert result.exit_code == 0
     assert result.output == """s3://bucket/test/location\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_location_does_not_exists(_: MockCatalog) -> None:
+def test_location_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["location", "default.doesnotexit"])
+    result = runner.invoke(run, ["location", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_table(_: MockCatalog) -> None:
+def test_drop_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["drop", "table", "default.foo"])
+    result = runner.invoke(run, ["drop", "table", "default.my_table"])
     assert result.exit_code == 0
-    assert result.output == """Dropped table: default.foo\n"""
+    assert result.output == """Dropped table: default.my_table\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_table_does_not_exists(_: MockCatalog) -> None:
+def test_drop_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["drop", "table", "default.doesnotexit"])
+    result = runner.invoke(run, ["drop", "table", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_namespace(_: MockCatalog) -> None:
+def test_drop_namespace(catalog: InMemoryCatalog) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE)
+
     runner = CliRunner()
     result = runner.invoke(run, ["drop", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == """Dropped namespace: default\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_namespace_does_not_exists(_: MockCatalog) -> None:
+def test_drop_namespace_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["drop", "namespace", "doesnotexit"])
+    result = runner.invoke(run, ["drop", "namespace", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexit\n"
+    assert result.output == "Namespace does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_rename_table(_: MockCatalog) -> None:
+def test_rename_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["rename", "default.foo", "default.bar"])
+    result = runner.invoke(run, ["rename", "default.my_table", "default.my_new_table"])
     assert result.exit_code == 0
-    assert result.output == """Renamed table from default.foo to default.bar\n"""
+    assert result.output == """Renamed table from default.my_table to default.my_new_table\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_rename_table_does_not_exists(_: MockCatalog) -> None:
+def test_rename_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["rename", "default.doesnotexit", "default.bar"])
+    result = runner.invoke(run, ["rename", "default.doesnotexist", "default.bar"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table(_: MockCatalog) -> None:
+def test_properties_get_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "table", "default.foo"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.my_table"])
     assert result.exit_code == 0
     assert result.output == "read.split.target.size  134217728\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_specific_property(_: MockCatalog) -> None:
+def test_properties_get_table_specific_property(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "table", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.my_table", "read.split.target.size"])
     assert result.exit_code == 0
     assert result.output == "134217728\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_specific_property_that_doesnt_exist(_: MockCatalog) -> None:
+def test_properties_get_table_specific_property_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "table", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.my_table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Could not find property doesnotexist on table default.foo\n"
+    assert result.output == "Could not find property doesnotexist on table default.my_table\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_does_not_exist(_: MockCatalog) -> None:
+def test_properties_get_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: doesnotexist\n"
+    assert result.output == "Table does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace(_: MockCatalog) -> None:
+def test_properties_get_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == "location  s3://warehouse/database/location\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace_specific_property(_: MockCatalog) -> None:
+def test_properties_get_namespace_specific_property(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == "s3://warehouse/database/location\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace_does_not_exist(_: MockCatalog) -> None:
+def test_properties_get_namespace_does_not_exist(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexist\n"
+    assert result.output == "Namespace does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_namespace(_: MockCatalog) -> None:
+def test_properties_set_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "namespace", "default", "location", "s3://new_location"])
     assert result.exit_code == 0
     assert result.output == "Updated location on default\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_namespace_that_doesnt_exist(_: MockCatalog) -> None:
+def test_properties_set_namespace_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexist\n"
+    assert result.output == "Namespace does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_table(_: MockCatalog) -> None:
+def test_properties_set_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "set", "table", "default.foo", "location", "s3://new_location"])
+    result = runner.invoke(run, ["properties", "set", "table", "default.my_table", "location", "s3://new_location"])
     assert result.exit_code == 1
     assert "Writing is WIP" in result.output
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_table_does_not_exist(_: MockCatalog) -> None:
+def test_properties_set_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "table", "default.doesnotexist", "location", "s3://new_location"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexist\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_namespace(_: MockCatalog) -> None:
+def test_properties_remove_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == "Property location removed from default\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_namespace_that_doesnt_exist(_: MockCatalog) -> None:
+def test_properties_remove_namespace_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexist\n"
+    assert result.output == "Namespace does not exist: ('doesnotexist',)\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table(_: MockCatalog) -> None:
+def test_properties_remove_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["properties", "remove", "table", "default.my_table", "read.split.target.size"])
     assert result.exit_code == 1
     assert result.output == "Writing is WIP\n1\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table_property_does_not_exists(_: MockCatalog) -> None:
+def test_properties_remove_table_property_does_not_exists(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["properties", "remove", "table", "default.my_table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Property doesnotexist does not exist on default.foo\n"
+    assert result.output == "Property doesnotexist does not exist on default.my_table\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table_does_not_exist(_: MockCatalog) -> None:
+def test_properties_remove_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexist\n"
+    assert result.output == "Table does not exist: ('default', 'doesnotexist')\n"
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_list_root(_: MockCatalog) -> None:
+def test_json_list_root(catalog: InMemoryCatalog) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "list"])
     assert result.exit_code == 0
-    assert result.output == """["default", "personal"]\n"""
+    assert result.output == """["default"]\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_list_namespace(_: MockCatalog) -> None:
+def test_json_list_namespace(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "list", "default"])
     assert result.exit_code == 0
-    assert result.output == """["default.foo", "default.bar"]\n"""
+    assert result.output == """["default.my_table"]\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_namespace(_: MockCatalog) -> None:
+def test_json_describe_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "default"])
     assert result.exit_code == 0
     assert result.output == """{"location": "s3://warehouse/database/location"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_namespace_does_not_exists(_: MockCatalog) -> None:
+def test_json_describe_namespace_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_table(_: MockCatalog) -> None:
+def test_json_describe_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "describe", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "describe", "default.my_table"])
     assert result.exit_code == 0
     assert (
         result.output
-        == """{"identifier": ["default", "foo"], "metadata_location": "s3://tmp/", "metadata": {"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": "3051729675574597004", "timestamp-ms": 1515100955770}, {"snapshot-id": "3055729675574597004", "timestamp-ms": 1555100955770}], "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}, "main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}}\n"""
+        == """{"identifier": ["default", "my_table"], "metadata_location": "s3://warehouse/default/my_table/metadata/metadata.json", "metadata": {"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}}\n"""
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_table_does_not_exists(_: MockCatalog) -> None:
+def test_json_describe_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "describe", "default.doesnotexit"])
+    result = runner.invoke(run, ["--output=json", "describe", "default.doesnotexist"])
     assert result.exit_code == 1
     assert (
-        result.output == """{"type": "NoSuchTableError", "message": "Table or namespace does not exist: default.doesnotexit"}\n"""
+        result.output
+        == """{"type": "NoSuchTableError", "message": "Table or namespace does not exist: default.doesnotexist"}\n"""
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_schema(_: MockCatalog) -> None:
+def test_json_schema(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "schema", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "schema", "default.my_table"])
     assert result.exit_code == 0
     assert (
         result.output
-        == """{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}\n"""
+        == """{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}\n"""
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_schema_does_not_exists(_: MockCatalog) -> None:
+def test_json_schema_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "schema", "default.doesnotexit"])
+    result = runner.invoke(run, ["--output=json", "schema", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_spec(_: MockCatalog) -> None:
+def test_json_spec(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "spec", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "spec", "default.my_table"])
     assert result.exit_code == 0
     assert (
         result.output
@@ -671,254 +617,312 @@ def test_json_spec(_: MockCatalog) -> None:
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_spec_does_not_exists(_: MockCatalog) -> None:
+def test_json_spec_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "spec", "default.doesnotexit"])
+    result = runner.invoke(run, ["--output=json", "spec", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_uuid(_: MockCatalog) -> None:
+def test_json_uuid(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "uuid", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "uuid", "default.my_table"])
     assert result.exit_code == 0
-    assert result.output == """{"uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1"}\n"""
+    assert result.output == """{"uuid": "d20125c8-7284-442c-9aea-15fee620737c"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_uuid_does_not_exists(_: MockCatalog) -> None:
+def test_json_uuid_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "uuid", "default.doesnotexit"])
+    result = runner.invoke(run, ["--output=json", "uuid", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_location(_: MockCatalog) -> None:
+def test_json_location(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "location", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "location", "default.my_table"])
     assert result.exit_code == 0
     assert result.output == """"s3://bucket/test/location"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_location_does_not_exists(_: MockCatalog) -> None:
+def test_json_location_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "location", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_table(_: MockCatalog) -> None:
+def test_json_drop_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "drop", "table", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "drop", "table", "default.my_table"])
     assert result.exit_code == 0
-    assert result.output == """"Dropped table: default.foo"\n"""
+    assert result.output == """"Dropped table: default.my_table"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_table_does_not_exists(_: MockCatalog) -> None:
+def test_json_drop_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "table", "default.doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_namespace(_: MockCatalog) -> None:
+def test_json_drop_namespace(catalog: InMemoryCatalog) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == """"Dropped namespace: default"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_namespace_does_not_exists(_: MockCatalog) -> None:
+def test_json_drop_namespace_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "namespace", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_rename_table(_: MockCatalog) -> None:
+def test_json_rename_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "rename", "default.foo", "default.bar"])
+    result = runner.invoke(run, ["--output=json", "rename", "default.my_table", "default.my_new_table"])
     assert result.exit_code == 0
-    assert result.output == """"Renamed table from default.foo to default.bar"\n"""
+    assert result.output == """"Renamed table from default.my_table to default.my_new_table"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_rename_table_does_not_exists(_: MockCatalog) -> None:
+def test_json_rename_table_does_not_exists(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "rename", "default.doesnotexit", "default.bar"])
+    result = runner.invoke(run, ["--output=json", "rename", "default.doesnotexist", "default.bar"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table(_: MockCatalog) -> None:
+def test_json_properties_get_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.my_table"])
     assert result.exit_code == 0
     assert result.output == """{"read.split.target.size": "134217728"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_specific_property(_: MockCatalog) -> None:
+def test_json_properties_get_table_specific_property(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.my_table", "read.split.target.size"])
     assert result.exit_code == 0
     assert result.output == """"134217728"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_specific_property_that_doesnt_exist(_: MockCatalog) -> None:
+def test_json_properties_get_table_specific_property_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.my_table", "doesnotexist"])
     assert result.exit_code == 1
     assert (
         result.output
-        == """{"type": "NoSuchPropertyException", "message": "Could not find property doesnotexist on table default.foo"}\n"""
+        == """{"type": "NoSuchPropertyException", "message": "Could not find property doesnotexist on table default.my_table"}\n"""
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_does_not_exist(_: MockCatalog) -> None:
+def test_json_properties_get_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace(_: MockCatalog) -> None:
+def test_json_properties_get_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == """{"location": "s3://warehouse/database/location"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace_specific_property(_: MockCatalog) -> None:
+def test_json_properties_get_namespace_specific_property(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == """"s3://warehouse/database/location"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace_does_not_exist(_: MockCatalog) -> None:
+def test_json_properties_get_namespace_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_namespace(_: MockCatalog) -> None:
+def test_json_properties_set_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "set", "namespace", "default", "location", "s3://new_location"])
     assert result.exit_code == 0
     assert result.output == """"Updated location on default"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_namespace_that_doesnt_exist(_: MockCatalog) -> None:
+def test_json_properties_set_namespace_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(
         run, ["--output=json", "properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"]
     )
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_table(_: MockCatalog) -> None:
+def test_json_properties_set_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "set", "table", "default.foo", "location", "s3://new_location"])
+    result = runner.invoke(
+        run, ["--output=json", "properties", "set", "table", "default.my_table", "location", "s3://new_location"]
+    )
     assert result.exit_code == 1
     assert "Writing is WIP" in result.output
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_table_does_not_exist(_: MockCatalog) -> None:
+def test_json_properties_set_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(
         run, ["--output=json", "properties", "set", "table", "default.doesnotexist", "location", "s3://new_location"]
     )
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_namespace(_: MockCatalog) -> None:
+def test_json_properties_remove_namespace(catalog: InMemoryCatalog, namespace_properties: Properties) -> None:
+    catalog.create_namespace(TEST_TABLE_NAMESPACE, namespace_properties)
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == """"Property location removed from default"\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_namespace_that_doesnt_exist(_: MockCatalog) -> None:
+def test_json_properties_remove_namespace_that_doesnt_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: ('doesnotexist',)"}\n"""
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table(_: MockCatalog) -> None:
+def test_json_properties_remove_table(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.my_table", "read.split.target.size"])
     assert result.exit_code == 1
     assert "Writing is WIP" in result.output
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table_property_does_not_exists(_: MockCatalog) -> None:
+def test_json_properties_remove_table_property_does_not_exists(catalog: InMemoryCatalog) -> None:
+    catalog.create_table(
+        identifier=TEST_TABLE_IDENTIFIER,
+        schema=TEST_TABLE_SCHEMA,
+        location=TEST_TABLE_LOCATION,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        properties=TEST_TABLE_PROPERTIES,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.my_table", "doesnotexist"])
     assert result.exit_code == 1
     assert (
         result.output
-        == """{"type": "NoSuchPropertyException", "message": "Property doesnotexist does not exist on default.foo"}\n"""
+        == """{"type": "NoSuchPropertyException", "message": "Property doesnotexist does not exist on default.my_table"}\n"""
     )
 
 
-@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
-@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table_does_not_exist(_: MockCatalog) -> None:
+def test_json_properties_remove_table_does_not_exist(catalog: InMemoryCatalog) -> None:
+    # pylint: disable=unused-argument
+
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: ('default', 'doesnotexist')"}\n"""
