@@ -78,7 +78,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
  */
 object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with PredicateHelper {
 
-  private final val ROW_FROM_SOURCE = "__row_from_source"
+  private[spark] final val ROW_FROM_SOURCE = "__row_from_source"
   private final val ROW_FROM_TARGET = "__row_from_target"
   private final val ROW_ID = "__row_id"
 

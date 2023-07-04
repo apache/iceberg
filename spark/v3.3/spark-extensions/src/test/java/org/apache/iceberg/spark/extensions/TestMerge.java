@@ -62,6 +62,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.plans.logical.CommandResult;
+import org.apache.spark.sql.catalyst.plans.logical.Join;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.catalyst.util.package$;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -70,6 +74,8 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import scala.PartialFunction;
+import scala.collection.Seq;
 
 public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
@@ -2538,6 +2544,61 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
+  }
+
+  @Test
+  public void testRemoveUnusedMetadataColumns() {
+    createAndInitTable(
+        "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
+
+    String mergeSql =
+        String.format(
+            "MERGE INTO %s t USING %s s "
+                + "ON t.id == s.id "
+                + "WHEN MATCHED AND t.id = 1 THEN "
+                + "  UPDATE SET v = 'x' "
+                + "WHEN NOT MATCHED THEN "
+                + "  INSERT *",
+            commitTarget(), commitTarget());
+
+    LogicalPlan optimized = spark.sql(mergeSql).queryExecution().optimizedPlan();
+    CommandResult commandResult = (CommandResult) optimized;
+    Seq<LogicalPlan> sourcePlans =
+        commandResult
+            .commandLogicalPlan()
+            .collect(
+                new PartialFunction<LogicalPlan, LogicalPlan>() {
+                  @Override
+                  public LogicalPlan apply(LogicalPlan plan) {
+                    Join join = (Join) plan;
+                    if (isSourcePlan(join.left())) {
+                      return join.left();
+                    } else {
+                      return join.right();
+                    }
+                  }
+
+                  @Override
+                  public boolean isDefinedAt(LogicalPlan plan) {
+                    if (!(plan instanceof Join)) {
+                      return false;
+                    }
+
+                    Join join = (Join) plan;
+                    return isSourcePlan(join.left()) || isSourcePlan(join.right());
+                  }
+
+                  private boolean isSourcePlan(LogicalPlan plan) {
+                    return plan.output().exists(col -> col.name().equals("__row_from_source"));
+                  }
+                });
+
+    Assertions.assertThat(sourcePlans.size()).isEqualTo(1);
+    LogicalPlan sourcePlan = sourcePlans.head();
+    String metadataKey = package$.MODULE$.METADATA_COL_ATTR_KEY();
+    boolean containsMetadataColumns =
+        sourcePlan.output().find(col -> col.metadata().contains(metadataKey)).nonEmpty();
+    Assertions.assertThat(containsMetadataColumns).isFalse();
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {

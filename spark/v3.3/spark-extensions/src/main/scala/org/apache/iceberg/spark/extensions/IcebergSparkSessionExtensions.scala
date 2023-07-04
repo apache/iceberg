@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
 import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions
 import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionCheck
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
+import org.apache.spark.sql.catalyst.analysis.RemoveUnusedMetadataColumns
 import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromIcebergTable
@@ -55,6 +56,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => RewriteDeleteFromIcebergTable }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
+    extensions.injectResolutionRule { _ => RemoveUnusedMetadataColumns }
     extensions.injectCheckRule { _ => MergeIntoIcebergTableResolutionCheck }
     extensions.injectCheckRule { _ => AlignedRowLevelIcebergCommandCheck }
 
