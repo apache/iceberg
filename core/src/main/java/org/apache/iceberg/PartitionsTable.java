@@ -290,7 +290,7 @@ public class PartitionsTable extends BaseMetadataTable {
       this.specId = 0;
       this.dataRecordCount = 0L;
       this.dataFileCount = 0;
-      this.dataFileSizeInBytes = 0;
+      this.dataFileSizeInBytes = 0L;
       this.posDeleteRecordCount = 0L;
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
