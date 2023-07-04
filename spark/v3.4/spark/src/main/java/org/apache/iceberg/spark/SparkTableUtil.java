@@ -668,13 +668,13 @@ public class SparkTableUtil {
   }
 
   /**
-   * Get WAP branch if it's configured
+   * Validate WAP config and determine the write branch.
    *
    * @param spark a Spark Session
-   * @param branch branch to return if there is no WAP branch
-   * @return WAP branch
+   * @param branch write branch if there is no WAP branch configured
+   * @return branch for write operation
    */
-  public static String wapBranch(SparkSession spark, String branch) {
+  public static String writeBranch(SparkSession spark, String branch) {
     String wapId = spark.conf().get(SparkSQLProperties.WAP_ID, null);
     String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
     ValidationException.check(
