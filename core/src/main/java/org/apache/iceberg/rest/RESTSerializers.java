@@ -91,8 +91,9 @@ public class RESTSerializers {
         .addDeserializer(
             ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
         .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer())
-        .addDeserializer(
-            CommitTransactionRequest.class, new CommitTransactionRequestDeserializer());
+        .addDeserializer(CommitTransactionRequest.class, new CommitTransactionRequestDeserializer())
+        .addSerializer(UpdateTableRequest.class, new UpdateTableRequestSerializer())
+        .addDeserializer(UpdateTableRequest.class, new UpdateTableRequestDeserializer());
     mapper.registerModule(module);
   }
 

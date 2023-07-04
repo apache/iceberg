@@ -48,6 +48,8 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
 import org.apache.iceberg.flink.source.enumerator.ContinuousIcebergEnumerator;
@@ -63,6 +65,7 @@ import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -76,6 +79,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ScanContext scanContext;
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
+  private final SerializableComparator<IcebergSourceSplit> splitComparator;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -86,11 +90,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ScanContext scanContext,
       ReaderFunction<T> readerFunction,
       SplitAssignerFactory assignerFactory,
+      SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
+    this.splitComparator = splitComparator;
     this.table = table;
   }
 
@@ -146,7 +152,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
     IcebergSourceReaderMetrics metrics =
         new IcebergSourceReaderMetrics(readerContext.metricGroup(), lazyTable().name());
-    return new IcebergSourceReader<>(metrics, readerFunction, readerContext);
+    return new IcebergSourceReader<>(metrics, readerFunction, splitComparator, readerContext);
   }
 
   @Override
@@ -209,6 +215,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private TableLoader tableLoader;
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
+    private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -231,6 +238,12 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> assignerFactory(SplitAssignerFactory assignerFactory) {
       this.splitAssignerFactory = assignerFactory;
+      return this;
+    }
+
+    public Builder<T> splitComparator(
+        SerializableComparator<IcebergSourceSplit> newSplitComparator) {
+      this.splitComparator = newSplitComparator;
       return this;
     }
 
@@ -462,10 +475,18 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
+      if (splitAssignerFactory == null) {
+        if (splitComparator == null) {
+          splitAssignerFactory = new SimpleSplitAssignerFactory();
+        } else {
+          splitAssignerFactory = new OrderedSplitAssignerFactory(splitComparator);
+        }
+      }
+
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
       return new IcebergSource<T>(
-          tableLoader, context, readerFunction, splitAssignerFactory, table);
+          tableLoader, context, readerFunction, splitAssignerFactory, splitComparator, table);
     }
 
     private void checkRequired() {

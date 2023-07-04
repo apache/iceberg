@@ -105,6 +105,6 @@ public class UpdateTableRequestParser {
       updatesNode.forEach(update -> updates.add(MetadataUpdateParser.fromJson(update)));
     }
 
-    return new UpdateTableRequest(identifier, requirements, updates);
+    return UpdateTableRequest.create(identifier, requirements, updates);
   }
 }

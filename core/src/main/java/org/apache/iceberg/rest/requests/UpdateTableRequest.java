@@ -48,7 +48,7 @@ public class UpdateTableRequest implements RESTRequest {
     this.updates = updates;
   }
 
-  public UpdateTableRequest(
+  UpdateTableRequest(
       TableIdentifier identifier,
       List<org.apache.iceberg.UpdateRequirement> requirements,
       List<MetadataUpdate> updates) {
@@ -77,6 +77,13 @@ public class UpdateTableRequest implements RESTRequest {
         .add("requirements", requirements)
         .add("updates", updates)
         .toString();
+  }
+
+  public static UpdateTableRequest create(
+      TableIdentifier identifier,
+      List<org.apache.iceberg.UpdateRequirement> requirements,
+      List<MetadataUpdate> updates) {
+    return new UpdateTableRequest(identifier, requirements, updates);
   }
 
   /**

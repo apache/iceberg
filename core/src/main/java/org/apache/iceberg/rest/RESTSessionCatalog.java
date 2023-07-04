@@ -926,7 +926,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
     for (TableCommit commit : commits) {
       tableChanges.add(
-          new UpdateTableRequest(commit.identifier(), commit.requirements(), commit.updates()));
+          UpdateTableRequest.create(commit.identifier(), commit.requirements(), commit.updates()));
     }
 
     client.post(
