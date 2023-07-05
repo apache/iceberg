@@ -74,6 +74,7 @@ public class TestFileScanTaskParser {
         + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
         + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
         + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"start\":0,\"length\":10,"
         + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
         + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
         + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"

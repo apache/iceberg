@@ -27,8 +27,8 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -44,7 +44,7 @@ public class TestDynamoDbCatalog {
   private DynamoDbClient dynamo;
   private DynamoDbCatalog dynamoCatalog;
 
-  @Before
+  @BeforeEach
   public void before() {
     dynamo = Mockito.mock(DynamoDbClient.class);
     dynamoCatalog = new DynamoDbCatalog();
