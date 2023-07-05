@@ -37,6 +37,7 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -246,11 +247,9 @@ public class TestReplaceTransaction extends TableTestBase {
         .appendFile(FILE_C)
         .appendFile(FILE_D);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot commit transaction: last operation has not committed",
-        replace::commitTransaction);
+    Assertions.assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot commit transaction: last operation has not committed");
 
     Assert.assertEquals("Version should be 0", 0L, (long) version());
   }
@@ -268,11 +267,9 @@ public class TestReplaceTransaction extends TableTestBase {
         .appendFile(FILE_C)
         .appendFile(FILE_D);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot commit transaction: last operation has not committed",
-        replace::commitTransaction);
+    Assertions.assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot commit transaction: last operation has not committed");
 
     Assert.assertEquals("Version should be 0", 0L, (long) version());
   }
@@ -327,11 +324,9 @@ public class TestReplaceTransaction extends TableTestBase {
     // keep failing to trigger eventual transaction failure
     ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(100);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when retries are exhausted",
-        CommitFailedException.class,
-        "Injected failure",
-        replace::commitTransaction);
+    Assertions.assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
@@ -414,11 +409,9 @@ public class TestReplaceTransaction extends TableTestBase {
 
     replace.newAppend().appendFile(FILE_B).commit();
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail with CommitStateUnknownException",
-        CommitStateUnknownException.class,
-        "datacenter on fire",
-        () -> replace.commitTransaction());
+    Assertions.assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("datacenter on fire");
 
     table.refresh();
 
@@ -466,11 +459,9 @@ public class TestReplaceTransaction extends TableTestBase {
         TestTables.readMetadata("test_append"));
     Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail with CommitStateUnknownException",
-        CommitStateUnknownException.class,
-        "datacenter on fire",
-        () -> replace.commitTransaction());
+    Assertions.assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("datacenter on fire");
 
     TableMetadata meta = TestTables.readMetadata("test_append");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
