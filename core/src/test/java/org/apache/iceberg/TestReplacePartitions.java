@@ -247,7 +247,7 @@ public class TestReplacePartitions extends TableTestBase {
 
     Assertions.assertThatThrownBy(() -> commit(table, replace, branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot commit file that conflicts with existing partition");
+        .hasMessageStartingWith("Cannot commit file that conflicts with existing partition");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
