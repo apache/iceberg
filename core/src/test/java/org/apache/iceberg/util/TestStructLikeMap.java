@@ -49,8 +49,7 @@ public class TestStructLikeMap {
     assertThat(map).hasSize(1).containsEntry(record1, "1-aaa");
 
     Set<StructLike> keySet = map.keySet();
-    assertThat(keySet.size()).isOne();
-    assertThat(keySet).contains(record1);
+    assertThat(keySet).hasSize(1).contains(record1);
 
     Collection<String> values = map.values();
     assertThat(values).hasSize(1).first().isEqualTo("1-aaa");
