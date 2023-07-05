@@ -374,7 +374,7 @@ public class SparkTable
             .deleteFromRowFilter(deleteExpr);
 
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.writeBranch(sparkSession(), branch);
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
     }
 
     if (branch != null) {
