@@ -100,7 +100,7 @@ class Summary(IcebergBaseModel):
 
 class Snapshot(IcebergBaseModel):
     snapshot_id: int = Field(alias="snapshot-id")
-    parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id")
+    parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id", default=None)
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
     manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
@@ -128,5 +128,5 @@ class MetadataLogEntry(IcebergBaseModel):
 
 
 class SnapshotLogEntry(IcebergBaseModel):
-    snapshot_id: str = Field(alias="snapshot-id")
+    snapshot_id: int = Field(alias="snapshot-id")
     timestamp_ms: int = Field(alias="timestamp-ms")
