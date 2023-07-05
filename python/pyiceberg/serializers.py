@@ -34,19 +34,30 @@ class Compressor(ABC):
         return GzipCompressor() if location.endswith(".gz.metadata.json") else NOOP_COMPRESSOR
 
     @abstractmethod
-    def get_stream_decompressor(self, inp: InputStream) -> InputStream:
-        return inp
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
+        """Returns a stream decompressor.
+
+        Args:
+            inp: The input stream that needs decompressing.
+
+        Returns:
+            The wrapped stream
+        """
 
     @abstractmethod
-    def get_bytes_compressor(self) -> Callable[[bytes], bytes]:
-        pass
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
+        """Returns a function to compress bytes.
+
+        Returns:
+            A function that can be used to compress bytes.
+        """
 
 
 class NoopCompressor(Compressor):
-    def get_stream_decompressor(self, inp: InputStream) -> InputStream:
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
         return inp
 
-    def get_bytes_compressor(self) -> Callable[[bytes], bytes]:
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
         return lambda b: b
 
 
@@ -54,10 +65,10 @@ NOOP_COMPRESSOR = NoopCompressor()
 
 
 class GzipCompressor(Compressor):
-    def get_stream_decompressor(self, inp: InputStream) -> InputStream:
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
         return gzip.open(inp)
 
-    def get_bytes_compressor(self) -> Callable[[bytes], bytes]:
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
         return gzip.compress
 
 
@@ -75,7 +86,7 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader.
             compression: Optional compression method
         """
-        with compression.get_stream_decompressor(byte_stream) as byte_stream:
+        with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
             metadata = json.load(json_bytes)
@@ -117,5 +128,5 @@ class ToOutputFile:
         """
         with output_file.create(overwrite=overwrite) as output_stream:
             json_bytes = metadata.json().encode("utf-8")
-            json_bytes = Compressor.get_compressor(output_file.location).get_bytes_compressor()(json_bytes)
+            json_bytes = Compressor.get_compressor(output_file.location).bytes_compressor()(json_bytes)
             output_stream.write(json_bytes)
