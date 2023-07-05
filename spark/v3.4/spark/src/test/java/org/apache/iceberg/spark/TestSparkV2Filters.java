@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
-import org.apache.iceberg.DateTimeUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundTerm;
@@ -33,6 +32,7 @@ import org.apache.iceberg.spark.functions.HoursFunction;
 import org.apache.iceberg.spark.functions.MonthsFunction;
 import org.apache.iceberg.spark.functions.TruncateFunction;
 import org.apache.iceberg.spark.functions.YearsFunction;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
@@ -386,47 +386,155 @@ public class TestSparkV2Filters {
   }
 
   @Test
-  public void testYears() {
-    ScalarFunction<Integer> dateToYear = new YearsFunction.DateToYearsFunction();
+  public void testDateToYears() {
+    ScalarFunction<Integer> dateToYearsFunc = new YearsFunction.DateToYearsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
-            dateToYear.name(),
-            dateToYear.canonicalName(),
+            dateToYearsFunc.name(),
+            dateToYearsFunc.canonicalName(),
             expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.year("col1"), DateTimeUtil.years("2023-06-25"), DataTypes.IntegerType);
+    testUDF(udf, Expressions.year("col1"), dateToYears("2023-06-25"), DataTypes.IntegerType);
   }
 
   @Test
-  public void testMonths() {
-    ScalarFunction<Integer> dateToMonth = new MonthsFunction.DateToMonthsFunction();
+  public void testTsToYears() {
+    ScalarFunction<Integer> tsToYearsFunc = new YearsFunction.TimestampToYearsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
-            dateToMonth.name(),
-            dateToMonth.canonicalName(),
+            tsToYearsFunc.name(),
+            tsToYearsFunc.canonicalName(),
             expressions(FieldReference.apply("col1")));
     testUDF(
-        udf, Expressions.month("col1"), DateTimeUtil.months("2023-06-25"), DataTypes.IntegerType);
+        udf,
+        Expressions.year("col1"),
+        timestampToYears("2023-12-03T10:15:30+01:00"),
+        DataTypes.IntegerType);
   }
 
   @Test
-  public void testDays() {
-    ScalarFunction<Integer> dateToDay = new DaysFunction.DateToDaysFunction();
+  public void testTsNtzToYears() {
+    ScalarFunction<Integer> tsNtzToYearsFunc = new YearsFunction.TimestampNtzToYearsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
-            dateToDay.name(), dateToDay.canonicalName(), expressions(FieldReference.apply("col1")));
-    testUDF(udf, Expressions.day("col1"), DateTimeUtil.days("2023-06-25"), DataTypes.IntegerType);
+            tsNtzToYearsFunc.name(),
+            tsNtzToYearsFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.year("col1"),
+        timestampNtzToYears("2023-06-25T13:15:30"),
+        DataTypes.IntegerType);
   }
 
   @Test
-  public void testHours() {
-    ScalarFunction<Integer> tsToHour = new HoursFunction.TimestampToHoursFunction();
+  public void testDateToMonths() {
+    ScalarFunction<Integer> dateToMonthsFunc = new MonthsFunction.DateToMonthsFunction();
     UserDefinedScalarFunc udf =
         new UserDefinedScalarFunc(
-            tsToHour.name(), tsToHour.canonicalName(), expressions(FieldReference.apply("col1")));
+            dateToMonthsFunc.name(),
+            dateToMonthsFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(udf, Expressions.month("col1"), dateToMonths("2023-06-25"), DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsToMonths() {
+    ScalarFunction<Integer> tsToMonthsFunc = new MonthsFunction.TimestampToMonthsFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsToMonthsFunc.name(),
+            tsToMonthsFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.month("col1"),
+        timestampToMonths("2023-12-03T10:15:30+01:00"),
+        DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsNtzToMonths() {
+    ScalarFunction<Integer> tsNtzToMonthsFunc = new MonthsFunction.TimestampNtzToMonthsFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsNtzToMonthsFunc.name(),
+            tsNtzToMonthsFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.month("col1"),
+        timestampNtzToMonths("2023-12-03T10:15:30"),
+        DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testDateToDays() {
+    ScalarFunction<Integer> dateToDayFunc = new DaysFunction.DateToDaysFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            dateToDayFunc.name(),
+            dateToDayFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(udf, Expressions.day("col1"), dateToDays("2023-06-25"), DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsToDays() {
+    ScalarFunction<Integer> tsToDaysFunc = new DaysFunction.TimestampToDaysFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsToDaysFunc.name(),
+            tsToDaysFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.day("col1"),
+        timestampToDays("2023-12-03T10:15:30+01:00"),
+        DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsNtzToDays() {
+    ScalarFunction<Integer> tsNtzToDaysFunc = new DaysFunction.TimestampNtzToDaysFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsNtzToDaysFunc.name(),
+            tsNtzToDaysFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.day("col1"),
+        timestampNtzToDays("2023-12-03T10:15:30"),
+        DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsToHours() {
+    ScalarFunction<Integer> tsToHourFunc = new HoursFunction.TimestampToHoursFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsToHourFunc.name(),
+            tsToHourFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
     testUDF(
         udf,
         Expressions.hour("col1"),
-        DateTimeUtil.hours("2023-06-25T13:15:30"),
+        timestampToHours("2023-12-03T10:15:30+01:00"),
+        DataTypes.IntegerType);
+  }
+
+  @Test
+  public void testTsNtzToHours() {
+    ScalarFunction<Integer> tsNtzToHourFunc = new HoursFunction.TimestampNtzToHoursFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            tsNtzToHourFunc.name(),
+            tsNtzToHourFunc.canonicalName(),
+            expressions(FieldReference.apply("col1")));
+    testUDF(
+        udf,
+        Expressions.hour("col1"),
+        timestampNtzToHours("2023-12-03T10:15:30"),
         DataTypes.IntegerType);
   }
 
@@ -582,5 +690,49 @@ public class TestSparkV2Filters {
   private org.apache.spark.sql.connector.expressions.Expression[] expressions(
       org.apache.spark.sql.connector.expressions.Expression... expressions) {
     return expressions;
+  }
+
+  private static int dateToYears(String dateString) {
+    return DateTimeUtil.daysToYears(DateTimeUtil.isoDateToDays(dateString));
+  }
+
+  private static int timestampToYears(String timestampString) {
+    return DateTimeUtil.microsToYears(DateTimeUtil.isoTimestamptzToMicros(timestampString));
+  }
+
+  private static int timestampNtzToYears(String timestampNtzString) {
+    return DateTimeUtil.microsToYears(DateTimeUtil.isoTimestampToMicros(timestampNtzString));
+  }
+
+  private static int dateToMonths(String dateString) {
+    return DateTimeUtil.daysToMonths(DateTimeUtil.isoDateToDays(dateString));
+  }
+
+  private static int timestampToMonths(String timestampString) {
+    return DateTimeUtil.microsToMonths(DateTimeUtil.isoTimestamptzToMicros(timestampString));
+  }
+
+  private static int timestampNtzToMonths(String timestampNtzString) {
+    return DateTimeUtil.microsToMonths(DateTimeUtil.isoTimestampToMicros(timestampNtzString));
+  }
+
+  private static int dateToDays(String dateString) {
+    return DateTimeUtil.isoDateToDays(dateString);
+  }
+
+  private static int timestampToDays(String timestampString) {
+    return DateTimeUtil.microsToDays(DateTimeUtil.isoTimestamptzToMicros(timestampString));
+  }
+
+  private static int timestampNtzToDays(String timestampNtzString) {
+    return DateTimeUtil.microsToDays(DateTimeUtil.isoTimestampToMicros(timestampNtzString));
+  }
+
+  private static int timestampToHours(String timestampString) {
+    return DateTimeUtil.microsToHours(DateTimeUtil.isoTimestamptzToMicros(timestampString));
+  }
+
+  private static int timestampNtzToHours(String timestampNtzString) {
+    return DateTimeUtil.microsToHours(DateTimeUtil.isoTimestampToMicros(timestampNtzString));
   }
 }

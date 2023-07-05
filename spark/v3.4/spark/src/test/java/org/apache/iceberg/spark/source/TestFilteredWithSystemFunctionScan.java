@@ -18,18 +18,17 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static java.time.temporal.ChronoUnit.DAYS;
-
-import java.time.LocalDate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
+import org.apache.iceberg.spark.functions.HoursFunction;
 import org.apache.iceberg.spark.functions.MonthsFunction;
 import org.apache.iceberg.spark.functions.TruncateFunction;
 import org.apache.iceberg.spark.functions.YearsFunction;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
@@ -72,7 +71,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "=", expressions(udf, LiteralValue.apply(2017 - 1970, DataTypes.IntegerType)));
+            "=", expressions(udf, LiteralValue.apply(years("2017-11-22"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -100,7 +99,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "=", expressions(udf, LiteralValue.apply(2017 - 1970, DataTypes.IntegerType)));
+            "=", expressions(udf, LiteralValue.apply(years("2017-11-22"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -129,7 +128,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            ">", expressions(udf, LiteralValue.apply(months(2017, 11), DataTypes.IntegerType)));
+            ">", expressions(udf, LiteralValue.apply(months("2017-11-22"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -158,7 +157,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            ">", expressions(udf, LiteralValue.apply(months(2017, 11), DataTypes.IntegerType)));
+            ">", expressions(udf, LiteralValue.apply(months("2017-11-22"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -186,7 +185,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days(2018, 11, 20), DataTypes.IntegerType)));
+            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -214,7 +213,7 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days(2018, 11, 20), DataTypes.IntegerType)));
+            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.IntegerType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -228,6 +227,70 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
     scan = builder.build().toBatch();
 
     Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+  }
+
+  @Test
+  public void testUnpartitionedHours() throws Exception {
+    createUnpartitionedTable();
+
+    SparkScanBuilder builder = scanBuilder();
+
+    HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
+    Predicate predicate =
+        new Predicate(
+            ">=",
+            expressions(
+                udf,
+                LiteralValue.apply(
+                    hours("2017-11-22T06:02:09.243857+00:00"), DataTypes.IntegerType)));
+    pushFilters(builder, predicate);
+    Batch scan = builder.build().toBatch();
+
+    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+
+    // NOT GTEQ
+    builder = scanBuilder();
+
+    predicate = new Not(predicate);
+    pushFilters(builder, predicate);
+    scan = builder.build().toBatch();
+
+    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+  }
+
+  @Test
+  public void testPartitionedHours() throws Exception {
+    createPartitionedTable("hours(ts)");
+
+    SparkScanBuilder builder = scanBuilder();
+
+    HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
+    Predicate predicate =
+        new Predicate(
+            ">=",
+            expressions(
+                udf,
+                LiteralValue.apply(
+                    hours("2017-11-22T06:02:09.243857+00:00"), DataTypes.IntegerType)));
+    pushFilters(builder, predicate);
+    Batch scan = builder.build().toBatch();
+
+    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(8);
+
+    // NOT GTEQ
+    builder = scanBuilder();
+
+    predicate = new Not(predicate);
+    pushFilters(builder, predicate);
+    scan = builder.build().toBatch();
+
+    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(2);
   }
 
   @Test
@@ -690,43 +753,17 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
 
   private void createUnpartitionedTable() {
     sql("CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' %s)", tableName, "read.split.target-size", "10");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(0, CAST('2017-11-22T09:20:44.294658+00:00' AS TIMESTAMP), 'data-0')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(1, CAST('2017-11-22T07:15:34.582910+00:00' AS TIMESTAMP), 'data-1')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(2, CAST('2017-11-22T06:02:09.243857+00:00' AS TIMESTAMP), 'data-2')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(3, CAST('2017-11-22T03:10:11.134509+00:00' AS TIMESTAMP), 'data-3')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(4, CAST('2017-11-22T00:34:00.184671+00:00' AS TIMESTAMP), 'data-4')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(5, CAST('2018-12-21T22:20:08.935889+00:00' AS TIMESTAMP), 'material-5')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(6, CAST('2018-12-21T21:55:30.589712+00:00' AS TIMESTAMP), 'material-6')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(7, CAST('2018-12-21T17:31:14.532797+00:00' AS TIMESTAMP), 'material-7')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(8, CAST('2018-12-21T15:21:51.237521+00:00' AS TIMESTAMP), 'material-8')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(9, CAST('2018-12-21T15:02:15.230570+00:00' AS TIMESTAMP), 'material-9')");
+    insertRecords();
   }
 
   private void createPartitionedTable(String partitionCol) {
     sql(
         "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg PARTITIONED BY (%s)",
         tableName, partitionCol);
+    insertRecords();
+  }
+
+  private void insertRecords() {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' %s)", tableName, "read.split.target-size", "10");
     sql(
         "INSERT INTO TABLE %s VALUES %s",
@@ -770,15 +807,19 @@ public class TestFilteredWithSystemFunctionScan extends SparkTestBaseWithCatalog
     return expressions;
   }
 
-  private int years(int year) {
-    return year - 1970;
+  private static int years(String date) {
+    return DateTimeUtil.daysToYears(DateTimeUtil.isoDateToDays(date));
   }
 
-  private int months(int year, int month) {
-    return years(year) * 12 + month;
+  private static int months(String date) {
+    return DateTimeUtil.daysToMonths(DateTimeUtil.isoDateToDays(date));
   }
 
-  private int days(int year, int month, int day) {
-    return (int) DAYS.between(LocalDate.of(1970, 1, 1), LocalDate.of(year, month, day));
+  private static int days(String date) {
+    return DateTimeUtil.isoDateToDays(date);
+  }
+
+  private static int hours(String timestamp) {
+    return DateTimeUtil.microsToHours(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 }

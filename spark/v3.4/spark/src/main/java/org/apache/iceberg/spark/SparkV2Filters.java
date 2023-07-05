@@ -37,7 +37,6 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
@@ -46,7 +45,6 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -58,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.util.NaNUtil;
-import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
@@ -157,27 +154,55 @@ public class SparkV2Filters {
           return notNull(term);
 
         case LT:
-          return handleComparePredicate(
-              predicate, Expressions::lessThan, (literal, col) -> greaterThan(col, literal));
+          PredicateChildren ltChildren = predicateChildren(predicate);
+          if (ltChildren == null) {
+            return null;
+          }
+
+          if (ltChildren.termOnLeft) {
+            return lessThan(ltChildren.term, ltChildren.value);
+          } else {
+            return greaterThan(ltChildren.term, ltChildren.value);
+          }
 
         case LT_EQ:
-          return handleComparePredicate(
-              predicate,
-              Expressions::lessThanOrEqual,
-              (literal, col) -> greaterThanOrEqual(col, literal));
+          PredicateChildren ltEqChildren = predicateChildren(predicate);
+          if (ltEqChildren == null) {
+            return null;
+          }
+
+          if (ltEqChildren.termOnLeft) {
+            return lessThanOrEqual(ltEqChildren.term, ltEqChildren.value);
+          } else {
+            return greaterThanOrEqual(ltEqChildren.term, ltEqChildren.value);
+          }
 
         case GT:
-          return handleComparePredicate(
-              predicate, Expressions::greaterThan, (literal, col) -> lessThan(col, literal));
+          PredicateChildren gtChildren = predicateChildren(predicate);
+          if (gtChildren == null) {
+            return null;
+          }
+
+          if (gtChildren.termOnLeft) {
+            return greaterThan(gtChildren.term, gtChildren.value);
+          } else {
+            return lessThan(gtChildren.term, gtChildren.value);
+          }
 
         case GT_EQ:
-          return handleComparePredicate(
-              predicate,
-              Expressions::greaterThanOrEqual,
-              (literal, col) -> lessThanOrEqual(col, literal));
+          PredicateChildren gtEqChildren = predicateChildren(predicate);
+          if (gtEqChildren == null) {
+            return null;
+          }
+
+          if (gtEqChildren.termOnLeft) {
+            return greaterThanOrEqual(gtEqChildren.term, gtEqChildren.value);
+          } else {
+            return lessThanOrEqual(gtEqChildren.term, gtEqChildren.value);
+          }
 
         case EQ: // used for both eq and null-safe-eq
-          Pair<UnboundTerm<Object>, Object> eqChildren = predicateChildren(predicate);
+          PredicateChildren eqChildren = predicateChildren(predicate);
           if (eqChildren == null) {
             return null;
           }
@@ -185,26 +210,26 @@ public class SparkV2Filters {
           if (predicate.name().equals(EQ)) {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(
-                eqChildren.second(),
+                eqChildren.value,
                 "Expression is always false (eq is not null-safe): %s",
                 predicate);
           }
 
-          return handleEqual(eqChildren.first(), eqChildren.second());
+          return handleEqual(eqChildren.term, eqChildren.value);
 
         case NOT_EQ:
-          Pair<UnboundTerm<Object>, Object> notEqChildren = predicateChildren(predicate);
+          PredicateChildren notEqChildren = predicateChildren(predicate);
           if (notEqChildren == null) {
             return null;
           }
 
           // comparison with null in normal equality is always null. this is probably a mistake.
           Preconditions.checkNotNull(
-              notEqChildren.second(),
+              notEqChildren.value,
               "Expression is always false (notEq is not null-safe): %s",
               predicate);
 
-          return handleNotEqual(notEqChildren.first(), notEqChildren.second());
+          return handleNotEqual(notEqChildren.term, notEqChildren.value);
 
         case IN:
           if (!isSupportedInPredicate(predicate)) {
@@ -284,40 +309,17 @@ public class SparkV2Filters {
     return null;
   }
 
-  private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {
-    if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(leftChild(predicate)));
-      Object value = convertLiteral(rightChild(predicate));
-      return Pair.of(term, value);
-
-    } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(rightChild(predicate)));
-      Object value = convertLiteral(leftChild(predicate));
-      return Pair.of(term, value);
-
-    } else {
-      return null;
-    }
-  }
-
-  private static <T> UnboundPredicate<T> handleComparePredicate(
-      Predicate predicate,
-      BiFunction<UnboundTerm<T>, T, UnboundPredicate<T>> refAndLiteralFunc,
-      BiFunction<T, UnboundTerm<T>, UnboundPredicate<T>> literalAndRefFunc) {
+  private static PredicateChildren predicateChildren(Predicate predicate) {
     if (couldConvert(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-      UnboundTerm<T> term = toTerm(leftChild(predicate));
-      if (term == null) {
-        return null;
-      }
+      UnboundTerm<Object> term = toTerm(leftChild(predicate));
+      Object value = convertLiteral(rightChild(predicate));
+      return new PredicateChildren(term, value, true);
 
-      return refAndLiteralFunc.apply(term, convertLiteral(rightChild(predicate)));
     } else if (couldConvert(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-      UnboundTerm<T> term = toTerm(rightChild(predicate));
-      if (term == null) {
-        return null;
-      }
+      UnboundTerm<Object> term = toTerm(rightChild(predicate));
+      Object value = convertLiteral(leftChild(predicate));
+      return new PredicateChildren(term, value, false);
 
-      return literalAndRefFunc.apply(convertLiteral(leftChild(predicate)), term);
     } else {
       return null;
     }
@@ -432,19 +434,22 @@ public class SparkV2Filters {
     }
   }
 
-  private static <I, T> UnboundTerm<T> toTerm(I input) {
+  private static <T> UnboundTerm<Object> toTerm(T input) {
     if (input instanceof NamedReference) {
       return Expressions.ref(SparkUtil.toColumnName((NamedReference) input));
+
     } else if (input instanceof UserDefinedScalarFunc) {
       return udfToTerm((UserDefinedScalarFunc) input);
+
     } else {
+
       return null;
     }
   }
 
   @VisibleForTesting
   @SuppressWarnings("unchecked")
-  static <T> UnboundTerm<T> udfToTerm(UserDefinedScalarFunc udf) {
+  static UnboundTerm<Object> udfToTerm(UserDefinedScalarFunc udf) {
     switch (udf.name().toLowerCase(Locale.ROOT)) {
       case "years":
         Preconditions.checkArgument(
@@ -483,9 +488,8 @@ public class SparkV2Filters {
             udf.children().length == 2,
             "bucket function should have two children (numBuckets and column)");
         if (isLiteral(udf.children()[0]) && isRef(udf.children()[1])) {
-          return bucket(
-              SparkUtil.toColumnName((NamedReference) udf.children()[1]),
-              convertLiteral((Literal<Integer>) udf.children()[0]));
+          int numBuckets = (Integer) convertLiteral((Literal<?>) udf.children()[0]);
+          return bucket(SparkUtil.toColumnName((NamedReference) udf.children()[1]), numBuckets);
         }
 
         return null;
@@ -494,14 +498,25 @@ public class SparkV2Filters {
             udf.children().length == 2,
             "truncate function should have two children (width and column)");
         if (isLiteral(udf.children()[0]) && isRef(udf.children()[1])) {
-          return truncate(
-              SparkUtil.toColumnName((NamedReference) udf.children()[1]),
-              convertLiteral((Literal<Integer>) udf.children()[0]));
+          int width = (Integer) convertLiteral((Literal<?>) udf.children()[0]);
+          return truncate(SparkUtil.toColumnName((NamedReference) udf.children()[1]), width);
         }
 
         return null;
       default:
         return null;
+    }
+  }
+
+  private static class PredicateChildren {
+    private final UnboundTerm<Object> term;
+    private final Object value;
+    private final boolean termOnLeft;
+
+    PredicateChildren(UnboundTerm<Object> term, Object value, boolean termOnLeft) {
+      this.term = term;
+      this.value = value;
+      this.termOnLeft = termOnLeft;
     }
   }
 }
