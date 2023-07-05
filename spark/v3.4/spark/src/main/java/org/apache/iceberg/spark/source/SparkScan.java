@@ -86,7 +86,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Schema expectedSchema,
       List<Expression> filters,
       Supplier<ScanReport> metricsReportSupplier) {
-    this.metricsReportSupplier = metricsReportSupplier;
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
@@ -97,6 +96,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.branch = readConf.branch();
+    this.metricsReportSupplier = metricsReportSupplier;
   }
 
   protected Table table() {

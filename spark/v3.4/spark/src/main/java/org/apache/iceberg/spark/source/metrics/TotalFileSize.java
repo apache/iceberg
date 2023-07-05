@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class TotalFileSize implements CustomMetric {
+public class TotalFileSize extends CustomSumMetric {
 
   static final String NAME = "totalFileSize";
 
@@ -33,10 +32,5 @@ public class TotalFileSize implements CustomMetric {
   @Override
   public String description() {
     return "total file size";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
   }
 }

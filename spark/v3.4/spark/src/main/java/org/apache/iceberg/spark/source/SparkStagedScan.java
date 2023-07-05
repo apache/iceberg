@@ -20,12 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -41,12 +39,8 @@ class SparkStagedScan extends SparkScan {
 
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
-  SparkStagedScan(
-      SparkSession spark,
-      Table table,
-      SparkReadConf readConf,
-      Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, table.schema(), ImmutableList.of(), scanReportSupplier);
+  SparkStagedScan(SparkSession spark, Table table, SparkReadConf readConf) {
+    super(spark, table, readConf, table.schema(), ImmutableList.of(), null);
 
     this.taskSetId = readConf.scanTaskSetId();
     this.splitSize = readConf.splitSize();

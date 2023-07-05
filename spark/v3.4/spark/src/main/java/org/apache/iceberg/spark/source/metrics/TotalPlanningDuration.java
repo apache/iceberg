@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class TotalPlanningDuration implements CustomMetric {
+public class TotalPlanningDuration extends CustomSumMetric {
 
   static final String NAME = "totalPlanningDuration";
 
@@ -33,10 +32,5 @@ public class TotalPlanningDuration implements CustomMetric {
   @Override
   public String description() {
     return "total planning duration";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
   }
 }

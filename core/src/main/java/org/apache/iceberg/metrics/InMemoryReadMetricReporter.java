@@ -18,18 +18,20 @@
  */
 package org.apache.iceberg.metrics;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public class InMemoryReadMetricReporter implements MetricsReporter {
 
-  private ScanReport metricsReport;
+  private MetricsReport metricsReport;
 
   @Override
   public void report(MetricsReport report) {
-    if (report instanceof ScanReport) {
-      this.metricsReport = (ScanReport) report;
-    }
+    this.metricsReport = (ScanReport) report;
   }
 
   public ScanReport scanReport() {
-    return metricsReport;
+    Preconditions.checkArgument(
+        metricsReport instanceof ScanReport, "Metric report is not a scan report");
+    return (ScanReport) metricsReport;
   }
 }
