@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
@@ -89,6 +90,26 @@ public class DataFiles {
     return data;
   }
 
+  static PartitionData fillFromValues(
+      PartitionSpec spec, List<String> partitionValues, PartitionData reuse) {
+    PartitionData data = reuse;
+    if (data == null) {
+      data = newPartitionData(spec);
+    }
+
+    Preconditions.checkArgument(
+        partitionValues.size() == spec.fields().size(),
+        "Invalid partition data, expecting %s fields, found %s",
+        spec.fields().size(),
+        partitionValues.size());
+
+    for (int i = 0; i < partitionValues.size(); i += 1) {
+      data.set(i, Conversions.fromPartitionString(data.getType(i), partitionValues.get(i)));
+    }
+
+    return data;
+  }
+
   public static PartitionData data(PartitionSpec spec, String partitionPath) {
     return fillFromPath(spec, partitionPath, null);
   }
@@ -123,7 +144,6 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
-    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -134,6 +154,8 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
+    private List<Integer> equalityFieldIds = null;
+    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -248,6 +270,16 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withPartitionValues(List<String> partitionValues) {
+      Preconditions.checkArgument(
+          isPartitioned ^ partitionValues.isEmpty(),
+          "Table must be partitioned or partition values must be empty");
+      if (!partitionValues.isEmpty()) {
+        this.partitionData = fillFromValues(spec, partitionValues, partitionData);
+      }
+      return this;
+    }
+
     public Builder withMetrics(Metrics metrics) {
       // check for null to avoid NPE when unboxing
       this.recordCount = metrics.recordCount() == null ? -1 : metrics.recordCount();
@@ -266,6 +298,14 @@ public class DataFiles {
       } else {
         this.splitOffsets = null;
       }
+      return this;
+    }
+
+    public Builder withEqualityFieldIds(List<Integer> equalityIds) {
+      if (equalityIds != null) {
+        this.equalityFieldIds = ImmutableList.copyOf(equalityIds);
+      }
+
       return this;
     }
 
@@ -310,6 +350,7 @@ public class DataFiles {
               upperBounds),
           keyMetadata,
           splitOffsets,
+          ArrayUtil.toIntArray(equalityFieldIds),
           sortOrderId);
     }
   }

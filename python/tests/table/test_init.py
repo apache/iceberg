@@ -20,6 +20,7 @@ from typing import Any, Dict
 import pytest
 from sortedcontainers import SortedList
 
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -62,12 +63,8 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
         metadata=table_metadata,
         metadata_location=f"{table_metadata.location}/uuid.metadata.json",
         io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )
-
-
-@pytest.fixture
-def static_table(metadata_location: str) -> StaticTable:
-    return StaticTable.from_metadata(metadata_location)
 
 
 def test_schema(table: Table) -> None:
@@ -258,7 +255,14 @@ def test_table_scan_projection_unknown_column(table: Table) -> None:
     assert "Could not find column: 'a'" in str(exc_info.value)
 
 
-def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> None:
+def test_static_table_same_as_table(table: Table, metadata_location: str) -> None:
+    static_table = StaticTable.from_metadata(metadata_location)
+    assert isinstance(static_table, Table)
+    assert static_table.metadata == table.metadata
+
+
+def test_static_table_gz_same_as_table(table: Table, metadata_location_gz: str) -> None:
+    static_table = StaticTable.from_metadata(metadata_location_gz)
     assert isinstance(static_table, Table)
     assert static_table.metadata == table.metadata
 

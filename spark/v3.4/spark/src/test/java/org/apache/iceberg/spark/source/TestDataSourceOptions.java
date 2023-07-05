@@ -32,10 +32,12 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
@@ -425,8 +427,14 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Thread writerThread =
         new Thread(
             () -> {
-              Map<String, String> properties = Maps.newHashMap();
-              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
               CommitMetadata.withCommitProperties(
                   properties,
                   () -> {
@@ -442,8 +450,10 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assert.assertEquals(
-        "test-extra-commit-message-writer-thread", snapshots.get(1).summary().get("writer-thread"));
+    Assertions.assertThat(snapshots.get(1).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 
   @Test
@@ -459,8 +469,14 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Thread writerThread =
         new Thread(
             () -> {
-              Map<String, String> properties = Maps.newHashMap();
-              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
               CommitMetadata.withCommitProperties(
                   properties,
                   () -> {
@@ -477,7 +493,9 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assert.assertEquals(
-        "test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
+    Assertions.assertThat(snapshots.get(1).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-delete-thread")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 }

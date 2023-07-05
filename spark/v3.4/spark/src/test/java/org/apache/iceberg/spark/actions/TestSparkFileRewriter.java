@@ -261,6 +261,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Assert.assertEquals(
         "Rewriter must report all supported options",
         ImmutableSet.of(
+            SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
             SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
             SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
             SparkSortDataRewriter.MAX_FILE_SIZE_BYTES,
@@ -281,6 +282,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Assert.assertEquals(
         "Rewriter must report all supported options",
         ImmutableSet.of(
+            SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
             SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
             SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
             SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,

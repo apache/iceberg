@@ -34,6 +34,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   private final String specString;
   private final ResidualEvaluator residuals;
 
+  private transient volatile Schema schema = null;
   private transient volatile PartitionSpec spec = null;
 
   BaseContentScanTask(F file, String schemaString, String specString, ResidualEvaluator residuals) {
@@ -52,12 +53,24 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
     return file;
   }
 
+  protected Schema schema() {
+    if (schema == null) {
+      synchronized (this) {
+        if (schema == null) {
+          this.schema = SchemaParser.fromJson(schemaString);
+        }
+      }
+    }
+
+    return schema;
+  }
+
   @Override
   public PartitionSpec spec() {
     if (spec == null) {
       synchronized (this) {
         if (spec == null) {
-          this.spec = PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString);
+          this.spec = PartitionSpecParser.fromJson(schema(), specString);
         }
       }
     }

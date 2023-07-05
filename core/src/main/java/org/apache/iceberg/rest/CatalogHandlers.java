@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -214,6 +215,21 @@ public class CatalogHandlers {
             .withProperties(request.properties())
             .create();
 
+    if (table instanceof BaseTable) {
+      return LoadTableResponse.builder()
+          .withTableMetadata(((BaseTable) table).operations().current())
+          .build();
+    }
+
+    throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+  }
+
+  public static LoadTableResponse registerTable(
+      Catalog catalog, Namespace namespace, RegisterTableRequest request) {
+    request.validate();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
+    Table table = catalog.registerTable(identifier, request.metadataLocation());
     if (table instanceof BaseTable) {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())

@@ -22,7 +22,6 @@ import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,6 +48,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -349,7 +349,10 @@ public class SimpleDataUtil {
 
   public static StructLikeSet expectedRowSet(Table table, Record... records) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    Collections.addAll(set, records);
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(table.schema().asStruct());
+    for (Record record : records) {
+      set.add(wrapper.copyFor(record));
+    }
     return set;
   }
 
@@ -361,12 +364,13 @@ public class SimpleDataUtil {
       throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(table.schema().asStruct());
     try (CloseableIterable<Record> reader =
         IcebergGenerics.read(table)
             .useSnapshot(snapshotId == null ? table.currentSnapshot().snapshotId() : snapshotId)
             .select(columns)
             .build()) {
-      reader.forEach(set::add);
+      reader.forEach(record -> set.add(wrapper.copyFor(record)));
     }
     return set;
   }

@@ -81,7 +81,7 @@ public class TestCommitTransactionRequestParser {
   public void roundTripSerde() {
     String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
     UpdateTableRequest commitTableRequestOne =
-        new UpdateTableRequest(
+        UpdateTableRequest.create(
             TableIdentifier.of("ns1", "table1"),
             ImmutableList.of(
                 new UpdateRequirement.AssertTableUUID(uuid),
@@ -90,7 +90,7 @@ public class TestCommitTransactionRequestParser {
                 new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23)));
 
     UpdateTableRequest commitTableRequestTwo =
-        new UpdateTableRequest(
+        UpdateTableRequest.create(
             TableIdentifier.of("ns1", "table2"),
             ImmutableList.of(
                 new UpdateRequirement.AssertDefaultSpecID(4),
@@ -160,7 +160,7 @@ public class TestCommitTransactionRequestParser {
     CommitTransactionRequest commitTxRequest =
         new CommitTransactionRequest(
             ImmutableList.of(
-                new UpdateTableRequest(
+                UpdateTableRequest.create(
                     TableIdentifier.of("ns1", "table1"), ImmutableList.of(), ImmutableList.of())));
 
     String json =

@@ -22,10 +22,8 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStaticTable extends HadoopTableTestBase {
 
@@ -41,9 +39,9 @@ public class TestStaticTable extends HadoopTableTestBase {
   @Test
   public void testLoadFromMetadata() {
     Table staticTable = getStaticTable();
-    Assert.assertTrue(
-        "Loading a metadata file based table should return StaticTableOperations",
-        ((HasTableOperations) staticTable).operations() instanceof StaticTableOperations);
+    Assertions.assertThat(((HasTableOperations) staticTable).operations())
+        .as("Loading a metadata file based table should return StaticTableOperations")
+        .isInstanceOf(StaticTableOperations.class);
   }
 
   @Test
@@ -88,13 +86,13 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     Table staticTable = getStaticTable();
-    Assert.assertTrue("Same history?", table.history().containsAll(staticTable.history()));
-    Assert.assertTrue(
-        "Same snapshot?",
-        table.currentSnapshot().snapshotId() == staticTable.currentSnapshot().snapshotId());
-    Assert.assertTrue(
-        "Same properties?",
-        Maps.difference(table.properties(), staticTable.properties()).areEqual());
+    Assertions.assertThat(table.history()).as("Same history?").containsAll(staticTable.history());
+    Assertions.assertThat(table.currentSnapshot().snapshotId())
+        .as("Same snapshot?")
+        .isEqualTo(staticTable.currentSnapshot().snapshotId());
+    Assertions.assertThat(table.properties())
+        .as("Same properties?")
+        .isEqualTo(staticTable.properties());
   }
 
   @Test
@@ -107,19 +105,18 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     staticTable.refresh();
 
-    Assert.assertEquals(
-        "Snapshot unchanged after table modified",
-        staticTable.currentSnapshot().snapshotId(),
-        originalSnapshot);
+    Assertions.assertThat(staticTable.currentSnapshot().snapshotId())
+        .as("Snapshot unchanged after table modified")
+        .isEqualTo(originalSnapshot);
   }
 
   @Test
   public void testMetadataTables() {
     for (MetadataTableType type : MetadataTableType.values()) {
       String enumName = type.name().replace("_", "").toLowerCase();
-      Assert.assertTrue(
-          "Should be able to get MetadataTable of type : " + type,
-          getStaticTable(type).getClass().getName().toLowerCase().contains(enumName));
+      Assertions.assertThat(getStaticTable(type).getClass().getName().toLowerCase())
+          .as("Should be able to get MetadataTable of type : " + type)
+          .contains(enumName);
     }
   }
 }

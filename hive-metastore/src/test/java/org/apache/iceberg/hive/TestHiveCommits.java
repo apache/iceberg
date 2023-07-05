@@ -352,6 +352,49 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertEquals("New metadata files should not exist", 2, metadataFileCount(ops.current()));
   }
 
+  @Test
+  public void testLockExceptionUnknownSuccessCommit() throws TException, InterruptedException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    Assertions.assertThat(ops.current().schema().columns().size()).isEqualTo(2);
+
+    HiveTableOperations spyOps = spy(ops);
+
+    // Simulate a communication error after a successful commit
+    doAnswer(
+            i -> {
+              org.apache.hadoop.hive.metastore.api.Table tbl =
+                  i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
+              String location = i.getArgument(2, String.class);
+              ops.persistTable(tbl, true, location);
+              throw new LockException("Datacenter on fire");
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .hasMessageContaining("Failed to heartbeat for hive lock while")
+        .isInstanceOf(CommitStateUnknownException.class);
+
+    ops.refresh();
+
+    Assertions.assertThat(ops.current().location())
+        .as("Current metadata should have changed to metadata V1")
+        .isEqualTo(metadataV1.location());
+    Assertions.assertThat(metadataFileExists(ops.current()))
+        .as("Current metadata file should still exist")
+        .isTrue();
+  }
+
   private void commitAndThrowException(
       HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {

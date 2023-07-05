@@ -124,14 +124,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public void open() throws CatalogException {
-    // Create the default database if it does not exist.
-    try {
-      createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
-    } catch (DatabaseAlreadyExistException e) {
-      // Ignore the exception if it's already exist.
-    }
-  }
+  public void open() throws CatalogException {}
 
   @Override
   public void close() throws CatalogException {
