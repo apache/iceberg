@@ -23,7 +23,7 @@ from typing import (
     Tuple,
 )
 
-from pydantic import Field
+from pydantic import Field, SerializeAsAny
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
@@ -46,14 +46,14 @@ class PartitionField(IcebergBaseModel):
 
     source_id: int = Field(alias="source-id")
     field_id: int = Field(alias="field-id")
-    transform: Transform = Field()
+    transform: Transform[Any, Any] = Field()
     name: str = Field()
 
     def __init__(
         self,
         source_id: Optional[int] = None,
         field_id: Optional[int] = None,
-        transform: Optional[Transform] = None,
+        transform: Optional[Transform[Any, Any]] = None,
         name: Optional[str] = None,
         **data: Any,
     ):
@@ -65,8 +65,6 @@ class PartitionField(IcebergBaseModel):
             data["transform"] = transform
         if name is not None:
             data["name"] = name
-
-        data["transform"] = Transform.validate(data["transform"])
 
         super().__init__(**data)
 

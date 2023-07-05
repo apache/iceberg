@@ -20,7 +20,7 @@ import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Generic
 from typing import Literal as LiteralType
 from typing import Optional, TypeVar
 
@@ -29,8 +29,9 @@ from pydantic import (
     Field,
     PositiveInt,
     PrivateAttr,
-    RootModel,
+    RootModel, GetCoreSchemaHandler,
 )
+from pydantic_core import core_schema
 
 from pyiceberg.expressions import (
     BoundEqualTo,
@@ -104,7 +105,7 @@ def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
     return literal(func(lit.value))
 
 
-class Transform(RootModel, ABC):
+class Transform(RootModel[str], ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
 
     A base class to transform values and project predicates on partition values.
@@ -120,6 +121,15 @@ class Transform(RootModel, ABC):
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, _source_type: Any, _handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+        )
 
     @classmethod
     def validate(cls, v: Any) -> IcebergBaseModel:
@@ -187,7 +197,7 @@ class Transform(RootModel, ABC):
         return False
 
 
-class BucketTransform(Transform):
+class BucketTransform(Transform[S, int]):
     """Base Transform class to transform a value into a bucket partition value.
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
@@ -298,13 +308,13 @@ class TimeResolution(IntEnum):
     SECOND = 0
 
 
-class TimeTransform(Transform, Singleton):
+class TimeTransform(Transform[S, int], Generic[S], Singleton):
     @property
     @abstractmethod
     def granularity(self) -> TimeResolution:
         ...
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         return self.granularity <= other.granularity if hasattr(other, "granularity") else False
 
     def result_type(self, source: IcebergType) -> IntegerType:
@@ -336,7 +346,7 @@ class TimeTransform(Transform, Singleton):
         return True
 
 
-class YearTransform(TimeTransform):
+class YearTransform(TimeTransform[S]):
     """Transforms a datetime value into a year value.
 
     Example:
@@ -383,7 +393,7 @@ class YearTransform(TimeTransform):
         return "YearTransform()"
 
 
-class MonthTransform(TimeTransform):
+class MonthTransform(TimeTransform[S]):
     """Transforms a datetime value into a month value.
 
     Example:
@@ -430,7 +440,7 @@ class MonthTransform(TimeTransform):
         return "MonthTransform()"
 
 
-class DayTransform(TimeTransform):
+class DayTransform(TimeTransform[S]):
     """Transforms a datetime value into a day value.
 
     Example:
@@ -480,7 +490,7 @@ class DayTransform(TimeTransform):
         return "DayTransform()"
 
 
-class HourTransform(TimeTransform):
+class HourTransform(TimeTransform[S]):
     """Transforms a datetime value into a hour value.
 
     Example:
@@ -525,7 +535,7 @@ def _base64encode(buffer: bytes) -> str:
     return base64.b64encode(buffer).decode("ISO-8859-1")
 
 
-class IdentityTransform(Transform):
+class IdentityTransform(Transform[S, S]):
     """Transforms a value into itself.
 
     Example:
@@ -577,7 +587,7 @@ class IdentityTransform(Transform):
         return "IdentityTransform()"
 
 
-class TruncateTransform(Transform):
+class TruncateTransform(Transform[S, S]):
     """A transform for truncating a value to a specified width.
 
     Args:
@@ -717,7 +727,7 @@ def _(_type: IcebergType, value: int) -> str:
     return datetime.to_human_timestamptz(value)
 
 
-class UnknownTransform(Transform):
+class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided.
 
     Args:

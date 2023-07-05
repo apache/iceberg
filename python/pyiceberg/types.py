@@ -50,6 +50,7 @@ from pydantic import (
     PrivateAttr,
     RootModel,
     model_validator,
+    SerializeAsAny
 )
 
 from pyiceberg.typedef import IcebergBaseModel
@@ -238,7 +239,7 @@ class NestedField(IcebergType):
 
     field_id: int = Field(alias="id")
     name: str = Field()
-    field_type: IcebergSubTypes = Field(alias="type")
+    field_type: SerializeAsAny[IcebergType] = Field(alias="type")
     required: bool = Field(default=True)
     doc: Optional[str] = Field(default=None, repr=False)
     initial_default: Optional[Any] = Field(alias="initial-default", default=None, repr=False)
@@ -651,25 +652,3 @@ PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
     "uuid": UUIDType(),
     "binary": BinaryType(),
 }
-
-IcebergSubTypes = TypeVar(
-    "IcebergSubTypes",
-    BooleanType,
-    IntegerType,
-    LongType,
-    FloatType,
-    DoubleType,
-    DateType,
-    TimeType,
-    TimestampType,
-    TimestamptzType,
-    FixedType,
-    DecimalType,
-    StringType,
-    UUIDType,
-    BinaryType,
-    MapType,
-    ListType,
-    StructType,
-    NestedField,
-)
