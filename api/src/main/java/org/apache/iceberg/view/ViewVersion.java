@@ -20,6 +20,8 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
@@ -73,6 +75,14 @@ public interface ViewVersion {
 
   /** The query output schema at version create time, without aliases */
   int schemaId();
+
+  /** The default catalog when the view is created. */
+  @Nullable
+  String defaultCatalog();
+
+  /** The default namespace to use when the SQL does not contain a namespace. */
+  @Nullable
+  Namespace defaultNamespace();
 
   @Value.Check
   default void check() {
