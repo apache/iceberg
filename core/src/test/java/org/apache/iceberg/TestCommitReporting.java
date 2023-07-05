@@ -25,7 +25,7 @@ import org.apache.iceberg.TestScanPlanningAndReporting.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCommitReporting extends TableTestBase {
 

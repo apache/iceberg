@@ -528,6 +528,10 @@ project(':iceberg-aws') {
 project(':iceberg-delta-lake') {
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
+  test {
+    useJUnitPlatform()
+  }
+
   configurations {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
@@ -734,6 +738,10 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')

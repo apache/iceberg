@@ -28,23 +28,22 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestBaseSnapshotDeltaLakeTableAction {
-  @Rule public TemporaryFolder temp1 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp2 = new TemporaryFolder();
+  @TempDir File temp1;
+  @TempDir File temp2;
   private String sourceTableLocation;
   private final Configuration testHadoopConf = new Configuration();
   private String newTableLocation;
   private final Catalog testCatalog = new TestCatalog();
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    File sourceFolder = temp1.newFolder();
-    File destFolder = temp2.newFolder();
+    File sourceFolder = temp1;
+    File destFolder = temp2;
     sourceTableLocation = sourceFolder.toURI().toString();
     newTableLocation = destFolder.toURI().toString();
   }
