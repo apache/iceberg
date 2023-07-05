@@ -28,12 +28,12 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
-
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from requests import HTTPError
+
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (

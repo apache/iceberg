@@ -62,6 +62,7 @@ from pyarrow.fs import (
     PyFileSystem,
     S3FileSystem,
 )
+
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
     AlwaysTrue,
