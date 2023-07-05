@@ -123,7 +123,7 @@ public class TestTableScanUtil {
 
     CloseableIterable<ScanTaskGroup<ParentTask>> taskGroups =
         TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(tasks), 128, 10, 4);
-    Assertions.assertThat(taskGroups).as("Must have 3 task groups").hasSize(3);
+    assertThat(taskGroups).as("Must have 3 task groups").hasSize(3);
   }
 
   @Test

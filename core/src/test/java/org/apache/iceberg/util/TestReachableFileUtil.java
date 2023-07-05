@@ -83,7 +83,7 @@ public class TestReachableFileUtil {
     table.newAppend().appendFile(FILE_B).commit();
 
     List<String> manifestListPaths = ReachableFileUtil.manifestListLocations(table);
-    assertThat(manifestListPaths.size()).isEqualTo(2);
+    assertThat(manifestListPaths).hasSize(2);
   }
 
   @Test
@@ -95,10 +95,10 @@ public class TestReachableFileUtil {
     table.newAppend().appendFile(FILE_B).commit();
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
-    assertThat(metadataFileLocations.size()).isEqualTo(4);
+    assertThat(metadataFileLocations).hasSize(4);
 
     metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
-    assertThat(metadataFileLocations.size()).isEqualTo(2);
+    assertThat(metadataFileLocations).hasSize(2);
   }
 
   @Test
@@ -115,7 +115,7 @@ public class TestReachableFileUtil {
     table.io().deleteFile(location);
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
-    assertThat(metadataFileLocations.size()).isEqualTo(2);
+    assertThat(metadataFileLocations).hasSize(2);
   }
 
   @Test

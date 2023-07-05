@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
@@ -35,13 +34,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 5)
 public class TestInMemoryLockManager {
 
   private LockManagers.InMemoryLockManager lockManager;
   private String lockEntityId;
   private String ownerId;
 
-  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   @BeforeEach
   public void before() {
     lockEntityId = UUID.randomUUID().toString();

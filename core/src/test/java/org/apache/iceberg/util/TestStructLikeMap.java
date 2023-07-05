@@ -46,23 +46,17 @@ public class TestStructLikeMap {
     assertThat(map).isEmpty();
 
     map.put(record1, "1-aaa");
-    assertThat(map.size()).isOne();
-    assertThat(map)
-        .isNotEmpty()
-        .containsKey(record1)
-        .containsValue("1-aaa")
-        .containsEntry(record1, "1-aaa");
+    assertThat(map).hasSize(1).containsEntry(record1, "1-aaa");
 
     Set<StructLike> keySet = map.keySet();
     assertThat(keySet.size()).isOne();
     assertThat(keySet).contains(record1);
 
     Collection<String> values = map.values();
-    assertThat(values.size()).isOne();
-    assertThat(values.toArray(new String[0])[0]).isEqualTo("1-aaa");
+    assertThat(values).hasSize(1).first().isEqualTo("1-aaa");
 
     Set<Map.Entry<StructLike, String>> entrySet = map.entrySet();
-    assertThat(entrySet.size()).isOne();
+    assertThat(entrySet).hasSize(1);
     for (Map.Entry<StructLike, String> entry : entrySet) {
       assertThat(entry.getKey()).isEqualTo(record1);
       assertThat(entry.getValue()).isEqualTo("1-aaa");
@@ -85,12 +79,6 @@ public class TestStructLikeMap {
     map.putAll(ImmutableMap.of(record1, "1-aaa", record2, "2-bbb", record3, "3-null"));
     assertThat(map)
         .hasSize(3)
-        .containsKey(record1)
-        .containsKey(record2)
-        .containsKey(record3)
-        .containsValue("1-aaa")
-        .containsValue("2-bbb")
-        .containsValue("3-null")
         .containsEntry(record1, "1-aaa")
         .containsEntry(record2, "2-bbb")
         .containsEntry(record3, "3-null");
@@ -120,8 +108,7 @@ public class TestStructLikeMap {
 
     Map<StructLike, String> map = StructLikeMap.create(STRUCT_TYPE);
     map.put(record, "1-aaa");
-    assertThat(map.size()).isOne();
-    assertThat(map).containsEntry(record, "1-aaa");
+    assertThat(map).hasSize(1).containsEntry(record, "1-aaa");
     assertThat(map.remove(record)).isEqualTo("1-aaa");
     assertThat(map).isEmpty();
 
@@ -135,7 +122,7 @@ public class TestStructLikeMap {
     assertThat(map).doesNotContainKey(null);
 
     map.put(null, "aaa");
-    assertThat(map).containsKey(null).containsEntry(null, "aaa");
+    assertThat(map).containsEntry(null, "aaa");
 
     String replacedValue = map.put(null, "bbb");
     assertThat(replacedValue).isEqualTo("aaa");
@@ -157,7 +144,7 @@ public class TestStructLikeMap {
     assertThat(map).containsEntry(record1, "aaa").containsEntry(record2, "bbb");
 
     Record record3 = record1.copy();
-    assertThat(map).containsKey(record3).containsEntry(record3, "aaa");
+    assertThat(map).containsEntry(record3, "aaa");
 
     assertThat(map.remove(record3)).isEqualTo("aaa");
   }
