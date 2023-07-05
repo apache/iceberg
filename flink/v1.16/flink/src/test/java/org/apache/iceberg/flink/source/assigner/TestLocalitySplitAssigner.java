@@ -27,7 +27,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestLocalitySplitAssigner extends TestSplitAssignerBase {
+public class TestLocalitySplitAssigner extends SplitAssignerTestBase {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   @Test
@@ -92,6 +92,11 @@ public class TestLocalitySplitAssigner extends TestSplitAssignerBase {
     assertSnapshot(assigner, 0);
   }
 
+  @Override
+  protected SplitAssigner splitAssigner() {
+    return null;
+  }
+
   @Test
   public void testMultipleHostnames() throws Exception {
     LocalitySplitAssigner assigner = new LocalitySplitAssigner();
@@ -132,7 +137,7 @@ public class TestLocalitySplitAssigner extends TestSplitAssignerBase {
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE, "host2", Sets.newHashSet());
 
     assigner.onDiscoveredSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1, null));
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1, "1", null));
 
     assertSnapshot(assigner, 1);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE, "host1", null);

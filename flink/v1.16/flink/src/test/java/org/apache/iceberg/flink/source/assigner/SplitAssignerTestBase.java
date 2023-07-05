@@ -18,12 +18,19 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.internal.util.collections.Sets;
 
 public abstract class SplitAssignerTestBase {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
@@ -77,8 +84,13 @@ public abstract class SplitAssignerTestBase {
     assertSnapshot(assigner, 0);
   }
 
-  private void assertAvailableFuture(
+  protected void assertAvailableFuture(
       SplitAssigner assigner, int splitCount, Runnable addSplitsRunnable) {
+    assertAvailableFuture(assigner, splitCount, addSplitsRunnable, null);
+  }
+
+  protected void assertAvailableFuture(
+      SplitAssigner assigner, int splitCount, Runnable addSplitsRunnable, String hostname) {
     // register callback
     AtomicBoolean futureCompleted = new AtomicBoolean();
     CompletableFuture<Void> future = assigner.isAvailable();
@@ -90,21 +102,58 @@ public abstract class SplitAssignerTestBase {
 
     // now add some splits
     addSplitsRunnable.run();
-    Assert.assertEquals(true, futureCompleted.get());
+    Assert.assertTrue(futureCompleted.get());
+    Assert.assertEquals(assigner.pendingSplitCount(), splitCount);
 
     for (int i = 0; i < splitCount; ++i) {
-      assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+      assertGetNext(assigner, GetSplitResult.Status.AVAILABLE, hostname);
+      Assert.assertEquals(assigner.pendingSplitCount(), splitCount - i - 1);
     }
-    assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
+    assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE, hostname);
     assertSnapshot(assigner, 0);
   }
 
   protected void assertGetNext(SplitAssigner assigner, GetSplitResult.Status expectedStatus) {
-    GetSplitResult result = assigner.getNext(null);
+    assertGetNext(assigner, expectedStatus, null);
+  }
+
+  protected void assertGetNext(
+      SplitAssigner assigner, GetSplitResult.Status expectedStatus, String requestHostname) {
+    assertGetNext(
+        assigner,
+        expectedStatus,
+        requestHostname,
+        requestHostname == null ? null : Sets.newSet(requestHostname));
+  }
+
+  protected void assertGetNext(
+      SplitAssigner assigner,
+      GetSplitResult.Status expectedStatus,
+      String requestHostname,
+      Set<String> expectedHostname) {
+    assertGetNext(assigner, expectedStatus, requestHostname, expectedHostname, null);
+  }
+
+  protected void assertGetNext(
+      SplitAssigner assigner,
+      GetSplitResult.Status expectedStatus,
+      String requestHostname,
+      Set<String> expectedHostname,
+      String incorrectHostname) {
+    GetSplitResult result = assigner.getNext(requestHostname);
     Assert.assertEquals(expectedStatus, result.status());
+
     switch (expectedStatus) {
       case AVAILABLE:
-        Assert.assertNotNull(result.split());
+        if (incorrectHostname != null) {
+          Assert.assertFalse(Sets.newSet(result.split().hostnames()).contains(incorrectHostname));
+        }
+
+        if (expectedHostname != null) {
+          Assert.assertTrue(Sets.newSet(result.split().hostnames()).containsAll(expectedHostname));
+        } else {
+          Assert.assertNull(result.split().hostnames());
+        }
         break;
       case CONSTRAINED:
       case UNAVAILABLE:

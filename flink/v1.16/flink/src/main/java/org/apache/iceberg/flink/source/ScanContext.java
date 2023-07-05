@@ -511,6 +511,7 @@ public class ScanContext implements Serializable {
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
           .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
           .exposeLocality(SourceUtil.isLocalityEnabled(table, flinkReadConf));
+    }
 
     public ScanContext build() {
       return new ScanContext(

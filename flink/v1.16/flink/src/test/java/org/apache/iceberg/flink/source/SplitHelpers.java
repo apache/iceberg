@@ -64,7 +64,8 @@ public class SplitHelpers {
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
-    return createSplitsFromTransientHadoopTable(temporaryFolder, fileCount, filesPerSplit, "1");
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, "1", null);
   }
 
   /**
@@ -85,6 +86,57 @@ public class SplitHelpers {
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String version)
+      throws Exception {
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, version, null);
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param hostnames The split hostnames
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String[] hostnames)
+      throws Exception {
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, "1", hostnames);
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param version The table version to create
+   * @param hostnames The split hostnames
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder,
+      int fileCount,
+      int filesPerSplit,
+      String version,
+      String[] hostnames)
       throws Exception {
     final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
