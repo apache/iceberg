@@ -295,6 +295,7 @@ for list of all the supported options for this action.
 | ------------|------|-------------|
 | `rewritten_data_files_count` | int | Number of data which were re-written by this command |
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
+| `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
 
 #### Examples
 

@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.stream.IntStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTasks {
 
@@ -45,7 +46,7 @@ public class TestTasks {
               }
             });
 
-    Assertions.assertThat(counter.value()).isEqualTo(retries + 1);
+    assertThat(counter.value()).isEqualTo(retries + 1);
   }
 
   @Test
@@ -54,6 +55,6 @@ public class TestTasks {
 
     Tasks.foreach(IntStream.range(0, 10)).countAttempts(counter).run(x -> {});
 
-    Assertions.assertThat(counter.value()).isEqualTo(1L);
+    assertThat(counter.value()).isOne();
   }
 }

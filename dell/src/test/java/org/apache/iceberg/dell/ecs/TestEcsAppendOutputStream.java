@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.dell.ecs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -54,10 +55,9 @@ public class TestEcsAppendOutputStream {
 
     try (InputStream input =
         rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
-      Assert.assertEquals(
-          "Must write all the object content",
-          "1" + "123" + "1234567" + "12345678901",
-          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
+      assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
+          .as("Must write all the object content")
+          .isEqualTo("1" + "123" + "1234567" + "12345678901");
     }
   }
 
@@ -87,10 +87,9 @@ public class TestEcsAppendOutputStream {
 
     try (InputStream input =
         rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
-      Assert.assertEquals(
-          "Must replace the object content",
-          "1234567" + "1234567",
-          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
+      assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
+          .as("Must replace the object content")
+          .isEqualTo("1234567" + "1234567");
     }
   }
 }

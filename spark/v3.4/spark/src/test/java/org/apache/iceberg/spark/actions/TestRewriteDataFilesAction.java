@@ -894,6 +894,15 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             () -> basicRewrite(table).option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo").execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid rewrite job order name: foo");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
+                    .option(SparkShufflingDataRewriter.SHUFFLE_PARTITIONS_PER_FILE, "5")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("requires enabling Iceberg Spark session extensions");
   }
 
   @Test

@@ -53,6 +53,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     return ImmutableList.copyOf(deletes);
   }
 
+  @Override
+  public Schema schema() {
+    return super.schema();
+  }
+
   @VisibleForTesting
   static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {
     private final long len;
@@ -73,6 +78,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public List<DeleteFile> deletes() {
       return fileScanTask.deletes();
+    }
+
+    @Override
+    public Schema schema() {
+      return fileScanTask.schema();
     }
 
     @Override

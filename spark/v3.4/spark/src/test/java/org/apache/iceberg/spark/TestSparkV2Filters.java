@@ -34,11 +34,13 @@ import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestSparkV2Filters {
 
+  @SuppressWarnings("checkstyle:MethodLength")
   @Test
   public void testV2Filters() {
     Map<String, String> attrMap = Maps.newHashMap();
@@ -128,6 +130,18 @@ public class TestSparkV2Filters {
           Expression actualEq2 = SparkV2Filters.convert(eq2);
           Assert.assertEquals("EqualTo must match", expectedEq2.toString(), actualEq2.toString());
 
+          Predicate notEq1 = new Predicate("<>", attrAndValue);
+          Expression expectedNotEq1 = Expressions.notEqual(unquoted, 1);
+          Expression actualNotEq1 = SparkV2Filters.convert(notEq1);
+          Assert.assertEquals(
+              "NotEqualTo must match", expectedNotEq1.toString(), actualNotEq1.toString());
+
+          Predicate notEq2 = new Predicate("<>", valueAndAttr);
+          Expression expectedNotEq2 = Expressions.notEqual(unquoted, 1);
+          Expression actualNotEq2 = SparkV2Filters.convert(notEq2);
+          Assert.assertEquals(
+              "NotEqualTo must match", expectedNotEq2.toString(), actualNotEq2.toString());
+
           Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
           Expression expectedEqNullSafe1 = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe1 = SparkV2Filters.convert(eqNullSafe1);
@@ -187,6 +201,101 @@ public class TestSparkV2Filters {
           Expression actualNot = SparkV2Filters.convert(not);
           Assert.assertEquals("Not must match", expectedNot.toString(), actualNot.toString());
         });
+  }
+
+  @Test
+  public void testEqualToNull() {
+    String col = "col";
+    NamedReference namedReference = FieldReference.apply(col);
+    LiteralValue value = new LiteralValue(null, DataTypes.IntegerType);
+
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, value};
+    org.apache.spark.sql.connector.expressions.Expression[] valueAndAttr =
+        new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
+
+    Predicate eq1 = new Predicate("=", attrAndValue);
+    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(eq1))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Expression is always false");
+
+    Predicate eq2 = new Predicate("=", valueAndAttr);
+    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(eq2))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Expression is always false");
+
+    Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
+    Expression expectedEqNullSafe = Expressions.isNull(col);
+    Expression actualEqNullSafe1 = SparkV2Filters.convert(eqNullSafe1);
+    Assertions.assertThat(actualEqNullSafe1.toString()).isEqualTo(expectedEqNullSafe.toString());
+
+    Predicate eqNullSafe2 = new Predicate("<=>", valueAndAttr);
+    Expression actualEqNullSafe2 = SparkV2Filters.convert(eqNullSafe2);
+    Assertions.assertThat(actualEqNullSafe2.toString()).isEqualTo(expectedEqNullSafe.toString());
+  }
+
+  @Test
+  public void testEqualToNaN() {
+    String col = "col";
+    NamedReference namedReference = FieldReference.apply(col);
+    LiteralValue value = new LiteralValue(Float.NaN, DataTypes.FloatType);
+
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, value};
+    org.apache.spark.sql.connector.expressions.Expression[] valueAndAttr =
+        new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
+
+    Predicate eqNaN1 = new Predicate("=", attrAndValue);
+    Expression expectedEqNaN = Expressions.isNaN(col);
+    Expression actualEqNaN1 = SparkV2Filters.convert(eqNaN1);
+    Assertions.assertThat(actualEqNaN1.toString()).isEqualTo(expectedEqNaN.toString());
+
+    Predicate eqNaN2 = new Predicate("=", valueAndAttr);
+    Expression actualEqNaN2 = SparkV2Filters.convert(eqNaN2);
+    Assertions.assertThat(actualEqNaN2.toString()).isEqualTo(expectedEqNaN.toString());
+  }
+
+  @Test
+  public void testNotEqualToNull() {
+    String col = "col";
+    NamedReference namedReference = FieldReference.apply(col);
+    LiteralValue value = new LiteralValue(null, DataTypes.IntegerType);
+
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, value};
+    org.apache.spark.sql.connector.expressions.Expression[] valueAndAttr =
+        new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
+
+    Predicate notEq1 = new Predicate("<>", attrAndValue);
+    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notEq1))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Expression is always false");
+
+    Predicate notEq2 = new Predicate("<>", valueAndAttr);
+    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notEq2))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Expression is always false");
+  }
+
+  @Test
+  public void testNotEqualToNaN() {
+    String col = "col";
+    NamedReference namedReference = FieldReference.apply(col);
+    LiteralValue value = new LiteralValue(Float.NaN, DataTypes.FloatType);
+
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, value};
+    org.apache.spark.sql.connector.expressions.Expression[] valueAndAttr =
+        new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
+
+    Predicate notEqNaN1 = new Predicate("<>", attrAndValue);
+    Expression expectedNotEqNaN = Expressions.notNaN(col);
+    Expression actualNotEqNaN1 = SparkV2Filters.convert(notEqNaN1);
+    Assertions.assertThat(actualNotEqNaN1.toString()).isEqualTo(expectedNotEqNaN.toString());
+
+    Predicate notEqNaN2 = new Predicate("<>", valueAndAttr);
+    Expression actualNotEqNaN2 = SparkV2Filters.convert(notEqNaN2);
+    Assertions.assertThat(actualNotEqNaN2.toString()).isEqualTo(expectedNotEqNaN.toString());
   }
 
   @Test

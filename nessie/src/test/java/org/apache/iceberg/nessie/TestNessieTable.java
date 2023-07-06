@@ -542,7 +542,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
     IcebergTable table = getTable(BRANCH, KEY);
 
-    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, "cid");
+    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, table.getId());
     api.commitMultipleOperations()
         .branch(branch)
         .operation(Operation.Put.of(KEY, value))

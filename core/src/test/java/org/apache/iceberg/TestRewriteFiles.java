@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -64,119 +65,113 @@ public class TestRewriteFiles extends TableTestBase {
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.ref(branch));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        ValidationException.class,
-        "Missing required files to delete: /path/to/data-a.parquet",
-        () ->
-            commit(
-                table,
-                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        ValidationException.class,
-        "Missing required files to delete: /path/to/data-a-deletes.parquet",
-        () ->
-            commit(
-                table,
-                table
-                    .newRewrite()
-                    .rewriteFiles(
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_A_DELETES),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_B_DELETES)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRewrite()
+                        .rewriteFiles(
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_A_DELETES),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_B_DELETES)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-a-deletes.parquet");
   }
 
   @Test
   public void testAddOnly() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        ValidationException.class,
-        "Missing required files to delete: /path/to/data-a.parquet",
-        () ->
-            apply(
-                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        IllegalArgumentException.class,
-        "Delete files to add must be empty because there's no delete file to be rewritten",
-        () ->
-            apply(
-                table
-                    .newRewrite()
-                    .rewriteFiles(
-                        ImmutableSet.of(FILE_A),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_A_DELETES)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .rewriteFiles(
+                            ImmutableSet.of(FILE_A),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_A_DELETES)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Delete files to add must be empty because there's no delete file to be rewritten");
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        IllegalArgumentException.class,
-        "Delete files to add must be empty because there's no delete file to be rewritten",
-        () ->
-            apply(
-                table
-                    .newRewrite()
-                    .rewriteFiles(
-                        ImmutableSet.of(FILE_A),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_B),
-                        ImmutableSet.of(FILE_B_DELETES)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .rewriteFiles(
+                            ImmutableSet.of(FILE_A),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_B),
+                            ImmutableSet.of(FILE_B_DELETES)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Delete files to add must be empty because there's no delete file to be rewritten");
   }
 
   @Test
   public void testDeleteOnly() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        IllegalArgumentException.class,
-        "Files to delete cannot be empty",
-        () ->
-            apply(
-                table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Files to delete cannot be empty");
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        IllegalArgumentException.class,
-        "Files to delete cannot be empty",
-        () ->
-            apply(
-                table
-                    .newRewrite()
-                    .rewriteFiles(
-                        ImmutableSet.of(),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_A_DELETES)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .rewriteFiles(
+                            ImmutableSet.of(),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_A_DELETES)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Files to delete cannot be empty");
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        IllegalArgumentException.class,
-        "Files to delete cannot be empty",
-        () ->
-            apply(
-                table
-                    .newRewrite()
-                    .rewriteFiles(
-                        ImmutableSet.of(),
-                        ImmutableSet.of(),
-                        ImmutableSet.of(FILE_A),
-                        ImmutableSet.of(FILE_A_DELETES)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .rewriteFiles(
+                            ImmutableSet.of(),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_A),
+                            ImmutableSet.of(FILE_A_DELETES)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Files to delete cannot be empty");
   }
 
   @Test
@@ -432,11 +427,9 @@ public class TestRewriteFiles extends TableTestBase {
     validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
     validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        () -> commit(table, rewrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rewrite, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
     Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
@@ -500,11 +493,9 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, DELETED));
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        rewrite::commit);
+    Assertions.assertThatThrownBy(rewrite::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
     Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
@@ -731,15 +722,14 @@ public class TestRewriteFiles extends TableTestBase {
         1,
         latestSnapshot(base, branch).allManifests(table.io()).size());
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        ValidationException.class,
-        "Missing required files to delete: /path/to/data-c.parquet",
-        () ->
-            commit(
-                table,
-                table.newRewrite().rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newRewrite().rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-c.parquet");
 
     Assert.assertEquals("Only 1 manifests should exist", 1, listManifestFiles().size());
   }
@@ -775,15 +765,14 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        ValidationException.class,
-        "Missing required files to delete: /path/to/data-a.parquet",
-        () ->
-            commit(
-                table,
-                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
   }
@@ -800,17 +789,16 @@ public class TestRewriteFiles extends TableTestBase {
 
     long snapshotAfterDeletes = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail because deletes were added after the starting snapshot",
-        ValidationException.class,
-        "Cannot commit, found new delete for replaced data file",
-        () ->
-            apply(
-                table
-                    .newRewrite()
-                    .validateFromSnapshot(snapshotBeforeDeletes)
-                    .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .validateFromSnapshot(snapshotBeforeDeletes)
+                        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
 
     // the rewrite should be valid when validating from the snapshot after the deletes
     apply(
