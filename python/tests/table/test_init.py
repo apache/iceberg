@@ -184,8 +184,8 @@ def test_snapshot_by_name_does_not_exist(table: Table) -> None:
 
 def test_history(table: Table) -> None:
     assert table.history() == [
-        SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
-        SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
+        SnapshotLogEntry(snapshot_id=3051729675574597004, timestamp_ms=1515100955770),
+        SnapshotLogEntry(snapshot_id=3055729675574597004, timestamp_ms=1555100955770),
     ]
 
 

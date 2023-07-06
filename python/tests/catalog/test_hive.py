@@ -351,8 +351,8 @@ def test_load_table(hive_table: HiveTable) -> None:
             ),
         ],
         snapshot_log=[
-            SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
-            SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
+            SnapshotLogEntry(snapshot_id=3051729675574597004, timestamp_ms=1515100955770),
+            SnapshotLogEntry(snapshot_id=3055729675574597004, timestamp_ms=1555100955770),
         ],
         metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
         sort_orders=[
