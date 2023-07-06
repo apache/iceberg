@@ -80,6 +80,7 @@ from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
+    S3_PROXY_URI,
     S3_REGION,
     S3_SECRET_ACCESS_KEY,
     S3_SESSION_TOKEN,
@@ -294,6 +295,10 @@ class PyArrowFileIO(FileIO):
                 "session_token": self.properties.get(S3_SESSION_TOKEN),
                 "region": self.properties.get(S3_REGION),
             }
+
+            if proxy_uri := self.properties.get(S3_PROXY_URI):
+                client_kwargs["proxy_options"] = proxy_uri
+
             return S3FileSystem(**client_kwargs)
         elif scheme == "file":
             return LocalFileSystem()
