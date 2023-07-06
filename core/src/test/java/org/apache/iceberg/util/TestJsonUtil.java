@@ -22,13 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.io.BaseEncoding;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.junit.jupiter.api.Test;
 
 public class TestJsonUtil {
@@ -165,7 +164,7 @@ public class TestJsonUtil {
     String base16Str = BaseEncoding.base16().encode(bytes);
     String json = String.format("{\"x\": \"%s\"}", base16Str);
     ByteBuffer byteBuffer = JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree(json));
-    assertThat(Objects.requireNonNull(byteBuffer).array()).isEqualTo(bytes);
+    assertThat(byteBuffer.array()).isEqualTo(bytes);
 
     assertThatThrownBy(
             () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
