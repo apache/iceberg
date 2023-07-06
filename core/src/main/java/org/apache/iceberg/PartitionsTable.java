@@ -75,7 +75,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 "Count of equality delete files"),
             Types.NestedField.optional(
                 9,
-                "last_updated_ms",
+                "last_updated_at",
                 Types.TimestampType.withZone(),
                 "Commit time of snapshot that last updated this partition"),
             Types.NestedField.optional(
@@ -101,7 +101,7 @@ public class PartitionsTable extends BaseMetadataTable {
           "position_delete_file_count",
           "equality_delete_record_count",
           "equality_delete_file_count",
-          "last_updated_ms",
+          "last_updated_at",
           "last_updated_snapshot_id");
     }
     return schema;
@@ -129,7 +129,7 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.posDeleteFileCount,
                   root.eqDeleteRecordCount,
                   root.eqDeleteFileCount,
-                  root.lastUpdatedMs,
+                  root.lastUpdatedAt,
                   root.lastUpdatedSnapshotId));
     } else {
       return StaticDataTask.of(
@@ -151,7 +151,7 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.posDeleteFileCount,
         partition.eqDeleteRecordCount,
         partition.eqDeleteFileCount,
-        partition.lastUpdatedMs,
+        partition.lastUpdatedAt,
         partition.lastUpdatedSnapshotId);
   }
 
@@ -273,7 +273,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
-    private Long lastUpdatedMs;
+    private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
@@ -290,8 +290,8 @@ public class PartitionsTable extends BaseMetadataTable {
     void update(ContentFile<?> file, Snapshot snapshot) {
       if (snapshot != null) {
         long snapshotCommitTime = snapshot.timestampMillis() * 1000;
-        if (this.lastUpdatedMs == null || snapshotCommitTime > this.lastUpdatedMs) {
-          this.lastUpdatedMs = snapshotCommitTime;
+        if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
+          this.lastUpdatedAt = snapshotCommitTime;
           this.lastUpdatedSnapshotId = snapshot.snapshotId();
         }
       }
