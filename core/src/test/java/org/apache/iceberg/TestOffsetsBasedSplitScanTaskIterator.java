@@ -62,7 +62,7 @@ public class TestOffsetsBasedSplitScanTaskIterator {
             offsetRanges,
             TestOffsetsBasedSplitScanTaskIterator::createSplitTask);
     List<FileScanTask> tasks = Lists.newArrayList(splitTaskIterator);
-    Assertions.assertThat(tasks).as("Number of tasks don't match").hasSize(offsetLenPairs.size());
+    Assertions.assertThat(tasks).as("Number of tasks don't match").hasSameSizeAs(offsetLenPairs);
 
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);

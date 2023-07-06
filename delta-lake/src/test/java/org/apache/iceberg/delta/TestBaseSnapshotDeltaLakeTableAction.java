@@ -33,8 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestBaseSnapshotDeltaLakeTableAction {
-  @TempDir File temp1;
-  @TempDir File temp2;
+  @TempDir private File sourceFolder;
+  @TempDir private File destFolder;
   private String sourceTableLocation;
   private final Configuration testHadoopConf = new Configuration();
   private String newTableLocation;
@@ -42,8 +42,6 @@ public class TestBaseSnapshotDeltaLakeTableAction {
 
   @BeforeEach
   public void before() throws IOException {
-    File sourceFolder = temp1;
-    File destFolder = temp2;
     sourceTableLocation = sourceFolder.toURI().toString();
     newTableLocation = destFolder.toURI().toString();
   }

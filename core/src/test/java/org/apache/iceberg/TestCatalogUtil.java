@@ -141,7 +141,7 @@ public class TestCatalogUtil {
     FileIO fileIO =
         CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
     Assertions.assertThat(fileIO).isInstanceOf(HadoopFileIO.class);
-    Assertions.assertThat(((HadoopFileIO) fileIO).conf()).containsEntry("key", "val");
+    Assertions.assertThat(((HadoopFileIO) fileIO).conf().get("key")).isEqualTo("val");
   }
 
   @Test
