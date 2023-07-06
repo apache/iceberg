@@ -19,9 +19,8 @@ import pickle
 from typing import Type
 
 import pytest
-from pydantic import ValidationError
 
-from pyiceberg.typedef import IcebergBaseModel
+from pyiceberg.exceptions import ValidationError
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -222,18 +221,12 @@ def test_non_parameterized_type_equality(
 
 
 # Examples based on https://iceberg.apache.org/spec/#appendix-c-json-serialization
-
-
-class IcebergTestType(IcebergBaseModel):
-    root: IcebergType
-
-
 def test_serialization_boolean() -> None:
     assert BooleanType().json() == '"boolean"'
 
 
 def test_deserialization_boolean() -> None:
-    assert IcebergTestType.parse_raw('"boolean"') == BooleanType()
+    assert BooleanType.parse_raw('"boolean"') == BooleanType()
 
 
 def test_str_boolean() -> None:
@@ -249,7 +242,7 @@ def test_serialization_int() -> None:
 
 
 def test_deserialization_int() -> None:
-    assert IcebergTestType.parse_raw('"int"') == IntegerType()
+    assert IntegerType.parse_raw('"int"') == IntegerType()
 
 
 def test_str_int() -> None:
@@ -265,7 +258,7 @@ def test_serialization_long() -> None:
 
 
 def test_deserialization_long() -> None:
-    assert IcebergTestType.parse_raw('"long"') == LongType()
+    assert LongType.parse_raw('"long"') == LongType()
 
 
 def test_str_long() -> None:
@@ -281,7 +274,7 @@ def test_serialization_float() -> None:
 
 
 def test_deserialization_float() -> None:
-    assert IcebergTestType.parse_raw('"float"') == FloatType()
+    assert FloatType.parse_raw('"float"') == FloatType()
 
 
 def test_str_float() -> None:
@@ -297,7 +290,7 @@ def test_serialization_double() -> None:
 
 
 def test_deserialization_double() -> None:
-    assert IcebergTestType.parse_raw('"double"') == DoubleType()
+    assert DoubleType.parse_raw('"double"') == DoubleType()
 
 
 def test_str_double() -> None:
@@ -313,7 +306,7 @@ def test_serialization_date() -> None:
 
 
 def test_deserialization_date() -> None:
-    assert IcebergTestType.parse_raw('"date"') == DateType()
+    assert DateType.parse_raw('"date"') == DateType()
 
 
 def test_str_date() -> None:
@@ -329,7 +322,7 @@ def test_serialization_time() -> None:
 
 
 def test_deserialization_time() -> None:
-    assert IcebergTestType.parse_raw('"time"') == TimeType()
+    assert TimeType.parse_raw('"time"') == TimeType()
 
 
 def test_str_time() -> None:
@@ -345,7 +338,7 @@ def test_serialization_timestamp() -> None:
 
 
 def test_deserialization_timestamp() -> None:
-    assert IcebergTestType.parse_raw('"timestamp"') == TimestampType()
+    assert TimestampType.parse_raw('"timestamp"') == TimestampType()
 
 
 def test_str_timestamp() -> None:
@@ -361,7 +354,7 @@ def test_serialization_timestamptz() -> None:
 
 
 def test_deserialization_timestamptz() -> None:
-    assert IcebergTestType.parse_raw('"timestamptz"') == TimestamptzType()
+    assert TimestamptzType.parse_raw('"timestamptz"') == TimestamptzType()
 
 
 def test_str_timestamptz() -> None:
@@ -377,7 +370,7 @@ def test_serialization_string() -> None:
 
 
 def test_deserialization_string() -> None:
-    assert IcebergTestType.parse_raw('"string"') == StringType()
+    assert StringType.parse_raw('"string"') == StringType()
 
 
 def test_str_string() -> None:
@@ -393,7 +386,7 @@ def test_serialization_uuid() -> None:
 
 
 def test_deserialization_uuid() -> None:
-    assert IcebergTestType.parse_raw('"uuid"') == UUIDType()
+    assert UUIDType.parse_raw('"uuid"') == UUIDType()
 
 
 def test_str_uuid() -> None:
@@ -409,17 +402,14 @@ def test_serialization_fixed() -> None:
 
 
 def test_deserialization_fixed() -> None:
-    fixed = IcebergTestType.parse_raw('"fixed[22]"')
+    fixed = FixedType.parse_raw('"fixed[22]"')
     assert fixed == FixedType(22)
-
-    inner = fixed.__root__
-    assert isinstance(inner, FixedType)
-    assert len(inner) == 22
+    assert len(fixed) == 22
 
 
 def test_deserialization_fixed_failure() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        _ = IcebergTestType.parse_raw('"fixed[abc]"')
+        _ = FixedType.parse_raw('"fixed[abc]"')
 
     assert "Could not match fixed[abc], expected format fixed[22]" in str(exc_info.value)
 
@@ -437,7 +427,7 @@ def test_serialization_binary() -> None:
 
 
 def test_deserialization_binary() -> None:
-    assert IcebergTestType.parse_raw('"binary"') == BinaryType()
+    assert BinaryType.parse_raw('"binary"') == BinaryType()
 
 
 def test_str_binary() -> None:
@@ -453,18 +443,15 @@ def test_serialization_decimal() -> None:
 
 
 def test_deserialization_decimal() -> None:
-    decimal = IcebergTestType.parse_raw('"decimal(19, 25)"')
+    decimal = DecimalType.parse_raw('"decimal(19, 25)"')
     assert decimal == DecimalType(19, 25)
-
-    inner = decimal.__root__
-    assert isinstance(inner, DecimalType)
-    assert inner.precision == 19
-    assert inner.scale == 25
+    assert decimal.precision == 19
+    assert decimal.scale == 25
 
 
 def test_deserialization_decimal_failure() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        _ = IcebergTestType.parse_raw('"decimal(abc, def)"')
+        _ = DecimalType.parse_raw('"decimal(abc, def)"')
 
     assert "Could not parse decimal(abc, def) into a DecimalType" in str(exc_info.value)
 
@@ -478,13 +465,13 @@ def test_repr_decimal() -> None:
 
 
 def test_serialization_nestedfield() -> None:
-    expected = '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}'
+    expected = '{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}'
     actual = NestedField(1, "required_field", StringType(), True, "this is a doc").json()
     assert expected == actual
 
 
 def test_serialization_nestedfield_no_doc() -> None:
-    expected = '{"id": 1, "name": "required_field", "type": "string", "required": true}'
+    expected = '{"id":1,"name":"required_field","type":"string","required":true}'
     actual = NestedField(1, "required_field", StringType(), True).json()
     assert expected == actual
 
@@ -517,8 +504,8 @@ def test_deserialization_nestedfield() -> None:
 
 def test_deserialization_nestedfield_inner() -> None:
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = IcebergTestType.parse_raw(
-        '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}'
+    actual = StringType.parse_raw(
+        '{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}'
     )
     assert expected == actual.__root__
 
@@ -528,9 +515,9 @@ def test_serialization_struct() -> None:
         NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
     ).json()
     expected = (
-        '{"type": "struct", "fields": ['
-        '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}, '
-        '{"id": 2, "name": "optional_field", "type": "int", "required": true}'
+        '{"type":"struct","fields":['
+        '{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"},'
+        '{"id":2,"name":"optional_field","type":"int","required":true}'
         "]}"
     )
     assert actual == expected
@@ -579,7 +566,7 @@ def test_repr_struct(simple_struct: StructType) -> None:
 
 def test_serialization_list(simple_list: ListType) -> None:
     actual = simple_list.json()
-    expected = '{"type": "list", "element-id": 22, "element": "string", "element-required": true}'
+    expected = '{"type":"list","element-id":22,"element":"string","element-required":true}'
     assert actual == expected
 
 

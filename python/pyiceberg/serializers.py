@@ -24,6 +24,7 @@ from typing import Callable
 
 from pyiceberg.io import InputFile, InputStream, OutputFile
 from pyiceberg.table.metadata import TableMetadata, TableMetadataUtil
+from pyiceberg.typedef import IcebergBaseModel, IcebergRootModel
 
 GZIP = "gzip"
 
@@ -86,12 +87,15 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader.
             compression: Optional compression method
         """
+
+        class VO(IcebergRootModel):
+            root: TableMetadata
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            metadata = json.load(json_bytes)
+            return VO.model_validate_json(json_bytes.read())
 
-        return TableMetadataUtil.parse_obj(metadata)
+
 
 
 class FromInputFile:

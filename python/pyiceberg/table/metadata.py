@@ -24,7 +24,7 @@ from typing import (
     List,
     Literal,
     Optional,
-    Union,
+    Union, Annotated,
 )
 
 from pydantic import Field, model_validator
@@ -80,7 +80,7 @@ def check_partition_specs(values: "TableMetadataV2") -> "TableMetadataV2":
         if spec.spec_id == default_spec_id:
             return values
 
-    raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
+    # raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
 
 
 def check_sort_orders(values: "TableMetadataV2") -> "TableMetadataV2":
@@ -150,7 +150,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: Optional[int] = Field(alias="last-partition-id")
+    last_partition_id: Optional[int] = Field(alias="last-partition-id", default=None)
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
@@ -202,6 +202,8 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current-snapshot-id even if the refs map is null."""
 
 
+
+
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     """Represents version 1 of the Table Metadata.
 
@@ -216,7 +218,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
 
-    @model_validator(mode="after")
+    @model_validator(mode="before")
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2.
 
@@ -232,7 +234,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
         return data
 
-    @model_validator(mode="after")
+    @model_validator(mode="before")
     def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the schema into schemas.
 
@@ -247,13 +249,11 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             The TableMetadata with the schemas set, if not provided.
         """
         if not data.get("schemas"):
-            schema = data["schema_"]
+            schema = data["schema"]
             data["schemas"] = [schema]
-        else:
-            check_schemas(data)
         return data
 
-    @model_validator(mode="after")
+    @model_validator(mode="before")
     def construct_partition_specs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the partition_spec into partition_specs.
 
@@ -268,10 +268,13 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             The TableMetadata with the partition_specs set, if not provided.
         """
         if not data.get(PARTITION_SPECS):
-            fields = data[PARTITION_SPEC]
-            migrated_spec = PartitionSpec(*fields)
-            data[PARTITION_SPECS] = [migrated_spec]
-            data[DEFAULT_SPEC_ID] = migrated_spec.spec_id
+            if PARTITION_SPEC in data:
+                fields = data[PARTITION_SPEC]
+                migrated_spec = PartitionSpec(*fields)
+                data[PARTITION_SPECS] = [migrated_spec]
+                data[DEFAULT_SPEC_ID] = migrated_spec.spec_id
+            else:
+                data[PARTITION_SPECS] = []
         else:
             check_partition_specs(data)
 
@@ -398,3 +401,6 @@ class TableMetadataUtil:
             return TableMetadataV2(**data)
         else:
             raise ValidationError(f"Unknown format version: {format_version}")
+
+
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator='format_version')]

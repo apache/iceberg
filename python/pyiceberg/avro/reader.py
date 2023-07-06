@@ -43,7 +43,6 @@ from uuid import UUID
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
-from pyiceberg.utils.singleton import Singleton
 
 
 def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:
@@ -82,7 +81,7 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> N
         block_count = decoder.read_int()
 
 
-class Reader(Singleton):
+class Reader:
     @abstractmethod
     def read(self, decoder: BinaryDecoder) -> Any:
         ...

@@ -20,7 +20,7 @@ import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
-from typing import Any, Callable, Generator, Generic
+from typing import Any, Callable, Generic
 from typing import Literal as LiteralType
 from typing import Optional, TypeVar
 
@@ -29,9 +29,7 @@ from pydantic import (
     Field,
     PositiveInt,
     PrivateAttr,
-    RootModel, GetCoreSchemaHandler,
 )
-from pydantic_core import core_schema
 
 from pyiceberg.expressions import (
     BoundEqualTo,
@@ -64,7 +62,7 @@ from pyiceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from pyiceberg.typedef import IcebergBaseModel, L
+from pyiceberg.typedef import IcebergRootModel, L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -105,7 +103,30 @@ def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
     return literal(func(lit.value))
 
 
-class Transform(RootModel[str], ABC, Generic[S, T]):
+def _deserialize_transform(v: Any) -> Any:
+    if isinstance(v, str):
+        if v == IDENTITY:
+            return IdentityTransform()
+        elif v == VOID:
+            return VoidTransform()
+        elif v.startswith(BUCKET):
+            return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
+        elif v.startswith(TRUNCATE):
+            return TruncateTransform(width=TRUNCATE_PARSER.match(v))
+        elif v == YEAR:
+            return YearTransform()
+        elif v == MONTH:
+            return MonthTransform()
+        elif v == DAY:
+            return DayTransform()
+        elif v == HOUR:
+            return HourTransform()
+        else:
+            return UnknownTransform(transform=v)
+    return v
+
+
+class Transform(IcebergRootModel[str], ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
 
     A base class to transform values and project predicates on partition values.
@@ -113,48 +134,6 @@ class Transform(RootModel[str], ABC, Generic[S, T]):
     """
 
     root: str = Field()
-
-    @classmethod
-    def __get_validators__(cls) -> Generator[Callable, None, None]:
-        """Called to validate the input of the Transform class."""
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, _source_type: Any, _handler: GetCoreSchemaHandler
-    ) -> core_schema.CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls.validate,
-            core_schema.str_schema(),
-        )
-
-    @classmethod
-    def validate(cls, v: Any) -> IcebergBaseModel:
-        # When Pydantic is unable to determine the subtype
-        # In this case we'll help pydantic a bit by parsing the transform type ourselves
-        if isinstance(v, str):
-            if v == IDENTITY:
-                return IdentityTransform()
-            elif v == VOID:
-                return VoidTransform()
-            elif v.startswith(BUCKET):
-                return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
-            elif v.startswith(TRUNCATE):
-                return TruncateTransform(width=TRUNCATE_PARSER.match(v))
-            elif v == YEAR:
-                return YearTransform()
-            elif v == MONTH:
-                return MonthTransform()
-            elif v == DAY:
-                return DayTransform()
-            elif v == HOUR:
-                return HourTransform()
-            else:
-                return UnknownTransform(transform=v)
-        return v
 
     @abstractmethod
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
@@ -863,17 +842,3 @@ class BoundTransform(BoundTerm[L]):
     def __init__(self, term: BoundTerm[L], transform: Transform):
         self.term: BoundTerm[L] = term
         self.transform = transform
-
-
-Transforms = TypeVar(
-    "Transforms",
-    IdentityTransform,
-    VoidTransform,
-    BucketTransform,
-    TruncateTransform,
-    YearTransform,
-    MonthTransform,
-    DayTransform,
-    HourTransform,
-    UnknownTransform,
-)

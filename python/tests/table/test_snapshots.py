@@ -47,17 +47,17 @@ def snapshot_with_properties() -> Snapshot:
 
 
 def test_serialize_summary() -> None:
-    assert Summary(Operation.APPEND).json() == """{"operation": "append"}"""
+    assert Summary(Operation.APPEND).json() == """{"operation":"append"}"""
 
 
 def test_serialize_summary_with_properties() -> None:
-    assert Summary(Operation.APPEND, property="yes").json() == """{"operation": "append", "property": "yes"}"""
+    assert Summary(Operation.APPEND, property="yes").json() == """{"operation":"append","property":"yes"}"""
 
 
 def test_serialize_snapshot(snapshot: Snapshot) -> None:
     assert (
         snapshot.json()
-        == """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append"}, "schema-id": 3}"""
+        == """{"snapshot-id":25,"parent-snapshot-id":19,"sequence-number":200,"timestamp-ms":1602638573590,"manifest-list":"s3:/a/b/c.avro","summary":{"operation":"append"},"schema-id":3}"""
     )
 
 
@@ -71,14 +71,14 @@ def test_serialize_snapshot_without_sequence_number() -> None:
         schema_id=3,
     )
     actual = snapshot.json()
-    expected = """{"snapshot-id": 25, "parent-snapshot-id": 19, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append"}, "schema-id": 3}"""
+    expected = """{"snapshot-id":25,"parent-snapshot-id":19,"timestamp-ms":1602638573590,"manifest-list":"s3:/a/b/c.avro","summary":{"operation":"append"},"schema-id":3}"""
     assert actual == expected
 
 
 def test_serialize_snapshot_with_properties(snapshot_with_properties: Snapshot) -> None:
     assert (
         snapshot_with_properties.json()
-        == """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append", "foo": "bar"}, "schema-id": 3}"""
+        == """{"snapshot-id":25,"parent-snapshot-id":19,"sequence-number":200,"timestamp-ms":1602638573590,"manifest-list":"s3:/a/b/c.avro","summary":{"operation":"append","foo":"bar"},"schema-id":3}"""
     )
 
 
@@ -100,7 +100,7 @@ def test_deserialize_snapshot(snapshot: Snapshot) -> None:
 
 
 def test_deserialize_snapshot_with_properties(snapshot_with_properties: Snapshot) -> None:
-    payload = """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append", "foo": "bar"}, "schema-id": 3}"""
+    payload = """{"snapshot-id":25,"parent-snapshot-id":19,"sequence-number":200,"timestamp-ms":1602638573590,"manifest-list":"s3:/a/b/c.avro","summary":{"operation":"append","foo":"bar"},"schema-id":3}"""
     snapshot = Snapshot.parse_raw(payload)
     assert snapshot == snapshot_with_properties
 

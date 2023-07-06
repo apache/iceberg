@@ -16,13 +16,28 @@
 # under the License.
 # pylint: disable=keyword-arg-before-vararg
 from enum import Enum
-from typing import Any, Dict, List
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 
-from pydantic import Field, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+    model_validator,
+)
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import IdentityTransform, Transform, Transforms
+from pyiceberg.transforms import IdentityTransform, Transform, _deserialize_transform
 from pyiceberg.typedef import IcebergBaseModel
+from pyiceberg.types import IcebergType
 
 
 class SortDirection(Enum):
@@ -62,19 +77,38 @@ class SortField(IcebergBaseModel):
       null_order (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last.
     """
 
-    def __init__(self, *args, **data):
-        super().__init__(*args, **data)
+    def __init__(
+        self,
+        source_id: Optional[int] = None,
+        transform: Optional[Union[Transform[Any, Any], Callable[[IcebergType], Transform[Any, Any]]]] = None,
+        direction: Optional[SortDirection] = None,
+        null_order: Optional[NullOrder] = None,
+        **data: Any,
+    ):
+        if source_id is not None:
+            data["source-id"] = source_id
+        if transform is not None:
+            data["transform"] = transform
+        if direction is not None:
+            data["direction"] = direction
+        if null_order is not None:
+            data["null-order"] = null_order
+        super().__init__(**data)
 
     @model_validator(mode="before")
     def set_null_order(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         values["direction"] = values["direction"] if values.get("direction") else SortDirection.ASC
         if not values.get("null-order"):
             values["null-order"] = NullOrder.NULLS_FIRST if values["direction"] == SortDirection.ASC else NullOrder.NULLS_LAST
-        values["transform"] = Transform.validate(values["transform"])
         return values
 
     source_id: int = Field(alias="source-id")
-    transform: Transforms = Field()
+    transform: Annotated[
+        Transform,
+        BeforeValidator(_deserialize_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ] = Field()
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 

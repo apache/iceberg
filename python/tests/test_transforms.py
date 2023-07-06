@@ -17,11 +17,17 @@
 # pylint: disable=eval-used,protected-access,redefined-outer-name
 from datetime import date
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Annotated, Any, Callable
 from uuid import UUID
 
 import mmh3 as mmh3
 import pytest
+from pydantic import (
+    BeforeValidator,
+    PlainSerializer,
+    RootModel,
+    WithJsonSchema,
+)
 
 from pyiceberg import transforms
 from pyiceberg.expressions import (
@@ -65,8 +71,8 @@ from pyiceberg.transforms import (
     UnknownTransform,
     VoidTransform,
     YearTransform,
+    _deserialize_transform,
 )
-from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -424,8 +430,13 @@ def test_void_transform() -> None:
     assert void_transform.dedup_name == "void"
 
 
-class TestType(IcebergBaseModel):
-    root: TimeTransform
+class TestType(RootModel):
+    root: Annotated[
+        Transform,
+        BeforeValidator(_deserialize_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ]
 
 
 def test_bucket_transform_serialize() -> None:

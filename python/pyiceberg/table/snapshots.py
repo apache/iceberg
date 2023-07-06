@@ -59,16 +59,14 @@ class Summary(IcebergBaseModel):
     like snapshot expiration, to skip processing certain snapshots.
     """
 
-    root: Dict[str, Union[str, Operation]]
+    operation: Operation = Field()
     _additional_properties: Dict[str, str] = PrivateAttr()
 
     def __init__(
-        self, operation: Optional[Operation] = None, root: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
+        self, operation: Optional[Operation] = None, **data: Any
     ) -> None:
-        super().__init__(root={"operation": operation, **data} if not root else root)
-        self._additional_properties = {
-            k: v for k, v in self.root.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
-        }
+        super().__init__(operation=operation, **data)
+        self._additional_properties = data
 
     @property
     def operation(self) -> Operation:
@@ -94,8 +92,10 @@ class Snapshot(IcebergBaseModel):
     parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id", default=None)
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
-    manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
-    summary: Optional[Summary] = Field()
+    manifest_list: Optional[str] = Field(
+        alias="manifest-list", description="Location of the snapshot's manifest list file", default=None
+    )
+    summary: Optional[Summary] = Field(default=None)
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
 
     def __str__(self) -> str:

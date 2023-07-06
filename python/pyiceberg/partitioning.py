@@ -16,6 +16,7 @@
 # under the License.
 from functools import cached_property
 from typing import (
+    Annotated,
     Any,
     Dict,
     List,
@@ -23,10 +24,15 @@ from typing import (
     Tuple,
 )
 
-from pydantic import Field, SerializeAsAny
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+)
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import Transform
+from pyiceberg.transforms import Transform, _deserialize_transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
 
@@ -46,7 +52,12 @@ class PartitionField(IcebergBaseModel):
 
     source_id: int = Field(alias="source-id")
     field_id: int = Field(alias="field-id")
-    transform: Transform[Any, Any] = Field()
+    transform: Annotated[
+        Transform,
+        BeforeValidator(_deserialize_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ] = Field()
     name: str = Field()
 
     def __init__(
