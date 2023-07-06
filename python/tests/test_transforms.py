@@ -444,7 +444,7 @@ def test_bucket_transform_serialize() -> None:
 
 
 def test_bucket_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"bucket[22]"').root
+    transform = TestType.model_validate_json('"bucket[22]"').root
     assert transform == BucketTransform(num_buckets=22)
 
 
@@ -461,7 +461,7 @@ def test_truncate_transform_serialize() -> None:
 
 
 def test_unknown_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"unknown"').root
+    transform = TestType.model_validate_json('"unknown"').root
     assert transform == UnknownTransform("unknown")
 
 
@@ -478,7 +478,7 @@ def test_void_transform_serialize() -> None:
 
 
 def test_void_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"void"').root
+    transform = TestType.model_validate_json('"void"').root
     assert transform == VoidTransform()
 
 
@@ -495,7 +495,7 @@ def test_year_transform_serialize() -> None:
 
 
 def test_year_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"year"').root
+    transform = TestType.model_validate_json('"year"').root
     assert transform == YearTransform()
 
 
@@ -504,7 +504,7 @@ def test_month_transform_serialize() -> None:
 
 
 def test_month_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"month"').root
+    transform = TestType.model_validate_json('"month"').root
     assert transform == MonthTransform()
 
 
@@ -513,7 +513,7 @@ def test_day_transform_serialize() -> None:
 
 
 def test_day_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"day"').root
+    transform = TestType.model_validate_json('"day"').root
     assert transform == DayTransform()
 
 
@@ -522,7 +522,7 @@ def test_hour_transform_serialize() -> None:
 
 
 def test_hour_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"hour"').root
+    transform = TestType.model_validate_json('"hour"').root
     assert transform == HourTransform()
 
 
