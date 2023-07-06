@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
 import org.apache.iceberg.spark.functions.HoursFunction;
+import org.apache.iceberg.spark.functions.IcebergVersionFunction;
 import org.apache.iceberg.spark.functions.MonthsFunction;
 import org.apache.iceberg.spark.functions.TruncateFunction;
 import org.apache.iceberg.spark.functions.YearsFunction;
@@ -44,6 +45,7 @@ import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -560,6 +562,22 @@ public class TestSparkV2Filters {
             expressions(
                 LiteralValue.apply(6, DataTypes.IntegerType), FieldReference.apply("col1")));
     testUDF(udf, Expressions.truncate("col1", 6), "prefix", DataTypes.StringType);
+  }
+
+  @Test
+  public void testUnsupportedUDFConvert() {
+    ScalarFunction<UTF8String> icebergVersionFunc =
+        (ScalarFunction<UTF8String>) new IcebergVersionFunction().bind(new StructType());
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            icebergVersionFunc.name(),
+            icebergVersionFunc.canonicalName(),
+            new org.apache.spark.sql.connector.expressions.Expression[] {});
+    LiteralValue literalValue = new LiteralValue("1.3.0", DataTypes.StringType);
+    Predicate predicate = new Predicate("=", expressions(udf, literalValue));
+
+    Expression icebergExpr = SparkV2Filters.convert(predicate);
+    Assertions.assertThat(icebergExpr).isNull();
   }
 
   private <T> void testUDF(
