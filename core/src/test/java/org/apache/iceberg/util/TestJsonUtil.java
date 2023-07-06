@@ -22,9 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.io.BaseEncoding;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -150,6 +153,24 @@ public class TestJsonUtil {
             () -> JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: x: 23");
+  }
+
+  @Test
+  public void getByteBufferOrNull() throws JsonProcessingException {
+    assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+        .isNull();
+
+    byte[] bytes = new byte[] {1, 2, 3, 4};
+    String base16Str = BaseEncoding.base16().encode(bytes);
+    String json = String.format("{\"x\": \"%s\"}", base16Str);
+    ByteBuffer byteBuffer = JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree(json));
+    assertThat(Objects.requireNonNull(byteBuffer).array()).isEqualTo(bytes);
+
+    assertThatThrownBy(
+            () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse byte buffer from non-text value: x: 23");
   }
 
   @Test
@@ -282,6 +303,26 @@ public class TestJsonUtil {
             },
             false);
     assertThat(JsonUtil.getLongList("items", JsonUtil.mapper().readTree(json))).isEqualTo(items);
+  }
+
+  @Test
+  public void getLongListOrNull() throws JsonProcessingException {
+    assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isNull();
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getLongListOrNull(
+                    "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse long from non-long value in items: \"23\"");
+
+    assertThat(
+            JsonUtil.getLongListOrNull(
+                "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+        .containsExactlyElementsOf(Arrays.asList(23L, 45L));
   }
 
   @Test
