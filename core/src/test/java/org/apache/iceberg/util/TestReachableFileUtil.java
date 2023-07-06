@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,11 +43,9 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestReachableFileUtil {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
@@ -68,14 +67,11 @@ public class TestReachableFileUtil {
           .withFileSizeInBytes(10)
           .withRecordCount(1)
           .build();
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
+  @TempDir private File tableDir;
   private Table table;
 
-  @Before
+  @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.newFolder();
     String tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
   }
@@ -87,7 +83,7 @@ public class TestReachableFileUtil {
     table.newAppend().appendFile(FILE_B).commit();
 
     List<String> manifestListPaths = ReachableFileUtil.manifestListLocations(table);
-    Assert.assertEquals(manifestListPaths.size(), 2);
+    assertThat(manifestListPaths).hasSize(2);
   }
 
   @Test
@@ -99,10 +95,10 @@ public class TestReachableFileUtil {
     table.newAppend().appendFile(FILE_B).commit();
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
-    Assert.assertEquals(metadataFileLocations.size(), 4);
+    assertThat(metadataFileLocations).hasSize(4);
 
     metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
-    Assert.assertEquals(metadataFileLocations.size(), 2);
+    assertThat(metadataFileLocations).hasSize(2);
   }
 
   @Test
@@ -119,7 +115,7 @@ public class TestReachableFileUtil {
     table.io().deleteFile(location);
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
-    Assert.assertEquals(metadataFileLocations.size(), 2);
+    assertThat(metadataFileLocations).hasSize(2);
   }
 
   @Test
@@ -133,7 +129,7 @@ public class TestReachableFileUtil {
 
     String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(staticTable);
     String expectedVersionHintLocation = ops.metadataFileLocation(Util.VERSION_HINT_FILENAME);
-    Assert.assertEquals(expectedVersionHintLocation, reportedVersionHintLocation);
+    assertThat(reportedVersionHintLocation).isEqualTo(expectedVersionHintLocation);
   }
 
   @Test
@@ -142,6 +138,6 @@ public class TestReachableFileUtil {
     when(mockTable.location()).thenReturn("s3://bucket1");
     String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(mockTable);
     String expectedVersionHintLocation = "s3://bucket1/metadata/" + Util.VERSION_HINT_FILENAME;
-    Assert.assertEquals(expectedVersionHintLocation, reportedVersionHintLocation);
+    assertThat(reportedVersionHintLocation).isEqualTo(expectedVersionHintLocation);
   }
 }
