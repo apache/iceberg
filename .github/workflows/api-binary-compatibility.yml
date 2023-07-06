@@ -52,7 +52,7 @@ jobs:
           java-version: 11
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
-      - run: ./gradlew :iceberg-api:revapi --rerun-tasks
+      - run: ./gradlew revapi --rerun-tasks
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
