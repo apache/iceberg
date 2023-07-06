@@ -94,7 +94,7 @@ class AvroTestHelpers {
   static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assertions.assertThat(actual).as("Map keys should match").hasSize(expected.size());
+    Assertions.assertThat(actual).as("Map keys should match").hasSameSizeAs(expected);
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
