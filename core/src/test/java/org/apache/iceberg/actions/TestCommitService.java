@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
@@ -83,6 +84,7 @@ public class TestCommitService extends TableTestBase {
         .untilAsserted(() -> assertThat(commitService.completedRewritesAllCommitted()).isTrue());
     Assertions.assertThat(commitService.results())
         .doesNotContainAnyElementsOf(commitService.aborted);
+    Assertions.assertThat(commitService.results()).isEqualTo(ImmutableList.of(0, 1, 2, 3, 4));
   }
 
   private static class CustomCommitService extends BaseCommitService<Integer> {

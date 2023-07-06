@@ -173,9 +173,11 @@ abstract class BaseCommitService<T> implements Closeable {
       // be only a single commit operation.
       if (!committerService.awaitTermination(timeoutInMS, TimeUnit.MILLISECONDS)) {
         LOG.warn(
-            "Commit operation did not complete within 120 minutes of the all files "
+            "Commit operation did not complete within {} minutes ({} ms) of the all files "
                 + "being rewritten. This may mean that some changes were not successfully committed to the "
-                + "table.");
+                + "table.",
+            TimeUnit.MILLISECONDS.toMinutes(timeoutInMS),
+            timeoutInMS);
         timeout = true;
       }
     } catch (InterruptedException e) {
