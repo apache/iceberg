@@ -1265,7 +1265,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "Count of equality delete files"),
             optional(
                 9,
-                "last_updated_ms",
+                "last_updated_at",
                 Types.TimestampType.withZone(),
                 "Commit time of snapshot that last updated this partition"),
             optional(
@@ -1285,7 +1285,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
     GenericData.Record expectedRow =
         builder
-            .set("last_updated_ms", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated_at", table.currentSnapshot().timestampMillis() * 1000)
             .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
             .set("record_count", 1L)
             .set("file_count", 1)
@@ -1360,7 +1360,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1373,7 +1373,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
@@ -1490,7 +1490,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1503,7 +1503,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
@@ -1540,7 +1540,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", null)
+            .set("last_updated_at", null)
             .set("last_updated_snapshot_id", null)
             .build();
     expected.remove(0);
@@ -1621,7 +1621,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1634,7 +1634,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", posDeleteCommitId)
             .build());
 
@@ -1668,7 +1668,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 1L) // should be incremented now
             .set("equality_delete_file_count", 1) // should be incremented now
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
     for (int i = 0; i < 2; i += 1) {
