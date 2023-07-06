@@ -81,7 +81,7 @@ class AvroTestHelpers {
   static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assertions.assertThat(actual).as("List size should match").hasSize(expected.size());
+    Assertions.assertThat(actual).as("List size should match").hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
