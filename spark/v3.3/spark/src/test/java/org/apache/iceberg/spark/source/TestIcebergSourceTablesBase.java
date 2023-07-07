@@ -2283,7 +2283,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         dataFilesFromCommit.size());
     for (int i = 0; i < expectedDataFileCount; ++i) {
       Assert.assertEquals(
-          "Data file belong to partition of id " + expectedPartitionIds.get(i),
+          "Data file should have partition of id " + expectedPartitionIds.get(i),
           expectedPartitionIds.get(i).intValue(),
           dataFilesFromCommit.get(i).partition().get(0, Integer.class).intValue());
     }
