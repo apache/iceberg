@@ -37,6 +37,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -1490,11 +1491,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
 
-    List<DataFile> dataFilesFromFirstCommit = dataFiles(table, firstCommitId);
-    assertDataFilePartitions(dataFilesFromFirstCommit, 2, Arrays.asList(1, 2));
-
-    List<DataFile> dataFilesFromSecondCommit = dataFiles(table, secondCommitId);
-    assertDataFilePartitions(dataFilesFromSecondCommit, 1, Arrays.asList(2));
+    List<DataFile> dataFiles = dataFiles(table);
+    Assert.assertEquals("Table should have 3 data files", 3, dataFiles.size());
+    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
 
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
@@ -1502,7 +1501,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
-            .set("total_data_file_size_in_bytes", dataFilesFromFirstCommit.get(0).fileSizeInBytes())
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1518,8 +1517,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 2)
             .set(
                 "total_data_file_size_in_bytes",
-                dataFilesFromFirstCommit.get(1).fileSizeInBytes()
-                    + dataFilesFromSecondCommit.get(0).fileSizeInBytes())
+                dataFiles.get(1).fileSizeInBytes() + dataFiles.get(2).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1557,7 +1555,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
-            .set("total_data_file_size_in_bytes", dataFilesFromFirstCommit.get(0).fileSizeInBytes())
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -2198,23 +2196,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
   }
 
-  private List<DataFile> dataFiles(Table table, long commitId) {
-    return Lists.newArrayList(table.snapshot(commitId).addedDataFiles(table.io()));
+  private List<DataFile> dataFiles(Table table) {
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
   private void assertDataFilePartitions(
-      List<DataFile> dataFilesFromCommit,
-      int expectedDataFileCount,
-      List<Integer> expectedPartitionIds) {
-    Assert.assertEquals(
-        "Commit should have " + expectedDataFileCount + " data files",
-        expectedDataFileCount,
-        dataFilesFromCommit.size());
-    for (int i = 0; i < expectedDataFileCount; ++i) {
+      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
+    for (int i = 0; i < dataFiles.size(); ++i) {
       Assert.assertEquals(
           "Data file should have partition of id " + expectedPartitionIds.get(i),
           expectedPartitionIds.get(i).intValue(),
-          dataFilesFromCommit.get(i).partition().get(0, Integer.class).intValue());
+          dataFiles.get(i).partition().get(0, Integer.class).intValue());
     }
   }
 }
