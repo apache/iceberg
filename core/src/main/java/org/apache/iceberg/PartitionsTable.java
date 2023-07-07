@@ -54,6 +54,11 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(
                 3, "file_count", Types.IntegerType.get(), "Count of data files"),
             Types.NestedField.required(
+                11,
+                "total_data_file_size_in_bytes",
+                Types.LongType.get(),
+                "Total size in bytes of data files"),
+            Types.NestedField.required(
                 5,
                 "position_delete_record_count",
                 Types.LongType.get(),
@@ -97,6 +102,7 @@ public class PartitionsTable extends BaseMetadataTable {
       return schema.select(
           "record_count",
           "file_count",
+          "total_data_file_size_in_bytes",
           "position_delete_record_count",
           "position_delete_file_count",
           "equality_delete_record_count",
@@ -125,6 +131,7 @@ public class PartitionsTable extends BaseMetadataTable {
               StaticDataTask.Row.of(
                   root.dataRecordCount,
                   root.dataFileCount,
+                  root.dataFileSizeInBytes,
                   root.posDeleteRecordCount,
                   root.posDeleteFileCount,
                   root.eqDeleteRecordCount,
@@ -147,6 +154,7 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.specId,
         partition.dataRecordCount,
         partition.dataFileCount,
+        partition.dataFileSizeInBytes,
         partition.posDeleteRecordCount,
         partition.posDeleteFileCount,
         partition.eqDeleteRecordCount,
@@ -269,6 +277,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int specId;
     private long dataRecordCount;
     private int dataFileCount;
+    private long dataFileSizeInBytes;
     private long posDeleteRecordCount;
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
@@ -281,6 +290,7 @@ public class PartitionsTable extends BaseMetadataTable {
       this.specId = 0;
       this.dataRecordCount = 0L;
       this.dataFileCount = 0;
+      this.dataFileSizeInBytes = 0L;
       this.posDeleteRecordCount = 0L;
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
@@ -301,6 +311,7 @@ public class PartitionsTable extends BaseMetadataTable {
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
           this.specId = file.specId();
+          this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount = file.recordCount();
