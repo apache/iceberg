@@ -1494,8 +1494,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
 
     List<DataFile> dataFiles = dataFiles(table);
-    Assert.assertEquals("Table should have 3 data files", 3, dataFiles.size());
-    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
+    assertDataFilePartitions(dataFiles, 3, Arrays.asList(1, 2, 2));
 
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
@@ -2266,7 +2265,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   private void assertDataFilePartitions(
-      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
+      List<DataFile> dataFiles, int expectedDataFileCount, List<Integer> expectedPartitionIds) {
+    Assert.assertEquals(
+        "Table should have " + expectedDataFileCount + " data files",
+        expectedDataFileCount,
+        dataFiles.size());
+
     for (int i = 0; i < dataFiles.size(); ++i) {
       Assert.assertEquals(
           "Data file should have partition of id " + expectedPartitionIds.get(i),
