@@ -24,6 +24,8 @@ import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -110,5 +112,19 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   protected boolean cachingCatalogEnabled() {
     return PropertyUtil.propertyAsBoolean(
         catalogConfig, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
+  }
+
+  protected void configurePlanningMode(PlanningMode planningMode) {
+    configurePlanningMode(tableName, planningMode);
+  }
+
+  protected void configurePlanningMode(String table, PlanningMode planningMode) {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s', '%s' '%s')",
+        table,
+        TableProperties.DATA_PLANNING_MODE,
+        planningMode.modeName(),
+        TableProperties.DELETE_PLANNING_MODE,
+        planningMode.modeName());
   }
 }

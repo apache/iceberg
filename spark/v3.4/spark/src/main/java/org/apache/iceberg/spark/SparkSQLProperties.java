@@ -68,4 +68,10 @@ public class SparkSQLProperties {
   public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
   public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
   public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.compression-strategy";
+
+  // Overrides the data planning mode
+  public static final String DATA_PLANNING_MODE = "spark.sql.iceberg.data-planning-mode";
+
+  // Overrides the delete planning mode
+  public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
 }

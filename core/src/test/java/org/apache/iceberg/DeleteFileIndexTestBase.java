@@ -33,8 +33,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestDeleteFileIndex extends TableTestBase {
-  public TestDeleteFileIndex() {
+public abstract class DeleteFileIndexTestBase<
+        ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
+    extends TableTestBase {
+
+  public DeleteFileIndexTestBase() {
     super(2 /* table format version */);
   }
 
@@ -108,6 +111,8 @@ public class TestDeleteFileIndex extends TableTestBase {
     baseFile.setDataSequenceNumber(seq);
     return file;
   }
+
+  protected abstract ScanT newScan(Table table);
 
   @Test
   public void testMinSequenceNumberFilteringForFiles() {
@@ -248,10 +253,10 @@ public class TestDeleteFileIndex extends TableTestBase {
     DeleteFile unpartitionedPosDeletes = unpartitionedPosDeletes(unpartitioned.spec());
     unpartitioned.newRowDelta().addDeletes(unpartitionedPosDeletes).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(unpartitioned.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(unpartitioned).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", unpartitionedFile.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file", 1, task.deletes().size());
@@ -264,8 +269,8 @@ public class TestDeleteFileIndex extends TableTestBase {
     DeleteFile unpartitionedEqDeletes = unpartitionedEqDeletes(unpartitioned.spec());
     unpartitioned.newRowDelta().addDeletes(unpartitionedEqDeletes).commit();
 
-    tasks = Lists.newArrayList(unpartitioned.newScan().planFiles().iterator());
-    task = tasks.get(0);
+    tasks = Lists.newArrayList(newScan(unpartitioned).planFiles().iterator());
+    task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", unpartitionedFile.path(), task.file().path());
     Assert.assertEquals("Should have two associated delete files", 2, task.deletes().size());
@@ -281,10 +286,10 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_POS_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file", 1, task.deletes().size());
@@ -298,10 +303,10 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_EQ_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file", 1, task.deletes().size());
@@ -315,10 +320,10 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_POS_1).addDeletes(FILE_A_EQ_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_B.path(), task.file().path());
     Assert.assertEquals("Should have no delete files to apply", 0, task.deletes().size());
@@ -330,10 +335,10 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have no delete files to apply", 0, task.deletes().size());
@@ -354,10 +359,10 @@ public class TestDeleteFileIndex extends TableTestBase {
         .addDeletes(unpartitionedEqDeletes)
         .commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file", 1, task.deletes().size());
@@ -384,10 +389,10 @@ public class TestDeleteFileIndex extends TableTestBase {
         .addDeletes(unpartitionedEqDeletes)
         .commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have two associated delete files", 2, task.deletes().size());
@@ -401,10 +406,10 @@ public class TestDeleteFileIndex extends TableTestBase {
   public void testPartitionedTableSequenceNumbers() {
     table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_EQ_1).addDeletes(FILE_A_POS_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file", 1, task.deletes().size());
@@ -495,16 +500,12 @@ public class TestDeleteFileIndex extends TableTestBase {
         2,
         table.currentSnapshot().deleteManifests(table.io()).get(0).existingFilesCount().intValue());
 
-    List<FileScanTask> tasks =
+    List<T> tasks =
         Lists.newArrayList(
-            table
-                .newScan()
-                .filter(equal(bucket("data", BUCKETS_NUMBER), 0))
-                .planFiles()
-                .iterator());
+            newScan(table).filter(equal(bucket("data", BUCKETS_NUMBER), 0)).planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(0);
+    FileScanTask task = (FileScanTask) tasks.get(0);
     Assert.assertEquals(
         "Should have the correct data file path", FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have two associated delete files", 2, task.deletes().size());

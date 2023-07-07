@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -29,8 +33,22 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestFilterPushDown extends SparkTestBaseWithCatalog {
+
+  @Parameterized.Parameters(name = "planningMode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {LOCAL, DISTRIBUTED};
+  }
+
+  private final PlanningMode planningMode;
+
+  public TestFilterPushDown(PlanningMode planningMode) {
+    this.planningMode = planningMode;
+  }
 
   @After
   public void removeTables() {
@@ -45,6 +63,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (dep)",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
@@ -156,6 +175,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (hours(t))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30T01:00:00.000Z')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30T02:00:00.000Z')", tableName);
@@ -201,6 +221,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (days(t))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-15T01:00:00.000Z')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30T02:00:00.000Z')", tableName);
@@ -243,6 +264,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (months(t))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30T01:00:00.000Z')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30T02:00:00.000Z')", tableName);
@@ -285,6 +307,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (years(t))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30T01:00:00.000Z')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30T02:00:00.000Z')", tableName);
@@ -327,6 +350,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (dep, bucket(8, id))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
@@ -345,6 +369,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (truncate(1, dep))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
@@ -369,6 +394,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (dep)",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1', 'sd1')", tableName);
 
@@ -409,6 +435,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (truncate(2, dep))",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
 
@@ -449,6 +476,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (hours(t))",
         tableName);
+    configurePlanningMode(planningMode);
 
     withDefaultTimeZone(
         "UTC",
@@ -483,6 +511,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id INT, salary DOUBLE)" + "USING iceberg " + "PARTITIONED BY (salary)",
         tableName);
+    configurePlanningMode(planningMode);
 
     sql("INSERT INTO %s VALUES (1, 100.5)", tableName);
     sql("INSERT INTO %s VALUES (2, double('NaN'))", tableName);

@@ -35,21 +35,17 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestFilterFiles {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+public abstract class FilterFilesTestBase<
+    ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>> {
 
   public final int formatVersion;
 
-  public TestFilterFiles(int formatVersion) {
+  public FilterFilesTestBase(int formatVersion) {
     this.formatVersion = formatVersion;
   }
+
+  protected abstract ScanT newScan(Table table);
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
   private final Schema schema =
@@ -122,10 +118,10 @@ public class TestFilterFiles {
 
     table.refresh();
 
-    TableScan emptyScan = table.newScan().filter(Expressions.equal("id", 5));
+    ScanT emptyScan = newScan(table).filter(Expressions.equal("id", 5));
     assertEquals(0, Iterables.size(emptyScan.planFiles()));
 
-    TableScan nonEmptyScan = table.newScan().filter(Expressions.equal("id", 1));
+    ScanT nonEmptyScan = newScan(table).filter(Expressions.equal("id", 1));
     assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
   }
 
@@ -156,11 +152,10 @@ public class TestFilterFiles {
 
     table.refresh();
 
-    TableScan emptyScan = table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 5));
+    ScanT emptyScan = newScan(table).caseSensitive(false).filter(Expressions.equal("ID", 5));
     assertEquals(0, Iterables.size(emptyScan.planFiles()));
 
-    TableScan nonEmptyScan =
-        table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 1));
+    ScanT nonEmptyScan = newScan(table).caseSensitive(false).filter(Expressions.equal("ID", 1));
     assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
   }
 }

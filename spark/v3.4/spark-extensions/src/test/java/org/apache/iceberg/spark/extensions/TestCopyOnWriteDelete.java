@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -62,7 +63,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
       Boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(
         catalogName,
         implementation,
@@ -71,7 +73,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
         vectorized,
         distributionMode,
         fanoutEnabled,
-        branch);
+        branch,
+        planningMode);
   }
 
   @Override
