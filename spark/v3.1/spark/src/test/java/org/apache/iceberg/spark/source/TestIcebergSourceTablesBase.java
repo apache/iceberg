@@ -25,7 +25,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.StringJoiner;
@@ -1488,7 +1487,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<DataFile> dataFiles = dataFiles(table);
     Assert.assertEquals("Table should have 3 data files", 3, dataFiles.size());
-    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
+    assertDataFilePartitions(dataFiles, new int[] {1, 2, 2});
 
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
@@ -2064,12 +2063,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
-  private void assertDataFilePartitions(
-      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
+  private void assertDataFilePartitions(List<DataFile> dataFiles, int[] expectedPartitionIds) {
     for (int i = 0; i < dataFiles.size(); ++i) {
       Assert.assertEquals(
-          "Data file should have partition of id " + expectedPartitionIds.get(i),
-          expectedPartitionIds.get(i).intValue(),
+          "Data file should have partition of id " + expectedPartitionIds[i],
+          expectedPartitionIds[i],
           dataFiles.get(i).partition().get(0, Integer.class).intValue());
     }
   }
