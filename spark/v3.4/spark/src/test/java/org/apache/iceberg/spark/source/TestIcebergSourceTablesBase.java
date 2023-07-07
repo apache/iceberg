@@ -2259,15 +2259,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
-    return StreamSupport.stream(dataFiles.spliterator(), false)
-        .mapToLong(DataFile::fileSizeInBytes)
-        .sum();
+    return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
   }
 
   private List<DataFile> dataFiles(Table table, long commitId) {
-    return StreamSupport.stream(
-            table.snapshot(commitId).addedDataFiles(table.io()).spliterator(), false)
-        .collect(Collectors.toList());
+    return Lists.newArrayList(table.snapshot(commitId).addedDataFiles(table.io()));
   }
 
   private void assertDataFilePartitions(
