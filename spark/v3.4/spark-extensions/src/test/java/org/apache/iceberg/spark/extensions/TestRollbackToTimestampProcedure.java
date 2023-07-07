@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.extensions;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -29,6 +28,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
@@ -255,50 +255,48 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () ->
-            sql(
-                "CALL %s.system.rollback_to_timestamp(namespace => 'n1', 't', %s)",
-                catalogName, timestamp));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(namespace => 'n1', 't', %s)",
+                    catalogName, timestamp))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.rollback_to_timestamp not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [timestamp]");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(timestamp => %s)", catalogName, timestamp));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => %s)",
+                    catalogName, timestamp))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [table]");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [timestamp]");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with extra args",
-        AnalysisException.class,
-        "Too many arguments",
-        () ->
-            sql("CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)", catalogName, timestamp));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)",
+                    catalogName, timestamp))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Too many arguments for procedure");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type for timestamp: cannot cast",
-        () -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Wrong arg type for timestamp: cannot cast DecimalType(2,1) to TimestampType");
   }
 }
