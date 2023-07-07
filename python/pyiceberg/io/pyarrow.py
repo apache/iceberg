@@ -24,13 +24,11 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
-import multiprocessing
 import os
 from abc import ABC, abstractmethod
+from concurrent.futures import Executor
 from functools import lru_cache, singledispatch
 from itertools import chain
-from multiprocessing.pool import ThreadPool
-from multiprocessing.sharedctypes import Synchronized
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -38,6 +36,7 @@ from typing import (
     Dict,
     Generic,
     Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -124,6 +123,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.concurrent import DynamicManagedExecutor, Synchronized
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -521,6 +521,10 @@ def _construct_fragment(fs: FileSystem, data_file: DataFile, file_format_kwargs:
     return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)
 
 
+def _starmap_read_deletes(args: Tuple[FileSystem, DataFile]) -> Dict[str, pa.ChunkedArray]:
+    return _read_deletes(*args)
+
+
 def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedArray]:
     delete_fragment = _construct_fragment(
         fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
@@ -725,6 +729,22 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         raise TypeError(f"Unsupported type: {primitive}")
 
 
+def _starmap_task_to_table(
+    args: Tuple[
+        FileSystem,
+        FileScanTask,
+        BooleanExpression,
+        Schema,
+        Set[int],
+        Optional[List[ChunkedArray]],
+        bool,
+        Synchronized[int],
+        Optional[int],
+    ]
+) -> Optional[pa.Table]:
+    return _task_to_table(*args)
+
+
 def _task_to_table(
     fs: FileSystem,
     task: FileScanTask,
@@ -799,7 +819,7 @@ def _task_to_table(
                 arrow_table = fragment_scanner.to_table()
 
         if limit:
-            with rows_counter.get_lock():
+            with rows_counter:
                 if rows_counter.value >= limit:
                     return None
                 rows_counter.value += len(arrow_table)
@@ -811,12 +831,12 @@ def _task_to_table(
             return None
 
 
-def _read_all_delete_files(fs: FileSystem, pool: ThreadPool, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+def _read_all_delete_files(fs: FileSystem, executor: Executor, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
     deletes_per_file: Dict[str, List[ChunkedArray]] = {}
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
-        deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
-            func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
+        deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
+            _starmap_read_deletes, [(fs, delete) for delete in unique_deletes]
         )
         for delete in deletes_per_files:
             for file, arr in delete.items():
@@ -870,15 +890,14 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    rows_counter = multiprocessing.Value("i", 0)
-
-    with ThreadPool() as pool:
-        deletes_per_file = _read_all_delete_files(fs, pool, tasks)
+    with DynamicManagedExecutor() as executor:
+        rows_counter = executor.synchronized(0)
+        deletes_per_file = _read_all_delete_files(fs, executor, tasks)
         tables = [
             table
-            for table in pool.starmap(
-                func=_task_to_table,
-                iterable=[
+            for table in executor.map(
+                _starmap_task_to_table,
+                [
                     (
                         fs,
                         task,

@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from itertools import chain
-from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -70,6 +69,7 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
+from pyiceberg.utils.concurrent import DynamicExecutor
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -639,6 +639,12 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
+def _starmap_open_manifest(
+    args: Tuple[FileIO, ManifestFile, Callable[[DataFile], bool], Callable[[DataFile], bool]]
+) -> List[ManifestEntry]:
+    return _open_manifest(*args)
+
+
 def _open_manifest(
     io: FileIO,
     manifest: ManifestFile,
@@ -773,11 +779,11 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPool() as pool:
+        with DynamicExecutor() as executor:
             for manifest_entry in chain(
-                *pool.starmap(
-                    func=_open_manifest,
-                    iterable=[
+                *executor.map(
+                    _starmap_open_manifest,
+                    [
                         (
                             io,
                             manifest,
