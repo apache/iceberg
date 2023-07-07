@@ -1490,7 +1490,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .collectAsList();
 
     List<DataFile> dataFiles = dataFiles(table);
-    assertDataFilePartitions(dataFiles, 3, Arrays.asList(1, 2, 2));
+    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
@@ -2268,10 +2268,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   private void assertDataFilePartitions(
-      List<DataFile> dataFiles, int expectedDataFileCount, List<Integer> expectedPartitionIds) {
+      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
     Assert.assertEquals(
-        "Table should have " + expectedDataFileCount + " data files",
-        expectedDataFileCount,
+        "Table should have " + expectedPartitionIds.size() + " data files",
+        expectedPartitionIds.size(),
         dataFiles.size());
 
     for (int i = 0; i < dataFiles.size(); ++i) {
