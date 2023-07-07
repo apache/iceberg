@@ -1292,7 +1292,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                sumDataFileSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1361,7 +1361,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1377,7 +1377,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                sumDataFileSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1490,11 +1490,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
 
-    List<DataFile> dataFilesFromFirstCommit = listDataFilesFromCommitId(table, firstCommitId);
-    assertPartitionIdFromDataFiles(dataFilesFromFirstCommit, 2, Arrays.asList(1, 2));
+    List<DataFile> dataFilesFromFirstCommit = dataFiles(table, firstCommitId);
+    assertDataFilePartitions(dataFilesFromFirstCommit, 2, Arrays.asList(1, 2));
 
-    List<DataFile> dataFilesFromSecondCommit = listDataFilesFromCommitId(table, secondCommitId);
-    assertPartitionIdFromDataFiles(dataFilesFromSecondCommit, 1, Arrays.asList(2));
+    List<DataFile> dataFilesFromSecondCommit = dataFiles(table, secondCommitId);
+    assertDataFilePartitions(dataFilesFromSecondCommit, 1, Arrays.asList(2));
 
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
@@ -1641,7 +1641,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1657,7 +1657,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                sumDataFileSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 1L) // should be incremented now
             .set("position_delete_file_count", 1) // should be incremented now
             .set("equality_delete_record_count", 0L)
@@ -2194,19 +2194,19 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
-  private long sumDataFileSizeInBytes(Iterable<DataFile> dataFiles) {
+  private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
     return StreamSupport.stream(dataFiles.spliterator(), false)
         .mapToLong(DataFile::fileSizeInBytes)
         .sum();
   }
 
-  private List<DataFile> listDataFilesFromCommitId(Table table, long commitId) {
+  private List<DataFile> dataFiles(Table table, long commitId) {
     return StreamSupport.stream(
             table.snapshot(commitId).addedDataFiles(table.io()).spliterator(), false)
         .collect(Collectors.toList());
   }
 
-  private void assertPartitionIdFromDataFiles(
+  private void assertDataFilePartitions(
       List<DataFile> dataFilesFromCommit,
       int expectedDataFileCount,
       List<Integer> expectedPartitionIds) {
