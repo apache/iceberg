@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source.split;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -146,19 +145,11 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       out.writeLong(recordOffset);
       out.writeInt(fileScanTasks.size());
 
-      Iterator<FileScanTask> iter = fileScanTasks.iterator();
-      int writtenTasks = 0;
-      while (iter.hasNext()) {
-        String taskJson = FileScanTaskParser.toJson(iter.next());
+      for (FileScanTask fileScanTask : fileScanTasks) {
+        String taskJson = FileScanTaskParser.toJson(fileScanTask);
         out.writeUTF(taskJson);
-        writtenTasks += 1;
       }
 
-      Preconditions.checkArgument(
-          writtenTasks == fileScanTasks.size(),
-          "Invalid combined scan task: collection size = %s, iterator size = %s",
-          fileScanTasks.size(),
-          writtenTasks);
       serializedBytesCache = out.getCopyOfBuffer();
       out.clear();
     }
