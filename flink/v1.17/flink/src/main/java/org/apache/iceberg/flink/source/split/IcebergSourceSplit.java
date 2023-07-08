@@ -138,7 +138,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       Collection<FileScanTask> fileScanTasks = task.tasks();
       Preconditions.checkArgument(
           fileOffset >= 0 && fileOffset < fileScanTasks.size(),
-          "Invalid file offset: %s. Should within the range of [0, %s)",
+          "Invalid file offset: %s. Should be within the range of [0, %s)",
           fileOffset,
           fileScanTasks.size());
 
