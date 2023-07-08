@@ -48,7 +48,8 @@ public class TestCommitService extends TableTestBase {
     commitService.start();
 
     ExecutorService executorService = Executors.newFixedThreadPool(10);
-    Tasks.range(100).executeWith(executorService).run(commitService::offer);
+    int numberOfFileGroups = 100;
+    Tasks.range(numberOfFileGroups).executeWith(executorService).run(commitService::offer);
     commitService.close();
 
     Set<Integer> expected = Sets.newHashSet(IntStream.range(0, 100).iterator());
@@ -66,7 +67,7 @@ public class TestCommitService extends TableTestBase {
       commitService.offer(i);
     }
 
-    // Simulate the latest group of rewrite
+    // Simulate the last group of rewrite
     CustomCommitService spyCommitService = spy(commitService);
     doReturn(false).when(spyCommitService).canCreateCommitGroup();
     for (int i = 4; i < 8; i++) {
