@@ -51,6 +51,7 @@ PARTITION_SPECS = "partition_specs"
 SORT_ORDERS = "sort_orders"
 REFS = "refs"
 
+INITIAL_SNAPSHOT_ID = -1
 INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
@@ -101,16 +102,17 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data[CURRENT_SNAPSHOT_ID] == -1:
+        if data[CURRENT_SNAPSHOT_ID] == None:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
-            data[CURRENT_SNAPSHOT_ID] = None
+            data[CURRENT_SNAPSHOT_ID] = INITIAL_SNAPSHOT_ID
         return data
 
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         # This is going to be much nicer as soon as refs is an actual pydantic object
-        if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
+        if data.get(CURRENT_SNAPSHOT_ID, INITIAL_SNAPSHOT_ID) != INITIAL_SNAPSHOT_ID:
+            current_snapshot_id = data[CURRENT_SNAPSHOT_ID]
             if MAIN_BRANCH not in data[REFS]:
                 data[REFS][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
         return data
@@ -159,7 +161,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
 
-    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id", default=None)
+    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id", default=INITIAL_SNAPSHOT_ID)
     """ID of the current table snapshot."""
 
     snapshots: List[Snapshot] = Field(default_factory=list)
