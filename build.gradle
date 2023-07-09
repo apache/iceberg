@@ -857,7 +857,7 @@ project(':iceberg-nessie') {
 
     compileOnly "org.apache.hadoop:hadoop-common"
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
 
     if (JavaVersion.current().isJava11Compatible()) {
       testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
@@ -872,7 +872,7 @@ project(':iceberg-nessie') {
       testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
       // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
     }
   }
 }
