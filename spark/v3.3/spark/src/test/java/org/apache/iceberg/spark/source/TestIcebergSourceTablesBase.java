@@ -40,7 +40,6 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -1489,7 +1488,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .orderBy("partition.id")
             .collectAsList();
 
-    List<DataFile> dataFiles = dataFiles(table);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
 
     GenericRecordBuilder builder =
@@ -2260,11 +2259,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
     return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
-  }
-
-  private List<DataFile> dataFiles(Table table) {
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
   private void assertDataFilePartitions(
