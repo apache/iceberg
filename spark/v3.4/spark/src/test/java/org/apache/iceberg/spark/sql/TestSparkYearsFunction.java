@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.YearsFunction;
 import org.apache.spark.sql.AnalysisException;
@@ -69,33 +68,47 @@ public class TestSparkYearsFunction extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (): Wrong number of inputs",
-        () -> scalarSql("SELECT system.years()"));
+  public void testTimestampNtz() {
+    Assert.assertEquals(
+        "Expected to produce 2017 - 1970 = 47",
+        47,
+        scalarSql("SELECT system.years(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 1970 - 1970 = 0",
+        0,
+        scalarSql("SELECT system.years(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 1969 - 1970 = -1",
+        -1,
+        scalarSql("SELECT system.years(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999 UTC')"));
+    Assert.assertNull(scalarSql("SELECT system.years(CAST(null AS TIMESTAMP_NTZ))"));
+  }
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than one argument",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (date, date): Wrong number of inputs",
-        () -> scalarSql("SELECT system.years(date('1969-12-31'), date('1969-12-31'))"));
+  @Test
+  public void testWrongNumberOfArguments() {
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.years()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'years' cannot process input: (): Wrong number of inputs");
+
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.years(date('1969-12-31'), date('1969-12-31'))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'years' cannot process input: (date, date): Wrong number of inputs");
   }
 
   @Test
   public void testInvalidInputTypes() {
-    AssertHelpers.assertThrows(
-        "Int type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (int): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.years(1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.years(1)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'years' cannot process input: (int): Expected value to be date or timestamp");
 
-    AssertHelpers.assertThrows(
-        "Long type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (bigint): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.years(1L)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.years(1L)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'years' cannot process input: (bigint): Expected value to be date or timestamp");
   }
 
   @Test

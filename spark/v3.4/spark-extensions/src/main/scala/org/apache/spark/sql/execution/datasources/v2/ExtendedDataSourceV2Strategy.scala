@@ -27,13 +27,11 @@ import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
@@ -41,21 +39,20 @@ import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
 import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
+import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.UpdateRows
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.execution.OrderAwareCoalesceExec
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import scala.jdk.CollectionConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
-
-  import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
@@ -103,29 +100,21 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
     case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, child) =>
 
       MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
-    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _, _), condition, None) =>
-      // the optimizer has already checked that this delete can be handled using a metadata operation
-      val deleteCond = condition.getOrElse(Literal.TrueLiteral)
-      val predicates = splitConjunctivePredicates(deleteCond)
-      val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
-      val filters = normalizedPredicates.flatMap { pred =>
-        val filter = DataSourceV2Strategy.translateFilterV2(pred)
-        if (filter.isEmpty) {
-          throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
-        }
-        filter
-      }.toArray
-      DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
+    case UpdateRows(deleteOutput, insertOutput, output, child) =>
+      UpdateRowsExec(deleteOutput, insertOutput, output, planLater(child)) :: Nil
 
     case NoStatsUnaryNode(child) =>
       planLater(child) :: Nil
+
+    case OrderAwareCoalesce(numPartitions, coalescer, child) =>
+      OrderAwareCoalesceExec(numPartitions, coalescer, planLater(child)) :: Nil
 
     case _ => Nil
   }

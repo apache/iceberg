@@ -101,6 +101,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   public static final long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 100L * 1024 * 1024 * 1024; // 100 GB
 
+  private static final long SPLIT_OVERHEAD = 5 * 1024;
+
   private final Table table;
   private long targetFileSize;
   private long minFileSize;
@@ -176,6 +178,16 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   protected long inputSize(List<T> group) {
     return group.stream().mapToLong(ContentScanTask::length).sum();
+  }
+
+  /**
+   * Returns the smallest of our max write file threshold and our estimated split size based on the
+   * number of output files we want to generate. Add an overhead onto the estimated split size to
+   * try to avoid small errors in size creating brand-new files.
+   */
+  protected long splitSize(long inputSize) {
+    long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
+    return Math.min(estimatedSplitSize, writeMaxFileSize());
   }
 
   /**

@@ -79,6 +79,7 @@ import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
@@ -254,6 +255,12 @@ public class Spark3Util {
         table instanceof SparkTable, "Table %s is not an Iceberg table", table);
     SparkTable sparkTable = (SparkTable) table;
     return sparkTable.table();
+  }
+
+  public static SortOrder[] toOrdering(org.apache.iceberg.SortOrder sortOrder) {
+    SortOrderToSpark visitor = new SortOrderToSpark(sortOrder.schema());
+    List<SortOrder> ordering = SortOrderVisitor.visit(sortOrder, visitor);
+    return ordering.toArray(new SortOrder[0]);
   }
 
   public static Transform[] toTransforms(Schema schema, List<PartitionField> fields) {
@@ -826,23 +833,6 @@ public class Spark3Util {
     return CatalogV2Implicits.MultipartIdentifierHelper(
             JavaConverters.asScalaIteratorConverter(parts.iterator()).asScala().toSeq())
         .quoted();
-  }
-
-  /**
-   * Use Spark to list all partitions in the table.
-   *
-   * @param spark a Spark session
-   * @param rootPath a table identifier
-   * @param format format of the file
-   * @param partitionFilter partitionFilter of the file
-   * @return all table's partitions
-   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map,
-   *     PartitionSpec)}
-   */
-  @Deprecated
-  public static List<SparkPartition> getPartitions(
-      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
-    return getPartitions(spark, rootPath, format, partitionFilter, null);
   }
 
   /**

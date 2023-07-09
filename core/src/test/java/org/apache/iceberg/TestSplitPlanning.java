@@ -33,6 +33,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -177,32 +178,29 @@ public class TestSplitPlanning extends TableTestBase {
 
   @Test
   public void testSplitPlanningWithNegativeValues() {
-    AssertHelpers.assertThrows(
-        "User provided split size should be validated",
-        IllegalArgumentException.class,
-        "Split size must be > 0: -10",
-        () -> {
-          table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(-10)).planTasks();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(-10)).planTasks())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Split size must be > 0: -10");
 
-    AssertHelpers.assertThrows(
-        "User provided split planning lookback should be validated",
-        IllegalArgumentException.class,
-        "Split planning lookback must be > 0: -10",
-        () -> {
-          table.newScan().option(TableProperties.SPLIT_LOOKBACK, String.valueOf(-10)).planTasks();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newScan()
+                    .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(-10))
+                    .planTasks())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Split planning lookback must be > 0: -10");
 
-    AssertHelpers.assertThrows(
-        "User provided split open file cost should be validated",
-        IllegalArgumentException.class,
-        "File open cost must be >= 0: -10",
-        () -> {
-          table
-              .newScan()
-              .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(-10))
-              .planTasks();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newScan()
+                    .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(-10))
+                    .planTasks())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("File open cost must be >= 0: -10");
   }
 
   @Test

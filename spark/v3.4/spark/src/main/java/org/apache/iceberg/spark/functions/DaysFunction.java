@@ -25,6 +25,7 @@ import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 
 /**
@@ -40,6 +41,8 @@ public class DaysFunction extends UnaryUnboundFunction {
       return new DateToDaysFunction();
     } else if (valueType instanceof TimestampType) {
       return new TimestampToDaysFunction();
+    } else if (valueType instanceof TimestampNTZType) {
+      return new TimestampNtzToDaysFunction();
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -108,6 +111,29 @@ public class DaysFunction extends UnaryUnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.days(timestamp)";
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      // return null for null input to match what Spark does in codegen
+      return input.isNullAt(0) ? null : invoke(input.getLong(0));
+    }
+  }
+
+  public static class TimestampNtzToDaysFunction extends BaseToDaysFunction {
+    // magic method used in codegen
+    public static int invoke(long micros) {
+      return DateTimeUtil.microsToDays(micros);
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return new DataType[] {DataTypes.TimestampNTZType};
+    }
+
+    @Override
+    public String canonicalName() {
+      return "iceberg.days(timestamp_ntz)";
     }
 
     @Override

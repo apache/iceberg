@@ -239,7 +239,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public Long streamFromTimestamp() {
+  public long streamFromTimestamp() {
     return confParser
         .longConf()
         .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
@@ -255,7 +255,7 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
   }
 
-  public Integer maxFilesPerMicroBatch() {
+  public int maxFilesPerMicroBatch() {
     return confParser
         .intConf()
         .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH)
@@ -263,7 +263,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public Integer maxRecordsPerMicroBatch() {
+  public int maxRecordsPerMicroBatch() {
     return confParser
         .intConf()
         .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)

@@ -20,11 +20,13 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -298,5 +300,22 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     Assert.assertEquals("Sort order must match", expected, table.sortOrder());
+  }
+
+  @Test
+  public void testDefaultSortOnBinaryBucketedColumn() {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 Binary) "
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(2, c2))",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, X'A1B1'), (2, X'A2B2')", tableName);
+
+    byte[] bytes1 = new byte[] {-95, -79};
+    byte[] bytes2 = new byte[] {-94, -78};
+    List<Object[]> expected = ImmutableList.of(row(1, bytes1), row(2, bytes2));
+
+    assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 }

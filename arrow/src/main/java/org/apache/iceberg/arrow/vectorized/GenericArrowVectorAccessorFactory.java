@@ -218,7 +218,8 @@ public class GenericArrowVectorAccessorFactory<
         return new FixedSizeBinaryBackedDecimalAccessor<>(
             (FixedSizeBinaryVector) vector, decimalFactorySupplier.get());
       }
-      return new FixedSizeBinaryAccessor<>((FixedSizeBinaryVector) vector);
+      return new FixedSizeBinaryAccessor<>(
+          (FixedSizeBinaryVector) vector, stringFactorySupplier.get());
     }
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
@@ -558,15 +559,31 @@ public class GenericArrowVectorAccessorFactory<
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final FixedSizeBinaryVector vector;
+    private final StringFactory<Utf8StringT> stringFactory;
 
     FixedSizeBinaryAccessor(FixedSizeBinaryVector vector) {
       super(vector);
       this.vector = vector;
+      this.stringFactory = null;
+    }
+
+    FixedSizeBinaryAccessor(
+        FixedSizeBinaryVector vector, StringFactory<Utf8StringT> stringFactory) {
+      super(vector);
+      this.vector = vector;
+      this.stringFactory = stringFactory;
     }
 
     @Override
     public byte[] getBinary(int rowId) {
       return vector.get(rowId);
+    }
+
+    @Override
+    public Utf8StringT getUTF8String(int rowId) {
+      return null == stringFactory
+          ? super.getUTF8String(rowId)
+          : stringFactory.ofRow(vector, rowId);
     }
   }
 
@@ -793,6 +810,14 @@ public class GenericArrowVectorAccessorFactory<
 
     /** Create a UTF8 String from the row value in the arrow vector. */
     Utf8StringT ofRow(VarCharVector vector, int rowId);
+
+    /** Create a UTF8 String from the row value in the FixedSizeBinaryVector vector. */
+    default Utf8StringT ofRow(FixedSizeBinaryVector vector, int rowId) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Creating %s from a FixedSizeBinaryVector is not supported",
+              getGenericClass().getSimpleName()));
+    }
 
     /** Create a UTF8 String from the byte array. */
     Utf8StringT ofBytes(byte[] bytes);

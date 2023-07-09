@@ -24,7 +24,7 @@ import java.io.OutputStream;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestInMemoryFileIO {
   String location = "s3://foo/bar.txt";

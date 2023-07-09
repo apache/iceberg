@@ -25,10 +25,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -56,7 +54,7 @@ public abstract class AvroDataTest {
           optional(107, "date", Types.DateType.get()),
           required(108, "ts", Types.TimestampType.withZone()),
           required(110, "s", Types.StringType.get()),
-          // required(111, "uuid", Types.UUIDType.get()),
+          required(111, "uuid", Types.UUIDType.get()),
           required(112, "fixed", Types.FixedType.ofLength(7)),
           optional(113, "bytes", Types.BinaryType.get()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
@@ -231,17 +229,13 @@ public abstract class AvroDataTest {
 
   @Test
   public void testTimestampWithoutZone() throws IOException {
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
-        () -> {
-          Schema schema =
-              TypeUtil.assignIncreasingFreshIds(
-                  new Schema(
-                      required(0, "id", LongType.get()),
-                      optional(1, "ts_without_zone", Types.TimestampType.withoutZone())));
+    Schema schema =
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "ts_without_zone", Types.TimestampType.withoutZone())));
 
-          writeAndValidate(schema);
-        });
+    writeAndValidate(schema);
   }
 
   protected void withSQLConf(Map<String, String> conf, Action action) throws IOException {

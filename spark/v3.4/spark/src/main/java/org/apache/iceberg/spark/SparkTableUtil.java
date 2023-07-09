@@ -44,6 +44,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -269,44 +270,7 @@ public class SparkTableUtil {
     }
   }
 
-  /**
-   * Returns the data files in a partition by listing the partition location.
-   *
-   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
-   *
-   * @param partition a partition
-   * @param conf a serializable Hadoop conf
-   * @param metricsConfig a metrics conf
-   * @return a List of DataFile
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec,
-   *     Configuration, MetricsConfig, NameMapping)}
-   */
-  @Deprecated
-  public static List<DataFile> listPartition(
-      SparkPartition partition,
-      PartitionSpec spec,
-      SerializableConfiguration conf,
-      MetricsConfig metricsConfig) {
-    return listPartition(partition, spec, conf, metricsConfig, null);
-  }
-
-  /**
-   * Returns the data files in a partition by listing the partition location.
-   *
-   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
-   *
-   * @param partition a partition
-   * @param conf a serializable Hadoop conf
-   * @param metricsConfig a metrics conf
-   * @param mapping a name mapping
-   * @return a List of DataFile
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec,
-   *     Configuration, MetricsConfig, NameMapping)}
-   */
-  @Deprecated
-  public static List<DataFile> listPartition(
+  private static List<DataFile> listPartition(
       SparkPartition partition,
       PartitionSpec spec,
       SerializableConfiguration conf,
@@ -689,18 +653,6 @@ public class SparkTableUtil {
         .run(item -> io.deleteFile(item.path()));
   }
 
-  /**
-   * Loads a metadata table.
-   *
-   * @deprecated since 0.14.0, will be removed in 0.15.0; use {@link
-   *     #loadMetadataTable(SparkSession, Table, MetadataTableType)}.
-   */
-  @Deprecated
-  public static Dataset<Row> loadCatalogMetadataTable(
-      SparkSession spark, Table table, MetadataTableType type) {
-    return loadMetadataTable(spark, table, type);
-  }
-
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type) {
     return loadMetadataTable(spark, table, type, ImmutableMap.of());
@@ -713,6 +665,43 @@ public class SparkTableUtil {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
     return Dataset.ofRows(
         spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
+  }
+
+  /**
+   * Determine the write branch.
+   *
+   * <p>Validate wap config and determine the write branch.
+   *
+   * @param spark a Spark Session
+   * @param branch write branch if there is no WAP branch configured
+   * @return branch for write operation
+   */
+  public static String determineWriteBranch(SparkSession spark, String branch) {
+    String wapId = spark.conf().get(SparkSQLProperties.WAP_ID, null);
+    String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
+    ValidationException.check(
+        wapId == null || wapBranch == null,
+        "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
+        wapId,
+        wapBranch);
+
+    if (wapBranch != null) {
+      ValidationException.check(
+          branch == null,
+          "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
+          branch,
+          wapBranch);
+
+      return wapBranch;
+    }
+    return branch;
+  }
+
+  public static boolean wapEnabled(Table table) {
+    return PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
+        Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   /** Class representing a table partition. */

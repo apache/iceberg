@@ -18,13 +18,19 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
+
 import java.security.PrivilegedAction;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hive.CachedClientPool.Key;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -46,6 +52,10 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     Assert.assertNull(
         CachedClientPool.clientPoolCache()
             .getIfPresent(CachedClientPool.extractKey(null, hiveConf)));
+
+    // The client has been really closed.
+    Assert.assertTrue(clientPool1.isClosed());
+    Assert.assertTrue(clientPool2.isClosed());
   }
 
   @Test
@@ -112,5 +122,50 @@ public class TestCachedClientPool extends HiveMetastoreTest {
             "Duplicate conf key elements should result in an error")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Conf key element k1 already specified");
+  }
+
+  @Test
+  public void testHmsCatalog() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            String.valueOf(EVICTION_INTERVAL),
+            String.valueOf(Integer.MAX_VALUE),
+            ICEBERG_CATALOG_TYPE,
+            ICEBERG_CATALOG_TYPE_HIVE);
+
+    Configuration conf1 = new Configuration();
+    conf1.set(HiveCatalog.HIVE_CONF_CATALOG, "foo");
+
+    Configuration conf2 = new Configuration();
+    conf2.set(HiveCatalog.HIVE_CONF_CATALOG, "foo");
+
+    Configuration conf3 = new Configuration();
+    conf3.set(HiveCatalog.HIVE_CONF_CATALOG, "bar");
+
+    HiveCatalog catalog1 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("1", properties, conf1);
+    HiveCatalog catalog2 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("2", properties, conf2);
+    HiveCatalog catalog3 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("3", properties, conf3);
+    HiveCatalog catalog4 =
+        (HiveCatalog) CatalogUtil.buildIcebergCatalog("4", properties, new Configuration());
+
+    HiveClientPool pool1 = ((CachedClientPool) catalog1.clientPool()).clientPool();
+    HiveClientPool pool2 = ((CachedClientPool) catalog2.clientPool()).clientPool();
+    HiveClientPool pool3 = ((CachedClientPool) catalog3.clientPool()).clientPool();
+    HiveClientPool pool4 = ((CachedClientPool) catalog4.clientPool()).clientPool();
+
+    Assert.assertSame(pool1, pool2);
+    Assert.assertNotSame(pool3, pool1);
+    Assert.assertNotSame(pool3, pool2);
+    Assert.assertNotSame(pool3, pool4);
+    Assert.assertNotSame(pool4, pool1);
+    Assert.assertNotSame(pool4, pool2);
+
+    Assert.assertEquals("foo", pool1.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+    Assert.assertEquals("bar", pool3.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+    Assert.assertNull(pool4.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+
+    pool1.close();
+    pool3.close();
+    pool4.close();
   }
 }

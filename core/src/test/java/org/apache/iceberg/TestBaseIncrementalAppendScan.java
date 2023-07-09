@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -127,23 +128,21 @@ public class TestBaseIncrementalAppendScan
     // scan should fail because snapshot B is not an ancestor of snapshot D
     IncrementalAppendScan scanShouldFail =
         newScan().fromSnapshotExclusive(snapshotBId).toSnapshot(snapshotDId);
-    AssertHelpers.assertThrows(
-        "Should throw exception",
-        IllegalArgumentException.class,
-        String.format(
-            "Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
-            snapshotBId, snapshotDId),
-        () -> Iterables.size(scanShouldFail.planFiles()));
+    Assertions.assertThatThrownBy(() -> Iterables.size(scanShouldFail.planFiles()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
+                snapshotBId, snapshotDId));
 
     // scan should fail because snapshot B is not an ancestor of snapshot D
     IncrementalAppendScan scanShouldFailInclusive =
         newScan().fromSnapshotInclusive(snapshotBId).toSnapshot(snapshotDId);
-    AssertHelpers.assertThrows(
-        "Should throw exception",
-        IllegalArgumentException.class,
-        String.format(
-            "Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
-            snapshotBId, snapshotDId),
-        () -> Iterables.size(scanShouldFailInclusive.planFiles()));
+    Assertions.assertThatThrownBy(() -> Iterables.size(scanShouldFailInclusive.planFiles()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
+                snapshotBId, snapshotDId));
   }
 }

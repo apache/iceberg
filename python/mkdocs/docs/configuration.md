@@ -60,13 +60,14 @@ For the FileIO there are several configuration options available:
 
 ### S3
 
-| Key                  | Example             | Description                                                                                                                                                                                                                                               |
-| -------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| s3.endpoint          | https://10.0.19.25/ | Configure an alternative endpoint of the S3 service for the FileIO to access. This could be used to use S3FileIO with any s3-compatible object storage service that has a different endpoint, or access a private S3 endpoint in a virtual private cloud. |
-| s3.access-key-id     | admin               | Configure the static secret access key used to access the FileIO.                                                                                                                                                                                         |
-| s3.secret-access-key | password            | Configure the static session token used to access the FileIO.                                                                                                                                                                                             |
-| s3.signer            | bearer              | Configure the signature version of the FileIO.                                                                                                                                                                                                            |
-| s3.region            | us-west-2           | Sets the region of the bucket                                                                                                                                                                                                                             |
+| Key                  | Example                  | Description                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| s3.endpoint          | https://10.0.19.25/      | Configure an alternative endpoint of the S3 service for the FileIO to access. This could be used to use S3FileIO with any s3-compatible object storage service that has a different endpoint, or access a private S3 endpoint in a virtual private cloud. |
+| s3.access-key-id     | admin                    | Configure the static secret access key used to access the FileIO.                                                                                                                                                                                         |
+| s3.secret-access-key | password                 | Configure the static session token used to access the FileIO.                                                                                                                                                                                             |
+| s3.signer            | bearer                   | Configure the signature version of the FileIO.                                                                                                                                                                                                            |
+| s3.region            | us-west-2                | Sets the region of the bucket                                                                                                                                                                                                                             |
+| s3.proxy-uri         | http://my.proxy.com:8080 | Configure the proxy server to be used by the FileIO.                                                                                                                                                                                                      |
 
 ### Azure Data lake
 
@@ -97,6 +98,15 @@ catalog:
       cabundle: /absolute/path/to/cabundle.pem
 ```
 
+| Key                 | Example                 | Description                                                                |
+| ------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| uri                 | https://rest-catalog/ws | URI identifying the REST Server                                            |
+| credential          | t-1234:secret           | Credential to use for OAuth2 credential flow when initializing the catalog |
+| token               | FEW23.DFSDF.FSDF        | Bearer token value to use for `Authorization` header                       |
+| rest.sigv4-enabled  | true                    | Sign requests to the REST Server using AWS SigV4 protocol                  |
+| rest.signing-region | us-east-1               | The region to use when SigV4 signing a request                             |
+| rest.signing-name   | execute-api             | The service signing name to use when SigV4 signing a request               |
+
 ## Hive Catalog
 
 ```yaml
@@ -110,13 +120,27 @@ catalog:
 
 ## Glue Catalog
 
-If you want to use AWS Glue as the catalog, you can use the last two ways to configure the pyiceberg and refer
+Your AWS credentials can be passed directly through the Python API.
+Otherwise, please refer to
 [How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set your AWS account credentials locally.
+If you did not set up a default AWS profile, you can configure the `profile_name`.
 
 ```yaml
 catalog:
   default:
     type: glue
+    aws_access_key_id: <ACCESS_KEY_ID>
+    aws_secret_access_key: <SECRET_ACCESS_KEY>
+    aws_session_token: <SESSION_TOKEN>
+    region_name: <REGION_NAME>
+```
+
+```yaml
+catalog:
+  default:
+    type: glue
+    profile_name: <PROFILE_NAME>
+    region_name: <REGION_NAME>
 ```
 
 ## DynamoDB Catalog

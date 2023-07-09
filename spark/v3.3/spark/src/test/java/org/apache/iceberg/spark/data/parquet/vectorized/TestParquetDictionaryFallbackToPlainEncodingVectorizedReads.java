@@ -54,8 +54,7 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
   }
 
   @Override
-  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile)
-      throws IOException {
+  FileAppender<GenericData.Record> parquetWriter(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
         .named("test")

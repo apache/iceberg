@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_structured_streaming
         weight: 0
 ---
 <!--

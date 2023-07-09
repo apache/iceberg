@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Flink
+        identifier: flink_writes
         weight: 400
 ---
 <!--
@@ -188,6 +189,16 @@ FlinkSink.builderFor(
   .table(table)
   .tableLoader(tableLoader)
   .append();
+```
+
+### Branch Writes
+Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
+For more information on branches please refer to [branches](../../tables/branching).
+```java
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .toBranch("audit-branch")
+    .append();
 ```
 
 ### Metrics

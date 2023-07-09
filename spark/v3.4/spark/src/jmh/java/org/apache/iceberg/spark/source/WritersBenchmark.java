@@ -22,9 +22,11 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
@@ -37,8 +39,8 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.ClusteredEqualityDeleteWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
-import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FanoutDataWriter;
+import org.apache.iceberg.io.FanoutPositionOnlyDeleteWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
@@ -52,7 +54,9 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
@@ -62,6 +66,9 @@ import org.openjdk.jmh.infra.Blackhole;
 public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   private static final int NUM_ROWS = 2500000;
+  private static final int NUM_DATA_FILES_PER_POSITION_DELETE_FILE = 100;
+  private static final int NUM_DELETED_POSITIONS_PER_DATA_FILE = 50_000;
+  private static final int DELETE_POSITION_STEP = 10;
   private static final long TARGET_FILE_SIZE_IN_BYTES = 50L * 1024 * 1024;
 
   private static final Schema SCHEMA =
@@ -76,6 +83,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   private Iterable<InternalRow> rows;
   private Iterable<InternalRow> positionDeleteRows;
+  private Iterable<InternalRow> shuffledPositionDeleteRows;
   private PartitionSpec unpartitionedSpec;
   private PartitionSpec partitionedSpec;
 
@@ -93,12 +101,30 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
             row -> transform.bind(Types.IntegerType.get()).apply(row.getInt(1))));
     this.rows = data;
 
-    this.positionDeleteRows =
-        RandomData.generateSpark(DeleteSchemaUtil.pathPosSchema(), NUM_ROWS, 0L);
+    this.positionDeleteRows = generatePositionDeletes(false /* no shuffle */);
+    this.shuffledPositionDeleteRows = generatePositionDeletes(true /* shuffle */);
 
     this.unpartitionedSpec = table().specs().get(0);
     Preconditions.checkArgument(unpartitionedSpec.isUnpartitioned());
     this.partitionedSpec = table().specs().get(1);
+  }
+
+  private Iterable<InternalRow> generatePositionDeletes(boolean shuffle) {
+    int numDeletes = NUM_DATA_FILES_PER_POSITION_DELETE_FILE * NUM_DELETED_POSITIONS_PER_DATA_FILE;
+    List<InternalRow> deletes = Lists.newArrayListWithExpectedSize(numDeletes);
+
+    for (int pathIndex = 0; pathIndex < NUM_DATA_FILES_PER_POSITION_DELETE_FILE; pathIndex++) {
+      UTF8String path = UTF8String.fromString("path/to/position/delete/file/" + UUID.randomUUID());
+      for (long pos = 0; pos < NUM_DELETED_POSITIONS_PER_DATA_FILE; pos++) {
+        deletes.add(new GenericInternalRow(new Object[] {path, pos * DELETE_POSITION_STEP}));
+      }
+    }
+
+    if (shuffle) {
+      Collections.shuffle(deletes);
+    }
+
+    return deletes;
   }
 
   @TearDown
@@ -353,6 +379,60 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : positionDeleteRows) {
+        String path = row.getString(0);
+        long pos = row.getLong(1);
+        positionDelete.set(path, pos, null);
+        closeableWriter.write(positionDelete, unpartitionedSpec, null);
+      }
+    }
+
+    blackhole.consume(writer);
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void writeUnpartitionedFanoutPositionDeleteWriter(Blackhole blackhole) throws IOException {
+    FileIO io = table().io();
+
+    OutputFileFactory fileFactory = newFileFactory();
+    SparkFileWriterFactory writerFactory =
+        SparkFileWriterFactory.builderFor(table()).dataFileFormat(fileFormat()).build();
+
+    FanoutPositionOnlyDeleteWriter<InternalRow> writer =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
+
+    PositionDelete<InternalRow> positionDelete = PositionDelete.create();
+    try (FanoutPositionOnlyDeleteWriter<InternalRow> closeableWriter = writer) {
+      for (InternalRow row : positionDeleteRows) {
+        String path = row.getString(0);
+        long pos = row.getLong(1);
+        positionDelete.set(path, pos, null);
+        closeableWriter.write(positionDelete, unpartitionedSpec, null);
+      }
+    }
+
+    blackhole.consume(writer);
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void writeUnpartitionedFanoutPositionDeleteWriterShuffled(Blackhole blackhole)
+      throws IOException {
+
+    FileIO io = table().io();
+
+    OutputFileFactory fileFactory = newFileFactory();
+    SparkFileWriterFactory writerFactory =
+        SparkFileWriterFactory.builderFor(table()).dataFileFormat(fileFormat()).build();
+
+    FanoutPositionOnlyDeleteWriter<InternalRow> writer =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
+
+    PositionDelete<InternalRow> positionDelete = PositionDelete.create();
+    try (FanoutPositionOnlyDeleteWriter<InternalRow> closeableWriter = writer) {
+      for (InternalRow row : shuffledPositionDeleteRows) {
         String path = row.getString(0);
         long pos = row.getLong(1);
         positionDelete.set(path, pos, null);

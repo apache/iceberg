@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.types;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -25,16 +27,15 @@ import java.util.Comparator;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestComparators {
 
   private <T> void assertComparesCorrectly(Comparator<T> cmp, T less, T greater) {
-    Assert.assertEquals(0, cmp.compare(greater, greater));
-    Assert.assertEquals(0, cmp.compare(less, less));
-    Assert.assertEquals(-1, Integer.signum(cmp.compare(less, greater)));
-    Assert.assertEquals(1, Integer.signum(cmp.compare(greater, less)));
+    assertThat(cmp.compare(greater, greater)).isZero();
+    assertThat(cmp.compare(less, less)).isZero();
+    assertThat(Integer.signum(cmp.compare(less, greater))).isEqualTo(-1);
+    assertThat(Integer.signum(cmp.compare(greater, less))).isOne();
   }
 
   @Test

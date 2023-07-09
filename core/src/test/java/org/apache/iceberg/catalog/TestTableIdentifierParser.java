@@ -18,9 +18,8 @@
  */
 package org.apache.iceberg.catalog;
 
-import org.apache.iceberg.AssertHelpers;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestTableIdentifierParser {
 
@@ -28,97 +27,79 @@ public class TestTableIdentifierParser {
   public void testTableIdentifierToJson() {
     String json = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}";
     TableIdentifier identifier = TableIdentifier.of(Namespace.of("accounting", "tax"), "paid");
-    Assert.assertEquals(
-        "Should be able to serialize a table identifier with both namespace and name",
-        json,
-        TableIdentifierParser.toJson(identifier));
+    Assertions.assertThat(TableIdentifierParser.toJson(identifier))
+        .as("Should be able to serialize a table identifier with both namespace and name")
+        .isEqualTo(json);
 
     TableIdentifier identifierWithEmptyNamespace = TableIdentifier.of(Namespace.empty(), "paid");
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should be able to serialize a table identifier that uses the empty namespace",
-        jsonWithEmptyNamespace,
-        TableIdentifierParser.toJson(identifierWithEmptyNamespace));
+    Assertions.assertThat(TableIdentifierParser.toJson(identifierWithEmptyNamespace))
+        .as("Should be able to serialize a table identifier that uses the empty namespace")
+        .isEqualTo(jsonWithEmptyNamespace);
   }
 
   @Test
   public void testTableIdentifierFromJson() {
     String json = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}";
     TableIdentifier identifier = TableIdentifier.of(Namespace.of("accounting", "tax"), "paid");
-    Assert.assertEquals(
-        "Should be able to deserialize a valid table identifier",
-        identifier,
-        TableIdentifierParser.fromJson(json));
+    Assertions.assertThat(TableIdentifierParser.fromJson(json))
+        .as("Should be able to deserialize a valid table identifier")
+        .isEqualTo(identifier);
 
     TableIdentifier identifierWithEmptyNamespace = TableIdentifier.of(Namespace.empty(), "paid");
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should be able to deserialize a valid multi-level table identifier",
-        identifierWithEmptyNamespace,
-        TableIdentifierParser.fromJson(jsonWithEmptyNamespace));
+    Assertions.assertThat(TableIdentifierParser.fromJson(jsonWithEmptyNamespace))
+        .as("Should be able to deserialize a valid multi-level table identifier")
+        .isEqualTo(identifierWithEmptyNamespace);
 
     String identifierMissingNamespace = "{\"name\":\"paid\"}";
-    Assert.assertEquals(
-        "Should implicitly convert a missing namespace into the the empty namespace when parsing",
-        identifierWithEmptyNamespace,
-        TableIdentifierParser.fromJson(identifierMissingNamespace));
+    Assertions.assertThat(TableIdentifierParser.fromJson(identifierMissingNamespace))
+        .as(
+            "Should implicitly convert a missing namespace into the the empty namespace when parsing")
+        .isEqualTo(identifierWithEmptyNamespace);
   }
 
   @Test
   public void testFailParsingWhenNullOrEmptyJson() {
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize null JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse table identifier from invalid JSON: null",
-        () -> TableIdentifierParser.fromJson(nullJson));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse table identifier from invalid JSON: null");
 
     String emptyString = "";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty string",
-        IllegalArgumentException.class,
-        "Cannot parse table identifier from invalid JSON: ''",
-        () -> TableIdentifierParser.fromJson(emptyString));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyString))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse table identifier from invalid JSON: ''");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse missing string: name",
-        () -> TableIdentifierParser.fromJson(emptyJson));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: name");
 
     String emptyJsonArray = "[]";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty JSON array",
-        IllegalArgumentException.class,
-        "Cannot parse missing or non-object table identifier: []",
-        () -> TableIdentifierParser.fromJson(emptyJsonArray));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyJsonArray))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing or non-object table identifier: []");
   }
 
   @Test
   public void testFailParsingWhenMissingRequiredFields() {
     String identifierMissingName = "{\"namespace\":[\"accounting\",\"tax\"]}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with missing name",
-        IllegalArgumentException.class,
-        "Cannot parse missing string: name",
-        () -> TableIdentifierParser.fromJson(identifierMissingName));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(identifierMissingName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: name");
   }
 
   @Test
   public void testFailWhenFieldsHaveInvalidValues() {
     String invalidNamespace = "{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with invalid namespace",
-        IllegalArgumentException.class,
-        "Cannot parse from non-array value: namespace: \"accounting.tax\"",
-        () -> TableIdentifierParser.fromJson(invalidNamespace));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidNamespace))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse JSON array from non-array value: namespace: \"accounting.tax\"");
 
     String invalidName = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":1234}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with invalid name",
-        IllegalArgumentException.class,
-        "Cannot parse to a string value: name: 1234",
-        () -> TableIdentifierParser.fromJson(invalidName));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: name: 1234");
   }
 }

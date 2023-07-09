@@ -21,8 +21,7 @@ package org.apache.iceberg.view;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestViewVersionParser {
 
@@ -44,8 +43,8 @@ public class TestViewVersionParser {
             .versionId(1)
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
-            .operation("create")
-            .summary(ImmutableMap.of("user", "some-user"))
+            .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
+            .schemaId(1)
             .build();
 
     String serializedRepresentations =
@@ -54,13 +53,12 @@ public class TestViewVersionParser {
 
     String serializedViewVersion =
         String.format(
-            "{\"version-id\":1, \"timestamp-ms\":12345, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
+            "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
             serializedRepresentations);
 
-    Assert.assertEquals(
-        "Should be able to parse valid view version",
-        expectedViewVersion,
-        ViewVersionParser.fromJson(serializedViewVersion));
+    Assertions.assertThat(ViewVersionParser.fromJson(serializedViewVersion))
+        .as("Should be able to parse valid view version")
+        .isEqualTo(expectedViewVersion);
   }
 
   @Test
@@ -81,8 +79,8 @@ public class TestViewVersionParser {
             .versionId(1)
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
-            .summary(ImmutableMap.of("user", "some-user"))
-            .operation("create")
+            .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
+            .schemaId(1)
             .build();
 
     String expectedRepresentations =
@@ -91,13 +89,12 @@ public class TestViewVersionParser {
 
     String expectedViewVersion =
         String.format(
-            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"operation\":\"create\",\"user\":\"some-user\"},\"representations\":%s}",
+            "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,\"summary\":{\"operation\":\"create\",\"user\":\"some-user\"},\"representations\":%s}",
             expectedRepresentations);
 
-    Assert.assertEquals(
-        "Should be able to serialize valid view version",
-        expectedViewVersion,
-        ViewVersionParser.toJson(viewVersion));
+    Assertions.assertThat(ViewVersionParser.toJson(viewVersion))
+        .as("Should be able to serialize valid view version")
+        .isEqualTo(expectedViewVersion);
   }
 
   @Test
@@ -108,12 +105,23 @@ public class TestViewVersionParser {
 
     String viewVersionMissingOperation =
         String.format(
-            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s}",
+            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s,\"schema-id\":1}",
             serializedRepresentations);
 
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse view version summary with missing required field: operation");
+        .hasMessage("Invalid view version summary, missing operation");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .timestampMillis(12345)
+                    .schemaId(1)
+                    .summary(ImmutableMap.of("user", "some-user"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid view version summary, missing operation");
   }
 
   @Test

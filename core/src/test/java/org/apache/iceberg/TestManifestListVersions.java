@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -37,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -99,11 +102,9 @@ public class TestManifestListVersions {
 
   @Test
   public void testV1WriteDeleteManifest() {
-    AssertHelpers.assertThrows(
-        "Should fail to write a DELETE manifest to v1",
-        IllegalArgumentException.class,
-        "Cannot store delete manifests in a v1 table",
-        () -> writeManifestList(TEST_DELETE_MANIFEST, 1));
+    Assertions.assertThatThrownBy(() -> writeManifestList(TEST_DELETE_MANIFEST, 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot store delete manifests in a v1 table");
   }
 
   @Test
@@ -173,9 +174,9 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test
@@ -201,9 +202,9 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test
@@ -359,5 +360,11 @@ public class TestManifestListVersions {
         ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
+  }
+
+  private void assertEmptyAvroField(GenericRecord record, String field) {
+    Assertions.assertThatThrownBy(() -> record.get(field))
+        .isInstanceOf(AvroRuntimeException.class)
+        .hasMessage("Not a valid schema field: " + field);
   }
 }

@@ -90,7 +90,6 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         30000,
         FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData),
         mixedFile,
-        false,
         true,
         BATCH_SIZE);
   }

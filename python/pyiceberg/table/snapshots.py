@@ -33,7 +33,7 @@ OPERATION = "operation"
 
 
 class Operation(Enum):
-    """Describes the operation
+    """Describes the operation.
 
     Possible operation values are:
         - append: Only data files were added and no files were removed.
@@ -48,11 +48,13 @@ class Operation(Enum):
     DELETE = "delete"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Operation class."""
         return f"Operation.{self.name}"
 
 
 class Summary(IcebergBaseModel):
-    """
+    """A class that stores the summary information for a Snapshot.
+
     The snapshot summary’s operation field is used by some operations,
     like snapshot expiration, to skip processing certain snapshots.
     """
@@ -91,6 +93,7 @@ class Summary(IcebergBaseModel):
         return self._additional_properties
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Summary class."""
         repr_properties = f", **{repr(self._additional_properties)}" if self._additional_properties else ""
         return f"Summary({repr(self.operation)}{repr_properties})"
 
@@ -105,6 +108,7 @@ class Snapshot(IcebergBaseModel):
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
 
     def __str__(self) -> str:
+        """Returns the string representation of the Snapshot class."""
         operation = f"{self.summary.operation}: " if self.summary else ""
         parent_id = f", parent_id={self.parent_snapshot_id}" if self.parent_snapshot_id else ""
         schema_id = f", schema_id={self.schema_id}" if self.schema_id is not None else ""

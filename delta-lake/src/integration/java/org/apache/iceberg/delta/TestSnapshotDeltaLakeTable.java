@@ -25,6 +25,8 @@ import static org.apache.spark.sql.functions.expr;
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Operation;
 import io.delta.standalone.OptimisticTransaction;
+import io.delta.standalone.VersionLog;
+import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaConcurrentModificationException;
@@ -33,16 +35,20 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Timestamp;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.util.LocationUtil;
@@ -172,7 +178,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, partitionedLocation)
             .execute();
 
-    checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkSnapshotIntegrity(
+        partitionedLocation, partitionedIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(partitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
   }
 
@@ -192,7 +200,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
 
     checkSnapshotIntegrity(
-        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(unpartitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
   }
 
@@ -213,7 +222,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .tableLocation(newIcebergTableLocation)
             .execute();
 
-    checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkSnapshotIntegrity(
+        partitionedLocation, partitionedIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(partitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
   }
 
@@ -244,7 +255,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
 
     checkSnapshotIntegrity(
-        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(unpartitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
     checkIcebergTableProperties(
         newTableIdentifier,
@@ -277,7 +289,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, externalDataFilesTableLocation)
             .execute();
     checkSnapshotIntegrity(
-        externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
+        externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(externalDataFilesTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
   }
@@ -292,14 +305,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, typeTestTableLocation)
-            .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
             .execute();
-    checkSnapshotIntegrity(typeTestTableLocation, typeTestIdentifier, newTableIdentifier, result);
+    checkSnapshotIntegrity(
+        typeTestTableLocation, typeTestIdentifier, newTableIdentifier, result, 0);
+    checkTagContentAndOrder(typeTestTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, typeTestTableLocation);
-    checkIcebergTableProperties(
-        newTableIdentifier,
-        ImmutableMap.of(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false"),
-        typeTestTableLocation);
+    checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), typeTestTableLocation);
   }
 
   @Test
@@ -332,7 +343,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, vacuumTestTableLocation)
             .execute();
     checkSnapshotIntegrity(
-        vacuumTestTableLocation, vacuumTestIdentifier, newTableIdentifier, result);
+        vacuumTestTableLocation, vacuumTestIdentifier, newTableIdentifier, result, 13);
+    checkTagContentAndOrder(vacuumTestTableLocation, newTableIdentifier, 13);
     checkIcebergTableLocation(newTableIdentifier, vacuumTestTableLocation);
   }
 
@@ -365,7 +377,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, logCleanTestTableLocation)
             .execute();
     checkSnapshotIntegrity(
-        logCleanTestTableLocation, logCleanTestIdentifier, newTableIdentifier, result);
+        logCleanTestTableLocation, logCleanTestIdentifier, newTableIdentifier, result, 10);
+    checkTagContentAndOrder(logCleanTestTableLocation, newTableIdentifier, 10);
     checkIcebergTableLocation(newTableIdentifier, logCleanTestTableLocation);
   }
 
@@ -373,7 +386,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       String deltaTableLocation,
       String deltaTableIdentifier,
       String icebergTableIdentifier,
-      SnapshotDeltaLakeTable.Result snapshotReport) {
+      SnapshotDeltaLakeTable.Result snapshotReport,
+      long firstConstructableVersion) {
     DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
 
     List<Row> deltaTableContents =
@@ -382,10 +396,43 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
 
     Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
-    Assertions.assertThat(deltaLog.update().getAllFiles())
-        .hasSize((int) snapshotReport.snapshotDataFilesCount());
+    Assertions.assertThat(snapshotReport.snapshotDataFilesCount())
+        .isEqualTo(countDataFilesInDeltaLakeTable(deltaLog, firstConstructableVersion));
     Assertions.assertThat(icebergTableContents)
         .containsExactlyInAnyOrderElementsOf(deltaTableContents);
+  }
+
+  private void checkTagContentAndOrder(
+      String deltaTableLocation, String icebergTableIdentifier, long firstConstructableVersion) {
+    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+    long currentVersion = deltaLog.snapshot().getVersion();
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
+    List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
+
+    Assertions.assertThat(icebergSnapshots.size())
+        .isEqualTo(currentVersion - firstConstructableVersion + 1);
+
+    for (int i = 0; i < icebergSnapshots.size(); i++) {
+      long deltaVersion = firstConstructableVersion + i;
+      Snapshot currentIcebergSnapshot = icebergSnapshots.get(i);
+
+      String expectedVersionTag = "delta-version-" + deltaVersion;
+      icebergSnapshotRefs.get(expectedVersionTag);
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).isTag()).isTrue();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
+          .isEqualTo(currentIcebergSnapshot.snapshotId());
+
+      Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
+      Assertions.assertThat(deltaVersionTimestamp).isNotNull();
+      String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp.getTime();
+
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
+          .isEqualTo(currentIcebergSnapshot.snapshotId());
+    }
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
@@ -509,5 +556,29 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     } else {
       df.write().format("delta").mode(SaveMode.Append).option("path", path).saveAsTable(identifier);
     }
+  }
+
+  private long countDataFilesInDeltaLakeTable(DeltaLog deltaLog, long firstConstructableVersion) {
+    long dataFilesCount = 0;
+
+    List<AddFile> initialDataFiles =
+        deltaLog.getSnapshotForVersionAsOf(firstConstructableVersion).getAllFiles();
+    dataFilesCount += initialDataFiles.size();
+
+    Iterator<VersionLog> versionLogIterator =
+        deltaLog.getChanges(
+            firstConstructableVersion + 1, false // not throw exception when data loss detected
+            );
+
+    while (versionLogIterator.hasNext()) {
+      VersionLog versionLog = versionLogIterator.next();
+      List<Action> addFiles =
+          versionLog.getActions().stream()
+              .filter(action -> action instanceof AddFile)
+              .collect(Collectors.toList());
+      dataFilesCount += addFiles.size();
+    }
+
+    return dataFilesCount;
   }
 }

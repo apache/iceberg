@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestSequenceNumberForV2Table extends TableTestBase {
@@ -71,14 +72,26 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         V2Assert.assertEquals(
             "FILE_A sequence number should be 1", 1, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(
+            "FILE_A sequence number should be 1", 1, entry.file().dataSequenceNumber().longValue());
+        V2Assert.assertEquals(
             "FILE_A file sequence number should be 1", 1, entry.fileSequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "FILE_A file sequence number should be 1",
+            1,
+            entry.file().fileSequenceNumber().longValue());
       }
 
       if (entry.file().path().equals(FILE_B.path())) {
         V2Assert.assertEquals(
             "FILE_b sequence number should be 2", 2, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(
+            "FILE_b sequence number should be 2", 2, entry.file().dataSequenceNumber().longValue());
+        V2Assert.assertEquals(
             "FILE_B file sequence number should be 2", 2, entry.fileSequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "FILE_B file sequence number should be 2",
+            2,
+            entry.file().fileSequenceNumber().longValue());
       }
     }
   }
@@ -92,11 +105,9 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
     table.ops().failCommits(1);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        CommitFailedException.class,
-        "Injected failure",
-        () -> table.newFastAppend().appendFile(FILE_B).commit());
+    Assertions.assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_B).commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "5").commit();
 
@@ -340,11 +351,9 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     Transaction txn = table.newTransaction();
     txn.newAppend().appendFile(FILE_C).commit();
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail",
-        CommitFailedException.class,
-        "Injected failure",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());

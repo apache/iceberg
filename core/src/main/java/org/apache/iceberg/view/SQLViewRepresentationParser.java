@@ -50,10 +50,6 @@ class SQLViewRepresentationParser {
     generator.writeStringField(SQL, view.sql());
     generator.writeStringField(DIALECT, view.dialect());
 
-    if (view.schemaId() != null) {
-      generator.writeNumberField(SCHEMA_ID, view.schemaId());
-    }
-
     if (view.defaultCatalog() != null) {
       generator.writeStringField(DEFAULT_CATALOG, view.defaultCatalog());
     }
@@ -64,13 +60,11 @@ class SQLViewRepresentationParser {
     }
 
     if (!view.fieldAliases().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_ALIASES, view.fieldAliases(), generator);
+      JsonUtil.writeStringArray(FIELD_ALIASES, view.fieldAliases(), generator);
     }
 
     if (!view.fieldComments().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_COMMENTS, view.fieldComments(), generator);
+      JsonUtil.writeStringArray(FIELD_COMMENTS, view.fieldComments(), generator);
     }
 
     generator.writeEndObject();
@@ -95,9 +89,6 @@ class SQLViewRepresentationParser {
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
-    if (schemaId != null) {
-      builder.schemaId(schemaId);
-    }
 
     List<String> namespace = JsonUtil.getStringListOrNull(DEFAULT_NAMESPACE, node);
     if (namespace != null && !namespace.isEmpty()) {

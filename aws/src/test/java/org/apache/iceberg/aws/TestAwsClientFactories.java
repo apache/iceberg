@@ -22,14 +22,14 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -44,36 +44,35 @@ public class TestAwsClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assert.assertEquals(
-        "default client should be singleton",
-        AwsClientFactories.defaultFactory(),
-        AwsClientFactories.defaultFactory());
+    Assertions.assertThat(AwsClientFactories.defaultFactory())
+        .as("default client should be singleton")
+        .isSameAs(AwsClientFactories.defaultFactory());
 
-    Assert.assertTrue(
-        "should load default when not configured",
-        AwsClientFactories.from(Maps.newHashMap())
-            instanceof AwsClientFactories.DefaultAwsClientFactory);
+    Assertions.assertThat(AwsClientFactories.from(Maps.newHashMap()))
+        .as("should load default when not configured")
+        .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
   @Test
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assert.assertTrue(
-        "should load custom class", AwsClientFactories.from(properties) instanceof CustomFactory);
+    Assertions.assertThat(AwsClientFactories.from(properties))
+        .as("should load custom class")
+        .isInstanceOf(CustomFactory.class);
   }
 
   @Test
   public void testS3FileIoCredentialsVerification() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.S3FILEIO_ACCESS_KEY_ID, "key");
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
 
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
 
-    properties.remove(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
-    properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "secret");
+    properties.remove(S3FileIOProperties.ACCESS_KEY_ID);
+    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
 
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)

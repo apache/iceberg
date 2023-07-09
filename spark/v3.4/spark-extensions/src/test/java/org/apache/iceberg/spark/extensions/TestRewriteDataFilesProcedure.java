@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -41,9 +40,12 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
@@ -53,6 +55,12 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public TestRewriteDataFilesProcedure(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+  }
+
+  @BeforeClass
+  public static void setupSpark() {
+    // disable AQE as tests assume that writes generate a particular number of files
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
   }
 
   @After
@@ -75,7 +83,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
   }
 
   @Test
@@ -93,7 +101,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 2),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -117,7 +125,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -141,7 +149,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0, 0L)),
+        ImmutableList.of(row(0, 0, 0L, 0)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -167,13 +175,48 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesWithSortStrategyAndMultipleShufflePartitionsPerFile() {
+    createTable();
+    insertData(10 /* file count */);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + " table => '%s', "
+                + " strategy => 'sort', "
+                + " sort_order => 'c1', "
+                + " options => map('shuffle-partitions-per-file', '2'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    // as there is only one small output file, validate the query ordering (it will not change)
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null));
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -194,7 +237,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -202,6 +245,42 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     // Due to Z_order, the data written will be in the below order.
     // As there is only one small output file, we can validate the query ordering (as it will not
     // change).
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null));
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
+  }
+
+  @Test
+  public void testRewriteDataFilesWithZOrderAndMultipleShufflePartitionsPerFile() {
+    createTable();
+    insertData(10 /* file count */);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + " table => '%s', "
+                + "strategy => 'sort', "
+                + " sort_order => 'zorder(c1, c2)', "
+                + " options => map('shuffle-partitions-per-file', '2'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    // due to z-ordering, the data will be written in the below order
+    // as there is only one small output file, validate the query ordering (it will not change)
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
             row(2, "bar", null),
@@ -236,11 +315,54 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesWithDeterministicTrueFilter() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+    // select all 10 files for compaction
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', where => '1=1')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesWithDeterministicFalseFilter() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+    // select no files for compaction
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', where => '0=1')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 0 data files and add 0 data files",
+        row(0, 0),
+        Arrays.copyOf(output.get(0), 2));
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
@@ -264,7 +386,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -292,7 +414,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -376,136 +498,121 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     insertData(2);
 
     // Test for invalid strategy
-    AssertHelpers.assertThrows(
-        "Should reject calls with unsupported strategy error message",
-        IllegalArgumentException.class,
-        "unsupported strategy: temp. Only binpack or sort is supported",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), "
-                    + "strategy => 'temp')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), "
+                        + "strategy => 'temp')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("unsupported strategy: temp. Only binpack or sort is supported");
 
     // Test for sort_order with binpack strategy
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Must use only one rewriter type (bin-pack, sort, zorder)",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
-                    + "sort_order => 'c1 ASC NULLS FIRST')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
+                        + "sort_order => 'c1 ASC NULLS FIRST')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
 
     // Test for sort strategy without any (default/user defined) sort_order
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Cannot sort data without a valid sort order",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot sort data without a valid sort order");
 
     // Test for sort_order with invalid null order
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Unable to parse sortOrder:",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
-                    + "sort_order => 'c1 ASC none')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                        + "sort_order => 'c1 ASC none')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unable to parse sortOrder: c1 ASC none");
 
     // Test for sort_order with invalid sort direction
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Unable to parse sortOrder:",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
-                    + "sort_order => 'c1 none NULLS FIRST')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                        + "sort_order => 'c1 none NULLS FIRST')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unable to parse sortOrder: c1 none NULLS FIRST");
 
     // Test for sort_order with invalid column name
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        ValidationException.class,
-        "Cannot find field 'col1' in struct:"
-            + " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
-                    + "sort_order => 'col1 DESC NULLS FIRST')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                        + "sort_order => 'col1 DESC NULLS FIRST')",
+                    catalogName, tableIdent))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'col1' in struct:");
 
     // Test with invalid filter column col1
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Cannot parse predicates in where option: col1 = 3",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', " + "where => 'col1 = 3')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', " + "where => 'col1 = 3')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse predicates in where option: col1 = 3");
 
     // Test for z_order with invalid column name
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Cannot find column 'col1' in table schema (case sensitive = false): "
-            + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
-                    + "sort_order => 'zorder(col1)')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                        + "sort_order => 'zorder(col1)')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot find column 'col1' in table schema (case sensitive = false): "
+                + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>");
 
     // Test for z_order with sort_order
-    AssertHelpers.assertThrows(
-        "Should reject calls with error message",
-        IllegalArgumentException.class,
-        "Cannot mix identity sort columns and a Zorder sort expression:" + " c1,zorder(c2,c3)",
-        () ->
-            sql(
-                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
-                    + "sort_order => 'c1,zorder(c2,c3)')",
-                catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                        + "sort_order => 'c1,zorder(c2,c3)')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot mix identity sort columns and a Zorder sort expression:" + " c1,zorder(c2,c3)");
   }
 
   @Test
   public void testInvalidCasesForRewriteDataFiles() {
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.rewrite_data_files not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rewrite_data_files()", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [table]");
 
-    AssertHelpers.assertThrows(
-        "Should reject duplicate arg names name",
-        AnalysisException.class,
-        "Duplicate procedure argument: table",
-        () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageEndingWith("Duplicate procedure argument: table");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.rewrite_data_files('')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
   @Test
@@ -532,7 +639,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isEqualTo(
             Long.valueOf(snapshotSummary(identifier).get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -571,7 +678,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -611,7 +718,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -647,7 +754,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(2, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));

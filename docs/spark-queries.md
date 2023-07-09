@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_queries
         weight: 0
 ---
 <!--

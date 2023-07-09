@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestLiteralSerialization {
   @Test
@@ -53,13 +54,11 @@ public class TestLiteralSerialization {
 
   private <T> void checkValue(Literal<T> lit) throws Exception {
     Literal<T> copy = TestHelpers.roundTripSerialize(lit);
-    Assert.assertEquals(
-        "Literal's comparator should consider values equal",
-        0,
-        lit.comparator().compare(lit.value(), copy.value()));
-    Assert.assertEquals(
-        "Copy's comparator should consider values equal",
-        0,
-        copy.comparator().compare(lit.value(), copy.value()));
+    assertThat(lit.comparator().compare(lit.value(), copy.value()))
+        .as("Literal's comparator should consider values equal")
+        .isZero();
+    assertThat(copy.comparator().compare(lit.value(), copy.value()))
+        .as("Copy's comparator should consider values equal")
+        .isZero();
   }
 }

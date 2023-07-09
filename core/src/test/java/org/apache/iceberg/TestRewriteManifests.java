@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -822,11 +823,9 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newDelete().deleteFile(FILE_A).commit();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Manifest is missing",
-        rewriteManifests::commit);
+    Assertions.assertThatThrownBy(rewriteManifests::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Manifest is missing");
   }
 
   @Test
@@ -966,16 +965,15 @@ public class TestRewriteManifests extends TableTestBase {
 
     ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot add manifest with added files",
-        () ->
-            table
-                .rewriteManifests()
-                .deleteManifest(manifest)
-                .addManifest(invalidAddedFileManifest)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .rewriteManifests()
+                    .deleteManifest(manifest)
+                    .addManifest(invalidAddedFileManifest)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add manifest with added files");
 
     ManifestEntry<DataFile> deleteEntry =
         manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
@@ -984,22 +982,20 @@ public class TestRewriteManifests extends TableTestBase {
 
     ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot add manifest with deleted files",
-        () ->
-            table
-                .rewriteManifests()
-                .deleteManifest(manifest)
-                .addManifest(invalidDeletedFileManifest)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .rewriteManifests()
+                    .deleteManifest(manifest)
+                    .addManifest(invalidDeletedFileManifest)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add manifest with deleted files");
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "must have the same number of active files",
-        () -> table.rewriteManifests().deleteManifest(manifest).commit());
+    Assertions.assertThatThrownBy(() -> table.rewriteManifests().deleteManifest(manifest).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Replaced and created manifests must have the same number of active files");
   }
 
   @Test
@@ -1035,11 +1031,9 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        CommitFailedException.class,
-        "Injected failure",
-        rewriteManifests::commit);
+    Assertions.assertThatThrownBy(rewriteManifests::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
   }
@@ -1079,11 +1073,9 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        CommitFailedException.class,
-        "Injected failure",
-        rewriteManifests::commit);
+    Assertions.assertThatThrownBy(rewriteManifests::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
   }
@@ -1095,11 +1087,10 @@ public class TestRewriteManifests extends TableTestBase {
 
     Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
 
-    AssertHelpers.assertThrows(
-        "Should reject committing rewrite manifests to branch",
-        UnsupportedOperationException.class,
-        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits",
-        () -> table.rewriteManifests().toBranch("someBranch").commit());
+    Assertions.assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
   }
 
   private void validateSummary(

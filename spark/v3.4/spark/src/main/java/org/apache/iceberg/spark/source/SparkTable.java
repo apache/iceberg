@@ -52,10 +52,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -371,8 +373,16 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
+    if (SparkTableUtil.wapEnabled(table())) {
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+    }
+
     if (branch != null) {
       deleteFiles.toBranch(branch);
+    }
+
+    if (!CommitMetadata.commitProperties().isEmpty()) {
+      CommitMetadata.commitProperties().forEach(deleteFiles::set);
     }
 
     deleteFiles.commit();

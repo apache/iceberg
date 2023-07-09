@@ -53,7 +53,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle with Java 1.8 or Java 11.
+Iceberg is built using Gradle with Java 8, 11, or 17.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`

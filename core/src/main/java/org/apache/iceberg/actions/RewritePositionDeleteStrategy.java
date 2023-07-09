@@ -23,7 +23,12 @@ import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Table;
 
-/** A strategy for an action to rewrite position delete files. */
+/**
+ * A strategy for an action to rewrite position delete files.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; Use {@link SizeBasedFileRewriter} instead
+ */
+@Deprecated
 public interface RewritePositionDeleteStrategy {
 
   /** Returns the name of this rewrite deletes strategy */

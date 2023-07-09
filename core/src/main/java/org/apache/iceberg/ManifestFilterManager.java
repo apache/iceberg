@@ -165,6 +165,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     deletePaths.add(path);
   }
 
+  boolean containsDeletes() {
+    return deletePaths.size() > 0
+        || deleteExpression != Expressions.alwaysFalse()
+        || dropPartitions.size() > 0;
+  }
+
   /**
    * Filter deleted files out of a list of manifests.
    *

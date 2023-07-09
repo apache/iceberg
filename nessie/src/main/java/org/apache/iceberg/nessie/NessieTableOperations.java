@@ -21,10 +21,8 @@ package org.apache.iceberg.nessie;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -32,18 +30,17 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.error.NessieReferenceConflictException;
+import org.projectnessie.error.ReferenceConflicts;
 import org.projectnessie.model.Conflict;
 import org.projectnessie.model.Conflict.ConflictType;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.Reference;
-import org.projectnessie.model.ReferenceConflicts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,34 +76,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected String tableName() {
     return key.toString();
-  }
-
-  private TableMetadata loadTableMetadata(String metadataLocation, Reference reference) {
-    // Update the TableMetadata with the Content of NessieTableState.
-    TableMetadata deserialized = TableMetadataParser.read(io(), metadataLocation);
-    Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
-    newProperties.put(NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
-    // To prevent accidental deletion of files that are still referenced by other branches/tags,
-    // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
-    // remove_orphan_files, drop_table with purge will fail with an error.
-    // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
-    // files.
-    newProperties.put(TableProperties.GC_ENABLED, "false");
-    TableMetadata.Builder builder =
-        TableMetadata.buildFrom(deserialized)
-            .setPreviousFileLocation(null)
-            .setCurrentSchema(table.getSchemaId())
-            .setDefaultSortOrder(table.getSortOrderId())
-            .setDefaultPartitionSpec(table.getSpecId())
-            .withMetadataLocation(metadataLocation)
-            .setProperties(newProperties);
-    if (table.getSnapshotId() != -1) {
-      builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
-    }
-    LOG.info(
-        "loadTableMetadata for '{}' from location '{}' at '{}'", key, metadataLocation, reference);
-
-    return builder.discardChanges().build();
   }
 
   @Override
@@ -146,7 +115,17 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         throw new NoSuchTableException(ex, "No such table '%s'", key);
       }
     }
-    refreshFromMetadataLocation(metadataLocation, null, 2, l -> loadTableMetadata(l, reference));
+    refreshFromMetadataLocation(
+        metadataLocation,
+        null,
+        2,
+        location ->
+            NessieUtil.updateTableMetadataWithNessieSpecificProperties(
+                TableMetadataParser.read(fileIO, location),
+                location,
+                table,
+                key.toString(),
+                reference));
   }
 
   @Override

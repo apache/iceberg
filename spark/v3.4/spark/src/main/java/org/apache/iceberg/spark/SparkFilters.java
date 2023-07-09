@@ -37,6 +37,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -232,6 +233,8 @@ public class SparkFilters {
       return DateTimeUtils.fromJavaDate((Date) value);
     } else if (value instanceof Instant) {
       return DateTimeUtils.instantToMicros((Instant) value);
+    } else if (value instanceof LocalDateTime) {
+      return DateTimeUtils.localDateTimeToMicros((LocalDateTime) value);
     } else if (value instanceof LocalDate) {
       return DateTimeUtils.localDateToDays((LocalDate) value);
     }

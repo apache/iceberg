@@ -40,6 +40,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -61,6 +62,7 @@ public class BucketFunction implements UnboundFunction {
       ImmutableSet.of(DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType);
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public BoundFunction bind(StructType inputType) {
     if (inputType.size() != 2) {
       throw new UnsupportedOperationException(
@@ -85,6 +87,8 @@ public class BucketFunction implements UnboundFunction {
     } else if (type instanceof LongType) {
       return new BucketLong(type);
     } else if (type instanceof TimestampType) {
+      return new BucketLong(type);
+    } else if (type instanceof TimestampNTZType) {
       return new BucketLong(type);
     } else if (type instanceof DecimalType) {
       return new BucketDecimal(type);

@@ -98,6 +98,8 @@ subprojects {
           // Enforce missing override
           '-Xep:MissingOverride:ERROR',
           '-Xep:IntLongMath:ERROR',
+          '-Xep:MissingSummary:ERROR',
+          '-Xep:AnnotateFormatMethod:ERROR',
       )
     }
   }

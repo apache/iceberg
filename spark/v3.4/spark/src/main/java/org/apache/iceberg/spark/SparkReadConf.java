@@ -63,6 +63,8 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+
+    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), readOptions);
   }
 
   public boolean caseSensitive() {
@@ -217,29 +219,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  /**
-   * Enables reading a timestamp without time zone as a timestamp with time zone.
-   *
-   * <p>Generally, this is not safe as a timestamp without time zone is supposed to represent the
-   * wall-clock time, i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
-   * but a timestamp with time zone represents instant semantics, i.e. the timestamp is adjusted so
-   * that the corresponding time in the reader timezone is displayed.
-   *
-   * <p>When set to false (default), an exception must be thrown while reading a timestamp without
-   * time zone.
-   *
-   * @return boolean indicating if reading timestamps without timezone is allowed
-   */
-  public boolean handleTimestampWithoutZone() {
-    return confParser
-        .booleanConf()
-        .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .sessionConf(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .defaultValue(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT)
-        .parse();
-  }
-
-  public Long streamFromTimestamp() {
+  public long streamFromTimestamp() {
     return confParser
         .longConf()
         .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
@@ -253,6 +233,22 @@ public class SparkReadConf {
 
   public Long endTimestamp() {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
+  }
+
+  public int maxFilesPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
+  }
+
+  public int maxRecordsPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
   }
 
   public boolean preserveDataGrouping() {

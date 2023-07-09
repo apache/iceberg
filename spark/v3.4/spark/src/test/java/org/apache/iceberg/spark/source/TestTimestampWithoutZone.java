@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -40,13 +39,9 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -158,35 +153,14 @@ public class TestTimestampWithoutZone extends SparkTestBase {
   }
 
   @Test
-  public void testUnpartitionedTimestampWithoutZoneError() {
-    AssertHelpers.assertThrows(
-        String.format(
-            "Read operation performed on a timestamp without timezone field while "
-                + "'%s' set to false should throw exception",
-            SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
-        IllegalArgumentException.class,
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-        () ->
-            spark
-                .read()
-                .format("iceberg")
-                .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-                .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
-                .load(unpartitioned.toString())
-                .collectAsList());
-  }
-
-  @Test
   public void testUnpartitionedTimestampWithoutZoneAppend() {
     spark
         .read()
         .format("iceberg")
-        .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
         .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(unpartitioned.toString())
         .write()
         .format("iceberg")
-        .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
         .mode(SaveMode.Append)
         .save(unpartitioned.toString());
 
@@ -194,56 +168,6 @@ public class TestTimestampWithoutZone extends SparkTestBase {
         SCHEMA.asStruct(),
         Stream.concat(records.stream(), records.stream()).collect(Collectors.toList()),
         read(unpartitioned.toString(), vectorized));
-  }
-
-  @Test
-  public void testUnpartitionedTimestampWithoutZoneWriteError() {
-    String errorMessage =
-        String.format(
-            "Write operation performed on a timestamp without timezone field while "
-                + "'%s' set to false should throw exception",
-            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
-    Runnable writeOperation =
-        () ->
-            spark
-                .read()
-                .format("iceberg")
-                .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
-                .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-                .load(unpartitioned.toString())
-                .write()
-                .format("iceberg")
-                .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
-                .mode(SaveMode.Append)
-                .save(unpartitioned.toString());
-
-    AssertHelpers.assertThrows(
-        errorMessage,
-        IllegalArgumentException.class,
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-        writeOperation);
-  }
-
-  @Test
-  public void testUnpartitionedTimestampWithoutZoneSessionProperties() {
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-              .load(unpartitioned.toString())
-              .write()
-              .format("iceberg")
-              .mode(SaveMode.Append)
-              .save(unpartitioned.toString());
-
-          assertEqualsSafe(
-              SCHEMA.asStruct(),
-              Stream.concat(records.stream(), records.stream()).collect(Collectors.toList()),
-              read(unpartitioned.toString(), vectorized));
-        });
   }
 
   private static Record projectFlat(Schema projection, Record record) {
@@ -289,7 +213,6 @@ public class TestTimestampWithoutZone extends SparkTestBase {
             .read()
             .format("iceberg")
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-            .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
             .load(table)
             .select(select0, selectN);
     return dataset.collectAsList();
