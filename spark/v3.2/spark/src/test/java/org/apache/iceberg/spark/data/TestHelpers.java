@@ -781,7 +781,7 @@ public class TestHelpers {
     return table.currentSnapshot().deleteManifests(table.io());
   }
 
-  public static Set<DataFile> dataFiles(Table table) {
+  public static Set<DataFile> uniqueDataFiles(Table table) {
     Set<DataFile> dataFiles = Sets.newHashSet();
 
     for (FileScanTask task : table.newScan().planFiles()) {

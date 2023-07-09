@@ -145,11 +145,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table);
+    Set<DataFile> dataFilesBefore = TestHelpers.uniqueDataFiles(table);
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
+    Set<DataFile> dataFilesAfter = TestHelpers.uniqueDataFiles(table);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 

@@ -798,11 +798,11 @@ public class TestHelpers {
     return table.currentSnapshot().deleteManifests(table.io());
   }
 
-  public static Set<DataFile> dataFiles(Table table) {
-    return dataFiles(table, null);
+  public static Set<DataFile> uniqueDataFiles(Table table) {
+    return uniqueDataFiles(table, null);
   }
 
-  public static Set<DataFile> dataFiles(Table table, String branch) {
+  public static Set<DataFile> uniqueDataFiles(Table table, String branch) {
     Set<DataFile> dataFiles = Sets.newHashSet();
     TableScan scan = table.newScan();
     if (branch != null) {
