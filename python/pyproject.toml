@@ -72,7 +72,7 @@ coverage = { version = "^7.2.3", extras = ["toml"] }
 requests-mock = "1.10.0"
 moto = "^4.1.7"
 typing-extensions = "4.5.0"
-pytest-mock = "3.10.0"
+pytest-mock = "3.11.1"
 
 [[tool.mypy.overrides]]
 module = "pytest_mock.*"
