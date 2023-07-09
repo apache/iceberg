@@ -29,6 +29,7 @@ import multiprocessing.synchronize
 import threading
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import AbstractContextManager
+from multiprocessing import get_start_method
 from typing import (
     Any,
     Generic,
@@ -113,22 +114,24 @@ class ManagedProcessPoolExecutor(ProcessPoolExecutor, ManagedExecutor):
         return Synchronized(value, lock)
 
 
-def _get_executor_class(concurrency_mode: Union[str, RecursiveDict, None], mp_avail: bool) -> Type[Executor]:
+def _get_executor_class(concurrency_mode: Union[str, RecursiveDict, None], mp_avail: bool, mp_pref: bool) -> Type[Executor]:
     """Returns the executor class for the given concurrency mode."""
     if concurrency_mode == "process":
         return ProcessPoolExecutor
     if concurrency_mode == "thread":
         return ThreadPoolExecutor
-    if concurrency_mode is None and mp_avail:
+    if concurrency_mode is None and mp_avail and mp_pref:
         return ProcessPoolExecutor
-    if concurrency_mode is None and not mp_avail:
+    if concurrency_mode is None and (not mp_avail or not mp_pref):
         logger.debug("Falling back to thread pool executor")
         return ThreadPoolExecutor
 
     raise ValueError(f"Invalid concurrency mode: {concurrency_mode}")
 
 
-def _get_managed_executor_class(concurrency_mode: Union[str, RecursiveDict, None], mp_avail: bool) -> Type[ManagedExecutor]:
+def _get_managed_executor_class(
+    concurrency_mode: Union[str, RecursiveDict, None], mp_avail: bool, mp_pref: bool
+) -> Type[ManagedExecutor]:
     """Returns the managed executor class for the given concurrency mode."""
     if concurrency_mode == "process":
         return ManagedProcessPoolExecutor
@@ -136,14 +139,14 @@ def _get_managed_executor_class(concurrency_mode: Union[str, RecursiveDict, None
         return ManagedThreadPoolExecutor
     if concurrency_mode is None and mp_avail:
         return ManagedProcessPoolExecutor
-    if concurrency_mode is None and not mp_avail:
+    if concurrency_mode is None and (not mp_avail or not mp_pref):
         logger.debug("Falling back to managed thread pool executor")
         return ManagedThreadPoolExecutor
 
     raise ValueError(f"Invalid concurrency mode: {concurrency_mode}")
 
 
-def _mp_avail() -> "bool":
+def _mp_avail() -> bool:
     """Returns whether multiprocessing is available."""
     try:
         with ProcessPoolExecutor() as executor:
@@ -155,10 +158,22 @@ def _mp_avail() -> "bool":
     return True
 
 
+def _mp_pref() -> bool:
+    """Returns whether multiprocessing is preferred."""
+    start_method = get_start_method()
+
+    if start_method != "fork":
+        logger.debug("Multi-processing not preferred in current runtime: start_method=%s", start_method)
+        return False
+
+    return start_method == "fork"
+
+
 mp_avail = _mp_avail()
+mp_pref = _mp_pref()
 
 concurrency_mode: Union[str, RecursiveDict, None] = Config().config.get("concurrency-mode")
 
-DynamicExecutor: Type[Executor] = _get_executor_class(concurrency_mode, mp_avail)
+DynamicExecutor: Type[Executor] = _get_executor_class(concurrency_mode, mp_avail, mp_pref)
 
-DynamicManagedExecutor: Type[ManagedExecutor] = _get_managed_executor_class(concurrency_mode, mp_avail)
+DynamicManagedExecutor: Type[ManagedExecutor] = _get_managed_executor_class(concurrency_mode, mp_avail, mp_pref)
