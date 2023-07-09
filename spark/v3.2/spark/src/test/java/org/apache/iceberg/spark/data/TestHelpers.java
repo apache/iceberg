@@ -793,7 +793,7 @@ public class TestHelpers {
   }
 
   public static List<DataFile> dataFiles(Table table) {
-    CloseableIterable<FileScanTask> tasks = table.newScan().includeColumnStats().planFiles();
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
     return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
