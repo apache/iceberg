@@ -1,40 +1,40 @@
-import pytest
-
-from pyiceberg.utils.datetime import datetime_to_millis
 from datetime import datetime, tzinfo
+
+import pytest
 from pytz import timezone
 
+from pyiceberg.utils.datetime import datetime_to_millis
 
 timezones = [
-    timezone('Etc/GMT'),
-    timezone('Etc/GMT+0'),
-    timezone('Etc/GMT+1'),
-    timezone('Etc/GMT+10'),
-    timezone('Etc/GMT+11'),
-    timezone('Etc/GMT+12'),
-    timezone('Etc/GMT+2'),
-    timezone('Etc/GMT+3'),
-    timezone('Etc/GMT+4'),
-    timezone('Etc/GMT+5'),
-    timezone('Etc/GMT+6'),
-    timezone('Etc/GMT+7'),
-    timezone('Etc/GMT+8'),
-    timezone('Etc/GMT+9'),
-    timezone('Etc/GMT-0'),
-    timezone('Etc/GMT-1'),
-    timezone('Etc/GMT-10'),
-    timezone('Etc/GMT-11'),
-    timezone('Etc/GMT-12'),
-    timezone('Etc/GMT-13'),
-    timezone('Etc/GMT-14'),
-    timezone('Etc/GMT-2'),
-    timezone('Etc/GMT-3'),
-    timezone('Etc/GMT-4'),
-    timezone('Etc/GMT-5'),
-    timezone('Etc/GMT-6'),
-    timezone('Etc/GMT-7'),
-    timezone('Etc/GMT-8'),
-    timezone('Etc/GMT-9'),
+    timezone("Etc/GMT"),
+    timezone("Etc/GMT+0"),
+    timezone("Etc/GMT+1"),
+    timezone("Etc/GMT+10"),
+    timezone("Etc/GMT+11"),
+    timezone("Etc/GMT+12"),
+    timezone("Etc/GMT+2"),
+    timezone("Etc/GMT+3"),
+    timezone("Etc/GMT+4"),
+    timezone("Etc/GMT+5"),
+    timezone("Etc/GMT+6"),
+    timezone("Etc/GMT+7"),
+    timezone("Etc/GMT+8"),
+    timezone("Etc/GMT+9"),
+    timezone("Etc/GMT-0"),
+    timezone("Etc/GMT-1"),
+    timezone("Etc/GMT-10"),
+    timezone("Etc/GMT-11"),
+    timezone("Etc/GMT-12"),
+    timezone("Etc/GMT-13"),
+    timezone("Etc/GMT-14"),
+    timezone("Etc/GMT-2"),
+    timezone("Etc/GMT-3"),
+    timezone("Etc/GMT-4"),
+    timezone("Etc/GMT-5"),
+    timezone("Etc/GMT-6"),
+    timezone("Etc/GMT-7"),
+    timezone("Etc/GMT-8"),
+    timezone("Etc/GMT-9"),
 ]
 
 
