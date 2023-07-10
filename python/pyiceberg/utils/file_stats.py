@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
+import logging
 import re
 from enum import Enum
 from typing import (
@@ -51,6 +52,7 @@ from pyiceberg.types import (
 BOUND_TRUNCATED_LENGHT = 16
 TRUNCATION_EXPR = r"^truncate\((\d+)\)$"
 
+logger = logging.getLogger(__name__)
 
 # Serialization rules: https://iceberg.apache.org/spec/#binary-single-value-serialization
 #
@@ -289,8 +291,8 @@ def fill_parquet_file_metadata(
                         col_aggs[col_id].add_min(statistics.min)
                         col_aggs[col_id].add_max(statistics.max)
 
-                except pyarrow.lib.ArrowNotImplementedError:
-                    pass
+                except pyarrow.lib.ArrowNotImplementedError as e:
+                    logger.warning(e)
 
     split_offsets.sort()
 
