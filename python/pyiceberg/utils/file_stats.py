@@ -128,16 +128,16 @@ class StatsAggregator:
             raise AssertionError(f"Unknown physical type {type_string}")
 
     def add_min(self, val: bytes) -> None:
-        if not self.current_min:
+        if self.current_min is None:
             self.current_min = val
-        elif val < self.current_min:
-            self.current_min = val
+        else:
+            self.current_min = min(val, self.current_min)
 
     def add_max(self, val: bytes) -> None:
-        if not self.current_max:
+        if self.current_max is None:
             self.current_max = val
-        elif self.current_max < val:
-            self.current_max = val
+        else:
+            self.current_max = max(self.current_max, val)
 
     def get_min(self) -> bytes:
         return self.serialize(self.current_min)[: self.trunc_lenght]
