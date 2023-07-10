@@ -91,6 +91,25 @@ def timestamp_to_micros(timestamp_str: str) -> int:
     raise ValueError(f"Invalid timestamp without zone: {timestamp_str} (must be ISO-8601)")
 
 
+def datetime_to_millis(dt: datetime) -> int:
+    """Converts a datetime to milliseconds from 1970-01-01T00:00:00.000000."""
+    if dt.tzinfo:
+        delta = dt - EPOCH_TIMESTAMPTZ
+    else:
+        delta = dt - EPOCH_TIMESTAMP
+    return (delta.days * 86400 + delta.seconds) * 1_000 + delta.microseconds // 1_000
+
+
+def timestamp_to_millis(timestamp_str: str) -> int:
+    """Converts an ISO-9601 formatted timestamp without zone to microseconds from 1970-01-01T00:00:00.000000."""
+    if ISO_TIMESTAMP.fullmatch(timestamp_str):
+        return datetime_to_millis(datetime.fromisoformat(timestamp_str))
+    if ISO_TIMESTAMPTZ.fullmatch(timestamp_str):
+        # When we can match a timestamp without a zone, we can give a more specific error
+        raise ValueError(f"Zone offset provided, but not expected: {timestamp_str}")
+    raise ValueError(f"Invalid timestamp without zone: {timestamp_str} (must be ISO-8601)")
+
+
 def timestamptz_to_micros(timestamptz_str: str) -> int:
     """Converts an ISO-8601 formatted timestamp with zone to microseconds from 1970-01-01T00:00:00.000000+00:00."""
     if ISO_TIMESTAMPTZ.fullmatch(timestamptz_str):
