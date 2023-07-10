@@ -1082,7 +1082,7 @@ def bytes_to_avro(value: Union[bytes, str]) -> bytes:
 
 
 class StatsAggregator:
-    def __init__(self, type_string: str, trunc_length: Optional[int] = None):
+    def __init__(self, type_string: str, trunc_length: Optional[int] = None) -> None:
         self.current_min: Any = None
         self.current_max: Any = None
         self.serialize: Any = None
