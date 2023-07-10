@@ -15,11 +15,15 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
+import re
 import struct
+from enum import Enum
 from typing import (
     Any,
     Dict,
     List,
+    Optional,
+    Tuple,
     Union,
 )
 
@@ -28,6 +32,7 @@ import pyarrow.parquet as pq
 
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.types import (
     IcebergType,
     ListType,
@@ -38,6 +43,8 @@ from pyiceberg.types import (
 )
 
 BOUND_TRUNCATED_LENGHT = 16
+TRUNCATION_EXPR = r"^truncate\((\d+)\)$"
+
 
 # Serialization rules: https://iceberg.apache.org/spec/#binary-single-value-serialization
 #
@@ -87,10 +94,11 @@ def bytes_to_avro(value: Union[bytes, str]) -> bytes:
 
 
 class StatsAggregator:
-    def __init__(self, type_string: str):
+    def __init__(self, type_string: str, trunc_length: Optional[int] = None):
         self.current_min: Any = None
         self.current_max: Any = None
         self.serialize: Any = None
+        self.trunc_lenght = trunc_length
 
         if type_string == "BOOLEAN":
             self.serialize = bool_to_avro
@@ -124,14 +132,40 @@ class StatsAggregator:
             self.current_max = val
 
     def get_min(self) -> bytes:
-        return self.serialize(self.current_min)[:BOUND_TRUNCATED_LENGHT]
+        return self.serialize(self.current_min)[: self.trunc_lenght]
 
     def get_max(self) -> bytes:
-        return self.serialize(self.current_max)[:BOUND_TRUNCATED_LENGHT]
+        return self.serialize(self.current_max)[: self.trunc_lenght]
+
+
+class MetricsMode(Enum):
+    NONE = 0
+    COUNTS = 1
+    TRUNC = 2
+    FULL = 3
+
+
+def match_metrics_mode(mode: str) -> Tuple[MetricsMode, Optional[int]]:
+    m = re.match(TRUNCATION_EXPR, mode)
+
+    if m:
+        return MetricsMode.TRUNC, int(m[1])
+    elif mode == "none":
+        return MetricsMode.NONE, None
+    elif mode == "counts":
+        return MetricsMode.COUNTS, None
+    elif mode == "full":
+        return MetricsMode.FULL, None
+    else:
+        raise AssertionError(f"Unsupported metrics mode {mode}")
 
 
 def fill_parquet_file_metadata(
-    df: DataFile, metadata: pq.FileMetaData, col_path_2_iceberg_id: Dict[str, int], file_size: int
+    df: DataFile,
+    metadata: pq.FileMetaData,
+    col_path_2_iceberg_id: Dict[str, int],
+    file_size: int,
+    table_metadata: Optional[TableMetadata] = None,
 ) -> None:
     """
     Computes and fills the following fields of the DataFile object.
@@ -159,7 +193,25 @@ def fill_parquet_file_metadata(
     """
     col_index_2_id = {}
 
-    col_names = set(metadata.schema.names)
+    col_names = {p.split(".")[0] for p in col_path_2_iceberg_id.keys()}
+
+    metrics_modes = {n: MetricsMode.TRUNC for n in col_names}
+    trunc_lengths: Dict[str, Optional[int]] = {n: BOUND_TRUNCATED_LENGHT for n in col_names}
+
+    if table_metadata:
+        default_mode = table_metadata.properties.get("write.metadata.metrics.default")
+
+        if default_mode:
+            m, t = match_metrics_mode(default_mode)
+
+            metrics_modes = {n: m for n in col_names}
+            trunc_lengths = {n: t for n in col_names}
+
+        for col_name in col_names:
+            col_mode = table_metadata.properties.get(f"write.metadata.metrics.column.{col_name}")
+
+            if col_mode:
+                metrics_modes[col_name], trunc_lengths[col_name] = match_metrics_mode(col_mode)
 
     first_group = metadata.row_group(0)
 
@@ -202,6 +254,14 @@ def fill_parquet_file_metadata(
             column = row_group.column(c)
 
             column_sizes[col_id] = column_sizes.get(col_id, 0) + column.total_compressed_size
+
+            top_level_col_name = column.path_in_schema.split(".")[0]
+
+            metrics_mode = metrics_modes[top_level_col_name]
+
+            if metrics_mode == MetricsMode.NONE:
+                continue
+
             value_counts[col_id] = value_counts.get(col_id, 0) + column.num_values
 
             if column.is_stats_set:
@@ -210,11 +270,15 @@ def fill_parquet_file_metadata(
 
                     null_value_counts[col_id] = null_value_counts.get(col_id, 0) + statistics.null_count
 
+                    if metrics_mode == MetricsMode.COUNTS:
+                        continue
+
                     if column.path_in_schema in col_names:
                         # Iceberg seems to only have statistics for scalar columns
 
                         if col_id not in col_aggs:
-                            col_aggs[col_id] = StatsAggregator(statistics.physical_type)
+                            trunc_length = trunc_lengths[top_level_col_name]
+                            col_aggs[col_id] = StatsAggregator(statistics.physical_type, trunc_length)
 
                         col_aggs[col_id].add_min(statistics.min)
                         col_aggs[col_id].add_max(statistics.max)

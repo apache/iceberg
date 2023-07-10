@@ -19,13 +19,14 @@
 import math
 import struct
 from tempfile import TemporaryDirectory
-from typing import Any, List
+from typing import Any, Dict, List
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from pyiceberg.manifest import DataFile
 from pyiceberg.schema import Schema
+from pyiceberg.table.metadata import TableMetadataUtil
 from pyiceberg.utils.file_stats import BOUND_TRUNCATED_LENGHT, fill_parquet_file_metadata, parquet_schema_to_ids
 
 
@@ -129,6 +130,128 @@ def test_bounds() -> None:
     assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:BOUND_TRUNCATED_LENGHT]
     assert datafile.upper_bounds[2] == struct.pack("<d", 100)
+
+
+def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
+    (file_bytes, metadata) = construct_test_table()
+
+    datafile = DataFile()
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata.properties["write.metadata.metrics.default"] = "none"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        {"strings": 1, "floats": 2, "list.list.item": 3},
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 0
+    assert len(datafile.null_value_counts) == 0
+    assert len(datafile.nan_value_counts) == 0
+    assert len(datafile.lower_bounds) == 0
+    assert len(datafile.upper_bounds) == 0
+
+
+def test_metrics_mode_counts(example_table_metadata_v2: Dict[str, Any]) -> None:
+    (file_bytes, metadata) = construct_test_table()
+
+    datafile = DataFile()
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata.properties["write.metadata.metrics.default"] = "counts"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        {"strings": 1, "floats": 2, "list.list.item": 3},
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 3
+    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.nan_value_counts) == 0
+    assert len(datafile.lower_bounds) == 0
+    assert len(datafile.upper_bounds) == 0
+
+
+def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
+    (file_bytes, metadata) = construct_test_table()
+
+    datafile = DataFile()
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata.properties["write.metadata.metrics.default"] = "full"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        {"strings": 1, "floats": 2, "list.list.item": 3},
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 3
+    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.nan_value_counts) == 0
+
+    assert len(datafile.lower_bounds) == 2
+    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"
+    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)
+
+    assert len(datafile.upper_bounds) == 2
+    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"
+    assert datafile.upper_bounds[2] == struct.pack("<d", 100)
+
+
+def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any]) -> None:
+    (file_bytes, metadata) = construct_test_table()
+
+    datafile = DataFile()
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        {"strings": 1, "floats": 2, "list.list.item": 3},
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 3
+    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.nan_value_counts) == 0
+
+    assert len(datafile.lower_bounds) == 2
+    assert datafile.lower_bounds[1].decode() == "aa"
+    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)[:2]
+
+    assert len(datafile.upper_bounds) == 2
+    assert datafile.upper_bounds[1].decode() == "zz"
+    assert datafile.upper_bounds[2] == struct.pack("<d", 100)[:2]
+
+
+def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
+    (file_bytes, metadata) = construct_test_table()
+
+    datafile = DataFile()
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
+    table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        {"strings": 1, "floats": 2, "list.list.item": 3},
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 2
+    assert len(datafile.null_value_counts) == 2
+    assert len(datafile.nan_value_counts) == 0
+
+    assert len(datafile.lower_bounds) == 1
+    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)[:2]
+
+    assert len(datafile.upper_bounds) == 1
+    assert datafile.upper_bounds[2] == struct.pack("<d", 100)[:2]
 
 
 def test_offsets() -> None:
