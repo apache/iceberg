@@ -17,10 +17,11 @@
 # pylint: disable=redefined-outer-name,arguments-renamed,fixme
 """Concurrency concepts that adapt to the shared memory support in the current runtime.
 
-Performance-optimized concurrency in Python prefers `multiprocessing` to avoid the global
-interpreter lock. However, this requires shared memory provided via mount at `/dev/shm`. This
-is not provided in serverless runtimes. In environments where multiprocessing is not supported,
-we fall back to multithreading.
+Performance-optimized concurrency in Python is challenging given the limitations imposed by the global
+interpreter lock. PyIceberg defaults to multi-threading, where the GIL limits Python execution to a
+single thread at a time. Users can configure `PYICEBERG_CONCURRENCY_MODE` to override the default
+behavior, but care should be taken to ensure the host environment supports shared memory and preferrably
+the `fork` start method.
 """
 import logging
 import multiprocessing
@@ -29,11 +30,10 @@ import multiprocessing.synchronize
 import threading
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import AbstractContextManager
-from multiprocessing import get_start_method
 from typing import (
     Any,
     Generic,
-    Optional,
+    Literal,
     Type,
     TypeVar,
 )
@@ -45,6 +45,8 @@ from pyiceberg.utils.config import Config
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+ConcurrencyMode = Literal["thread", "process"]
 
 
 class Synchronized(Generic[T], AbstractContextManager):  # type: ignore
@@ -113,72 +115,36 @@ class ManagedProcessPoolExecutor(ProcessPoolExecutor, ManagedExecutor):
         return Synchronized(value, lock)
 
 
-def _get_executor_class(mode: Optional[str], mp_avail: bool, mp_pref: bool) -> Type[Executor]:
+def _get_executor_class(mode: ConcurrencyMode) -> Type[Executor]:
     """Returns the executor class for the given concurrency mode."""
-    if mode == "process":
-        return ProcessPoolExecutor
     if mode == "thread":
         return ThreadPoolExecutor
-    if mode is None and mp_avail and mp_pref:
+    if mode == "process":
         return ProcessPoolExecutor
-    if mode is None and (not mp_avail or not mp_pref):
-        logger.debug("Falling back to thread pool executor")
-        return ThreadPoolExecutor
-
-    raise ValueError(f"Invalid concurrency mode: {mode}")
 
 
-def _get_managed_executor_class(mode: Optional[str], mp_avail: bool, mp_pref: bool) -> Type[ManagedExecutor]:
+def _get_managed_executor_class(mode: ConcurrencyMode) -> Type[ManagedExecutor]:
     """Returns the managed executor class for the given concurrency mode."""
-    if mode == "process":
-        return ManagedProcessPoolExecutor
     if mode == "thread":
         return ManagedThreadPoolExecutor
-    if mode is None and mp_avail and mp_pref:
+    if mode == "process":
         return ManagedProcessPoolExecutor
-    if mode is None and (not mp_avail or not mp_pref):
-        logger.debug("Falling back to managed thread pool executor")
-        return ManagedThreadPoolExecutor
-
-    raise ValueError(f"Invalid concurrency mode: {mode}")
 
 
-def _concurrency_mode() -> Optional[str]:
+def _concurrency_mode() -> ConcurrencyMode:
     mode = Config().config.get("concurrency-mode")
 
-    if mode not in ("thread", "process", None):
-        raise ValueError(f"Invalid concurrency mode: {mode}")
+    if mode is None:
+        return "thread"
 
-    return mode  # type: ignore
+    if mode in ("thread", "process"):
+        return mode  # type: ignore
 
-
-def _mp_avail() -> bool:
-    """Returns whether multiprocessing is available."""
-    try:
-        with ProcessPoolExecutor() as executor:
-            executor.map(logger.debug, ["Multi-processing available in current runtime"])
-    except Exception as err:
-        logger.debug("Multi-processing not available in current runtime: %s", err)
-        return False
-
-    return True
+    raise ValueError(f"Invalid concurrency mode: {mode}")
 
 
-def _mp_pref() -> bool:
-    """Returns whether multiprocessing is preferred."""
-    start_method = get_start_method()
-
-    if start_method != "fork":
-        logger.debug("Multi-processing not preferred in current runtime: start_method=%s", start_method)
-        return False
-
-    return start_method == "fork"
-
-
-mp_avail = _mp_avail()
-mp_pref = _mp_pref()
 concurrency_mode = _concurrency_mode()
 
-DynamicExecutor: Type[Executor] = _get_executor_class(concurrency_mode, mp_avail, mp_pref)
+DynamicExecutor: Type[Executor] = _get_executor_class(concurrency_mode)
 
-DynamicManagedExecutor: Type[ManagedExecutor] = _get_managed_executor_class(concurrency_mode, mp_avail, mp_pref)
+DynamicManagedExecutor: Type[ManagedExecutor] = _get_managed_executor_class(concurrency_mode)

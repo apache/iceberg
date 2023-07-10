@@ -34,7 +34,7 @@ THREAD_ENV = {"PYICEBERG_CONCURRENCY_MODE": "thread"}
 
 @mock.patch.dict(os.environ, AUTO_ENV)
 def test_configured_auto_concurrency() -> None:
-    assert _concurrency_mode() is None
+    assert _concurrency_mode() == "thread"
 
 
 @mock.patch.dict(os.environ, PROCESS_ENV)
@@ -47,40 +47,17 @@ def test_configured_thread_concurrency() -> None:
     assert _concurrency_mode() == "thread"
 
 
-def test_auto_select_executor() -> None:
-    # multiprocessing preferred, but not available
-    exec_cls = _get_executor_class(None, False, True)
-    managed_exec_cls = _get_managed_executor_class(None, False, True)
-
-    assert exec_cls == ThreadPoolExecutor
-    assert managed_exec_cls == ManagedThreadPoolExecutor
-
-    # multiprocessing available, but not preferred
-    exec_cls = _get_executor_class(None, True, False)
-    managed_exec_cls = _get_managed_executor_class(None, True, False)
-
-    assert exec_cls == ThreadPoolExecutor
-    assert managed_exec_cls == ManagedThreadPoolExecutor
-
-    # multiprocessing available and preferred
-    exec_cls = _get_executor_class(None, True, True)
-    managed_exec_cls = _get_managed_executor_class(None, True, True)
-
-    assert exec_cls == ProcessPoolExecutor
-    assert managed_exec_cls == ManagedProcessPoolExecutor
-
-
 def test_select_process_executor() -> None:
-    exec_cls = _get_executor_class("process", False, False)
-    managed_exec_cls = _get_managed_executor_class("process", False, True)
+    exec_cls = _get_executor_class("process")
+    managed_exec_cls = _get_managed_executor_class("process")
 
     assert exec_cls == ProcessPoolExecutor
     assert managed_exec_cls == ManagedProcessPoolExecutor
 
 
 def test_select_thread_executor() -> None:
-    exec_cls = _get_executor_class("thread", True, True)
-    managed_exec_cls = _get_managed_executor_class("thread", True, True)
+    exec_cls = _get_executor_class("thread")
+    managed_exec_cls = _get_managed_executor_class("thread")
 
     assert exec_cls == ThreadPoolExecutor
     assert managed_exec_cls == ManagedThreadPoolExecutor
