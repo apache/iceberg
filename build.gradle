@@ -916,6 +916,7 @@ project(':iceberg-snowflake') {
     runtimeOnly("net.snowflake:snowflake-jdbc")
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation 'org.mockito:mockito-junit-jupiter:3.4.6'
   }
 }
 
