@@ -152,8 +152,6 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
                 return CatalogType.HIVE
             elif uri.startswith("postgresql"):
                 return CatalogType.JDBC
-            elif uri.startswith("file"):
-                return CatalogType.JDBC
             else:
                 raise ValueError(f"Could not infer the catalog type from the uri: {uri}")
         else:
