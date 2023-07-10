@@ -69,6 +69,15 @@ For the FileIO there are several configuration options available:
 | s3.region            | us-west-2                | Sets the region of the bucket                                                                                                                                                                                                                             |
 | s3.proxy-uri         | http://my.proxy.com:8080 | Configure the proxy server to be used by the FileIO.                                                                                                                                                                                                      |
 
+### HDFS
+
+| Key                  | Example             | Description                                      |
+| -------------------- | ------------------- | ------------------------------------------------ |
+| hdfs.host            | https://10.0.19.25/ | Configure the HDFS host to connect to            |
+| hdfs.port            | 9000                | Configure the HDFS port to connect to.           |
+| hdfs.user            | user                | Configure the HDFS username used for connection. |
+| hdfs.kerberos_ticket | kerberos_ticket     | Configure the path to the Kerberos ticket cache. |
+
 ### Azure Data lake
 
 | Key                     | Example                                                                                   | Description                                                                                                                                                                                                                                                                            |

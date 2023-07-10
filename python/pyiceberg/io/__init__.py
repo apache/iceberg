@@ -54,7 +54,7 @@ S3_PROXY_URI = "s3.proxy-uri"
 HDFS_HOST = "hdfs.host"
 HDFS_PORT = "hdfs.port"
 HDFS_USER = "hdfs.user"
-HDFS_KERB_TICKET = "hdfs.kerb_ticket"
+HDFS_KERB_TICKET = "hdfs.kerberos_ticket"
 
 
 @runtime_checkable
