@@ -16,7 +16,6 @@
 #  under the License.
 
 import re
-import struct
 from enum import Enum
 from typing import (
     Any,
@@ -30,6 +29,13 @@ from typing import (
 import pyarrow.lib
 import pyarrow.parquet as pq
 
+from pyiceberg.avro import (
+    STRUCT_BOOL,
+    STRUCT_DOUBLE,
+    STRUCT_FLOAT,
+    STRUCT_INT32,
+    STRUCT_INT64,
+)
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.table.metadata import TableMetadata
@@ -66,23 +72,23 @@ TRUNCATION_EXPR = r"^truncate\((\d+)\)$"
 
 
 def bool_to_avro(value: bool) -> bytes:
-    return struct.pack("?", value)
+    return STRUCT_BOOL.pack(value)
 
 
 def int32_to_avro(value: int) -> bytes:
-    return struct.pack("<i", value)
+    return STRUCT_INT32.pack(value)
 
 
 def int64_to_avro(value: int) -> bytes:
-    return struct.pack("<q", value)
+    return STRUCT_INT64.pack(value)
 
 
 def float_to_avro(value: float) -> bytes:
-    return struct.pack("<f", value)
+    return STRUCT_FLOAT.pack(value)
 
 
 def double_to_avro(value: float) -> bytes:
-    return struct.pack("<d", value)
+    return STRUCT_DOUBLE.pack(value)
 
 
 def bytes_to_avro(value: Union[bytes, str]) -> bytes:

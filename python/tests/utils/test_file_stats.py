@@ -17,13 +17,13 @@
 
 
 import math
-import struct
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, List
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_INT64
 from pyiceberg.manifest import DataFile
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadataUtil
@@ -125,11 +125,11 @@ def test_bounds() -> None:
 
     assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)
+    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)
 
     assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.upper_bounds[2] == struct.pack("<d", 100)
+    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)
 
 
 def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -194,11 +194,11 @@ def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
 
     assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"
-    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)
+    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)
 
     assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"
-    assert datafile.upper_bounds[2] == struct.pack("<d", 100)
+    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)
 
 
 def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -221,11 +221,11 @@ def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any
 
     assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aa"
-    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)[:2]
+    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)[:2]
 
     assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zz"
-    assert datafile.upper_bounds[2] == struct.pack("<d", 100)[:2]
+    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)[:2]
 
 
 def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -248,10 +248,10 @@ def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 1
-    assert datafile.lower_bounds[2] == struct.pack("<d", 1.69)[:2]
+    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)[:2]
 
     assert len(datafile.upper_bounds) == 1
-    assert datafile.upper_bounds[2] == struct.pack("<d", 100)[:2]
+    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)[:2]
 
 
 def test_offsets() -> None:
@@ -303,16 +303,16 @@ def test_dataset() -> pa.Buffer:
     assert len(even.value_counts) == 1
     assert even.value_counts[1] == 4
     assert len(even.lower_bounds) == 1
-    assert even.lower_bounds[1] == struct.pack("<q", 0)
+    assert even.lower_bounds[1] == STRUCT_INT64.pack(0)
     assert len(even.upper_bounds) == 1
-    assert even.upper_bounds[1] == struct.pack("<q", 8)
+    assert even.upper_bounds[1] == STRUCT_INT64.pack(8)
 
     assert len(odd.value_counts) == 1
     assert odd.value_counts[1] == 4
     assert len(odd.lower_bounds) == 1
-    assert odd.lower_bounds[1] == struct.pack("<q", 1)
+    assert odd.lower_bounds[1] == STRUCT_INT64.pack(1)
     assert len(odd.upper_bounds) == 1
-    assert odd.upper_bounds[1] == struct.pack("<q", 7)
+    assert odd.upper_bounds[1] == STRUCT_INT64.pack(7)
 
 
 def test_schema_mapping() -> None:
