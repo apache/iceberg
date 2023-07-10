@@ -444,10 +444,8 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
 
         database = database_response[PROP_GLUE_DATABASE]
-        if PROP_GLUE_DATABASE_PARAMETERS not in database:
-            return {}
 
-        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[LOCATION] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
