@@ -18,7 +18,12 @@
 
 import math
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -32,7 +37,12 @@ from pyiceberg.utils.file_stats import BOUND_TRUNCATED_LENGHT, fill_parquet_file
 
 def construct_test_table() -> pa.Buffer:
     schema = pa.schema(
-        [pa.field("strings", pa.string()), pa.field("floats", pa.float64()), pa.field("list", pa.list_(pa.int64()))]
+        [
+            pa.field("strings", pa.string()),
+            pa.field("floats", pa.float64()),
+            pa.field("list", pa.list_(pa.int64())),
+            pa.field("maps", pa.map_(pa.int64(), pa.int64())),
+        ]
     )
 
     _strings = ["zzzzzzzzzzzzzzzzzzzz", "rrrrrrrrrrrrrrrrrrrr", None, "aaaaaaaaaaaaaaaaaaaa"]
@@ -41,7 +51,22 @@ def construct_test_table() -> pa.Buffer:
 
     _list = [[1, 2, 3], [4, 5, 6], None, [7, 8, 9]]
 
-    table = pa.Table.from_pydict({"strings": _strings, "floats": _floats, "list": _list}, schema=schema)
+    _maps: List[Optional[Dict[int, int]]] = [
+        {1: 2, 3: 4},
+        None,
+        {5: 6},
+        {},
+    ]
+
+    table = pa.Table.from_pydict(
+        {
+            "strings": _strings,
+            "floats": _floats,
+            "list": _list,
+            "maps": _maps,
+        },
+        schema=schema,
+    )
     f = pa.BufferOutputStream()
 
     metadata_collector: List[Any] = []
@@ -53,62 +78,70 @@ def construct_test_table() -> pa.Buffer:
     print(writer.writer)
     print(writer.writer.metadata)
 
-    return f.getvalue(), metadata_collector[0]
+    mapping = {"strings": 1, "floats": 2, "list.list.item": 3, "maps.key_value.key": 4, "maps.key_value.value": 5}
+
+    return f.getvalue(), metadata_collector[0], mapping
 
 
 def test_record_count() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
     assert datafile.record_count == 4
 
 
 def test_file_size() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
     assert datafile.file_size_in_bytes == len(file_bytes)
 
 
 def test_value_counts() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
-    assert len(datafile.value_counts) == 3
+    assert len(datafile.value_counts) == 5
     assert datafile.value_counts[1] == 4
     assert datafile.value_counts[2] == 4
     assert datafile.value_counts[3] == 10  # 3 lists with 3 items and a None value
+    assert datafile.value_counts[4] == 5
+    assert datafile.value_counts[5] == 5
 
 
 def test_column_sizes() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
-    assert len(datafile.column_sizes) == 3
+    assert len(datafile.column_sizes) == 5
     # these values are an artifact of how the write_table encodes the columns
     assert datafile.column_sizes[1] == 116
     assert datafile.column_sizes[2] == 119
     assert datafile.column_sizes[3] == 151
+    assert datafile.column_sizes[4] == 117
+    assert datafile.column_sizes[5] == 117
 
 
 def test_null_and_nan_counts() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
-    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.null_value_counts) == 5
     assert datafile.null_value_counts[1] == 1
     assert datafile.null_value_counts[2] == 0
     assert datafile.null_value_counts[3] == 1
+    assert datafile.null_value_counts[4] == 2
+    assert datafile.null_value_counts[5] == 2
 
     # #arrow does not include this in the statistics
     # assert len(datafile.nan_value_counts)  == 3
@@ -118,10 +151,10 @@ def test_null_and_nan_counts() -> None:
 
 
 def test_bounds() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
     assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
@@ -133,7 +166,7 @@ def test_bounds() -> None:
 
 
 def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
@@ -141,7 +174,7 @@ def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        {"strings": 1, "floats": 2, "list.list.item": 3},
+        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -154,7 +187,7 @@ def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 
 def test_metrics_mode_counts(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
@@ -162,20 +195,20 @@ def test_metrics_mode_counts(example_table_metadata_v2: Dict[str, Any]) -> None:
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        {"strings": 1, "floats": 2, "list.list.item": 3},
+        mapping,
         len(file_bytes),
         table_metadata,
     )
 
-    assert len(datafile.value_counts) == 3
-    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.value_counts) == 5
+    assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
     assert len(datafile.lower_bounds) == 0
     assert len(datafile.upper_bounds) == 0
 
 
 def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
@@ -183,13 +216,13 @@ def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        {"strings": 1, "floats": 2, "list.list.item": 3},
+        mapping,
         len(file_bytes),
         table_metadata,
     )
 
-    assert len(datafile.value_counts) == 3
-    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.value_counts) == 5
+    assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 2
@@ -202,7 +235,7 @@ def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 
 def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
@@ -210,13 +243,13 @@ def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        {"strings": 1, "floats": 2, "list.list.item": 3},
+        mapping,
         len(file_bytes),
         table_metadata,
     )
 
-    assert len(datafile.value_counts) == 3
-    assert len(datafile.null_value_counts) == 3
+    assert len(datafile.value_counts) == 5
+    assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 2
@@ -229,7 +262,7 @@ def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any
 
 
 def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
@@ -238,13 +271,13 @@ def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        {"strings": 1, "floats": 2, "list.list.item": 3},
+        mapping,
         len(file_bytes),
         table_metadata,
     )
 
-    assert len(datafile.value_counts) == 2
-    assert len(datafile.null_value_counts) == 2
+    assert len(datafile.value_counts) == 4
+    assert len(datafile.null_value_counts) == 4
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 1
@@ -255,10 +288,10 @@ def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 
 def test_offsets() -> None:
-    (file_bytes, metadata) = construct_test_table()
+    (file_bytes, metadata, mapping) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, {"strings": 1, "floats": 2, "list.list.item": 3}, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
 
     assert datafile.split_offsets is not None
     assert len(datafile.split_offsets) == 1
