@@ -44,6 +44,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -971,6 +972,52 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
         emptyQueryResult,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testSkipOnError() throws IOException {
+    createUnpartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    // Create an empty(considered corrupted) file.
+    Assert.assertTrue(new File(fileTableDir + File.separator + "corrupt.parquet").createNewFile());
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files(" + "table => '%s', " + "source_table => '%s')",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s',"
+                        + "skip_on_error => false)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s',"
+                + "source_table => '%s',"
+                + "skip_on_error => true)",
+            catalogName, tableName, sourceTableName);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 

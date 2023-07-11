@@ -59,6 +59,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final Identifier backupIdent;
 
   private boolean dropBackup = false;
+  private boolean skipOnError = false;
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -103,6 +104,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
+  public MigrateTable skipOnError() {
+    this.skipOnError = true;
+    return this;
+  }
+
+  @Override
   public MigrateTable.Result execute() {
     String desc = String.format("Migrating table %s", destTableIdent().toString());
     JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
@@ -131,7 +138,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
       TableIdentifier v1BackupIdent = new TableIdentifier(backupIdent.name(), backupNamespace);
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(), v1BackupIdent, icebergTable, stagingLocation, false, skipOnError);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

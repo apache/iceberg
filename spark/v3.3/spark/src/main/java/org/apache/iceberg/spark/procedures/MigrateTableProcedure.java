@@ -22,7 +22,6 @@ import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -39,7 +38,8 @@ class MigrateTableProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
+        ProcedureParameter.optional("skip_on_error", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -92,8 +92,13 @@ class MigrateTableProcedure extends BaseProcedure {
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
 
-    MigrateTableSparkAction migrateTableSparkAction =
+    MigrateTable migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);
+
+    boolean skipOnError = args.isNullAt(3) ? false : args.getBoolean(3);
+    if (skipOnError) {
+      migrateTableSparkAction = migrateTableSparkAction.skipOnError();
+    }
 
     MigrateTable.Result result;
     if (dropBackup) {
