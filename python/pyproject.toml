@@ -26,6 +26,7 @@ license = "Apache License 2.0"
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -42,7 +43,7 @@ packages = [
 include = [{ path = "dev", format = "sdist" }]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 mmhash3 = ">=3.0.0,<4.0.0"
 requests = ">=2.20.0,<3.0.0"
 click = ">=7.1.1,<9.0.0"
@@ -66,7 +67,7 @@ adlfs = { version = ">=2021.07.0,<2024.1.0", optional = true } # Upper bound set
 [tool.poetry.dev-dependencies]
 pytest = "7.4.0"
 pytest-checkdocs = "2.9.0"
-pre-commit = "3.3.3"
+pre-commit = "^2.18.0"
 fastavro = "1.7.4"
 coverage = { version = "^7.2.3", extras = ["toml"] }
 requests-mock = "1.11.0"
@@ -107,7 +108,7 @@ markers = [
 
 [tool.black]
 line-length = 130
-target-version = ['py38']
+target-version = ['py37']
 
 [tool.isort]
 src_paths = ["pyiceberg/", "tests/"]
