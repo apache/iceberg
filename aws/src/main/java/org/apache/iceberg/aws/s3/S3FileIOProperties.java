@@ -19,7 +19,9 @@
 package org.apache.iceberg.aws.s3;
 
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +37,10 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.FullJitterBackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -341,6 +347,19 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
+  /**
+   * If set {@code true}, The S3 client will retry on UnchekedIOException. This will prevent
+   * transient errors from aborting a metadata commit and failing an entire job.
+   */
+  public static final String RETRY_ON_UNCHECKED_IO_EXCEPTION = "s3.retry-on-unchecked-io-exception";
+
+  public static final boolean RETRY_ON_UNCHECKED_IO_EXCEPTION_DEFAULT = true;
+
+  /** Maximum number of retires */
+  public static final String MAX_RETRIES = "s3.max-retries";
+
+  public static final int MAX_RETRIES_DEFAULT = 15;
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -369,6 +388,8 @@ public class S3FileIOProperties implements Serializable {
   private String endpoint;
   private final boolean isRemoteSigningEnabled;
   private final Map<String, String> allProperties;
+  private final boolean isRetryOnUncheckedIoExceptionEnabled;
+  private final int maxRetries;
 
   public S3FileIOProperties() {
     this.sseType = SSE_TYPE_NONE;
@@ -399,6 +420,8 @@ public class S3FileIOProperties implements Serializable {
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
+    this.isRetryOnUncheckedIoExceptionEnabled = RETRY_ON_UNCHECKED_IO_EXCEPTION_DEFAULT;
+    this.maxRetries = MAX_RETRIES_DEFAULT;
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -487,6 +510,10 @@ public class S3FileIOProperties implements Serializable {
         PropertyUtil.propertyAsBoolean(
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
     this.allProperties = SerializableMap.copyOf(properties);
+    this.isRetryOnUncheckedIoExceptionEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, RETRY_ON_UNCHECKED_IO_EXCEPTION, RETRY_ON_UNCHECKED_IO_EXCEPTION_DEFAULT);
+    this.maxRetries = PropertyUtil.propertyAsInt(properties, MAX_RETRIES, MAX_RETRIES_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -595,6 +622,14 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isRemoteSigningEnabled() {
     return this.isRemoteSigningEnabled;
+  }
+
+  public boolean isRetryOnUncheckedIoExceptionEnabled() {
+    return this.isRetryOnUncheckedIoExceptionEnabled;
+  }
+
+  public int getMaxRetries() {
+    return this.maxRetries;
   }
 
   public String endpoint() {
@@ -731,5 +766,33 @@ public class S3FileIOProperties implements Serializable {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
+  }
+
+  /**
+   * Configure retry settings for an S3 client. The settings include:
+   * isRetryOnUncheckedIoExceptionEnabled and maxRetries
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfiguration)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyRetryConfiguration(T builder) {
+    RetryPolicy.Builder retryPolicyBuilder =
+        RetryPolicy.builder()
+            .backoffStrategy(
+                FullJitterBackoffStrategy.builder()
+                    .baseDelay(Duration.ofSeconds(1))
+                    .maxBackoffTime(Duration.ofMinutes(3))
+                    .build())
+            .numRetries(this.maxRetries);
+    if (this.isRetryOnUncheckedIoExceptionEnabled) {
+      retryPolicyBuilder.retryCondition(
+          OrRetryCondition.create(
+              RetryPolicy.defaultRetryPolicy().retryCondition(),
+              RetryOnExceptionsCondition.create(UncheckedIOException.class)));
+    }
+    builder.overrideConfiguration(c -> c.retryPolicy(retryPolicyBuilder.build()));
   }
 }

@@ -113,6 +113,12 @@ public class TestS3FileIOProperties {
 
     Assertions.assertThat(Collections.emptyMap())
         .isEqualTo(s3FileIOProperties.bucketToAccessPointMapping());
+
+    Assertions.assertThat(S3FileIOProperties.RETRY_ON_UNCHECKED_IO_EXCEPTION_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isRetryOnUncheckedIoExceptionEnabled());
+
+    Assertions.assertThat(S3FileIOProperties.MAX_RETRIES_DEFAULT)
+        .isEqualTo(s3FileIOProperties.getMaxRetries());
   }
 
   @Test
@@ -472,5 +478,17 @@ public class TestS3FileIOProperties {
 
     s3FileIOProperties.applyEndpointConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).endpointOverride(Mockito.any(URI.class));
+  }
+
+  @Test
+  public void testRetryConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.RETRY_ON_UNCHECKED_IO_EXCEPTION, "true");
+    properties.put(S3FileIOProperties.MAX_RETRIES, "999");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+
+    s3FileIOProperties.applyRetryConfiguration(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(Mockito.any(Consumer.class));
   }
 }
