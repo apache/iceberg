@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -194,5 +195,27 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, "2023/05/30", java.sql.Date.valueOf("2023-05-30"))),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMigrateWithEmptyFile() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    File tempFolder = temp.newFolder();
+    String location = tempFolder.toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    int fileCount = tempFolder.listFiles().length;
+    sql("INSERT INTO TABLE %s SELECT * FROM VALUES (1, 'a') limit 0", tableName);
+    int newFileCount = tempFolder.listFiles().length;
+    Assert.assertEquals(
+        "There should be exactly 2 new file generated after writing empty data to the table (1 SUCCESS file, 1 empty file)",
+        2,
+        newFileCount - fileCount);
+
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+
+    Assert.assertEquals("Should have added one file", 1L, result);
   }
 }
