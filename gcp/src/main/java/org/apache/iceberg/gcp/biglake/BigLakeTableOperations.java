@@ -35,7 +35,7 @@ import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,12 +45,12 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BigLakeTableOperations.class);
 
   private final BigLakeClient client;
-  private final FileIO fileIO;
+  private final FileIO io;
   private final TableName tableName;
 
-  BigLakeTableOperations(BigLakeClient client, FileIO fileIO, TableName tableName) {
+  BigLakeTableOperations(BigLakeClient client, FileIO io, TableName tableName) {
     this.client = client;
-    this.fileIO = fileIO;
+    this.io = io;
     this.tableName = tableName;
   }
 
@@ -63,7 +63,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       HiveTableOptions hiveOptions = client.getTable(tableName).getHiveOptions();
       if (!hiveOptions.containsParameters(METADATA_LOCATION_PROP)) {
         throw new NoSuchIcebergTableException(
-            "Table %s is not a valid Iceberg table, metadata location not found", tableName());
+            "Invalid Iceberg table %s: missing metadata location", tableName());
       }
 
       metadataLocation = hiveOptions.getParametersOrThrow(METADATA_LOCATION_PROP);
@@ -128,7 +128,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public FileIO io() {
-    return fileIO;
+    return io;
   }
 
   private void createTable(String newMetadataLocation, TableMetadata metadata) {
@@ -203,7 +203,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   // Follow Iceberg's HiveTableOperations to populate more table parameters for HMS compatibility.
   private Map<String, String> buildTableParameters(
       String metadataFileLocation, TableMetadata metadata) {
-    Map<String, String> parameters = Maps.newHashMap();
+    ImmutableMap.Builder<String, String> parameters = new ImmutableMap.Builder<String, String>();
     parameters.putAll(metadata.properties());
     if (metadata.uuid() != null) {
       parameters.put(TableProperties.UUID, metadata.uuid());
@@ -217,6 +217,6 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     // Follow HMS to use the EXTERNAL type.
     parameters.put("EXTERNAL", "TRUE");
     parameters.put("table_type", "ICEBERG");
-    return parameters;
+    return parameters.build();
   }
 }

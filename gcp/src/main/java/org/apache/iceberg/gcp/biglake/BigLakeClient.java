@@ -56,7 +56,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 final class BigLakeClient {
 
   private final String projectId;
-  private final String location;
+  private final String region;
   private final MetastoreServiceClient stub;
 
   /**
@@ -64,12 +64,12 @@ final class BigLakeClient {
    *
    * @param settings BigLake service settings
    * @param projectId GCP project ID
-   * @param location GCP region supported by BigLake, e.g., "us"
+   * @param region GCP region supported by BigLake, e.g., "us"
    */
-  BigLakeClient(MetastoreServiceSettings settings, String projectId, String location)
+  BigLakeClient(MetastoreServiceSettings settings, String projectId, String region)
       throws IOException {
     this.projectId = projectId;
-    this.location = location;
+    this.region = region;
     this.stub = MetastoreServiceClient.create(settings);
   }
 
@@ -78,13 +78,13 @@ final class BigLakeClient {
    *
    * @param biglakeEndpoint BigLake service gRPC endpoint, e.g., "biglake.googleapis.com:443"
    * @param projectId GCP project ID
-   * @param location GCP region supported by BigLake, e.g., "us"
+   * @param region GCP region supported by BigLake, e.g., "us"
    */
-  BigLakeClient(String biglakeEndpoint, String projectId, String location) throws IOException {
+  BigLakeClient(String biglakeEndpoint, String projectId, String region) throws IOException {
     this(
         MetastoreServiceSettings.newBuilder().setEndpoint(biglakeEndpoint).build(),
         projectId,
-        location);
+        region);
   }
 
   public Catalog createCatalog(CatalogName name, Catalog catalog) {

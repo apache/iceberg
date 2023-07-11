@@ -46,6 +46,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
@@ -87,7 +88,7 @@ public class BigLakeTableOperationsTest {
     warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            BigLakeCatalog.PROPERTIES_KEY_GCP_PROJECT,
+            GCPProperties.BIGLAKE_PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
             warehouseLocation);

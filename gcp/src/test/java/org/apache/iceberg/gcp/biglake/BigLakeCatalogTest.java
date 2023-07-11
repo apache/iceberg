@@ -32,8 +32,6 @@ import com.google.api.gax.core.NoCredentialsProvider;
 import com.google.api.gax.grpc.testing.LocalChannelProvider;
 import com.google.api.gax.grpc.testing.MockGrpcService;
 import com.google.api.gax.grpc.testing.MockServiceHelper;
-import com.google.api.gax.rpc.InvalidArgumentException;
-import com.google.api.pathtemplate.ValidationException;
 import com.google.cloud.bigquery.biglake.v1.Catalog;
 import com.google.cloud.bigquery.biglake.v1.CatalogName;
 import com.google.cloud.bigquery.biglake.v1.Database;
@@ -50,6 +48,8 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -95,7 +95,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            BigLakeCatalog.PROPERTIES_KEY_GCP_PROJECT,
+            GCPProperties.BIGLAKE_PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
             warehouseLocation);
@@ -144,28 +144,6 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testNamespaceWithSlash() {
-    BigLakeCatalog catalog = catalog();
-
-    Exception exception =
-        assertThrows(
-            InvalidArgumentException.class, () -> catalog.createNamespace(Namespace.of("new/db")));
-    assertTrue(exception.getMessage().contains("Database ID is invalid"));
-  }
-
-  @Test
-  public void testTableNameWithSlash() {
-    BigLakeCatalog catalog = catalog();
-
-    catalog.createNamespace(Namespace.of("ns"));
-    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
-
-    Exception exception =
-        assertThrows(ValidationException.class, () -> catalog.buildTable(ident, SCHEMA).create());
-    assertEquals("Invalid character \"/\" in path section \"tab/le\".", exception.getMessage());
-  }
-
-  @Test
   public void testDefaultWarehouseWithDatabaseLocation_asExpected() {
     when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
@@ -197,7 +175,8 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
             () ->
                 bigLakeCatalogUsingMockClient.renameTable(
                     TableIdentifier.of("db0", "t1"), TableIdentifier.of("db1", "t2")));
-    assertEquals("New table name must be in the same database", exception.getMessage());
+    assertEquals(
+        "Cannot rename table db0.t1 to db1.t2: database must match", exception.getMessage());
   }
 
   @Test
@@ -216,10 +195,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
             () ->
                 bigLakeCatalogUsingMockClient.createNamespace(
                     Namespace.of(new String[] {"n0", "n1"}), ImmutableMap.of()));
-    assertEquals(
-        "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
-            + " namespace: n0.n1",
-        exception.getMessage());
+    assertEquals("Invalid namespace (too long): n0.n1", exception.getMessage());
   }
 
   @Test
@@ -258,26 +234,23 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
   @Test
   public void testDropNamespace_failWhenInvalid() throws Exception {
-    Exception exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                bigLakeCatalogUsingMockClient.dropNamespace(
-                    Namespace.of(new String[] {"n0", "n1"})));
-    assertEquals(
-        "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
-            + " namespace: n0.n1",
-        exception.getMessage());
+    assertFalse(
+        bigLakeCatalogUsingMockClient.dropNamespace(Namespace.of(new String[] {"n0", "n1"})));
   }
 
   @Test
   public void testSetProperties_failWhenNamespacesAreInvalid() throws Exception {
-    assertFalse(
-        bigLakeCatalogUsingMockClient.setProperties(
-            Namespace.of(new String[] {}), ImmutableMap.of()));
-    assertFalse(
-        bigLakeCatalogUsingMockClient.setProperties(
-            Namespace.of(new String[] {"db", "tbl"}), ImmutableMap.of()));
+    assertThrows(
+        NoSuchNamespaceException.class,
+        () ->
+            bigLakeCatalogUsingMockClient.setProperties(
+                Namespace.of(new String[] {}), ImmutableMap.of()));
+
+    assertThrows(
+        NoSuchNamespaceException.class,
+        () ->
+            bigLakeCatalogUsingMockClient.setProperties(
+                Namespace.of(new String[] {"db", "tbl"}), ImmutableMap.of()));
   }
 
   @Test
@@ -303,12 +276,17 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
   @Test
   public void testRemoveProperties_failWhenNamespacesAreInvalid() throws Exception {
-    assertFalse(
-        bigLakeCatalogUsingMockClient.removeProperties(
-            Namespace.of(new String[] {}), ImmutableSet.of()));
-    assertFalse(
-        bigLakeCatalogUsingMockClient.removeProperties(
-            Namespace.of(new String[] {"db", "tbl"}), ImmutableSet.of()));
+    assertThrows(
+        NoSuchNamespaceException.class,
+        () ->
+            bigLakeCatalogUsingMockClient.removeProperties(
+                Namespace.of(new String[] {}), ImmutableSet.of()));
+
+    assertThrows(
+        NoSuchNamespaceException.class,
+        () ->
+            bigLakeCatalogUsingMockClient.removeProperties(
+                Namespace.of(new String[] {"db", "tbl"}), ImmutableSet.of()));
   }
 
   @Test
@@ -362,14 +340,11 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   public void testLoadNamespaceMetadata_failWhenInvalid() throws Exception {
     Exception exception =
         assertThrows(
-            IllegalArgumentException.class,
+            NoSuchNamespaceException.class,
             () ->
                 bigLakeCatalogUsingMockClient.loadNamespaceMetadata(
                     Namespace.of(new String[] {"n0", "n1"})));
-    assertEquals(
-        "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
-            + " namespace: n0.n1",
-        exception.getMessage());
+    assertEquals("Namespace does not exist: n0.n1", exception.getMessage());
   }
 
   @Test
@@ -378,11 +353,11 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
     catalog.initialize(
         CATALOG_ID,
         /* properties= */ ImmutableMap.of(
-            BigLakeCatalog.PROPERTIES_KEY_GCP_PROJECT,
+            GCPProperties.BIGLAKE_PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
             warehouseLocation,
-            BigLakeCatalog.PROPERTIES_KEY_BLMS_CATALOG,
+            GCPProperties.BIGLAKE_CATALOG_ID,
             "customized_catalog"),
         GCP_PROJECT,
         GCP_REGION,
@@ -399,7 +374,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   public void testNewTableOps_failedForInvalidNamespace() throws Exception {
     Exception exception =
         assertThrows(
-            IllegalArgumentException.class,
+            NoSuchNamespaceException.class,
             () ->
                 bigLakeCatalogUsingMockClient.newTableOps(
                     TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")));

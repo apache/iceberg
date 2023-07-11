@@ -26,7 +26,6 @@ import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +41,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -51,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
@@ -61,31 +60,17 @@ import org.slf4j.LoggerFactory;
 public final class BigLakeCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
-  // TODO: to move the configs to GCPProperties.java.
-  // User provided properties.
-  // The endpoint of BigLake API. Optional, default to DEFAULT_BIGLAKE_SERVICE_ENDPOINT.
-  public static final String PROPERTIES_KEY_BIGLAKE_ENDPOINT = "biglake.endpoint";
-  // The GCP project ID. Required.
-  public static final String PROPERTIES_KEY_GCP_PROJECT = "biglake.project-id";
-  // The GCP location (https://cloud.google.com/bigquery/docs/locations). Optional, default to
-  // DEFAULT_GCP_LOCATION.
-  public static final String PROPERTIES_KEY_GCP_LOCATION = "biglake.location";
-  // The BLMS catalog ID. It is the container resource of databases and tables.
-  // It links a BLMS catalog with this Iceberg catalog.
-  public static final String PROPERTIES_KEY_BLMS_CATALOG = "biglake.catalog";
-
   public static final String DEFAULT_BIGLAKE_SERVICE_ENDPOINT = "biglake.googleapis.com:443";
-  public static final String DEFAULT_GCP_LOCATION = "us";
 
   private static final Logger LOG = LoggerFactory.getLogger(BigLakeCatalog.class);
 
   // The name of this Iceberg catalog plugin: spark.sql.catalog.<catalog_plugin>.
   private String catalogPulginName;
-  private Map<String, String> catalogProperties;
-  private FileIO fileIO;
+  private Map<String, String> properties;
+  private FileIO io;
   private Object conf;
   private String projectId;
-  private String location;
+  private String region;
   // BLMS catalog ID and fully qualified name.
   private String catalogId;
   private CatalogName catalogName;
@@ -99,76 +84,80 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     Preconditions.checkArgument(
-        properties.containsKey(PROPERTIES_KEY_GCP_PROJECT), "GCP project must be specified");
-    String propProjectId = properties.get(PROPERTIES_KEY_GCP_PROJECT);
-    String propLocation =
-        properties.getOrDefault(PROPERTIES_KEY_GCP_LOCATION, DEFAULT_GCP_LOCATION);
+        properties.containsKey(GCPProperties.BIGLAKE_PROJECT_ID),
+        "GCP project ID must be specified");
+    String projectId = properties.get(GCPProperties.BIGLAKE_PROJECT_ID);
 
-    BigLakeClient newClient;
+    Preconditions.checkArgument(
+        properties.containsKey(GCPProperties.BIGLAKE_PROJECT_ID), "GCP region must be specified");
+    String region = properties.get(GCPProperties.BIGLAKE_GCP_REGION);
+
+    BigLakeClient client;
     try {
       // TODO: to add more auth options of the client. Currently it uses default auth
       // (https://github.com/googleapis/google-cloud-java#application-default-credentials)
       // that works on GCP services (e.g., GCE, GKE, Dataproc).
-      newClient =
+      client =
           new BigLakeClient(
               properties.getOrDefault(
-                  PROPERTIES_KEY_BIGLAKE_ENDPOINT, DEFAULT_BIGLAKE_SERVICE_ENDPOINT),
-              propProjectId,
-              propLocation);
+                  GCPProperties.BIGLAKE_ENDPOINT, DEFAULT_BIGLAKE_SERVICE_ENDPOINT),
+              projectId,
+              region);
     } catch (IOException e) {
       throw new ServiceFailureException(e, "Creating BigLake client failed");
     }
-    initialize(inputName, properties, propProjectId, propLocation, newClient);
+
+    initialize(inputName, properties, projectId, region, client);
   }
 
   @VisibleForTesting
   void initialize(
       String inputName,
       Map<String, String> properties,
-      String propProjectId,
-      String propLocation,
-      BigLakeClient bigLakeClient) {
+      String projectId,
+      String region,
+      BigLakeClient client) {
     this.catalogPulginName = inputName;
-    this.catalogProperties = ImmutableMap.copyOf(properties);
-    this.projectId = propProjectId;
-    this.location = propLocation;
-    Preconditions.checkNotNull(bigLakeClient, "BigLake client must not be null");
-    this.client = bigLakeClient;
+    this.properties = ImmutableMap.copyOf(properties);
+    this.projectId = projectId;
+    this.region = region;
+    Preconditions.checkNotNull(client, "BigLake client must not be null");
+    this.client = client;
 
-    // Users can specify the BigLake catalog ID, otherwise catalog plugin will be used.
-    this.catalogId = properties.getOrDefault(PROPERTIES_KEY_BLMS_CATALOG, inputName);
-    this.catalogName = CatalogName.of(projectId, location, catalogId);
-    LOG.info("Use BigLake catalog: {}", catalogName.toString());
+    // Users can specify the BigLake catalog ID, otherwise catalog plugin name will be used.
+    // For example, "spark.sql.catalog.<plugin-name>=org.apache.iceberg.spark.SparkCatalog"
+    // specifies the plugin name "<plugin-name>".
+    this.catalogId = this.properties.getOrDefault(GCPProperties.BIGLAKE_CATALOG_ID, inputName);
+    this.catalogName = CatalogName.of(projectId, region, catalogId);
 
-    String fileIOImpl =
-        properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
-    this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String ioImpl =
+        this.properties.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
+    this.io = CatalogUtil.loadFileIO(ioImpl, this.properties, conf);
   }
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     // The identifier of metadata tables is like "ns.table.files".
-    // We return a non-existing table in this case (empty table ID is disallowed in BigLake
+    // Return a non-existing table in this case (empty table ID is disallowed in BigLake
     // Metastore), loadTable will try loadMetadataTable.
     if (identifier.namespace().levels().length > 1
         && MetadataTableType.from(identifier.name()) != null) {
       return new BigLakeTableOperations(
-          client, fileIO, getTableName(identifier.namespace().level(0), /* tableId= */ ""));
+          client, io, tableName(identifier.namespace().level(0), /* tableId= */ ""));
     }
 
     return new BigLakeTableOperations(
-        client,
-        fileIO,
-        getTableName(getDatabaseId(identifier.namespace()), /* tableId= */ identifier.name()));
+        client, io, tableName(databaseId(identifier.namespace()), identifier.name()));
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier identifier) {
-    String locationUri = getDatabase(identifier.namespace()).getHiveOptions().getLocationUri();
+    String locationUri = loadDatabase(identifier.namespace()).getHiveOptions().getLocationUri();
     return String.format(
         "%s/%s",
         Strings.isNullOrEmpty(locationUri)
-            ? getDatabaseLocation(getDatabaseId(identifier.namespace()))
+            ? databaseLocation(databaseId(identifier.namespace()))
             : locationUri,
         identifier.name());
   }
@@ -185,8 +174,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
           : ImmutableList.of(TableIdentifier.of("placeholder"));
     }
 
-    return Streams.stream(client.listTables(getDatabaseName(namespace)))
-        .map(BigLakeCatalog::getTableIdentifier)
+    return Streams.stream(client.listTables(databaseName(namespace)))
+        .map(BigLakeCatalog::tableIdentifier)
         .collect(ImmutableList.toImmutableList());
   }
 
@@ -196,10 +185,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     // TODO: to catch NotFoundException as in https://github.com/apache/iceberg/pull/5510.
     TableMetadata lastMetadata = ops.current();
     try {
-      client.deleteTable(
-          getTableName(getDatabaseId(identifier.namespace()), /* tableId= */ identifier.name()));
+      client.deleteTable(tableName(databaseId(identifier.namespace()), identifier.name()));
     } catch (NoSuchTableException e) {
-      LOG.warn("Dropping table failed", e);
       return false;
     }
 
@@ -212,12 +199,15 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    String fromDbId = getDatabaseId(from.namespace());
-    String toDbId = getDatabaseId(to.namespace());
+    String fromDbId = databaseId(from.namespace());
+    String toDbId = databaseId(to.namespace());
 
     Preconditions.checkArgument(
-        fromDbId.equals(toDbId), "New table name must be in the same database");
-    client.renameTable(getTableName(fromDbId, from.name()), getTableName(toDbId, to.name()));
+        fromDbId.equals(toDbId),
+        "Cannot rename table %s to %s: database must match",
+        from.toString(),
+        to.toString());
+    client.renameTable(tableName(fromDbId, from.name()), tableName(toDbId, to.name()));
   }
 
   @Override
@@ -228,16 +218,17 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       LOG.info("Created BigLake catalog: {}", catalogName.toString());
     } else if (namespace.levels().length == 1) {
       // Create a database.
-      String dbId = namespace.level(0);
+      String dbId = databaseId(namespace);
       Database.Builder builder = Database.newBuilder().setType(Database.Type.HIVE);
       builder
           .getHiveOptionsBuilder()
           .putAllParameters(metadata)
-          .setLocationUri(getDatabaseLocation(dbId));
+          .setLocationUri(databaseLocation(dbId));
 
-      client.createDatabase(DatabaseName.of(projectId, location, catalogId, dbId), builder.build());
+      client.createDatabase(DatabaseName.of(projectId, region, catalogId, dbId), builder.build());
     } else {
-      throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
+      throw new IllegalArgumentException(
+          String.format("Invalid namespace (too long): %s", namespace));
     }
   }
 
@@ -251,7 +242,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     }
 
     return Streams.stream(client.listDatabases(catalogName))
-        .map(BigLakeCatalog::getNamespace)
+        .map(BigLakeCatalog::namespace)
         .collect(ImmutableList.toImmutableList());
   }
 
@@ -263,14 +254,14 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
         client.deleteCatalog(catalogName);
         LOG.info("Deleted BigLake catalog: {}", catalogName.toString());
       } else if (namespace.levels().length == 1) {
-        client.deleteDatabase(getDatabaseName(namespace));
-        // We don't delete the data file folder for safety. It aligns with HMS's default behavior.
-        // We can support database or catalog level config controlling file deletion in future.
+        client.deleteDatabase(databaseName(namespace));
+        // Don't delete the data file folder for safety. It aligns with HMS's default behavior.
+        // To support database or catalog level config controlling file deletion in future.
       } else {
-        throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
+        LOG.warn("Invalid namespace (too long): %s", namespace);
+        return false;
       }
     } catch (NoSuchNamespaceException e) {
-      LOG.warn("Dropping namespace failed", e);
       return false;
     }
 
@@ -279,40 +270,19 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    Database.Builder builder;
-    try {
-      builder = getDatabase(namespace).toBuilder();
-    } catch (IllegalArgumentException e) {
-      LOG.warn(
-          "setProperties is only supported for tables and databases, namespace {} is not supported",
-          namespace.levels().length == 0 ? "empty" : namespace.toString(),
-          e);
-      return false;
-    }
-
-    HiveDatabaseOptions.Builder optionsBuilder = builder.getHiveOptionsBuilder();
+    HiveDatabaseOptions.Builder optionsBuilder =
+        loadDatabase(namespace).toBuilder().getHiveOptionsBuilder();
     properties.forEach(optionsBuilder::putParameters);
-    client.updateDatabaseParameters(getDatabaseName(namespace), optionsBuilder.getParametersMap());
+    client.updateDatabaseParameters(databaseName(namespace), optionsBuilder.getParametersMap());
     return true;
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    Database.Builder builder;
-    try {
-      builder = getDatabase(namespace).toBuilder();
-    } catch (IllegalArgumentException e) {
-      LOG.warn(
-          "removeProperties is only supported for tables and databases, namespace {} is not"
-              + " supported",
-          namespace.levels().length == 0 ? "empty" : namespace.toString(),
-          e);
-      return false;
-    }
-
-    HiveDatabaseOptions.Builder optionsBuilder = builder.getHiveOptionsBuilder();
+    HiveDatabaseOptions.Builder optionsBuilder =
+        loadDatabase(namespace).toBuilder().getHiveOptionsBuilder();
     properties.forEach(optionsBuilder::removeParameters);
-    client.updateDatabaseParameters(getDatabaseName(namespace), optionsBuilder.getParametersMap());
+    client.updateDatabaseParameters(databaseName(namespace), optionsBuilder.getParametersMap());
     return true;
   }
 
@@ -321,11 +291,11 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     if (namespace.levels().length == 0) {
       // Calls getCatalog to check existence. BLMS catalog has no metadata today.
       client.getCatalog(catalogName);
-      return new HashMap<String, String>();
+      return ImmutableMap.of();
     } else if (namespace.levels().length == 1) {
-      return getMetadata(getDatabase(namespace));
+      return metadata(loadDatabase(namespace));
     } else {
-      throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
   }
 
@@ -336,7 +306,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected Map<String, String> properties() {
-    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+    return properties == null ? ImmutableMap.of() : properties;
   }
 
   @Override
@@ -344,55 +314,49 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     this.conf = conf;
   }
 
-  private String getDatabaseLocation(String dbId) {
+  private String databaseLocation(String dbId) {
     String warehouseLocation =
-        LocationUtil.stripTrailingSlash(
-            catalogProperties.get(CatalogProperties.WAREHOUSE_LOCATION));
+        LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     Preconditions.checkNotNull(warehouseLocation, "Data warehouse location is not set");
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }
 
-  private static TableIdentifier getTableIdentifier(Table table) {
+  private static TableIdentifier tableIdentifier(Table table) {
     TableName tableName = TableName.parse(table.getName());
     return TableIdentifier.of(Namespace.of(tableName.getDatabase()), tableName.getTable());
   }
 
-  private static Namespace getNamespace(Database db) {
+  private static Namespace namespace(Database db) {
     return Namespace.of(DatabaseName.parse(db.getName()).getDatabase());
   }
 
-  private TableName getTableName(String dbId, String tableId) {
-    return TableName.of(projectId, location, catalogId, dbId, tableId);
+  private TableName tableName(String dbId, String tableId) {
+    return TableName.of(projectId, region, catalogId, dbId, tableId);
   }
 
-  private String getDatabaseId(Namespace namespace) {
-    Preconditions.checkArgument(
-        namespace.levels().length == 1,
-        "BigLake database namespace must use format <catalog>.<database>, invalid namespace: %s",
-        namespace);
+  private String databaseId(Namespace namespace) {
+    if (namespace.levels().length != 1) {
+      throw new NoSuchNamespaceException(
+          "BigLake database namespace must use format <catalog>.<database>, invalid namespace: %s",
+          namespace);
+    }
+
     return namespace.level(0);
   }
 
-  private DatabaseName getDatabaseName(Namespace namespace) {
-    return DatabaseName.of(projectId, location, catalogId, getDatabaseId(namespace));
+  private DatabaseName databaseName(Namespace namespace) {
+    return DatabaseName.of(projectId, region, catalogId, databaseId(namespace));
   }
 
-  private Database getDatabase(Namespace namespace) {
-    return client.getDatabase(getDatabaseName(namespace));
+  private Database loadDatabase(Namespace namespace) {
+    return client.getDatabase(databaseName(namespace));
   }
 
-  private static Map<String, String> getMetadata(Database db) {
+  private static Map<String, String> metadata(Database db) {
     HiveDatabaseOptions options = db.getHiveOptions();
-    Map<String, String> result = Maps.newHashMap();
-    result.putAll(options.getParameters());
-    result.put("location", options.getLocationUri());
-    return result;
-  }
-
-  private static String invalidNamespaceMessage(Namespace namespace) {
-    return String.format(
-        "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
-            + " namespace: %s",
-        namespace);
+    return new ImmutableMap.Builder<String, String>()
+        .putAll(options.getParameters())
+        .put("location", options.getLocationUri())
+        .build();
   }
 }
