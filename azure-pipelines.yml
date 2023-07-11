@@ -47,7 +47,7 @@ steps:
       publishLocation: "Container"    
   - task: Gradle@2
     displayName: 'Publish org.cccs.iceberg'
-    condition: and(succeeded(), eq(variables.isDevelop, true))
+    condition: and(succeeded(), eq(variables.isPublish, true))
     inputs:
       workingDirectory: ''
       gradleWrapperFile: 'gradlew'
