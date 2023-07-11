@@ -57,4 +57,4 @@ steps:
       jdkArchitectureOption: 'x64'
       publishJUnitResults: true
       testResultsFiles: '**/TEST-*.xml'
-      tasks: 'publish -PmavenUser=$(MAVENUSER) -PmavenPassword=$(MAVENPWD)'
+      tasks: 'publish -Pversion=1.3.0 -PmavenUser=$(MAVENUSER) -PmavenPassword=$(MAVENPWD) '
