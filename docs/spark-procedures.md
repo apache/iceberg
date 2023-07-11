@@ -515,7 +515,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 `migrate` or `snapshot` are possible.
 
 {{< hint warning >}}
-Keep in mind the `add_files` procedure will fetch the Parquet metadat from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the file will be retrieved from the archive, and will be on a higher tier for a set period of time.
+Keep in mind the `add_files` procedure will fetch the Parquet metadata from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the underlying, file will be retrieved from the archive, and will remain on a higher tier for a set period of time.
 {{< /hint >}}
 
 #### Usage
