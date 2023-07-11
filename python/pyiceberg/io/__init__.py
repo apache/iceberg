@@ -50,6 +50,7 @@ S3_ACCESS_KEY_ID = "s3.access-key-id"
 S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
+S3_PROXY_URI = "s3.proxy-uri"
 
 
 @runtime_checkable
@@ -280,7 +281,7 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
         class_ = getattr(module, class_name)
         return class_(properties)
     except ModuleNotFoundError:
-        warnings.warn(f"Could not initialize FileIO: {io_impl}")
+        logger.warning("Could not initialize FileIO: %s", io_impl)
         return None
 
 

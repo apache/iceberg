@@ -95,7 +95,7 @@ public class TestTableIdentifierParser {
     String invalidNamespace = "{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}";
     Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidNamespace))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: namespace: \"accounting.tax\"");
+        .hasMessage("Cannot parse JSON array from non-array value: namespace: \"accounting.tax\"");
 
     String invalidName = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":1234}";
     Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidName))

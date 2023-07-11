@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark;
 
 import java.util.Iterator;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
@@ -55,7 +57,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   RemoveCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow(rowType.size());
+    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
   @Override
@@ -88,7 +90,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     }
 
     // If the current row is a delete row, drain all identical delete rows
-    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
+    if (changeType(currentRow).equals(DELETE) && rowIterator().hasNext()) {
       cachedDeletedRow = currentRow;
       deletedRowCount = 1;
 
@@ -98,8 +100,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
       // row is the same record
       while (nextRow != null
           && cachedDeletedRow != null
-          && isSameRecord(cachedDeletedRow, nextRow)) {
-        if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
+          && isSameRecord(cachedDeletedRow, nextRow, indicesToIdentifySameRow)) {
+        if (changeType(nextRow).equals(INSERT)) {
           deletedRowCount--;
           if (deletedRowCount == 0) {
             cachedDeletedRow = null;
@@ -139,25 +141,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     return cachedDeletedRow != null;
   }
 
-  private int[] generateIndicesToIdentifySameRow(int columnSize) {
-    int[] indices = new int[columnSize - 1];
-    for (int i = 0; i < indices.length; i++) {
-      if (i < changeTypeIndex()) {
-        indices[i] = i;
-      } else {
-        indices[i] = i + 1;
-      }
-    }
-    return indices;
-  }
-
-  private boolean isSameRecord(Row currentRow, Row nextRow) {
-    for (int idx : indicesToIdentifySameRow) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-
-    return true;
+  private int[] generateIndicesToIdentifySameRow() {
+    Set<Integer> metadataColumnIndices = Sets.newHashSet(changeTypeIndex());
+    return generateIndicesToIdentifySameRow(rowType().size(), metadataColumnIndices);
   }
 }

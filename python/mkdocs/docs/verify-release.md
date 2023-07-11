@@ -47,20 +47,20 @@ gpg --import KEYS
 Next, verify the `.asc` file.
 
 ```sh
-gpg --verify pyiceberg-0.2.0rc0-py3-none-any.whl.asc pyiceberg-0.2.0rc0-py3-none-any.whl
+gpg --verify pyiceberg-0.4.0-py3-none-any.whl.asc pyiceberg-0.4.0-py3-none-any.whl
 ```
 
 ## Verifying checksums
 
 ```sh
-shasum -a 512 pyiceberg-0.2.0rc0.tar.gz
+shasum -a 512 --check pyiceberg-0.4.0-py3-none-any.whl.sha512
 ```
 
 ## Verifying License Documentation
 
 ```sh
-tar xzf pyiceberg-0.2.0rc0.tar.gztar
-cd pyiceberg-0.2.0
+tar xzf pyiceberg-0.4.0.tar.gz
+cd pyiceberg-0.4.0
 ```
 
 Run RAT checks to validate license header:

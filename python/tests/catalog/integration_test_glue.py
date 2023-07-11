@@ -35,6 +35,7 @@ from tests.conftest import clean_up, get_bucket_name, get_s3_path
 
 # The number of tables/databases used in list_table/namespace test
 LIST_TEST_NUMBER = 2
+CATALOG_NAME = "glue"
 
 
 @pytest.fixture(name="glue", scope="module")
@@ -45,7 +46,7 @@ def fixture_glue_client() -> boto3.client:
 @pytest.fixture(name="test_catalog", scope="module")
 def fixture_test_catalog() -> Generator[Catalog, None, None]:
     """The pre- and post-setting of aws integration test."""
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(get_bucket_name()))
+    test_catalog = GlueCatalog(CATALOG_NAME, warehouse=get_s3_path(get_bucket_name()))
     yield test_catalog
     clean_up(test_catalog)
 
@@ -57,7 +58,7 @@ def test_create_table(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested, get_s3_path(get_bucket_name(), database_name, table_name))
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (CATALOG_NAME,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
@@ -78,7 +79,7 @@ def test_create_table_with_default_location(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (CATALOG_NAME,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
@@ -125,11 +126,11 @@ def test_rename_table(
     new_table_name = f"rename-{table_name}"
     identifier = (database_name, table_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (CATALOG_NAME,) + identifier
     new_identifier = (new_database_name, new_table_name)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
-    assert new_table.identifier == new_identifier
+    assert new_table.identifier == (CATALOG_NAME,) + new_identifier
     assert new_table.metadata_location == table.metadata_location
     metadata_location = new_table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
@@ -141,7 +142,7 @@ def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema, table_na
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (CATALOG_NAME,) + identifier
     test_catalog.drop_table(identifier)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
@@ -154,7 +155,7 @@ def test_purge_table(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (CATALOG_NAME,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
     test_catalog.purge_table(identifier)
