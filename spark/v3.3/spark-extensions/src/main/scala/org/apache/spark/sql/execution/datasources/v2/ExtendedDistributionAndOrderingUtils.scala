@@ -19,12 +19,15 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.SparkWriteOptions
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RebalancePartitions
 import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.Sort
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.distributions.ClusteredDistribution
 import org.apache.spark.sql.connector.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution
@@ -42,7 +45,7 @@ import scala.collection.compat.immutable.ArraySeq
  */
 object ExtendedDistributionAndOrderingUtils {
 
-  def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf): LogicalPlan = write match {
+  def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf, table: Table): LogicalPlan = write match {
     case write: RequiresDistributionAndOrdering =>
       val numPartitions = write.requiredNumPartitions()
       val distribution = write.requiredDistribution match {
@@ -57,10 +60,21 @@ object ExtendedDistributionAndOrderingUtils {
         } else {
           conf.numShufflePartitions
         }
-        // the conversion to catalyst expressions above produces SortOrder expressions
-        // for OrderedDistribution and generic expressions for ClusteredDistribution
-        // this allows RepartitionByExpression to pick either range or hash partitioning
-        RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
+
+        val strictDistributionMode = table.properties()
+          .getOrDefault(SparkWriteOptions.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
+            SparkWriteOptions.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+        if(strictDistributionMode.equals("true")) {
+          // the conversion to catalyst expressions above produces SortOrder expressions
+          // for OrderedDistribution and generic expressions for ClusteredDistribution
+          // this allows RepartitionByExpression to pick either range or hash partitioning
+          RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
+        }
+        else {
+          // if strict distribution mode is not enabled, then we fallback to spark AQE
+          // to determine the number of partitions by colaesceing and un-skewing partitions
+          RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
+        }
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {
