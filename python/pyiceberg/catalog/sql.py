@@ -415,18 +415,15 @@ class SQLCatalog(Catalog):
 
         with Session(self.engine) as session:
             if removals:
-                stmt = delete(IcebergNamespaceProperties).where(
+                delete_stmt = delete(IcebergNamespaceProperties).where(
                     IcebergNamespaceProperties.catalog_name == self.name,
                     IcebergNamespaceProperties.namespace == database_name,
                     IcebergNamespaceProperties.property_key.in_(removals),
                 )
-                session.execute(stmt)
+                session.execute(delete_stmt)
 
             if updates:
-                cases = []
-                for key, value in updates.items():
-                    cases.append((IcebergNamespaceProperties.property_key == key, value))
-                stmt = (
+                update_stmt = (
                     update(IcebergNamespaceProperties)
                     .where(
                         IcebergNamespaceProperties.catalog_name == self.name,
@@ -439,19 +436,6 @@ class SQLCatalog(Catalog):
                         )
                     )
                 )
+                session.execute(update_stmt)
             session.commit()
-            # if updates:
-            #     # Build UPDATE statement
-            #     update_sql = UPDATE_NAMESPACE_PROPERTIES_START_SQL
-            #     update_sql += f" WHEN {NAMESPACE_PROPERTY_KEY} = %s THEN %s" * len(updates)
-            #     update_sql += UPDATE_NAMESPACE_PROPERTIES_END_SQL
-            #     update_sql += f"({','.join(['%s']*len(updates))})"
-
-            #     # Build UPDATE statement arguments list
-            #     update_sql_args = []
-            #     for key, value in updates.items():
-            #         update_sql_args.extend([key, value])
-            #     update_sql_args.extend([self.name, database_name, *updates.keys()])
-
-            #     curs.execute(update_sql, tuple(update_sql_args))
         return properties_update_summary
