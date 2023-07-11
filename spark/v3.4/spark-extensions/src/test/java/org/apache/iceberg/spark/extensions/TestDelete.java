@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,12 +44,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -522,11 +523,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic expressions",
-        AnalysisException.class,
-        "nondeterministic expressions are only allowed",
-        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("nondeterministic expressions are only allowed");
   }
 
   @Test
@@ -813,11 +813,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("CREATE TABLE parquet_table (c1 INT, c2 INT) USING parquet");
 
-    AssertHelpers.assertThrows(
-        "Delete is supported only for Iceberg tables",
-        AnalysisException.class,
-        "does not support DELETE",
-        () -> sql("DELETE FROM parquet_table WHERE c1 = -100"));
+    Assertions.assertThatThrownBy(() -> sql("DELETE FROM parquet_table WHERE c1 = -100"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("does not support DELETE");
   }
 
   @Test
@@ -1269,6 +1267,42 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
+  }
+
+  @Test
+  public void testDeleteToCustomWapBranchWithoutWhereClause() throws NoSuchTableException {
+    assumeThat(branch)
+        .as("Run only if custom WAP branch is not main")
+        .isNotNull()
+        .isNotEqualTo(SnapshotRef.MAIN_BRANCH);
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t WHERE id=1", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
   }
 
   // TODO: multiple stripes for ORC

@@ -50,112 +50,118 @@ def test_false() -> None:
 
 
 def test_is_null() -> None:
-    assert IsNull("x") == parser.parse("x is null")
-    assert IsNull("x") == parser.parse("x IS NULL")
+    assert IsNull("foo") == parser.parse("foo is null")
+    assert IsNull("foo") == parser.parse("foo IS NULL")
 
 
 def test_not_null() -> None:
-    assert NotNull("x") == parser.parse("x is not null")
-    assert NotNull("x") == parser.parse("x IS NOT NULL")
+    assert NotNull("foo") == parser.parse("foo is not null")
+    assert NotNull("foo") == parser.parse("foo IS NOT NULL")
 
 
 def test_is_nan() -> None:
-    assert IsNaN("x") == parser.parse("x is nan")
-    assert IsNaN("x") == parser.parse("x IS NAN")
+    assert IsNaN("foo") == parser.parse("foo is nan")
+    assert IsNaN("foo") == parser.parse("foo IS NAN")
 
 
 def test_not_nan() -> None:
-    assert NotNaN("x") == parser.parse("x is not nan")
-    assert NotNaN("x") == parser.parse("x IS NOT NaN")
+    assert NotNaN("foo") == parser.parse("foo is not nan")
+    assert NotNaN("foo") == parser.parse("foo IS NOT NaN")
 
 
 def test_less_than() -> None:
-    assert LessThan("x", 5) == parser.parse("x < 5")
-    assert LessThan("x", "a") == parser.parse("'a' > x")
+    assert LessThan("foo", 5) == parser.parse("foo < 5")
+    assert LessThan("foo", "a") == parser.parse("'a' > foo")
 
 
 def test_less_than_or_equal() -> None:
-    assert LessThanOrEqual("x", 5) == parser.parse("x <= 5")
-    assert LessThanOrEqual("x", "a") == parser.parse("'a' >= x")
+    assert LessThanOrEqual("foo", 5) == parser.parse("foo <= 5")
+    assert LessThanOrEqual("foo", "a") == parser.parse("'a' >= foo")
 
 
 def test_greater_than() -> None:
-    assert GreaterThan("x", 5) == parser.parse("x > 5")
-    assert GreaterThan("x", "a") == parser.parse("'a' < x")
+    assert GreaterThan("foo", 5) == parser.parse("foo > 5")
+    assert GreaterThan("foo", "a") == parser.parse("'a' < foo")
 
 
 def test_greater_than_or_equal() -> None:
-    assert GreaterThanOrEqual("x", 5) == parser.parse("x <= 5")
-    assert GreaterThanOrEqual("x", "a") == parser.parse("'a' >= x")
+    assert GreaterThanOrEqual("foo", 5) == parser.parse("foo <= 5")
+    assert GreaterThanOrEqual("foo", "a") == parser.parse("'a' >= foo")
 
 
 def test_equal_to() -> None:
-    assert EqualTo("x", 5) == parser.parse("x = 5")
-    assert EqualTo("x", "a") == parser.parse("'a' = x")
-    assert EqualTo("x", "a") == parser.parse("x == 'a'")
-    assert EqualTo("x", 5) == parser.parse("5 == x")
+    assert EqualTo("foo", 5) == parser.parse("foo = 5")
+    assert EqualTo("foo", "a") == parser.parse("'a' = foo")
+    assert EqualTo("foo", "a") == parser.parse("foo == 'a'")
+    assert EqualTo("foo", 5) == parser.parse("5 == foo")
 
 
 def test_not_equal_to() -> None:
-    assert NotEqualTo("x", 5) == parser.parse("x != 5")
-    assert NotEqualTo("x", "a") == parser.parse("'a' != x")
-    assert NotEqualTo("x", "a") == parser.parse("x <> 'a'")
-    assert NotEqualTo("x", 5) == parser.parse("5 <> x")
+    assert NotEqualTo("foo", 5) == parser.parse("foo != 5")
+    assert NotEqualTo("foo", "a") == parser.parse("'a' != foo")
+    assert NotEqualTo("foo", "a") == parser.parse("foo <> 'a'")
+    assert NotEqualTo("foo", 5) == parser.parse("5 <> foo")
 
 
 def test_in() -> None:
-    assert In("x", {5, 6, 7}) == parser.parse("x in (5, 6, 7)")
-    assert In("x", {"a", "b", "c"}) == parser.parse("x IN ('a', 'b', 'c')")
+    assert In("foo", {5, 6, 7}) == parser.parse("foo in (5, 6, 7)")
+    assert In("foo", {"a", "b", "c"}) == parser.parse("foo IN ('a', 'b', 'c')")
 
 
 def test_in_different_types() -> None:
     with pytest.raises(ParseException):
-        parser.parse("x in (5, 'a')")
+        parser.parse("foo in (5, 'a')")
 
 
 def test_not_in() -> None:
-    assert NotIn("x", {5, 6, 7}) == parser.parse("x not in (5, 6, 7)")
-    assert NotIn("x", {"a", "b", "c"}) == parser.parse("x NOT IN ('a', 'b', 'c')")
+    assert NotIn("foo", {5, 6, 7}) == parser.parse("foo not in (5, 6, 7)")
+    assert NotIn("foo", {"a", "b", "c"}) == parser.parse("foo NOT IN ('a', 'b', 'c')")
 
 
 def test_not_in_different_types() -> None:
     with pytest.raises(ParseException):
-        parser.parse("x not in (5, 'a')")
+        parser.parse("foo not in (5, 'a')")
 
 
 def test_simple_and() -> None:
-    assert And(GreaterThanOrEqual("x", 5), LessThan("x", 10)) == parser.parse("5 <= x and x < 10")
+    assert And(GreaterThanOrEqual("foo", 5), LessThan("foo", 10)) == parser.parse("5 <= foo and foo < 10")
 
 
 def test_and_with_not() -> None:
-    assert And(Not(GreaterThanOrEqual("x", 5)), LessThan("x", 10)) == parser.parse("not 5 <= x and x < 10")
-    assert And(GreaterThanOrEqual("x", 5), Not(LessThan("x", 10))) == parser.parse("5 <= x and not x < 10")
+    assert And(Not(GreaterThanOrEqual("foo", 5)), LessThan("foo", 10)) == parser.parse("not 5 <= foo and foo < 10")
+    assert And(GreaterThanOrEqual("foo", 5), Not(LessThan("foo", 10))) == parser.parse("5 <= foo and not foo < 10")
 
 
 def test_or_with_not() -> None:
-    assert Or(Not(LessThan("x", 5)), GreaterThan("x", 10)) == parser.parse("not x < 5 or 10 < x")
-    assert Or(LessThan("x", 5), Not(GreaterThan("x", 10))) == parser.parse("x < 5 or not 10 < x")
+    assert Or(Not(LessThan("foo", 5)), GreaterThan("foo", 10)) == parser.parse("not foo < 5 or 10 < foo")
+    assert Or(LessThan("foo", 5), Not(GreaterThan("foo", 10))) == parser.parse("foo < 5 or not 10 < foo")
 
 
 def test_simple_or() -> None:
-    assert Or(LessThan("x", 5), GreaterThan("x", 10)) == parser.parse("x < 5 or 10 < x")
+    assert Or(LessThan("foo", 5), GreaterThan("foo", 10)) == parser.parse("foo < 5 or 10 < foo")
 
 
 def test_and_or_without_parens() -> None:
-    assert Or(And(NotNull("x"), LessThan("x", 5)), GreaterThan("x", 10)) == parser.parse("x is not null and x < 5 or 10 < x")
-    assert Or(IsNull("x"), And(GreaterThanOrEqual("x", 5), LessThan("x", 10))) == parser.parse("x is null or 5 <= x and x < 10")
+    assert Or(And(NotNull("foo"), LessThan("foo", 5)), GreaterThan("foo", 10)) == parser.parse(
+        "foo is not null and foo < 5 or 10 < foo"
+    )
+    assert Or(IsNull("foo"), And(GreaterThanOrEqual("foo", 5), LessThan("foo", 10))) == parser.parse(
+        "foo is null or 5 <= foo and foo < 10"
+    )
 
 
 def test_and_or_with_parens() -> None:
-    assert And(NotNull("x"), Or(LessThan("x", 5), GreaterThan("x", 10))) == parser.parse("x is not null and (x < 5 or 10 < x)")
-    assert Or(IsNull("x"), And(GreaterThanOrEqual("x", 5), Not(LessThan("x", 10)))) == parser.parse(
-        "(x is null) or (5 <= x) and not(x < 10)"
+    assert And(NotNull("foo"), Or(LessThan("foo", 5), GreaterThan("foo", 10))) == parser.parse(
+        "foo is not null and (foo < 5 or 10 < foo)"
+    )
+    assert Or(IsNull("foo"), And(GreaterThanOrEqual("foo", 5), Not(LessThan("foo", 10)))) == parser.parse(
+        "(foo is null) or (5 <= foo) and not(foo < 10)"
     )
 
 
 def test_starts_with() -> None:
-    assert StartsWith("x", "data") == parser.parse("x LIKE 'data'")
+    assert StartsWith("foo", "data") == parser.parse("foo LIKE 'data'")
 
 
 def test_not_starts_with() -> None:
-    assert NotStartsWith("x", "data") == parser.parse("x NOT LIKE 'data'")
+    assert NotStartsWith("foo", "data") == parser.parse("foo NOT LIKE 'data'")

@@ -671,11 +671,9 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainZeroSnapshots() {
-    AssertHelpers.assertThrows(
-        "Should fail retain 0 snapshots " + "because number of snapshots to retain cannot be zero",
-        IllegalArgumentException.class,
-        "Number of snapshots to retain must be at least 1, cannot be: 0",
-        () -> removeSnapshots(table).retainLast(0).commit());
+    Assertions.assertThatThrownBy(() -> removeSnapshots(table).retainLast(0).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Number of snapshots to retain must be at least 1, cannot be: 0");
   }
 
   @Test
@@ -1039,11 +1037,9 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about expiring snapshots",
-        ValidationException.class,
-        "Cannot expire snapshots: GC is disabled",
-        () -> table.expireSnapshots());
+    Assertions.assertThatThrownBy(() -> table.expireSnapshots())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot expire snapshots: GC is disabled");
   }
 
   @Test
@@ -1231,16 +1227,15 @@ public class TestRemoveSnapshots extends TableTestBase {
     waitUntilAfter(table.currentSnapshot().timestampMillis());
     RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
 
-    AssertHelpers.assertThrows(
-        "Should fail removing snapshots and files when there is more than 1 ref",
-        UnsupportedOperationException.class,
-        "Cannot incrementally clean files for tables with more than 1 ref",
-        () ->
-            removeSnapshots
-                .withIncrementalCleanup(true)
-                .expireOlderThan(table.currentSnapshot().timestampMillis())
-                .cleanExpiredFiles(true)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                removeSnapshots
+                    .withIncrementalCleanup(true)
+                    .expireOlderThan(table.currentSnapshot().timestampMillis())
+                    .cleanExpiredFiles(true)
+                    .commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot incrementally clean files for tables with more than 1 ref");
   }
 
   @Test
@@ -1330,11 +1325,10 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     table.manageSnapshots().createBranch("branch", snapshotId).commit();
 
-    AssertHelpers.assertThrows(
-        "Should fail removing snapshot when it is still referenced",
-        IllegalArgumentException.class,
-        "Cannot expire 2. Still referenced by refs: [branch]",
-        () -> removeSnapshots(table).expireSnapshotId(snapshotId).commit());
+    Assertions.assertThatThrownBy(
+            () -> removeSnapshots(table).expireSnapshotId(snapshotId).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot expire 2. Still referenced by refs: [branch]");
   }
 
   @Test
@@ -1348,11 +1342,10 @@ public class TestRemoveSnapshots extends TableTestBase {
     // commit another snapshot so the first one isn't referenced by main
     table.newAppend().appendFile(FILE_B).commit();
 
-    AssertHelpers.assertThrows(
-        "Should fail removing snapshot when it is still referenced",
-        IllegalArgumentException.class,
-        "Cannot expire 1. Still referenced by refs: [tag]",
-        () -> removeSnapshots(table).expireSnapshotId(snapshotId).commit());
+    Assertions.assertThatThrownBy(
+            () -> removeSnapshots(table).expireSnapshotId(snapshotId).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot expire 1. Still referenced by refs: [tag]");
   }
 
   @Test

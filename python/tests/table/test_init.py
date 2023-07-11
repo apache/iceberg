@@ -67,11 +67,6 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
     )
 
 
-@pytest.fixture
-def static_table(metadata_location: str) -> StaticTable:
-    return StaticTable.from_metadata(metadata_location)
-
-
 def test_schema(table: Table) -> None:
     assert table.schema() == Schema(
         NestedField(field_id=1, name="x", field_type=LongType(), required=True),
@@ -260,7 +255,14 @@ def test_table_scan_projection_unknown_column(table: Table) -> None:
     assert "Could not find column: 'a'" in str(exc_info.value)
 
 
-def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> None:
+def test_static_table_same_as_table(table: Table, metadata_location: str) -> None:
+    static_table = StaticTable.from_metadata(metadata_location)
+    assert isinstance(static_table, Table)
+    assert static_table.metadata == table.metadata
+
+
+def test_static_table_gz_same_as_table(table: Table, metadata_location_gz: str) -> None:
+    static_table = StaticTable.from_metadata(metadata_location_gz)
     assert isinstance(static_table, Table)
     assert static_table.metadata == table.metadata
 

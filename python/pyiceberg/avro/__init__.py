@@ -14,3 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import struct
+
+STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
+STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double

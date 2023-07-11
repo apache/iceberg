@@ -35,6 +35,7 @@ import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -55,11 +56,66 @@ public class TestIcebergSourceReader {
     TestingReaderOutput<RowData> readerOutput = new TestingReaderOutput<>();
     TestingMetricGroup metricGroup = new TestingMetricGroup();
     TestingReaderContext readerContext = new TestingReaderContext(new Configuration(), metricGroup);
-    IcebergSourceReader reader = createReader(metricGroup, readerContext);
+    IcebergSourceReader reader = createReader(metricGroup, readerContext, null);
     reader.start();
 
     testOneSplitFetcher(reader, readerOutput, metricGroup, 1);
     testOneSplitFetcher(reader, readerOutput, metricGroup, 2);
+  }
+
+  @Test
+  public void testReaderOrder() throws Exception {
+    // Create 2 splits
+    List<List<Record>> recordBatchList1 =
+        ReaderUtil.createRecordBatchList(0L, TestFixtures.SCHEMA, 1, 1);
+    CombinedScanTask task1 =
+        ReaderUtil.createCombinedScanTask(
+            recordBatchList1, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+
+    List<List<Record>> recordBatchList2 =
+        ReaderUtil.createRecordBatchList(1L, TestFixtures.SCHEMA, 1, 1);
+    CombinedScanTask task2 =
+        ReaderUtil.createCombinedScanTask(
+            recordBatchList2, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+
+    // Sort the splits in one way
+    List<RowData> rowDataList1 =
+        read(
+            Arrays.asList(
+                IcebergSourceSplit.fromCombinedScanTask(task1),
+                IcebergSourceSplit.fromCombinedScanTask(task2)),
+            2);
+
+    // Reverse the splits
+    List<RowData> rowDataList2 =
+        read(
+            Arrays.asList(
+                IcebergSourceSplit.fromCombinedScanTask(task2),
+                IcebergSourceSplit.fromCombinedScanTask(task1)),
+            2);
+
+    // Check that the order of the elements is not changed
+    Assert.assertEquals(rowDataList1.get(0), rowDataList2.get(0));
+    Assert.assertEquals(rowDataList1.get(1), rowDataList2.get(1));
+  }
+
+  private List<RowData> read(List<IcebergSourceSplit> splits, long expected) throws Exception {
+    TestingMetricGroup metricGroup = new TestingMetricGroup();
+    TestingReaderContext readerContext = new TestingReaderContext(new Configuration(), metricGroup);
+    // Using IdBasedComparator, so we can have a deterministic order of the splits
+    IcebergSourceReader reader = createReader(metricGroup, readerContext, new IdBasedComparator());
+    reader.start();
+
+    reader.addSplits(splits);
+    TestingReaderOutput<RowData> readerOutput = new TestingReaderOutput<>();
+    while (readerOutput.getEmittedRecords().size() < expected) {
+      reader.pollNext(readerOutput);
+    }
+
+    reader.pollNext(readerOutput);
+
+    Assert.assertEquals(expected, readerOutput.getEmittedRecords().size());
+    return readerOutput.getEmittedRecords();
   }
 
   private void testOneSplitFetcher(
@@ -96,7 +152,9 @@ public class TestIcebergSourceReader {
   }
 
   private IcebergSourceReader createReader(
-      MetricGroup metricGroup, SourceReaderContext readerContext) {
+      MetricGroup metricGroup,
+      SourceReaderContext readerContext,
+      SerializableComparator<IcebergSourceSplit> splitComparator) {
     IcebergSourceReaderMetrics readerMetrics =
         new IcebergSourceReaderMetrics(metricGroup, "db.tbl");
     RowDataReaderFunction readerFunction =
@@ -109,6 +167,13 @@ public class TestIcebergSourceReader {
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
             new PlaintextEncryptionManager(),
             Collections.emptyList());
-    return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
+    return new IcebergSourceReader<>(readerMetrics, readerFunction, splitComparator, readerContext);
+  }
+
+  private static class IdBasedComparator implements SerializableComparator<IcebergSourceSplit> {
+    @Override
+    public int compare(IcebergSourceSplit o1, IcebergSourceSplit o2) {
+      return o1.splitId().compareTo(o2.splitId());
+    }
   }
 }

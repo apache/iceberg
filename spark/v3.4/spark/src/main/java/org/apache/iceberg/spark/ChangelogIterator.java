@@ -20,8 +20,10 @@ package org.apache.iceberg.spark;
 
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
@@ -35,14 +37,26 @@ public abstract class ChangelogIterator implements Iterator<Row> {
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
+  private final StructType rowType;
 
   protected ChangelogIterator(Iterator<Row> rowIterator, StructType rowType) {
     this.rowIterator = rowIterator;
+    this.rowType = rowType;
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
   }
 
   protected int changeTypeIndex() {
     return changeTypeIndex;
+  }
+
+  protected StructType rowType() {
+    return rowType;
+  }
+
+  protected String changeType(Row row) {
+    String changeType = row.getString(changeTypeIndex());
+    Preconditions.checkNotNull(changeType, "Change type should not be null");
+    return changeType;
   }
 
   protected Iterator<Row> rowIterator() {
@@ -79,7 +93,35 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
+  public static Iterator<Row> removeNetCarryovers(Iterator<Row> rowIterator, StructType rowType) {
+    ChangelogIterator changelogIterator = new RemoveNetCarryoverIterator(rowIterator, rowType);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
+  }
+
+  protected boolean isSameRecord(Row currentRow, Row nextRow, int[] indicesToIdentifySameRow) {
+    for (int idx : indicesToIdentifySameRow) {
+      if (isDifferentValue(currentRow, nextRow, idx)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
     return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
+  }
+
+  protected static int[] generateIndicesToIdentifySameRow(
+      int totalColumnCount, Set<Integer> metadataColumnIndices) {
+    int[] indices = new int[totalColumnCount - metadataColumnIndices.size()];
+
+    for (int i = 0, j = 0; i < indices.length; i++) {
+      if (!metadataColumnIndices.contains(i)) {
+        indices[j] = i;
+        j++;
+      }
+    }
+    return indices;
   }
 }
