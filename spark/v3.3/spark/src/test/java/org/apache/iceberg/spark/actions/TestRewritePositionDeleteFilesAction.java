@@ -136,7 +136,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testUnpartitioned() throws Exception {
     Table table = createTableUnpartitioned(2, SCALE);
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(2, dataFiles.size());
 
@@ -170,7 +170,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   public void testRewriteAll() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
 
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
 
@@ -206,7 +206,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   public void testRewriteToSmallerTarget() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
 
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
 
@@ -243,7 +243,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   public void testRemoveDanglingDeletes() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
 
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(
         table,
         2,
@@ -288,7 +288,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   public void testSomePartitionsDanglingDeletes() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
 
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
 
@@ -340,7 +340,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testPartitionEvolutionAdd() throws Exception {
     Table table = createTableUnpartitioned(2, SCALE);
-    List<DataFile> unpartitionedDataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> unpartitionedDataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, unpartitionedDataFiles);
     Assert.assertEquals(2, unpartitionedDataFiles.size());
 
@@ -355,7 +355,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     table.updateSpec().addField("c1").commit();
     writeRecords(table, 2, SCALE, 2);
     List<DataFile> partitionedDataFiles =
-        except(TestHelpers.dataFiles(table, true), unpartitionedDataFiles);
+        except(TestHelpers.dataFiles(table), unpartitionedDataFiles);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, partitionedDataFiles);
     Assert.assertEquals(2, partitionedDataFiles.size());
 
@@ -392,7 +392,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testPartitionEvolutionRemove() throws Exception {
     Table table = createTablePartitioned(2, 2, SCALE);
-    List<DataFile> dataFilesUnpartitioned = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFilesUnpartitioned = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFilesUnpartitioned);
     Assert.assertEquals(2, dataFilesUnpartitioned.size());
 
@@ -403,7 +403,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
 
     writeRecords(table, 2, SCALE);
     List<DataFile> dataFilesPartitioned =
-        except(TestHelpers.dataFiles(table, true), dataFilesUnpartitioned);
+        except(TestHelpers.dataFiles(table), dataFilesUnpartitioned);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFilesPartitioned);
     Assert.assertEquals(2, dataFilesPartitioned.size());
 
@@ -440,7 +440,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testSchemaEvolution() throws Exception {
     Table table = createTablePartitioned(2, 2, SCALE);
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table, true);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(2, dataFiles.size());
 
@@ -452,7 +452,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
 
     int newColId = table.schema().findField("c4").fieldId();
     List<DataFile> newSchemaDataFiles =
-        TestHelpers.dataFiles(table, true).stream()
+        TestHelpers.dataFiles(table).stream()
             .filter(f -> f.upperBounds().containsKey(newColId))
             .collect(Collectors.toList());
     writePosDeletesForFiles(table, 2, DELETES_SCALE, newSchemaDataFiles);
