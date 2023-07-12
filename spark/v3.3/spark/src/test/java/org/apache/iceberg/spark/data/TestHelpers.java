@@ -783,26 +783,17 @@ public class TestHelpers {
     return table.currentSnapshot().deleteManifests(table.io());
   }
 
-  public static Set<DataFile> uniqueDataFiles(Table table) {
-    return uniqueDataFiles(table, null);
+  public static List<DataFile> dataFiles(Table table) {
+    return dataFiles(table, null);
   }
 
-  public static Set<DataFile> uniqueDataFiles(Table table, String branch) {
-    Set<DataFile> dataFiles = Sets.newHashSet();
+  public static List<DataFile> dataFiles(Table table, String branch) {
     TableScan scan = table.newScan();
     if (branch != null) {
       scan.useRef(branch);
     }
 
-    for (FileScanTask task : scan.planFiles()) {
-      dataFiles.add(task.file());
-    }
-
-    return dataFiles;
-  }
-
-  public static List<DataFile> dataFiles(Table table) {
-    CloseableIterable<FileScanTask> tasks = table.newScan().includeColumnStats().planFiles();
+    CloseableIterable<FileScanTask> tasks = scan.includeColumnStats().planFiles();
     return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 

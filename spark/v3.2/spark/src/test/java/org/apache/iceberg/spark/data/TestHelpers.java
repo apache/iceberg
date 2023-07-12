@@ -49,6 +49,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -782,18 +783,17 @@ public class TestHelpers {
     return table.currentSnapshot().deleteManifests(table.io());
   }
 
-  public static Set<DataFile> uniqueDataFiles(Table table) {
-    Set<DataFile> dataFiles = Sets.newHashSet();
-
-    for (FileScanTask task : table.newScan().planFiles()) {
-      dataFiles.add(task.file());
-    }
-
-    return dataFiles;
+  public static List<DataFile> dataFiles(Table table) {
+    return dataFiles(table, null);
   }
 
-  public static List<DataFile> dataFiles(Table table) {
-    CloseableIterable<FileScanTask> tasks = table.newScan().includeColumnStats().planFiles();
+  public static List<DataFile> dataFiles(Table table, String branch) {
+    TableScan scan = table.newScan();
+    if (branch != null) {
+      scan.useRef(branch);
+    }
+
+    CloseableIterable<FileScanTask> tasks = scan.includeColumnStats().planFiles();
     return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
