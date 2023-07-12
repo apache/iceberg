@@ -107,7 +107,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "orc",
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
-        SnapshotRef.MAIN_BRANCH
+        SnapshotRef.MAIN_BRANCH,
+        false
       },
       {
         "testhive",
@@ -119,6 +120,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         null,
+        false
       },
       {
         "testhadoop",
@@ -127,7 +129,29 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "parquet",
         RANDOM.nextBoolean(),
         WRITE_DISTRIBUTION_MODE_HASH,
-        null
+        null,
+        false
+      },
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "false",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+        "avro",
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        "test",
+        false
       },
       {
         "spark_catalog",
