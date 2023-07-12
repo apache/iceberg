@@ -362,4 +362,8 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+  // Controls whether the set distribution mode has to be followed or not.
+  public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING =
+      "strict-table-distribution-and-ordering";
+  public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = "true";
 }

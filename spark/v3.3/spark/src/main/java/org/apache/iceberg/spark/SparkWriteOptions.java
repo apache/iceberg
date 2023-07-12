@@ -68,11 +68,7 @@ public class SparkWriteOptions {
   // operation
   public static final String USE_TABLE_DISTRIBUTION_AND_ORDERING =
       "use-table-distribution-and-ordering";
-  // Controls whether the set distribution mode has to be followed or not.
-  public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING =
-      "strict-table-distribution-and-ordering";
   public static final boolean USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = true;
-  public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = "true";
   public static final String MERGE_SCHEMA = "merge-schema";
   public static final String SPARK_MERGE_SCHEMA = "mergeSchema";
   public static final boolean MERGE_SCHEMA_DEFAULT = false;

@@ -19,7 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.iceberg.spark.SparkWriteOptions
+import org.apache.iceberg.TableProperties
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.expressions.SortOrder
@@ -62,8 +62,8 @@ object ExtendedDistributionAndOrderingUtils {
         }
 
         val strictDistributionMode = table.properties()
-          .getOrDefault(SparkWriteOptions.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            SparkWriteOptions.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+          .getOrDefault(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
+            TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         if(strictDistributionMode.equals("true")) {
           // the conversion to catalyst expressions above produces SortOrder expressions
           // for OrderedDistribution and generic expressions for ClusteredDistribution
