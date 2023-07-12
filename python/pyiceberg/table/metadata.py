@@ -102,7 +102,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data[CURRENT_SNAPSHOT_ID] == None:
+        if data[CURRENT_SNAPSHOT_ID] is None:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
             data[CURRENT_SNAPSHOT_ID] = INITIAL_SNAPSHOT_ID
