@@ -423,19 +423,23 @@ class SqlCatalog(Catalog):
                 session.execute(delete_stmt)
 
             if updates:
-                update_stmt = (
-                    update(IcebergNamespaceProperties)
-                    .where(
-                        IcebergNamespaceProperties.catalog_name == self.name,
-                        IcebergNamespaceProperties.namespace == database_name,
-                        IcebergNamespaceProperties.property_key.in_([*updates.keys()]),
-                    )
-                    .values(
-                        case(
-                            updates, value=IcebergNamespaceProperties.property_key, else_=IcebergNamespaceProperties.property_key
-                        )
-                    )
+                # SQLAlchemy does not (yet) support engine agnostic UPSERT
+                # https://docs.sqlalchemy.org/en/20/orm/queryguide/dml.html#orm-upsert-statements
+                # This is not a problem since it runs in a single transaction
+                delete_stmt = delete(IcebergNamespaceProperties).where(
+                    IcebergNamespaceProperties.catalog_name == self.name,
+                    IcebergNamespaceProperties.namespace == database_name,
+                    IcebergNamespaceProperties.property_key.in_(set(updates.keys())),
                 )
-                session.execute(update_stmt)
+                session.execute(delete_stmt)
+                insert_stmt = insert(IcebergNamespaceProperties)
+                for property_key, property_value in updates.items():
+                    insert_stmt = insert_stmt.values(
+                        catalog_name=self.name,
+                        namespace=database_name,
+                        property_key=property_key,
+                        property_value=property_value
+                    )
+                session.execute(insert_stmt)
             session.commit()
         return properties_update_summary
