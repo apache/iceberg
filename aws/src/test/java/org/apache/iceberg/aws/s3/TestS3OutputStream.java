@@ -19,9 +19,6 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doThrow;
@@ -255,7 +252,8 @@ public class TestS3OutputStream {
       for (int i = 0; i < uploadPartRequests.size(); ++i) {
         int offset = i * FIVE_MBS;
         int len = (i + 1) * FIVE_MBS - 1 > data.length ? data.length - offset : FIVE_MBS;
-        assertEquals(getDigest(data, offset, len), uploadPartRequests.get(i).contentMD5());
+        Assertions.assertThat(uploadPartRequests.get(i).contentMD5())
+            .isEqualTo(getDigest(data, offset, len));
       }
     }
   }
@@ -264,7 +262,8 @@ public class TestS3OutputStream {
       byte[] data, ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
     if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
-      assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
+      Assertions.assertThat(putObjectRequests.get(0).contentMD5())
+          .isEqualTo(getDigest(data, 0, data.length));
     }
   }
 
@@ -272,7 +271,7 @@ public class TestS3OutputStream {
     if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       String tagging = putObjectRequests.get(0).tagging();
-      assertEquals(getTags(properties.writeTags()), tagging);
+      Assertions.assertThat(getTags(properties.writeTags())).isEqualTo(tagging);
     }
   }
 
@@ -286,7 +285,7 @@ public class TestS3OutputStream {
       md5.update(data, offset, length);
       return BinaryUtils.toBase64(md5.digest());
     } catch (NoSuchAlgorithmException e) {
-      fail(String.format("Failed to get MD5 MessageDigest. %s", e));
+      Assertions.fail("Failed to get MD5 MessageDigest. %s", e);
     }
     return null;
   }
@@ -295,11 +294,11 @@ public class TestS3OutputStream {
     try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
-        assertEquals(data.length, stream.getPos());
+        Assertions.assertThat(stream.getPos()).isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           stream.write(data[i]);
-          assertEquals(i + 1, stream.getPos());
+          Assertions.assertThat(stream.getPos()).isEqualTo(i + 1);
         }
       }
     } catch (IOException e) {
@@ -307,11 +306,11 @@ public class TestS3OutputStream {
     }
 
     byte[] actual = readS3Data(uri);
-    assertArrayEquals(data, actual);
+    Assertions.assertThat(actual).isEqualTo(data);
 
     // Verify all staging files are cleaned up
     try {
-      assertEquals(0, Files.list(tmpDir).count());
+      Assertions.assertThat(Files.list(tmpDir)).isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

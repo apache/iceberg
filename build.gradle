@@ -500,6 +500,7 @@ project(':iceberg-aws') {
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
     testImplementation 'org.mock-server:mockserver-netty'
     testImplementation 'org.mock-server:mockserver-client-java'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'javax.xml.bind:jaxb-api'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
@@ -915,8 +916,8 @@ project(':iceberg-snowflake') {
 
     runtimeOnly("net.snowflake:snowflake-jdbc")
 
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation 'org.mockito:mockito-junit-jupiter:3.4.6'
   }
 }
 

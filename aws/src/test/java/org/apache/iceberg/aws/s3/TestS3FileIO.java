@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -62,7 +58,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Ignore;
@@ -122,25 +117,25 @@ public class TestS3FileIO {
     random.nextBytes(expected);
 
     InputFile in = s3FileIO.newInputFile(location);
-    assertFalse(in.exists());
+    Assertions.assertThat(in.exists()).isFalse();
 
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtils.write(expected, os);
     }
 
-    assertTrue(in.exists());
+    Assertions.assertThat(in.exists()).isTrue();
     byte[] actual;
 
     try (InputStream is = in.newStream()) {
       actual = IOUtils.readFully(is, expected.length);
     }
 
-    assertArrayEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
 
     s3FileIO.deleteFile(in);
 
-    assertFalse(s3FileIO.newInputFile(location).exists());
+    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
   }
 
   @Test
@@ -162,7 +157,7 @@ public class TestS3FileIO {
   public void testDeleteEmptyList() throws IOException {
     String location = "s3://bucket/path/to/file.txt";
     InputFile in = s3FileIO.newInputFile(location);
-    assertFalse(in.exists());
+    Assertions.assertThat(in.exists()).isFalse();
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtils.write(new byte[1024 * 1024], os);
@@ -170,9 +165,9 @@ public class TestS3FileIO {
 
     s3FileIO.deleteFiles(Lists.newArrayList());
 
-    Assert.assertTrue(s3FileIO.newInputFile(location).exists());
+    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isTrue();
     s3FileIO.deleteFile(in);
-    assertFalse(s3FileIO.newInputFile(location).exists());
+    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
   }
 
   @Test
@@ -207,7 +202,7 @@ public class TestS3FileIO {
     int expectedDeleteRequests = expectedNumberOfBatchesPerBucket * numBucketsForBatchDeletion;
     verify(s3mock, times(expectedDeleteRequests)).deleteObjects((DeleteObjectsRequest) any());
     for (String path : paths) {
-      Assert.assertFalse(s3FileIO.newInputFile(path).exists());
+      Assertions.assertThat(s3FileIO.newInputFile(path).exists()).isFalse();
     }
   }
 
@@ -223,7 +218,7 @@ public class TestS3FileIO {
     byte[] data = SerializationUtils.serialize(pre);
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
-    assertEquals("s3", post.get().serviceName());
+    Assertions.assertThat(post.get().serviceName()).isEqualTo("s3");
   }
 
   @Test
@@ -239,11 +234,13 @@ public class TestS3FileIO {
               String scalePrefix = String.format("%s/%s/", prefix, scale);
 
               createRandomObjects(scalePrefix, scale);
-              assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+              Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
+                  .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
+    Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count())
+        .isEqualTo(totalFiles);
   }
 
   /**
@@ -262,7 +259,8 @@ public class TestS3FileIO {
 
           createRandomObjects(scalePrefix, scale);
           s3FileIO.deletePrefix(scalePrefix);
-          assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+          Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
+              .isEqualTo(0);
         });
   }
 
@@ -306,7 +304,7 @@ public class TestS3FileIO {
           .hasMessageStartingWith("Location does not exist");
 
       long duration = System.currentTimeMillis() - start;
-      Assert.assertTrue("Should take less than 10 seconds", duration < 10_000);
+      Assertions.assertThat(duration < 10_000).as("Should take less than 10 seconds").isTrue();
     }
   }
 
@@ -321,8 +319,8 @@ public class TestS3FileIO {
 
     String json = FileIOParser.toJson(s3FileIO);
     try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
-      Assert.assertTrue(deserialized instanceof S3FileIO);
-      Assert.assertEquals(s3FileIO.properties(), deserialized.properties());
+      Assertions.assertThat(deserialized instanceof S3FileIO).isTrue();
+      Assertions.assertThat(deserialized).isNotSameAs(s3FileIO);
     }
   }
 
@@ -334,7 +332,8 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
 
-    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
+    Assertions.assertThat(roundTripSerializedFileIO.properties())
+        .isEqualTo(testS3FileIO.properties());
   }
 
   @Test
@@ -345,7 +344,8 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of());
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
 
-    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
+    Assertions.assertThat(roundTripSerializedFileIO.properties())
+        .isEqualTo(testS3FileIO.properties());
   }
 
   @Test
@@ -356,7 +356,8 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testS3FileIO);
 
-    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
+    Assertions.assertThat(roundTripSerializedFileIO.properties())
+        .isEqualTo(testS3FileIO.properties());
   }
 
   private void createRandomObjects(String prefix, int count) {

@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-
 import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,6 +25,7 @@ import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -88,7 +85,7 @@ public class TestS3InputStream {
       SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
     in.seek(rangeStart);
-    assertEquals(rangeStart, in.getPos());
+    Assertions.assertThat(in.getPos()).isEqualTo(rangeStart);
 
     long rangeEnd = rangeStart + size;
     byte[] actual = new byte[size];
@@ -102,8 +99,9 @@ public class TestS3InputStream {
       }
     }
 
-    assertEquals(rangeEnd, in.getPos());
-    assertArrayEquals(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd), actual);
+    Assertions.assertThat(in.getPos()).isEqualTo(rangeEnd);
+    Assertions.assertThat(actual)
+        .isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
   }
 
   @Test
@@ -144,9 +142,8 @@ public class TestS3InputStream {
       throws IOException {
     in.readFully(position, buffer, offset, length);
 
-    assertArrayEquals(
-        Arrays.copyOfRange(original, offset, offset + length),
-        Arrays.copyOfRange(buffer, offset, offset + length));
+    Assertions.assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
+        .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
   }
 
   @Test
@@ -154,7 +151,9 @@ public class TestS3InputStream {
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
     SeekableInputStream closed = new S3InputStream(s3, uri);
     closed.close();
-    assertThrows(IllegalStateException.class, () -> closed.seek(0));
+    Assertions.assertThatThrownBy(() -> closed.seek(0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("already closed");
   }
 
   @Test
@@ -167,7 +166,8 @@ public class TestS3InputStream {
     try (SeekableInputStream in = new S3InputStream(s3, uri)) {
       in.seek(expected.length / 2);
       byte[] actual = IOUtils.readFully(in, expected.length / 2);
-      assertArrayEquals(Arrays.copyOfRange(expected, expected.length / 2, expected.length), actual);
+      Assertions.assertThat(actual)
+          .isEqualTo(Arrays.copyOfRange(expected, expected.length / 2, expected.length));
     }
   }
 
