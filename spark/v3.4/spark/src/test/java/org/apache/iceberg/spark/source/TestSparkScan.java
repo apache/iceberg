@@ -236,7 +236,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.IntegerType)));
+            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.DateType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -264,7 +264,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
             function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
     Predicate predicate =
         new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.IntegerType)));
+            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.DateType)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 

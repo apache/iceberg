@@ -69,7 +69,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
     @Override
     public DataType resultType() {
-      return DataTypes.IntegerType;
+      return DataTypes.DateType;
     }
   }
 

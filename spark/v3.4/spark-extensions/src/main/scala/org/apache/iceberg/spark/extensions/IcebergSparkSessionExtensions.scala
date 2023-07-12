@@ -28,10 +28,10 @@ import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
-import org.apache.spark.sql.catalyst.analysis.RewriteStaticInvoke
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
+import org.apache.spark.sql.catalyst.optimizer.RewriteStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
@@ -53,13 +53,13 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
-    extensions.injectResolutionRule { spark => RewriteStaticInvoke(spark) }
     extensions.injectCheckRule { _ => MergeIntoIcebergTableResolutionCheck }
     extensions.injectCheckRule { _ => AlignedRowLevelIcebergCommandCheck }
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }
     extensions.injectOptimizerRule { _ => ExtendedReplaceNullWithFalseInPredicate }
+    extensions.injectOptimizerRule { spark => RewriteStaticInvoke(spark) }
     // pre-CBO rules run only once and the order of the rules is important
     // - dynamic filters should be added before replacing commands with rewrite plans
     // - scans must be planned before building writes
