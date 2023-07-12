@@ -1325,6 +1325,16 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testParseMinimal() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    Assert.assertEquals(Lists.newArrayList(), parsed.snapshots());
+    Assert.assertEquals(Lists.newArrayList(), parsed.snapshotLog());
+    Assert.assertEquals(ImmutableMap.of(), parsed.properties());
+    Assert.assertEquals(Lists.newArrayList(), parsed.previousFiles());
+  }
+
+  @Test
   public void testUpdateSchemaIdentifierFields() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
