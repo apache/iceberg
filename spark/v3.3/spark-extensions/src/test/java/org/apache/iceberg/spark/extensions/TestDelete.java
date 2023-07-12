@@ -701,7 +701,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
-    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     AssertHelpers.assertThrows(
         "Delete is supported only for Iceberg tables",

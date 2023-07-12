@@ -34,7 +34,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase {
@@ -209,7 +208,21 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
   }
 
   @Test
-  @Ignore
+  public void testStrictDistributionAndOrderingEmpty() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c3)",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue(
+        table
+            .properties()
+            .get(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING)
+            .equals(null));
+  }
+
+  @Test
   public void testStrictDistributionAndOrdering() throws NoSuchTableException {
     spark.conf().set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "1");
     spark.conf().set("spark.sql.adaptive.coalescePartitions.enabled", true);
