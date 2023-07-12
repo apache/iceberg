@@ -48,7 +48,7 @@ from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
 
-class SQLCatalogBase(MappedAsDataclass, DeclarativeBase):
+class SQLCatalogBaseTable(MappedAsDataclass, DeclarativeBase):
     pass
 
 
@@ -73,7 +73,7 @@ class IcebergNamespaceProperties(SQLCatalogBase):
     property_value: Mapped[str] = mapped_column(String(1000), nullable=True)
 
 
-class SQLCatalog(Catalog):
+class SqlCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
 
@@ -194,19 +194,19 @@ class SQLCatalog(Catalog):
             NoSuchTableError: If a table with the name does not exist.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
+        database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         with Session(self.engine) as session:
-            deleted_rows = (
-                session.query(IcebergTables)
+            res = session.execute(
+                delete(IcebergTables)
                 .where(
                     IcebergTables.catalog_name == self.name,
                     IcebergTables.table_namespace == database_name,
                     IcebergTables.table_name == table_name,
                 )
-                .delete()
             )
-            if deleted_rows < 1:
-                raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
             session.commit()
+        if res.rowcount < 1:
+            raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name.
