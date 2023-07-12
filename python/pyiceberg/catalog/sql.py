@@ -7,9 +7,9 @@ from typing import (
 
 from sqlalchemy import (
     String,
-    case,
     create_engine,
     delete,
+    insert,
     select,
     union,
     update,
@@ -48,11 +48,11 @@ from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
 
-class SQLCatalogBaseTable(MappedAsDataclass, DeclarativeBase):
+class SqlCatalogBaseTable(MappedAsDataclass, DeclarativeBase):
     pass
 
 
-class IcebergTables(SQLCatalogBase):
+class IcebergTables(SqlCatalogBaseTable):
     __tablename__ = "iceberg_tables"
 
     catalog_name: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
@@ -62,7 +62,7 @@ class IcebergTables(SQLCatalogBase):
     previous_metadata_location: Mapped[str] = mapped_column(String(1000), nullable=True)
 
 
-class IcebergNamespaceProperties(SQLCatalogBase):
+class IcebergNamespaceProperties(SqlCatalogBaseTable):
     __tablename__ = "iceberg_namespace_properties"
     # Catalog minimum Namespace Properties
     NAMESPACE_MINIMAL_PROPERTIES = {"exists": "true"}
@@ -80,6 +80,12 @@ class SqlCatalog(Catalog):
         if not (uri_prop := self.properties.get("uri")):
             raise NoSuchPropertyException("SQL connection URI is required")
         self.engine = create_engine(uri_prop, echo=True)
+
+    def initialize_tables(self) -> None:
+        SqlCatalogBaseTable.metadata.create_all(self.engine)
+
+    def destroy_tables(self) -> None:
+        SqlCatalogBaseTable.metadata.drop_all(self.engine)
 
     def _convert_orm_to_iceberg(self, orm_table: IcebergTables) -> Table:
         # Check for expected properties.
@@ -197,8 +203,7 @@ class SqlCatalog(Catalog):
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         with Session(self.engine) as session:
             res = session.execute(
-                delete(IcebergTables)
-                .where(
+                delete(IcebergTables).where(
                     IcebergTables.catalog_name == self.name,
                     IcebergTables.table_namespace == database_name,
                     IcebergTables.table_name == table_name,
@@ -229,20 +234,17 @@ class SqlCatalog(Catalog):
             raise NoSuchNamespaceError(f"Namespace does not exist: {to_database_name}")
         with Session(self.engine) as session:
             try:
-                # stmt = update(IcebergTables).where(IcebergTables.catalog_name == self.name,
-                #                                    IcebergTables.table_namespace == from_database_name,
-                #                                    IcebergTables.table_name == from_table_name).values(table_namespace=to_database_name, table_name=to_table_name)
-                # result = session.execute(stmt)
-                updated_rows = (
-                    session.query(IcebergTables)
+                stmt = (
+                    update(IcebergTables)
                     .where(
                         IcebergTables.catalog_name == self.name,
                         IcebergTables.table_namespace == from_database_name,
                         IcebergTables.table_name == from_table_name,
                     )
-                    .update({"table_namespace": to_database_name, "table_name": to_table_name})
+                    .values(table_namespace=to_database_name, table_name=to_table_name)
                 )
-                if not updated_rows:
+                result = session.execute(stmt)
+                if result.rowcount < 1:
                     raise NoSuchTableError(f"Table does not exist: {from_table_name}")
                 session.commit()
             except IntegrityError as e:
@@ -435,10 +437,7 @@ class SqlCatalog(Catalog):
                 insert_stmt = insert(IcebergNamespaceProperties)
                 for property_key, property_value in updates.items():
                     insert_stmt = insert_stmt.values(
-                        catalog_name=self.name,
-                        namespace=database_name,
-                        property_key=property_key,
-                        property_value=property_value
+                        catalog_name=self.name, namespace=database_name, property_key=property_key, property_value=property_value
                     )
                 session.execute(insert_stmt)
             session.commit()

@@ -4,7 +4,7 @@ from typing import Generator, List
 import pytest
 
 from pyiceberg.catalog import Catalog
-from pyiceberg.catalog.sql import SQLCatalog, SQLCatalogBase
+from pyiceberg.catalog.sql import SqlCatalog
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -20,7 +20,7 @@ LIST_TEST_NUMBER = 2
 
 
 @pytest.fixture(name="test_catalog", scope="module")
-def fixture_test_catalog() -> Generator[SQLCatalog, None, None]:
+def fixture_test_catalog() -> Generator[SqlCatalog, None, None]:
     """The pre- and post-setting of SQL integration test."""
     os.environ["AWS_TEST_BUCKET"] = "warehouse"
     os.environ["AWS_REGION"] = "us-east-1"
@@ -34,11 +34,11 @@ def fixture_test_catalog() -> Generator[SQLCatalog, None, None]:
         "s3.access-key-id": "admin",
         "s3.secret-access-key": "password",
     }
-    test_catalog = SQLCatalog("test_sql_catalog", **props)
-    SQLCatalogBase.metadata.create_all(test_catalog.engine)
+    test_catalog = SqlCatalog("test_sql_catalog", **props)
+    test_catalog.initialize_tables()
     yield test_catalog
     clean_up(test_catalog)
-    SQLCatalogBase.metadata.drop_all(test_catalog.engine)
+    test_catalog.destroy_tables()
 
 
 @pytest.mark.integration
