@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.createPartitionedTable;
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.createUnpartitionedTable;
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.days;
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.hours;
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.months;
+import static org.apache.iceberg.spark.SystemFunPushDownHelper.years;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
@@ -32,7 +38,6 @@ import org.apache.iceberg.spark.functions.HoursFunction;
 import org.apache.iceberg.spark.functions.MonthsFunction;
 import org.apache.iceberg.spark.functions.TruncateFunction;
 import org.apache.iceberg.spark.functions.YearsFunction;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -107,7 +112,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedYears() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -135,7 +140,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedYears() throws Exception {
-    createPartitionedTable("years(ts)");
+    createPartitionedTable(spark, tableName, "years(ts)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -163,7 +168,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedMonths() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -192,7 +197,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedMonths() throws Exception {
-    createPartitionedTable("months(ts)");
+    createPartitionedTable(spark, tableName, "months(ts)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -221,7 +226,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedDays() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -249,7 +254,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedDays() throws Exception {
-    createPartitionedTable("days(ts)");
+    createPartitionedTable(spark, tableName, "days(ts)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -277,7 +282,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedHours() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -309,7 +314,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedHours() throws Exception {
-    createPartitionedTable("hours(ts)");
+    createPartitionedTable(spark, tableName, "hours(ts)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -341,7 +346,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedBucketLong() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -370,7 +375,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedBucketLong() throws Exception {
-    createPartitionedTable("bucket(5, id)");
+    createPartitionedTable(spark, tableName, "bucket(5, id)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -399,7 +404,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedBucketString() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -429,7 +434,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedBucketString() throws Exception {
-    createPartitionedTable("bucket(5, data)");
+    createPartitionedTable(spark, tableName, "bucket(5, data)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -459,7 +464,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedTruncateString() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -489,7 +494,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedTruncateString() throws Exception {
-    createPartitionedTable("truncate(4, data)");
+    createPartitionedTable(spark, tableName, "truncate(4, data)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -519,7 +524,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedIsNull() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -548,7 +553,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedIsNull() throws Exception {
-    createPartitionedTable("truncate(4, data)");
+    createPartitionedTable(spark, tableName, "truncate(4, data)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -577,7 +582,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedIsNotNull() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -606,7 +611,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedIsNotNull() throws Exception {
-    createPartitionedTable("truncate(4, data)");
+    createPartitionedTable(spark, tableName, "truncate(4, data)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -635,7 +640,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedAnd() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -674,7 +679,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedAnd() throws Exception {
-    createPartitionedTable("years(ts), bucket(5, id)");
+    createPartitionedTable(spark, tableName, "years(ts), bucket(5, id)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -713,7 +718,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testUnpartitionedOr() throws Exception {
-    createUnpartitionedTable();
+    createUnpartitionedTable(spark, tableName);
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -752,7 +757,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPartitionedOr() throws Exception {
-    createPartitionedTable("years(ts), bucket(5, id)");
+    createPartitionedTable(spark, tableName, "years(ts), bucket(5, id)");
 
     SparkScanBuilder builder = scanBuilder();
 
@@ -797,52 +802,6 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     return new SparkScanBuilder(spark, table, options);
   }
 
-  private void createUnpartitionedTable() {
-    sql("CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg", tableName);
-    insertRecords();
-  }
-
-  private void createPartitionedTable(String partitionCol) {
-    sql(
-        "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg PARTITIONED BY (%s)",
-        tableName, partitionCol);
-    insertRecords();
-  }
-
-  private void insertRecords() {
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' %s)", tableName, "read.split.target-size", "10");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(0, CAST('2017-11-22T09:20:44.294658+00:00' AS TIMESTAMP), 'data-0')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(1, CAST('2017-11-22T07:15:34.582910+00:00' AS TIMESTAMP), 'data-1')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(2, CAST('2017-11-22T06:02:09.243857+00:00' AS TIMESTAMP), 'data-2')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(3, CAST('2017-11-22T03:10:11.134509+00:00' AS TIMESTAMP), 'data-3')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(4, CAST('2017-11-22T00:34:00.184671+00:00' AS TIMESTAMP), 'data-4')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(5, CAST('2018-12-21T22:20:08.935889+00:00' AS TIMESTAMP), 'material-5')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(6, CAST('2018-12-21T21:55:30.589712+00:00' AS TIMESTAMP), 'material-6')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(7, CAST('2018-12-21T17:31:14.532797+00:00' AS TIMESTAMP), 'material-7')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(8, CAST('2018-12-21T15:21:51.237521+00:00' AS TIMESTAMP), 'material-8')");
-    sql(
-        "INSERT INTO TABLE %s VALUES %s",
-        tableName, "(9, CAST('2018-12-21T15:02:15.230570+00:00' AS TIMESTAMP), 'material-9')");
-  }
-
   private void pushFilters(ScanBuilder scan, Predicate... predicates) {
     Assertions.assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
     SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
@@ -851,21 +810,5 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   private Expression[] expressions(Expression... expressions) {
     return expressions;
-  }
-
-  private static int years(String date) {
-    return DateTimeUtil.daysToYears(DateTimeUtil.isoDateToDays(date));
-  }
-
-  private static int months(String date) {
-    return DateTimeUtil.daysToMonths(DateTimeUtil.isoDateToDays(date));
-  }
-
-  private static int days(String date) {
-    return DateTimeUtil.isoDateToDays(date);
-  }
-
-  private static int hours(String timestamp) {
-    return DateTimeUtil.microsToHours(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 }

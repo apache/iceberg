@@ -68,7 +68,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkV2Filters {
 
-  private static final Set<String> SUPPORTED_FUNCTIONS =
+  public static final Set<String> SUPPORTED_FUNCTIONS =
       ImmutableSet.of("years", "months", "days", "hours", "bucket", "truncate");
 
   private static final String TRUE = "ALWAYS_TRUE";
@@ -433,6 +433,7 @@ public class SparkV2Filters {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static UnboundTerm<Object> udfToTerm(UserDefinedScalarFunc udf) {
     switch (udf.name().toLowerCase(Locale.ROOT)) {
       case "years":

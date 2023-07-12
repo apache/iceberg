@@ -63,4 +63,9 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls whether to push down Iceberg system function
+  public static final String SYSTEM_FUNC_PUSH_DOWN_ENABLED =
+      "spark.sql.iceberg.system-function-push-down.enabled";
+  public static final boolean SYSTEM_FUNC_PUSH_DOWN_ENABLED_DEFAULT = false;
 }
