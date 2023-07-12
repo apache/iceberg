@@ -243,8 +243,6 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, "hash")
         .commit();
 
-    spark.conf().set(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING, "false");
-
     table.refresh();
     ds.writeTo(tableName).append();
     table.refresh();

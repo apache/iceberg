@@ -51,8 +51,17 @@ public class TestMergeOnReadDelete extends TestDelete {
       String fileFormat,
       Boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      String branch,
+      boolean strictDistributionMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        branch,
+        strictDistributionMode);
   }
 
   @Override

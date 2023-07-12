@@ -80,8 +80,17 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      String branch,
+      boolean strictDistributionMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        branch,
+        strictDistributionMode);
   }
 
   @BeforeClass
@@ -109,6 +118,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"salary\": 101, \"dep\": \"d1\", \"sub_dep\": \"sd1\" }\n"
             + "{ \"id\": 2, \"salary\": 200, \"dep\": \"d2\", \"sub_dep\": \"sd2\" }\n"
             + "{ \"id\": 3, \"salary\": 300, \"dep\": \"d3\", \"sub_dep\": \"sd3\"  }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     String query =
         String.format(
@@ -149,6 +159,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id BIGINT, dep STRING");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     // add a data file to the 'software' partition
     append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
@@ -201,6 +212,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
     Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView(
         "source",
@@ -232,6 +244,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testMergeIntoEmptyTargetInsertOnlyMatchingRows() {
     Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView(
         "source",
@@ -270,6 +283,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -303,6 +317,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -334,6 +349,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -364,6 +380,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -399,6 +416,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -434,6 +452,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-3\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 5, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "WITH cte1 AS (SELECT id + 1 AS id, dep FROM source) "
@@ -470,6 +489,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     String derivedSource =
         "SELECT * FROM source WHERE id = 2 "
@@ -503,6 +523,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
@@ -541,6 +562,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
@@ -581,6 +603,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoEqualityCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
@@ -623,6 +646,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
@@ -657,6 +681,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void
       testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActionsNoEqualityCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
@@ -692,6 +717,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView(
         "source",
@@ -730,6 +756,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView(
         "source",
@@ -763,6 +790,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView(
         "source",
@@ -802,6 +830,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
           tableName, WRITE_DISTRIBUTION_MODE, mode.modeName());
+      disableStrictDistributionMode(tableName, strictDistributionMode);
 
       append(
           tableName,
@@ -848,6 +877,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
           tableName, WRITE_DISTRIBUTION_MODE, mode.modeName());
+      disableStrictDistributionMode(tableName, strictDistributionMode);
 
       append(
           tableName,
@@ -896,6 +926,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
           tableName, WRITE_DISTRIBUTION_MODE, mode.modeName());
+      disableStrictDistributionMode(tableName, strictDistributionMode);
 
       append(
           tableName,
@@ -942,6 +973,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
           tableName, WRITE_DISTRIBUTION_MODE, mode.modeName());
+      disableStrictDistributionMode(tableName, strictDistributionMode);
 
       append(
           tableName,
@@ -989,6 +1021,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
           tableName, WRITE_DISTRIBUTION_MODE, mode.modeName());
+      disableStrictDistributionMode(tableName, strictDistributionMode);
 
       append(
           tableName,
@@ -1031,6 +1064,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testSelfMerge() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "MERGE INTO %s t USING %s s "
@@ -1054,6 +1088,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testSelfMergeWithCaching() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("CACHE TABLE %s", tableName);
 
@@ -1079,6 +1114,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testMergeWithSourceAsSelfSubquery() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     createOrReplaceView("source", Arrays.asList(1, null), Encoders.INT());
 

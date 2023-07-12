@@ -61,8 +61,17 @@ public class TestCopyOnWriteDelete extends TestDelete {
       String fileFormat,
       Boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      String branch,
+      boolean strictDistributionMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        branch,
+        strictDistributionMode);
   }
 
   @Override
@@ -78,6 +87,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
     Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
 
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
+
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
@@ -161,6 +172,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
   @Test
   public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
     createBranchIfNeeded();

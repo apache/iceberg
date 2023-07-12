@@ -32,8 +32,17 @@ public class TestMergeOnReadUpdate extends TestUpdate {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      String branch,
+      boolean strictDistributionMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        branch,
+        strictDistributionMode);
   }
 
   @Override

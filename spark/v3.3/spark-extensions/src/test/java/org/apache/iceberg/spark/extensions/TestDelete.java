@@ -86,8 +86,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       String fileFormat,
       Boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      String branch,
+      boolean strictDistributionMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        branch,
+        strictDistributionMode);
   }
 
   @BeforeClass
@@ -105,9 +114,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithoutScanningTable() throws Exception {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
     createBranchIfNeeded();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -143,10 +154,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFileThenMetadataDelete() throws Exception {
     Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
-
     // MOR mode: writes a delete file as null cannot be deleted by metadata
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
@@ -169,10 +180,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithFalseCondition() {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
-
+    disableStrictDistributionMode(tableName, strictDistributionMode);
     sql("DELETE FROM %s WHERE id = 1 AND id > 20", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -188,6 +200,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFromEmptyTable() {
     Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("DELETE FROM %s WHERE id IN (1)", commitTarget());
     sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
@@ -205,6 +218,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFromNonExistingCustomBranch() {
     Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
         .isInstanceOf(ValidationException.class)
@@ -214,10 +228,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testExplain() {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
-
     sql("EXPLAIN DELETE FROM %s WHERE id <=> 1", commitTarget());
 
     sql("EXPLAIN DELETE FROM %s WHERE true", commitTarget());
@@ -234,10 +248,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithAlias() {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
-
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
     assertEquals(
@@ -249,6 +263,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithDynamicFileFiltering() throws NoSuchTableException {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
     createBranchIfNeeded();
@@ -275,10 +290,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteNonExistingRecords() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
-
     sql("DELETE FROM %s AS t WHERE t.id > 10", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -305,6 +320,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithoutCondition() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
@@ -327,6 +343,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteUsingMetadataWithComplexCondition() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO %s VALUES (1, 'dep1')", tableName);
     createBranchIfNeeded();
@@ -353,6 +370,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithArbitraryPartitionPredicates() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
@@ -382,6 +400,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithNonDeterministicCondition() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
@@ -396,6 +415,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithFoldableConditions() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
@@ -435,6 +455,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithNullConditions() {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "INSERT INTO TABLE %s VALUES (0, null), (1, 'hr'), (2, 'hardware'), (null, 'hr')",
@@ -473,6 +494,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithInAndNotInConditions() {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
@@ -501,6 +523,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
 
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')",
@@ -530,6 +553,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithConditionOnNestedColumn() {
     createAndInitNestedColumnsTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", tableName);
     createBranchIfNeeded();
@@ -549,6 +573,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
@@ -596,6 +621,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithMultiColumnInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
     createBranchIfNeeded();
@@ -614,6 +640,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithNotInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
     createBranchIfNeeded();
@@ -674,6 +701,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     AssertHelpers.assertThrows(
         "Delete is supported only for Iceberg tables",
@@ -685,6 +713,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
     createBranchIfNeeded();
@@ -730,6 +759,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithNotExistsSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
     createBranchIfNeeded();
@@ -766,6 +796,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithScalarSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
     createBranchIfNeeded();
@@ -787,6 +818,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteThatRequiresGroupingBeforeWrite() throws NoSuchTableException {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
     createBranchIfNeeded();
@@ -815,6 +847,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
 
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
+
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
@@ -905,6 +939,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
 
     createAndInitUnpartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
+
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
@@ -985,6 +1021,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
     createBranchIfNeeded();
@@ -1027,6 +1064,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testDeleteWithMultipleSpecs() {
     createAndInitTable("id INT, dep STRING, category STRING");
+    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     // write an unpartitioned file
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
@@ -1073,6 +1111,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
 
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
+
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
         tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
@@ -1118,6 +1158,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
 
     createAndInitPartitionedTable();
+    disableStrictDistributionMode(tableName, strictDistributionMode);
+
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
         tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
