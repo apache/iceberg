@@ -32,6 +32,7 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -208,24 +209,22 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
   }
 
   @Test
-  public void testStrictDistributionAndOrderingEmpty() throws NoSuchTableException {
+  public void testStrictDistributionAndOrderingEmpty() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
             + "PARTITIONED BY (c3)",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        table
-            .properties()
-            .get(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING)
-            .equals(null));
+    Assert.assertNull(
+        table.properties().get(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING));
   }
 
   @Test
-  public void testStrictDistributionAndOrdering() throws NoSuchTableException {
-    spark.conf().set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "1");
+  public void testStrictDistributionAndOrderingDisabled() throws NoSuchTableException {
+    spark.conf().set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "5");
     spark.conf().set("spark.sql.adaptive.coalescePartitions.enabled", true);
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), true);
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -247,19 +246,14 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
 
     Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
 
-    Table table = validationCatalog.loadTable(tableIdent);
-
     // should automatically prepend partition columns to the local ordering after hash distribution
-    table
-        .updateProperties()
-        .set(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, "hash")
-        .commit();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')",
+        tableName, TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING);
 
-    table.refresh();
     ds.writeTo(tableName).append();
-    table.refresh();
 
+    Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue(
         table
             .properties()
@@ -268,6 +262,52 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     Assert.assertEquals(4, Iterables.size(table.currentSnapshot().addedDataFiles(table.io())));
     spark.conf().unset("spark.sql.adaptive.advisoryPartitionSizeInBytes");
     spark.conf().unset("spark.sql.adaptive.coalescePartitions.enabled");
+    spark.conf().unset(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key());
+  }
+
+  @Test
+  public void testStrictDistributionAndOrderingEnabled() throws NoSuchTableException {
+    spark.conf().set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "1");
+    spark.conf().set("spark.sql.adaptive.coalescePartitions.enabled", true);
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), true);
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c3)",
+        tableName);
+
+    List<ThreeColumnRecord> data =
+        ImmutableList.of(
+            new ThreeColumnRecord(1, null, "A"),
+            new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+            new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+            new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+            new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+            new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+            new ThreeColumnRecord(7, "BBBBBBBBBB", "A"),
+            new ThreeColumnRecord(8, "BBBBBBBBBB", "B"),
+            new ThreeColumnRecord(9, "BBBBBBBBBB", "B"),
+            new ThreeColumnRecord(10, "BBBBBBBBBB", "B"));
+
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+
+    // should automatically prepend partition columns to the local ordering after hash distribution
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')",
+        tableName, TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING);
+
+    ds.writeTo(tableName).append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue(
+        table
+            .properties()
+            .get(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING)
+            .equals("true"));
+    Assert.assertEquals(2, Iterables.size(table.currentSnapshot().addedDataFiles(table.io())));
+    spark.conf().unset("spark.sql.adaptive.advisoryPartitionSizeInBytes");
+    spark.conf().unset("spark.sql.adaptive.coalescePartitions.enabled");
+    spark.conf().unset(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key());
   }
 
   @Test
