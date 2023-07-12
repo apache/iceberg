@@ -19,7 +19,6 @@
 import math
 import os
 import tempfile
-from tempfile import TemporaryDirectory
 from typing import (
     Any,
     Dict,
@@ -33,7 +32,7 @@ import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType, LocalFileSystem
 
-from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_INT64
+from pyiceberg.avro import STRUCT_FLOAT, STRUCT_INT64
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
@@ -63,14 +62,16 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.io import InputStream, OutputStream, load_file_io
 from pyiceberg.io.pyarrow import (
-    BOUND_TRUNCATED_LENGHT,
+    DEFAULT_TRUNCATION_LENGHT,
+    MetricModeTypes,
+    MetricsMode,
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
     _read_deletes,
     expression_to_pyarrow,
     fill_parquet_file_metadata,
-    parquet_schema_to_ids,
+    match_metrics_mode,
     project_table,
     schema_to_pyarrow,
 )
@@ -1344,14 +1345,47 @@ baz: [[true,false,null]]"""
 
 
 def construct_test_table() -> pa.Buffer:
-    schema = pa.schema(
-        [
-            pa.field("strings", pa.string()),
-            pa.field("floats", pa.float64()),
-            pa.field("list", pa.list_(pa.int64())),
-            pa.field("maps", pa.map_(pa.int64(), pa.int64())),
-        ]
-    )
+    table_metadata = {
+        "format-version": 2,
+        "location": "s3://bucket/test/location",
+        "last-column-id": 7,
+        "current-schema-id": 0,
+        "schemas": [
+            {
+                "type": "struct",
+                "schema-id": 0,
+                "fields": [
+                    {"id": 1, "name": "strings", "required": False, "type": "string"},
+                    {"id": 2, "name": "floats", "required": False, "type": "float"},
+                    {
+                        "id": 3,
+                        "name": "list",
+                        "required": False,
+                        "type": {"type": "list", "element-id": 5, "element": "long", "element-required": False},
+                    },
+                    {
+                        "id": 4,
+                        "name": "maps",
+                        "required": False,
+                        "type": {
+                            "type": "map",
+                            "key-id": 6,
+                            "key": "long",
+                            "value-id": 7,
+                            "value": "long",
+                            "value-required": False,
+                        },
+                    },
+                ],
+            },
+        ],
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": []}],
+        "properties": {},
+    }
+
+    table_metadata = TableMetadataUtil.parse_obj(table_metadata)
+    arrow_schema = schema_to_pyarrow(table_metadata.schemas[0])
 
     _strings = ["zzzzzzzzzzzzzzzzzzzz", "rrrrrrrrrrrrrrrrrrrr", None, "aaaaaaaaaaaaaaaaaaaa"]
 
@@ -1373,7 +1407,7 @@ def construct_test_table() -> pa.Buffer:
             "list": _list,
             "maps": _maps,
         },
-        schema=schema,
+        schema=arrow_schema,
     )
     f = pa.BufferOutputStream()
 
@@ -1383,73 +1417,68 @@ def construct_test_table() -> pa.Buffer:
     writer.write_table(table)
     writer.close()
 
-    print(writer.writer)
-    print(writer.writer.metadata)
-
-    mapping = {"strings": 1, "floats": 2, "list.list.item": 3, "maps.key_value.key": 4, "maps.key_value.value": 5}
-
-    return f.getvalue(), metadata_collector[0], mapping
+    return f.getvalue(), metadata_collector[0], table_metadata
 
 
 def test_record_count() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert datafile.record_count == 4
 
 
 def test_file_size() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert datafile.file_size_in_bytes == len(file_bytes)
 
 
 def test_value_counts() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert len(datafile.value_counts) == 5
     assert datafile.value_counts[1] == 4
     assert datafile.value_counts[2] == 4
-    assert datafile.value_counts[3] == 10  # 3 lists with 3 items and a None value
-    assert datafile.value_counts[4] == 5
-    assert datafile.value_counts[5] == 5
+    assert datafile.value_counts[5] == 10  # 3 lists with 3 items and a None value
+    assert datafile.value_counts[6] == 5
+    assert datafile.value_counts[7] == 5
 
 
 def test_column_sizes() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert len(datafile.column_sizes) == 5
     # these values are an artifact of how the write_table encodes the columns
     assert datafile.column_sizes[1] == 116
-    assert datafile.column_sizes[2] == 119
-    assert datafile.column_sizes[3] == 151
-    assert datafile.column_sizes[4] == 117
-    assert datafile.column_sizes[5] == 117
+    assert datafile.column_sizes[2] == 89
+    assert datafile.column_sizes[5] == 151
+    assert datafile.column_sizes[6] == 117
+    assert datafile.column_sizes[7] == 117
 
 
 def test_null_and_nan_counts() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert len(datafile.null_value_counts) == 5
     assert datafile.null_value_counts[1] == 1
     assert datafile.null_value_counts[2] == 0
-    assert datafile.null_value_counts[3] == 1
-    assert datafile.null_value_counts[4] == 2
-    assert datafile.null_value_counts[5] == 2
+    assert datafile.null_value_counts[5] == 1
+    assert datafile.null_value_counts[6] == 2
+    assert datafile.null_value_counts[7] == 2
 
     # #arrow does not include this in the statistics
     # assert len(datafile.nan_value_counts)  == 3
@@ -1459,30 +1488,60 @@ def test_null_and_nan_counts() -> None:
 
 
 def test_bounds() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
-    assert len(datafile.lower_bounds) == 2
-    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)
+    assert len(datafile.lower_bounds) == 5
+    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:DEFAULT_TRUNCATION_LENGHT]
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
+    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
-    assert len(datafile.upper_bounds) == 2
-    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:BOUND_TRUNCATED_LENGHT]
-    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)
+    assert len(datafile.upper_bounds) == 5
+    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:DEFAULT_TRUNCATION_LENGHT]
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
+    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
-def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+def test_metrics_mode_parsing() -> None:
+    assert match_metrics_mode("none") == MetricsMode(MetricModeTypes.NONE)
+    assert match_metrics_mode("nOnE") == MetricsMode(MetricModeTypes.NONE)
+    assert match_metrics_mode("counts") == MetricsMode(MetricModeTypes.COUNTS)
+    assert match_metrics_mode("Counts") == MetricsMode(MetricModeTypes.COUNTS)
+    assert match_metrics_mode("full") == MetricsMode(MetricModeTypes.FULL)
+    assert match_metrics_mode("FuLl") == MetricsMode(MetricModeTypes.FULL)
+
+    with pytest.raises(AssertionError) as exc_info:
+        match_metrics_mode(" Full")
+    assert "Unsupported metrics mode  Full" in str(exc_info.value)
+
+    assert match_metrics_mode("truncate(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
+    assert match_metrics_mode("trUncatE(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
+    assert match_metrics_mode("trUncatE(7)") == MetricsMode(MetricModeTypes.TRUNCATE, 7)
+    assert match_metrics_mode("trUncatE(07)") == MetricsMode(MetricModeTypes.TRUNCATE, 7)
+
+    with pytest.raises(AssertionError) as exc_info:
+        match_metrics_mode("trUncatE(-7)")
+    assert "Unsupported metrics mode trUncatE(-7)" in str(exc_info.value)
+
+    with pytest.raises(AssertionError) as exc_info:
+        match_metrics_mode("trUncatE(0)")
+    assert "Truncation length must be larger than 0" in str(exc_info.value)
+
+
+def test_metrics_mode_none() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
     table_metadata.properties["write.metadata.metrics.default"] = "none"
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -1494,16 +1553,14 @@ def test_metrics_mode_none(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert len(datafile.upper_bounds) == 0
 
 
-def test_metrics_mode_counts(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+def test_metrics_mode_counts() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
     table_metadata.properties["write.metadata.metrics.default"] = "counts"
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -1515,16 +1572,14 @@ def test_metrics_mode_counts(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert len(datafile.upper_bounds) == 0
 
 
-def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+def test_metrics_mode_full() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
     table_metadata.properties["write.metadata.metrics.default"] = "full"
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -1533,25 +1588,29 @@ def test_metrics_mode_full(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 2
+    assert len(datafile.lower_bounds) == 5
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"
-    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
+    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
-    assert len(datafile.upper_bounds) == 2
+    assert len(datafile.upper_bounds) == 5
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"
-    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
+    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
-def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+def test_metrics_mode_non_default_trunc() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -1560,26 +1619,31 @@ def test_metrics_mode_non_default_trunc(example_table_metadata_v2: Dict[str, Any
     assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 2
+    assert len(datafile.lower_bounds) == 5
     assert datafile.lower_bounds[1].decode() == "aa"
-    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)[:2]
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)[:2]
+    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)[:2]
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)[:2]
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)[:2]
 
-    assert len(datafile.upper_bounds) == 2
+    assert len(datafile.upper_bounds) == 5
     assert datafile.upper_bounds[1].decode() == "zz"
-    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)[:2]
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)[:2]
+    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)[:2]
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)[:2]
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)[:2]
 
 
-def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+def test_column_metrics_mode() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
+    table_metadata.properties["write.metadata.metrics.column.list.element"] = "counts"
     fill_parquet_file_metadata(
         datafile,
         metadata,
-        mapping,
         len(file_bytes),
         table_metadata,
     )
@@ -1588,238 +1652,101 @@ def test_column_metrics_mode(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert len(datafile.null_value_counts) == 4
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 1
-    assert datafile.lower_bounds[2] == STRUCT_DOUBLE.pack(1.69)[:2]
+    assert len(datafile.lower_bounds) == 3
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)[:2]
+    assert 5 not in datafile.lower_bounds
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)[:2]
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)[:2]
 
-    assert len(datafile.upper_bounds) == 1
-    assert datafile.upper_bounds[2] == STRUCT_DOUBLE.pack(100)[:2]
+    assert len(datafile.upper_bounds) == 3
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)[:2]
+    assert 5 not in datafile.upper_bounds
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)[:2]
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)[:2]
 
 
 def test_offsets() -> None:
-    (file_bytes, metadata, mapping) = construct_test_table()
+    (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, mapping, len(file_bytes))
+    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert datafile.split_offsets is not None
     assert len(datafile.split_offsets) == 1
     assert datafile.split_offsets[0] == 4
 
 
-def test_dataset() -> pa.Buffer:
-    schema = pa.schema([pa.field("ints", pa.int64()), pa.field("even", pa.bool_())])
+# This is commented out for now because write_to_dataset drops the partition
+# columns making it harder to calculate the mapping from the column index to
+# datatype id
+#
+# def test_dataset() -> pa.Buffer:
 
-    _ints = [0, 2, 4, 8, 1, 3, 5, 7]
-    parity = [True, True, True, True, False, False, False, False]
+#     table_metadata = {
+#         "format-version": 2,
+#         "location": "s3://bucket/test/location",
+#         "last-column-id": 7,
+#         "current-schema-id": 0,
+#         "schemas": [
+#             {
+#                 "type": "struct",
+#                 "schema-id": 0,
+#                 "fields": [
+#                     {"id": 1, "name": "ints", "required": False, "type": "long"},
+#                     {"id": 2, "name": "even", "required": False, "type": "boolean"},
+#                 ],
+#             },
+#         ],
+#         "default-spec-id": 0,
+#         "partition-specs": [{"spec-id": 0, "fields": []}],
+#         "properties": {},
+#     }
 
-    table = pa.Table.from_pydict({"ints": _ints, "even": parity}, schema=schema)
+#     table_metadata = TableMetadataUtil.parse_obj(table_metadata)
+#     schema = schema_to_pyarrow(table_metadata.schemas[0])
 
-    visited_paths = []
+#     _ints = [0, 2, 4, 8, 1, 3, 5, 7]
+#     parity = [True, True, True, True, False, False, False, False]
 
-    def file_visitor(written_file: Any) -> None:
-        visited_paths.append(written_file)
+#     table = pa.Table.from_pydict({"ints": _ints, "even": parity}, schema=schema)
 
-    with TemporaryDirectory() as tmpdir:
-        pq.write_to_dataset(table, tmpdir, partition_cols=["even"], file_visitor=file_visitor)
+#     visited_paths = []
 
-    even = None
-    odd = None
+#     def file_visitor(written_file: Any) -> None:
+#         visited_paths.append(written_file)
 
-    assert len(visited_paths) == 2
+#     with TemporaryDirectory() as tmpdir:
+#         pq.write_to_dataset(table, tmpdir, partition_cols=["even"], file_visitor=file_visitor)
 
-    for written_file in visited_paths:
-        df = DataFile()
+#     even = None
+#     odd = None
 
-        fill_parquet_file_metadata(df, written_file.metadata, {"ints": 1, "even": 2}, written_file.size)
+#     assert len(visited_paths) == 2
 
-        if "even=true" in written_file.path:
-            even = df
+#     for written_file in visited_paths:
+#         df = DataFile()
 
-        if "even=false" in written_file.path:
-            odd = df
+#         fill_parquet_file_metadata(df, written_file.metadata, written_file.size, table_metadata)
 
-    assert even is not None
-    assert odd is not None
+#         if "even=true" in written_file.path:
+#             even = df
 
-    assert len(even.value_counts) == 1
-    assert even.value_counts[1] == 4
-    assert len(even.lower_bounds) == 1
-    assert even.lower_bounds[1] == STRUCT_INT64.pack(0)
-    assert len(even.upper_bounds) == 1
-    assert even.upper_bounds[1] == STRUCT_INT64.pack(8)
+#         if "even=false" in written_file.path:
+#             odd = df
 
-    assert len(odd.value_counts) == 1
-    assert odd.value_counts[1] == 4
-    assert len(odd.lower_bounds) == 1
-    assert odd.lower_bounds[1] == STRUCT_INT64.pack(1)
-    assert len(odd.upper_bounds) == 1
-    assert odd.upper_bounds[1] == STRUCT_INT64.pack(7)
+#     assert even is not None
+#     assert odd is not None
 
+#     assert len(even.value_counts) == 1
+#     assert even.value_counts[1] == 4
+#     assert len(even.lower_bounds) == 1
+#     assert even.lower_bounds[1] == STRUCT_INT64.pack(0)
+#     assert len(even.upper_bounds) == 1
+#     assert even.upper_bounds[1] == STRUCT_INT64.pack(8)
 
-def test_schema_mapping() -> None:
-    json_schema = """
-    {
-    "type": "struct",
-    "schema-id": 0,
-    "fields": [
-        {
-        "id": 1,
-        "name": "_8bit",
-        "required": false,
-        "type": "int"
-        },
-        {
-        "id": 2,
-        "name": "_16bit",
-        "required": false,
-        "type": "int"
-        },
-        {
-        "id": 3,
-        "name": "_32bit",
-        "required": false,
-        "type": "int"
-        },
-        {
-        "id": 4,
-        "name": "_64bit",
-        "required": false,
-        "type": "long"
-        },
-        {
-        "id": 5,
-        "name": "_float",
-        "required": false,
-        "type": "float"
-        },
-        {
-        "id": 6,
-        "name": "_double",
-        "required": false,
-        "type": "double"
-        },
-        {
-        "id": 7,
-        "name": "_decimal",
-        "required": false,
-        "type": "decimal(10, 0)"
-        },
-        {
-        "id": 8,
-        "name": "_timestamp",
-        "required": false,
-        "type": "timestamptz"
-        },
-        {
-        "id": 9,
-        "name": "_date",
-        "required": false,
-        "type": "date"
-        },
-        {
-        "id": 10,
-        "name": "_string",
-        "required": false,
-        "type": "string"
-        },
-        {
-        "id": 11,
-        "name": "_varchar",
-        "required": false,
-        "type": "string"
-        },
-        {
-        "id": 12,
-        "name": "_char",
-        "required": false,
-        "type": "string"
-        },
-        {
-        "id": 13,
-        "name": "_boolean",
-        "required": false,
-        "type": "boolean"
-        },
-        {
-        "id": 14,
-        "name": "_binary",
-        "required": false,
-        "type": "binary"
-        },
-        {
-        "id": 15,
-        "name": "_array",
-        "required": false,
-        "type": {
-            "type": "list",
-            "element-id": 18,
-            "element": "int",
-            "element-required": false
-        }
-        },
-        {
-        "id": 16,
-        "name": "_map",
-        "required": false,
-        "type": {
-            "type": "map",
-            "key-id": 19,
-            "key": "int",
-            "value-id": 20,
-            "value": "int",
-            "value-required": false
-        }
-        },
-        {
-        "id": 17,
-        "name": "_struct",
-        "required": false,
-        "type": {
-            "type": "struct",
-            "fields": [
-            {
-                "id": 21,
-                "name": "_field1",
-                "required": false,
-                "type": "int"
-            },
-            {
-                "id": 22,
-                "name": "_field2",
-                "required": false,
-                "type": "int"
-            }
-            ]
-        }
-        }
-    ]
-    }
-    """
-
-    schema = Schema.parse_raw(json_schema)
-
-    mapping = parquet_schema_to_ids(schema)
-
-    print(mapping)
-
-    assert mapping == {
-        "_8bit": 1,
-        "_16bit": 2,
-        "_32bit": 3,
-        "_64bit": 4,
-        "_float": 5,
-        "_double": 6,
-        "_decimal": 7,
-        "_timestamp": 8,
-        "_date": 9,
-        "_string": 10,
-        "_varchar": 11,
-        "_char": 12,
-        "_boolean": 13,
-        "_binary": 14,
-        "_array.list.element": 18,
-        "_map.key_value.key": 19,
-        "_map.key_value.value": 20,
-        "_struct._field1": 21,
-        "_struct._field2": 22,
-    }
+#     assert len(odd.value_counts) == 1
+#     assert odd.value_counts[1] == 4
+#     assert len(odd.lower_bounds) == 1
+#     assert odd.lower_bounds[1] == STRUCT_INT64.pack(1)
+#     assert len(odd.upper_bounds) == 1
+#     assert odd.upper_bounds[1] == STRUCT_INT64.pack(7)
