@@ -68,6 +68,8 @@ object ExtendedDistributionAndOrderingUtils {
           // if strict distribution mode is not enabled, then we fallback to spark AQE
           // to determine the number of partitions by colaesceing and un-skewing partitions
           // Also to note, Rebalance is only supported for hash distribution mode till spark 3.3
+          // By default the strictDistributionMode is set to true, to not disrupt regular
+          // plan of RepartitionByExpression
           RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
         }
         else {

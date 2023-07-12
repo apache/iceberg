@@ -28,6 +28,8 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,6 +52,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -95,37 +98,37 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
               + " format = {3}, vectorized = {4}, distributionMode = {5}, branch = {6}, strictDistributionMode = {7}")
   public static Object[][] parameters() {
     return new Object[][] {
-      //      {
-      //        "testhive",
-      //        SparkCatalog.class.getName(),
-      //        ImmutableMap.of(
-      //            "type", "hive",
-      //            "default-namespace", "default"),
-      //        "orc",
-      //        true,
-      //        WRITE_DISTRIBUTION_MODE_NONE,
-      //        SnapshotRef.MAIN_BRANCH
-      //      },
-      //      {
-      //        "testhive",
-      //        SparkCatalog.class.getName(),
-      //        ImmutableMap.of(
-      //            "type", "hive",
-      //            "default-namespace", "default"),
-      //        "parquet",
-      //        true,
-      //        WRITE_DISTRIBUTION_MODE_NONE,
-      //        null,
-      //      },
-      //      {
-      //        "testhadoop",
-      //        SparkCatalog.class.getName(),
-      //        ImmutableMap.of("type", "hadoop"),
-      //        "parquet",
-      //        RANDOM.nextBoolean(),
-      //        WRITE_DISTRIBUTION_MODE_HASH,
-      //        null
-      //      },
+      {
+        "testhive",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default"),
+        "orc",
+        true,
+        WRITE_DISTRIBUTION_MODE_NONE,
+        SnapshotRef.MAIN_BRANCH
+      },
+      {
+        "testhive",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default"),
+        "parquet",
+        true,
+        WRITE_DISTRIBUTION_MODE_NONE,
+        null,
+      },
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        "parquet",
+        RANDOM.nextBoolean(),
+        WRITE_DISTRIBUTION_MODE_HASH,
+        null
+      },
       {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),
@@ -140,6 +143,27 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "avro",
         false,
         WRITE_DISTRIBUTION_MODE_HASH,
+        "test",
+        true
+      },
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "false",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+        "avro",
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
         "test",
         true
       }
