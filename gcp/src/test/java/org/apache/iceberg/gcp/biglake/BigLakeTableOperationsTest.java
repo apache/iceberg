@@ -63,6 +63,8 @@ public class BigLakeTableOperationsTest {
   @Rule public final MockitoRule mockito = MockitoJUnit.rule();
   @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
+  private static final String CATALOG_NAME = "iceberg";
+
   private static final String GCP_PROJECT = "my-project";
   private static final String GCP_REGION = "us";
   private static final String CATALOG_ID = "biglake";
@@ -91,11 +93,13 @@ public class BigLakeTableOperationsTest {
             GCPProperties.BIGLAKE_PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
-            warehouseLocation);
+            warehouseLocation,
+            GCPProperties.BIGLAKE_CATALOG_ID,
+            CATALOG_ID);
 
     bigLakeCatalog = new BigLakeCatalog();
     bigLakeCatalog.setConf(new Configuration());
-    bigLakeCatalog.initialize(CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, bigLakeClient);
+    bigLakeCatalog.initialize(CATALOG_NAME, properties, GCP_PROJECT, GCP_REGION, bigLakeClient);
     this.tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(SPARK_TABLE_ID);
   }
 
@@ -151,6 +155,11 @@ public class BigLakeTableOperationsTest {
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
     assertEquals(null, tableOps.refresh());
+  }
+
+  @Test
+  public void testTableName() throws Exception {
+    assertEquals(tableOps.tableName(), "iceberg.db.tbl");
   }
 
   private Table createTestTable() throws IOException {

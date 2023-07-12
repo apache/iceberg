@@ -46,11 +46,14 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   private final BigLakeClient client;
   private final FileIO io;
+  // The catalog name.
+  private final String name;
   private final TableName tableName;
 
-  BigLakeTableOperations(BigLakeClient client, FileIO io, TableName tableName) {
+  BigLakeTableOperations(BigLakeClient client, FileIO io, String name, TableName tableName) {
     this.client = client;
     this.io = io;
+    this.name = name;
     this.tableName = tableName;
   }
 
@@ -122,8 +125,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public String tableName() {
-    return String.format(
-        "%s.%s.%s", tableName.getCatalog(), tableName.getDatabase(), tableName.getTable());
+    return String.format("%s.%s.%s", name, tableName.getDatabase(), tableName.getTable());
   }
 
   @Override

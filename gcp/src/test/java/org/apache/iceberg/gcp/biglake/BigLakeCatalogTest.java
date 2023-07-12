@@ -38,6 +38,8 @@ import com.google.cloud.bigquery.biglake.v1.Database;
 import com.google.cloud.bigquery.biglake.v1.DatabaseName;
 import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
 import com.google.cloud.bigquery.biglake.v1.MetastoreServiceSettings;
+import com.google.cloud.bigquery.biglake.v1.Table;
+import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -223,13 +225,33 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testListTables_emptyNamespace_checkCatalogEmptiness() {
+  public void testListTables_emptyNamespace_listTablesInAllDbs() {
+    DatabaseName db1Name = DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db1");
+    DatabaseName db2Name = DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db2");
+
+    TableName table1Name = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db1", "tbl1");
+    TableName table2Name = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db1", "tbl2");
+    TableName table3Name = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db2", "tbl3");
+
     when(mockBigLakeClient.listDatabases(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID)))
-        .thenReturn(ImmutableList.of(Database.getDefaultInstance()));
+        .thenReturn(
+            ImmutableList.of(
+                Database.newBuilder().setName(db1Name.toString()).build(),
+                Database.newBuilder().setName(db2Name.toString()).build()));
+
+    when(mockBigLakeClient.listTables(db1Name))
+        .thenReturn(
+            ImmutableList.of(
+                Table.newBuilder().setName(table1Name.toString()).build(),
+                Table.newBuilder().setName(table2Name.toString()).build()));
+    when(mockBigLakeClient.listTables(db2Name))
+        .thenReturn(ImmutableList.of(Table.newBuilder().setName(table3Name.toString()).build()));
 
     List<TableIdentifier> result = bigLakeCatalogUsingMockClient.listTables(Namespace.of());
-    assertEquals(1, result.size());
-    assertEquals(TableIdentifier.of("placeholder"), result.get(0));
+    assertEquals(3, result.size());
+    assertEquals(TableIdentifier.of("db1", "tbl1"), result.get(0));
+    assertEquals(TableIdentifier.of("db1", "tbl2"), result.get(1));
+    assertEquals(TableIdentifier.of("db2", "tbl3"), result.get(2));
   }
 
   @Test

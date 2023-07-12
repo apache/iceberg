@@ -32,7 +32,6 @@ import java.util.Set;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -50,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
@@ -65,7 +63,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   private static final Logger LOG = LoggerFactory.getLogger(BigLakeCatalog.class);
 
   // The name of this Iceberg catalog plugin: spark.sql.catalog.<catalog_plugin>.
-  private String catalogPulginName;
+  private String name;
   private Map<String, String> properties;
   private FileIO io;
   private Object conf;
@@ -89,7 +87,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     String projectId = properties.get(GCPProperties.BIGLAKE_PROJECT_ID);
 
     Preconditions.checkArgument(
-        properties.containsKey(GCPProperties.BIGLAKE_PROJECT_ID), "GCP region must be specified");
+        properties.containsKey(GCPProperties.BIGLAKE_GCP_REGION), "GCP region must be specified");
     String region = properties.get(GCPProperties.BIGLAKE_GCP_REGION);
 
     BigLakeClient client;
@@ -117,7 +115,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       String projectId,
       String region,
       BigLakeClient client) {
-    this.catalogPulginName = inputName;
+    this.name = inputName;
     this.properties = ImmutableMap.copyOf(properties);
     this.projectId = projectId;
     this.region = region;
@@ -138,17 +136,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    // The identifier of metadata tables is like "ns.table.files".
-    // Return a non-existing table in this case (empty table ID is disallowed in BigLake
-    // Metastore), loadTable will try loadMetadataTable.
-    if (identifier.namespace().levels().length > 1
-        && MetadataTableType.from(identifier.name()) != null) {
-      return new BigLakeTableOperations(
-          client, io, tableName(identifier.namespace().level(0), /* tableId= */ ""));
-    }
-
     return new BigLakeTableOperations(
-        client, io, tableName(databaseId(identifier.namespace()), identifier.name()));
+        client, io, name(), tableName(databaseId(identifier.namespace()), identifier.name()));
   }
 
   @Override
@@ -164,19 +153,25 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    // When deleting a BLMS catalog via `DROP NAMESPACE <catalog>`, this method is called for
-    // verifying catalog emptiness. `namespace` is empty in this case, we list databases in
-    // this catalog instead.
-    // TODO: to return all tables in all databases in a BLMS catalog instead of a "placeholder".
-    if (namespace.levels().length == 0) {
-      return Iterables.isEmpty(client.listDatabases(catalogName))
-          ? ImmutableList.of()
-          : ImmutableList.of(TableIdentifier.of("placeholder"));
+    ImmutableList<DatabaseName> dbNames;
+    if (namespace.isEmpty()) {
+      dbNames =
+          Streams.stream(client.listDatabases(catalogName))
+              .map(db -> DatabaseName.parse(db.getName()))
+              .collect(ImmutableList.toImmutableList());
+    } else {
+      dbNames = ImmutableList.of(databaseName(namespace));
     }
 
-    return Streams.stream(client.listTables(databaseName(namespace)))
-        .map(BigLakeCatalog::tableIdentifier)
-        .collect(ImmutableList.toImmutableList());
+    ImmutableList.Builder<TableIdentifier> result = new ImmutableList.Builder();
+    dbNames.stream()
+        .map(
+            dbName ->
+                Streams.stream(client.listTables(dbName))
+                    .map(BigLakeCatalog::tableIdentifier)
+                    .collect(ImmutableList.toImmutableList()))
+        .forEach(result::addAll);
+    return result.build();
   }
 
   @Override
@@ -212,7 +207,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    if (namespace.levels().length == 0) {
+    if (namespace.isEmpty()) {
       // Used by `CREATE NAMESPACE <catalog>`. Create a BLMS catalog linked with Iceberg catalog.
       client.createCatalog(catalogName, Catalog.getDefaultInstance());
       LOG.info("Created BigLake catalog: {}", catalogName.toString());
@@ -234,7 +229,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (namespace.levels().length != 0) {
+    if (!namespace.isEmpty()) {
       // BLMS does not support namespaces under database or tables, returns empty.
       // It is called when dropping a namespace to make sure it's empty (listTables is called as
       // well), returns empty to unblock deletion.
@@ -249,7 +244,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   @Override
   public boolean dropNamespace(Namespace namespace) {
     try {
-      if (namespace.levels().length == 0) {
+      if (namespace.isEmpty()) {
         // Used by `DROP NAMESPACE <catalog>`. Deletes the BLMS catalog linked by Iceberg catalog.
         client.deleteCatalog(catalogName);
         LOG.info("Deleted BigLake catalog: {}", catalogName.toString());
@@ -288,7 +283,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
-    if (namespace.levels().length == 0) {
+    if (namespace.isEmpty()) {
       // Calls getCatalog to check existence. BLMS catalog has no metadata today.
       client.getCatalog(catalogName);
       return ImmutableMap.of();
@@ -301,7 +296,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public String name() {
-    return catalogPulginName;
+    return name;
   }
 
   @Override
@@ -312,6 +307,11 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Object conf) {
     this.conf = conf;
+  }
+
+  @Override
+  protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
+    return tableIdentifier.namespace().levels().length == 1;
   }
 
   private String databaseLocation(String dbId) {
