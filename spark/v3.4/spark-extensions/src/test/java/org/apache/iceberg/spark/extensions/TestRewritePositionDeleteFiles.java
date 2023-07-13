@@ -231,7 +231,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   private void createTable(String partitionType) {
-    sql(partitionType, "partition_col");
+    createTable(partitionType, "partition_col");
   }
 
   private void createTable(String partitionType, String partitionCol) {

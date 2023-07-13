@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
@@ -128,5 +129,45 @@ public class SparkValueConverter {
       }
     }
     return record;
+  }
+
+  public static Object convertToSpark(Type type, Object object) {
+    if (object == null) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case STRUCT:
+      case LIST:
+      case MAP:
+        return new UnsupportedOperationException("Complex types currently not supported");
+      case DATE:
+        // if spark.sql.datetime.java8API.enabled is set to true, java.time.LocalDate
+        // for Spark SQL DATE type otherwise java.sql.Date is returned.
+        return DateTimeUtils.daysToLocalDate((int) object);
+      case TIMESTAMP:
+        Types.TimestampType ts = (Types.TimestampType) type.asPrimitiveType();
+        // This if/else can be removed once https://github.com/apache/spark/pull/41238 is in
+        if (ts.shouldAdjustToUTC()) {
+          // if spark.sql.datetime.java8API.enabled is set to true, java.time.Instant
+          // for Spark SQL TIMESTAMP type is returned otherwise java.sql.Timestamp is returned.
+          return DateTimeUtils.microsToInstant((long) object);
+        } else {
+          return DateTimeUtils.microsToLocalDateTime((long) object);
+        }
+      case BINARY:
+        return ByteBuffers.toByteArray((ByteBuffer) object);
+      case INTEGER:
+      case BOOLEAN:
+      case LONG:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL:
+      case STRING:
+      case FIXED:
+        return object;
+      default:
+        throw new UnsupportedOperationException("Not a supported type: " + type);
+    }
   }
 }
