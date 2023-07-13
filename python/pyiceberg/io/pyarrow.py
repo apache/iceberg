@@ -1216,8 +1216,6 @@ def fill_parquet_file_metadata(
         stats_columns
     ), f"Number of columns in metadata ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
 
-    col_index_2_id = {i: stat.field_id for i, stat in enumerate(stats_columns)}
-
     column_sizes: Dict[int, int] = {}
     value_counts: Dict[int, int] = {}
     split_offsets: List[int] = []
@@ -1243,7 +1241,7 @@ def fill_parquet_file_metadata(
             split_offsets.append(data_offset)
 
         for c in range(parquet_metadata.num_columns):
-            col_id = col_index_2_id[c]
+            col_id = stats_columns[c].field_id
 
             column = row_group.column(c)
 
@@ -1273,6 +1271,8 @@ def fill_parquet_file_metadata(
 
                 except pyarrow.lib.ArrowNotImplementedError as e:
                     logger.warning(e)
+            else:
+                logger.warning("PyArrow statistics missing for column %d when writing file", c)
 
     split_offsets.sort()
 
