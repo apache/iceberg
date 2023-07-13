@@ -19,10 +19,10 @@
 package org.apache.iceberg.gcp.biglake;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,6 +37,7 @@ import com.google.cloud.bigquery.biglake.v1.TableName;
 import io.grpc.Status.Code;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Optional;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
@@ -49,19 +50,15 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 
 public class BigLakeTableOperationsTest {
 
-  @Rule public final MockitoRule mockito = MockitoJUnit.rule();
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final String CATALOG_NAME = "iceberg";
 
@@ -79,15 +76,14 @@ public class BigLakeTableOperationsTest {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  @Mock private BigLakeClient bigLakeClient;
-
+  private BigLakeClient bigLakeClient = mock(BigLakeClient.class);
   private BigLakeCatalog bigLakeCatalog;
   private String warehouseLocation;
   private BigLakeTableOperations tableOps;
 
-  @Before
+  @BeforeEach
   public void before() throws Exception {
-    warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
+    warehouseLocation = temp.toFile().getAbsolutePath();
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
             GCPProperties.BIGLAKE_PROJECT_ID,
@@ -103,8 +99,13 @@ public class BigLakeTableOperationsTest {
     this.tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(SPARK_TABLE_ID);
   }
 
+  @AfterEach
+  public void after() throws Exception {
+    bigLakeCatalog.close();
+  }
+
   @Test
-  public void testDoCommit_useEtagForUpdateTable() throws Exception {
+  public void testDoCommitShouldUseEtagForUpdateTable() throws Exception {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
@@ -122,12 +123,12 @@ public class BigLakeTableOperationsTest {
     ArgumentCaptor<String> etagCaptor = ArgumentCaptor.forClass(String.class);
     verify(bigLakeClient, times(1))
         .updateTableParameters(nameCaptor.capture(), any(), etagCaptor.capture());
-    assertEquals(TABLE_NAME, nameCaptor.getValue());
-    assertEquals("etag", etagCaptor.getValue());
+    assertThat(nameCaptor.getValue()).isEqualTo(TABLE_NAME);
+    assertThat(etagCaptor.getValue()).isEqualTo("etag");
   }
 
   @Test
-  public void testDoCommit_failWhenEtagMismatch() throws Exception {
+  public void testDoCommitShouldFailWhenEtagMismatch() throws Exception {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
@@ -144,28 +145,29 @@ public class BigLakeTableOperationsTest {
                 new RuntimeException("error message etag mismatch"),
                 GrpcStatusCode.of(Code.ABORTED),
                 false));
-    assertThrows(
-        CommitFailedException.class,
-        () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit());
+
+    assertThatThrownBy(
+            () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
+        .isInstanceOf(CommitFailedException.class);
   }
 
   @Test
-  public void testDoFresh_refreshReturnNullForNonIcebergTable() throws Exception {
+  public void testDoFreshRefreshShouldReturnNullForNonIcebergTable() throws Exception {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
-    assertEquals(null, tableOps.refresh());
+    assertThat(tableOps.refresh()).isNull();
   }
 
   @Test
   public void testTableName() throws Exception {
-    assertEquals(tableOps.tableName(), "iceberg.db.tbl");
+    assertThat(tableOps.tableName()).isEqualTo("iceberg.db.tbl");
   }
 
   private Table createTestTable() throws IOException {
     TableIdentifier tableIdent =
         TableIdentifier.of(TABLE_NAME.getDatabase(), TABLE_NAME.getTable());
-    String tableDir = tempFolder.newFolder(TABLE_NAME.getTable()).toString();
+    String tableDir = new File(warehouseLocation, TABLE_NAME.getTable()).getAbsolutePath();
 
     bigLakeCatalog
         .buildTable(tableIdent, SCHEMA)
@@ -174,7 +176,7 @@ public class BigLakeTableOperationsTest {
         .commitTransaction();
 
     Optional<String> metadataLocation = getAnyIcebergMetadataFilePath(tableDir);
-    assertTrue(metadataLocation.isPresent());
+    assertThat(metadataLocation).isPresent();
     return Table.newBuilder()
         .setName(TABLE_NAME.toString())
         .setHiveOptions(

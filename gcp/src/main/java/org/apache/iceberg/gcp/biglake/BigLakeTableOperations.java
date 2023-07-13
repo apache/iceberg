@@ -149,12 +149,12 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         tableName());
     HiveTableOptions options = table.getHiveOptions();
 
-    String metadataLocationFromMetastore =
-        options.getParametersOrDefault(METADATA_LOCATION_PROP, "");
-    if (metadataLocationFromMetastore.isEmpty()) {
+    if (!options.containsParameters(METADATA_LOCATION_PROP)) {
       throw new NoSuchIcebergTableException(
           "Table %s is not a valid Iceberg table, metadata location is empty", tableName());
     }
+
+    String metadataLocationFromMetastore = options.getParametersOrThrow(METADATA_LOCATION_PROP);
 
     // If `metadataLocationFromMetastore` is different from metadata location of base, it means
     // someone has updated metadata location in metastore, which is a conflict update.
@@ -205,7 +205,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   // Follow Iceberg's HiveTableOperations to populate more table parameters for HMS compatibility.
   private Map<String, String> buildTableParameters(
       String metadataFileLocation, TableMetadata metadata) {
-    ImmutableMap.Builder<String, String> parameters = new ImmutableMap.Builder<String, String>();
+    ImmutableMap.Builder<String, String> parameters = ImmutableMap.builder();
     parameters.putAll(metadata.properties());
     if (metadata.uuid() != null) {
       parameters.put(TableProperties.UUID, metadata.uuid());
