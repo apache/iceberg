@@ -21,11 +21,13 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.MetadataTableType.POSITION_DELETES;
 import static org.apache.spark.sql.functions.col;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import org.apache.avro.data.TimeConversions;
 import org.apache.iceberg.DataFilesTable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataTableType;
@@ -41,6 +43,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -125,10 +128,11 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
         IntStream.range(0, fields.size())
             .mapToObj(
                 i -> {
-                  Class<?> type = fields.get(i).type().typeId().javaClass();
-                  Object value = partition.get(i, type);
+                  Type.TypeID typeId = fields.get(i).type().typeId();
+                  Object value = partition.get(i, typeId.javaClass());
+                  Object converted = convertPartitionValue(value, typeId);
                   Column col = col("partition." + fields.get(i).name());
-                  return col.equalTo(value);
+                  return col.equalTo(converted);
                 })
             .reduce(Column::and);
     if (condition.isPresent()) {
@@ -136,6 +140,32 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
           .filter(condition.get());
     } else {
       return SparkTableUtil.loadMetadataTable(spark, table(), MetadataTableType.DATA_FILES);
+    }
+  }
+
+  /**
+   * If necessary, convert the partition data (from avro) to its logical type, to use in the spark
+   * queries.  See https://iceberg.apache.org/spec/#avro.
+   *
+   * @param value partition object
+   * @param typeId iceberg type
+   * @return object converted to its logical type
+   */
+  private Object convertPartitionValue(Object value, Type.TypeID typeId) {
+    switch (typeId) {
+      case DATE:
+        return new TimeConversions.DateConversion().fromInt((int) value, null, null);
+      case TIME:
+        return new TimeConversions.TimeMicrosConversion().fromLong((long) value, null, null);
+      case TIMESTAMP:
+        return new TimeConversions.TimestampMicrosConversion().fromLong((long) value, null, null);
+      case BINARY:
+        ByteBuffer buffer = (ByteBuffer) value;
+        byte[] byteArray = new byte[buffer.remaining()];
+        buffer.get(byteArray);
+        return byteArray;
+      default:
+        return value;
     }
   }
 }
