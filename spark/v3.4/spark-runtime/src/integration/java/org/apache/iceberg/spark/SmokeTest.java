@@ -18,16 +18,16 @@
  */
 package org.apache.iceberg.spark;
 
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.sql.Timestamp;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
@@ -241,7 +241,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
             100, sqlContext, scala.Option.apply(null), encoder);
 
     Table table = getTable("structured_streaming");
-    ArrayList<StructuredStreamingRecord> data =
+    List<StructuredStreamingRecord> data =
         Lists.newArrayList(
             new StructuredStreamingRecord(Timestamp.valueOf("2023-01-04 19:25:00"), "dt", 123.4),
             new StructuredStreamingRecord(
