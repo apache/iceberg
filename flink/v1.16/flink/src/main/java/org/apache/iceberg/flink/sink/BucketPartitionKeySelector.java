@@ -44,11 +44,14 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
     this.schema = schema;
     this.partitionKey = new PartitionKey(partitionSpec, schema);
     this.flinkSchema = flinkSchema;
-    int bucketFieldId = BucketPartitionerUtil.getBucketFieldInfo(partitionSpec).f0;
-    this.bucketFieldPosition =
-        IntStream.range(0, partitionSpec.fields().size())
-            .filter(i -> partitionSpec.fields().get(i).fieldId() == bucketFieldId)
-            .toArray()[0];
+    this.bucketFieldPosition = getBucketFieldPosition(partitionSpec);
+  }
+
+  private int getBucketFieldPosition(PartitionSpec partitionSpec) {
+    int bucketFieldId = BucketPartitionerUtil.getBucketFieldId(partitionSpec);
+    return IntStream.range(0, partitionSpec.fields().size())
+        .filter(i -> partitionSpec.fields().get(i).fieldId() == bucketFieldId)
+        .toArray()[0];
   }
 
   private RowDataWrapper lazyRowDataWrapper() {
@@ -61,6 +64,6 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
   @Override
   public Integer getKey(RowData rowData) {
     partitionKey.partition(lazyRowDataWrapper().wrap(rowData));
-    return partitionKey.get(this.bucketFieldPosition, Integer.class);
+    return partitionKey.get(bucketFieldPosition, Integer.class);
   }
 }

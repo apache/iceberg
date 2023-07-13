@@ -49,13 +49,21 @@ final class BucketPartitionerUtil {
    * @param partitionSpec the partition spec in question
    * @return the Bucket definition in the form of a tuple (fieldId, maxNumBuckets)
    */
-  static Tuple2<Integer, Integer> getBucketFieldInfo(PartitionSpec partitionSpec) {
+  private static Tuple2<Integer, Integer> getBucketFieldInfo(PartitionSpec partitionSpec) {
     List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
     Preconditions.checkArgument(
         bucketFields.size() == 1,
         BucketPartitionerUtil.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE,
         bucketFields.size());
     return bucketFields.get(0);
+  }
+
+  static int getBucketFieldId(PartitionSpec partitionSpec) {
+    return getBucketFieldInfo(partitionSpec).f0;
+  }
+
+  static int getMaxNumBuckets(PartitionSpec partitionSpec) {
+    return getBucketFieldInfo(partitionSpec).f1;
   }
 
   private static List<Tuple2<Integer, Integer>> getBucketFields(PartitionSpec spec) {

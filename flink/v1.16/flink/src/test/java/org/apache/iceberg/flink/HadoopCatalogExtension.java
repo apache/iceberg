@@ -58,7 +58,7 @@ public class HadoopCatalogExtension
 
   @Override
   public void afterAll(ExtensionContext context) throws Exception {
-    FileUtils.deleteDirectory(this.temporaryFolder.toFile());
+    FileUtils.deleteDirectory(temporaryFolder.toFile());
   }
 
   @Override

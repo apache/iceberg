@@ -44,9 +44,9 @@ public class TestBucketPartitioner {
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     int bucketId = 0;
-    for (int expectedIdx = 0; expectedIdx < numPartitions; expectedIdx++) {
+    for (int expectedIndex = 0; expectedIndex < numPartitions; expectedIndex++) {
       int actualPartitionIndex = bucketPartitioner.partition(bucketId, numPartitions);
-      Assertions.assertThat(actualPartitionIndex).isEqualTo(expectedIdx);
+      Assertions.assertThat(actualPartitionIndex).isEqualTo(expectedIndex);
       bucketId++;
       if (bucketId == numBuckets) {
         bucketId = 0;

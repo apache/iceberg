@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.api.common.functions.Partitioner;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -44,11 +43,8 @@ class BucketPartitioner implements Partitioner<Integer> {
   private final int[] currentBucketWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
-    Tuple2<Integer, Integer> bucketFieldInfo =
-        BucketPartitionerUtil.getBucketFieldInfo(partitionSpec);
-
-    this.maxNumBuckets = bucketFieldInfo.f1;
-    this.currentBucketWriterOffset = new int[this.maxNumBuckets];
+    this.maxNumBuckets = BucketPartitionerUtil.getMaxNumBuckets(partitionSpec);
+    this.currentBucketWriterOffset = new int[maxNumBuckets];
   }
 
   /**
