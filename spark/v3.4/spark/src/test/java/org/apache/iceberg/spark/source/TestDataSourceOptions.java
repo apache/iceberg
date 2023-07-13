@@ -54,6 +54,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.functions;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -288,29 +289,42 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set only end-snapshot-id for incremental scans. Please, set start-snapshot-id too.");
 
     // test (1st snapshot, current snapshot] incremental scan.
-    List<SimpleRecord> result =
+    Dataset<Row> unboundedIncrementalResult =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(3).toString())
-            .load(tableLocation)
+            .load(tableLocation);
+    List<SimpleRecord> result1 =
+        unboundedIncrementalResult
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result);
+    Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result1);
+    Assert.assertEquals(
+        "Unprocessed count should match record count", 3, unboundedIncrementalResult.count());
+
+    Row row1 = unboundedIncrementalResult.agg(functions.min("id"), functions.max("id")).head();
+    Assert.assertEquals("min value should match", 2, row1.getInt(0));
+    Assert.assertEquals("max value should match", 4, row1.getInt(1));
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
-    Dataset<Row> resultDf =
+    Dataset<Row> incrementalResult =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(2).toString())
             .option("end-snapshot-id", snapshotIds.get(1).toString())
             .load(tableLocation);
-    List<SimpleRecord> result1 =
-        resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
-    Assert.assertEquals("Unprocessed count should match record count", 1, resultDf.count());
+    List<SimpleRecord> result2 =
+        incrementalResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result2);
+    Assert.assertEquals(
+        "Unprocessed count should match record count", 1, incrementalResult.count());
+
+    Row row2 = incrementalResult.agg(functions.min("id"), functions.max("id")).head();
+    Assert.assertEquals("min value should match", 3, row2.getInt(0));
+    Assert.assertEquals("max value should match", 3, row2.getInt(0));
   }
 
   @Test
