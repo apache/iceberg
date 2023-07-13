@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -105,7 +106,7 @@ public class HTTPClient implements RESTClient {
       }
 
       // EntityUtils.toString returns null when HttpEntity.getContent returns null.
-      return EntityUtils.toString(response.getEntity(), "UTF-8");
+      return EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
     } catch (IOException | ParseException e) {
       throw new RESTException(e, "Failed to convert HTTP response body to string");
     }
@@ -471,13 +472,13 @@ public class HTTPClient implements RESTClient {
 
   private StringEntity toJson(Object requestBody) {
     try {
-      return new StringEntity(mapper.writeValueAsString(requestBody));
+      return new StringEntity(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8);
     } catch (JsonProcessingException e) {
       throw new RESTException(e, "Failed to write request body: %s", requestBody);
     }
   }
 
   private StringEntity toFormEncoding(Map<?, ?> formData) {
-    return new StringEntity(RESTUtil.encodeFormData(formData));
+    return new StringEntity(RESTUtil.encodeFormData(formData), StandardCharsets.UTF_8);
   }
 }
