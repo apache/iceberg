@@ -38,11 +38,12 @@ from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 def test_create_table_with_database_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = GlueCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db"})
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
@@ -50,11 +51,14 @@ def test_create_table_with_database_location(
 def test_create_table_with_default_warehouse(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}"})
+    test_catalog = GlueCatalog(
+        catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
@@ -62,13 +66,14 @@ def test_create_table_with_default_warehouse(
 def test_create_table_with_given_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = GlueCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(
         identifier=identifier, schema=table_schema_nested, location=f"s3://{BUCKET_NAME}/{database_name}.db/{table_name}"
     )
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
@@ -76,8 +81,9 @@ def test_create_table_with_given_location(
 def test_create_table_with_no_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = GlueCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     with pytest.raises(ValueError):
         test_catalog.create_table(identifier=identifier, schema=table_schema_nested)
@@ -87,11 +93,12 @@ def test_create_table_with_no_location(
 def test_create_table_with_strips(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = GlueCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
@@ -99,11 +106,12 @@ def test_create_table_with_strips(
 def test_create_table_with_strips_bucket_root(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
     test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     table_strip = test_catalog.create_table(identifier, table_schema_nested)
-    assert table_strip.identifier == identifier
+    assert table_strip.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table_strip.metadata_location)
 
 
@@ -133,12 +141,15 @@ def test_create_duplicated_table(
 def test_load_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = GlueCatalog(
+        catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
@@ -155,12 +166,15 @@ def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None
 def test_drop_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = GlueCatalog(
+        catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.drop_table(identifier)
     with pytest.raises(NoSuchTableError):
@@ -179,17 +193,18 @@ def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None
 def test_rename_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "glue"
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (database_name, new_table_name)
     test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
-    assert new_table.identifier == new_identifier
+    assert new_table.identifier == (catalog_name,) + new_identifier
     # the metadata_location should not change
     assert new_table.metadata_location == table.metadata_location
     # old table should be dropped

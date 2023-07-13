@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -945,11 +946,9 @@ public class TestMergeAppend extends TableTestBase {
         ids(pending.snapshotId(), baseId),
         concat(files(FILE_B), files(initialManifest)));
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        () -> commit(table, append, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
@@ -983,11 +982,9 @@ public class TestMergeAppend extends TableTestBase {
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        () -> commit(table, append, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
     V2Assert.assertEquals(
         "Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals(
@@ -1186,11 +1183,9 @@ public class TestMergeAppend extends TableTestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        CommitFailedException.class,
-        "Injected failure",
-        () -> commit(table, append, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
     Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
@@ -1205,20 +1200,19 @@ public class TestMergeAppend extends TableTestBase {
 
     ManifestFile manifestWithExistingFiles =
         writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with existing files",
-        () -> commit(table, table.newAppend().appendManifest(manifestWithExistingFiles), branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(table, table.newAppend().appendManifest(manifestWithExistingFiles), branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with existing files");
     Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
 
     ManifestFile manifestWithDeletedFiles =
         writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with deleted files",
-        () -> commit(table, table.newAppend().appendManifest(manifestWithDeletedFiles), branch));
+    Assertions.assertThatThrownBy(
+            () -> commit(table, table.newAppend().appendManifest(manifestWithDeletedFiles), branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with deleted files");
     Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
   }
 

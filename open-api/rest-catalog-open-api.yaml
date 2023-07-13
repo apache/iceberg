@@ -498,6 +498,58 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/register:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Register a table in the given namespace using given metadata file location
+      description:
+        Register a table using given metadata file location.
+
+      operationId: registerTable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The table already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1912,6 +1964,17 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    RegisterTableRequest:
+      type: object
+      required:
+        - name
+        - metadata-location
+      properties:
+        name:
+          type: string
+        metadata-location:
+          type: string
 
     TokenType:
       type: string
