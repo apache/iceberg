@@ -59,17 +59,8 @@ public class TestCopyOnWriteMerge extends TestMerge {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch,
-      boolean strictDistributionMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        branch,
-        strictDistributionMode);
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @Override
@@ -86,7 +77,6 @@ public class TestCopyOnWriteMerge extends TestMerge {
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
-    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
@@ -169,7 +159,6 @@ public class TestCopyOnWriteMerge extends TestMerge {
   @Test
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
-    disableStrictDistributionMode(tableName, strictDistributionMode);
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");

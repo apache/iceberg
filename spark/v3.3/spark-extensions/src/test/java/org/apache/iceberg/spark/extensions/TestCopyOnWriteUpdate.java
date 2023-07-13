@@ -58,17 +58,8 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch,
-      boolean strictDistributionMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        branch,
-        strictDistributionMode);
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @Override
@@ -84,7 +75,6 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
     Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
 
     createAndInitTable("id INT, dep STRING");
-    disableStrictDistributionMode(tableName, strictDistributionMode);
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
@@ -167,7 +157,6 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
   @Test
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
-    disableStrictDistributionMode(tableName, strictDistributionMode);
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");

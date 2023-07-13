@@ -45,7 +45,6 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.DataWriter;
@@ -73,7 +72,6 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final boolean vectorized;
   protected final String distributionMode;
   protected final String branch;
-  protected final boolean strictDistributionMode;
 
   public SparkRowLevelOperationsTestBase(
       String catalogName,
@@ -82,20 +80,18 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch,
-      boolean strictDistributionMode) {
+      String branch) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
     this.distributionMode = distributionMode;
     this.branch = branch;
-    this.strictDistributionMode = strictDistributionMode;
   }
 
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
-              + " format = {3}, vectorized = {4}, distributionMode = {5}, branch = {6}, strictDistributionMode = {7}")
+              + " format = {3}, vectorized = {4}, distributionMode = {5}, branch = {6}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -107,8 +103,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "orc",
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
-        SnapshotRef.MAIN_BRANCH,
-        false
+        SnapshotRef.MAIN_BRANCH
       },
       {
         "testhive",
@@ -120,7 +115,6 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         null,
-        false
       },
       {
         "testhadoop",
@@ -129,29 +123,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "parquet",
         RANDOM.nextBoolean(),
         WRITE_DISTRIBUTION_MODE_HASH,
-        null,
-        false
-      },
-      {
-        "spark_catalog",
-        SparkSessionCatalog.class.getName(),
-        ImmutableMap.of(
-            "type",
-            "hive",
-            "default-namespace",
-            "default",
-            "clients",
-            "1",
-            "parquet-enabled",
-            "false",
-            "cache-enabled",
-            "false" // Spark will delete tables using v1, leaving the cache out of sync
-            ),
-        "avro",
-        false,
-        WRITE_DISTRIBUTION_MODE_RANGE,
-        "test",
-        false
+        null
       },
       {
         "spark_catalog",
@@ -166,30 +138,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ),
         "avro",
         false,
-        WRITE_DISTRIBUTION_MODE_HASH,
-        "test",
-        true
-      },
-      {
-        "spark_catalog",
-        SparkSessionCatalog.class.getName(),
-        ImmutableMap.of(
-            "type",
-            "hive",
-            "default-namespace",
-            "default",
-            "clients",
-            "1",
-            "parquet-enabled",
-            "false",
-            "cache-enabled",
-            "false" // Spark will delete tables using v1, leaving the cache out of sync
-            ),
-        "avro",
-        false,
         WRITE_DISTRIBUTION_MODE_RANGE,
-        "test",
-        true
+        "test"
       }
     };
   }
@@ -388,15 +338,6 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected void createBranchIfNeeded() {
     if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
       sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch);
-    }
-  }
-
-  protected void disableStrictDistributionMode(
-      String tableName, boolean shouldSetStrictDistributionMode) {
-    if (shouldSetStrictDistributionMode) {
-      sql(
-          "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')",
-          tableName, TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING);
     }
   }
 }
