@@ -39,11 +39,10 @@ class StructuredStreamingTest {
       .config("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
       .config("spark.sql.catalog.spark_catalog.type", "hadoop")
       .config("spark.sql.catalog.spark_catalog.warehouse", warehouseDir)
+      .config("spark.sql.defaultCatalog", "spark_catalog")
       .config("spark.sql.warehouse.dir", warehouseDir)
-      .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-      .appName("BugRepro")
+      .appName("testStructuredStreaming")
       .master("local[*]")
-      .enableHiveSupport()
       .getOrCreate()
 
     spark.sql(

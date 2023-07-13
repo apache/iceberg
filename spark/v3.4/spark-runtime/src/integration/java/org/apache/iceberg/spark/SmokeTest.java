@@ -169,6 +169,12 @@ public class SmokeTest extends SparkExtensionsTestBase {
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
   }
 
+  @Test
+  public void testStructuredStreaming() {
+    spark.
+
+  }
+
   private Table getTable(String name) {
     return validationCatalog.loadTable(TableIdentifier.of("default", name));
   }
