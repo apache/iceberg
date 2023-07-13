@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
@@ -240,9 +240,8 @@ public class SmokeTest extends SparkExtensionsTestBase {
         new MemoryStream<StructuredStreamingRecord>(
             100, sqlContext, scala.Option.apply(null), encoder);
 
-    Table table = getTable("structured_streaming");
     List<StructuredStreamingRecord> data =
-        Lists.newArrayList(
+        ImmutableList.of(
             new StructuredStreamingRecord(Timestamp.valueOf("2023-01-04 19:25:00"), "dt", 123.4),
             new StructuredStreamingRecord(
                 Timestamp.valueOf("2023-01-03 19:25:00"), "dt - 1d", 234.4),
@@ -258,12 +257,43 @@ public class SmokeTest extends SparkExtensionsTestBase {
         .writeStream()
         .format("iceberg")
         .outputMode("append")
+        // The table name
         .option("path", "structured_streaming")
         .option("fanout-enabled", true)
         .option("checkpointLocation", checkpointDir)
         .trigger(Trigger.AvailableNow())
         .start()
         .awaitTermination();
+
+    testStream
+        .toDF()
+        .writeStream()
+        .format("iceberg")
+        .outputMode("append")
+        // The catalog.schema.table
+        .option("path", tableName("structured_streaming"))
+        .option("fanout-enabled", true)
+        .option("checkpointLocation", checkpointDir)
+        .trigger(Trigger.AvailableNow())
+        .start()
+        .awaitTermination();
+
+    if (catalogName.equals("testhadoop")) {
+      // Full paths are only allowed in the case of Hadoop
+      Table table = getTable("structured_streaming");
+      testStream
+          .toDF()
+          .writeStream()
+          .format("iceberg")
+          .outputMode("append")
+          // The absolute path to the directory
+          .option("path", table.location())
+          .option("fanout-enabled", true)
+          .option("checkpointLocation", checkpointDir)
+          .trigger(Trigger.AvailableNow())
+          .start()
+          .awaitTermination();
+    }
   }
 
   private Table getTable(String name) {
