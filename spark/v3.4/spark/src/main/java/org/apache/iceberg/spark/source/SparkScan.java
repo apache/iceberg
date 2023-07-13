@@ -36,11 +36,10 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
-import org.apache.iceberg.spark.source.metrics.ResultDataFiles;
 import org.apache.iceberg.spark.source.metrics.ScannedDataManifests;
 import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
-import org.apache.iceberg.spark.source.metrics.TaskResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskScannedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskScannedDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
@@ -48,6 +47,7 @@ import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
 import org.apache.iceberg.spark.source.metrics.TotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
+import org.apache.iceberg.spark.source.metrics.scannedDataFiles;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -200,7 +200,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     driverMetrics.add(TaskTotalFileSize.from(scanReport));
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
     driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
-    driverMetrics.add(TaskResultDataFiles.from(scanReport));
+    driverMetrics.add(TaskScannedDataFiles.from(scanReport));
     driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
     driverMetrics.add(TaskScannedDataManifests.from(scanReport));
 
@@ -216,7 +216,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new TotalPlanningDuration(),
       new ScannedDataManifests(),
       new SkippedDataManifests(),
-      new ResultDataFiles(),
+      new scannedDataFiles(),
       new SkippedDataFiles()
     };
   }

@@ -41,7 +41,7 @@ public class TaskSkippedDataManifests implements CustomTaskMetric {
 
   public static TaskSkippedDataManifests from(ScanReport scanReport) {
     CounterResult counter = scanReport.scanMetrics().skippedDataManifests();
-    long value = counter != null ? counter.value() : -1;
+    long value = counter != null ? counter.value() : 0L;
     return new TaskSkippedDataManifests(value);
   }
 }

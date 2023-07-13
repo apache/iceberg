@@ -42,7 +42,7 @@ public class TaskTotalFileSize implements CustomTaskMetric {
 
   public static TaskTotalFileSize from(ScanReport scanReport) {
     CounterResult counter = scanReport.scanMetrics().totalFileSizeInBytes();
-    long value = counter != null ? counter.value() : -1;
+    long value = counter != null ? counter.value() : 0L;
     return new TaskTotalFileSize(value);
   }
 }

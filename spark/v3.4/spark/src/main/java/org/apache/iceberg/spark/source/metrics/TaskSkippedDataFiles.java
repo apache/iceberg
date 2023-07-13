@@ -41,7 +41,7 @@ public class TaskSkippedDataFiles implements CustomTaskMetric {
 
   public static TaskSkippedDataFiles from(ScanReport scanReport) {
     CounterResult counter = scanReport.scanMetrics().skippedDataFiles();
-    long value = counter != null ? counter.value() : -1;
+    long value = counter != null ? counter.value() : 0L;
     return new TaskSkippedDataFiles(value);
   }
 }

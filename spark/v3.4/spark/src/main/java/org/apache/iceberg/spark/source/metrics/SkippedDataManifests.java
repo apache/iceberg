@@ -31,6 +31,6 @@ public class SkippedDataManifests extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "num skipped data manifests";
+    return "number of skipped data manifests";
   }
 }

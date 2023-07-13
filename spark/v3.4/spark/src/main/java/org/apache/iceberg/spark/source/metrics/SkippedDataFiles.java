@@ -31,6 +31,6 @@ public class SkippedDataFiles extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "num skipped data files";
+    return "number of skipped data files";
   }
 }

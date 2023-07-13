@@ -41,7 +41,7 @@ public class TaskScannedDataManifests implements CustomTaskMetric {
 
   public static TaskScannedDataManifests from(ScanReport scanReport) {
     CounterResult counter = scanReport.scanMetrics().scannedDataManifests();
-    long value = counter != null ? counter.value() : -1;
+    long value = counter != null ? counter.value() : 0L;
     return new TaskScannedDataManifests(value);
   }
 }

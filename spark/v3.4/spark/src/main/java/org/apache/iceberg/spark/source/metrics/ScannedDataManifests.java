@@ -31,7 +31,7 @@ public class ScannedDataManifests extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "num scanned data manifests";
+    return "number of scanned data manifests";
   }
 
   @Override
