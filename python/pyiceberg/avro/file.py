@@ -190,7 +190,8 @@ class AvroFile(Generic[D]):
 
         block_bytes_len = self.decoder.read_int()
         block_bytes = self.decoder.read(block_bytes_len)
-        if codec := self.header.compression_codec():
+        codec = self.header.compression_codec()
+        if codec is not None:
             block_bytes = codec.decompress(block_bytes)
 
         self.block = Block(

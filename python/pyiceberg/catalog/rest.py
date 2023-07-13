@@ -204,21 +204,27 @@ class RestCatalog(Catalog):
         session = Session()
 
         # Sets the client side and server side SSL cert verification, if provided as properties.
-        if ssl_config := self.properties.get(SSL):
-            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
+        ssl_config = self.properties.get(SSL)
+        if ssl_config is not None:
+            ssl_ca_bundle = ssl_config.get(CA_BUNDLE)  # type: ignore
+            if ssl_ca_bundle is not None:
                 session.verify = ssl_ca_bundle
-            if ssl_client := ssl_config.get(CLIENT):  # type: ignore
+            ssl_client = ssl_config.get(CLIENT)  # type: ignore
+            if ssl_client is not None:
                 if all(k in ssl_client for k in (CERT, KEY)):
                     session.cert = (ssl_client[CERT], ssl_client[KEY])
-                elif ssl_client_cert := ssl_client.get(CERT):
-                    session.cert = ssl_client_cert
+                else:
+                    ssl_client_cert = ssl_client.get(CERT)
+                    if ssl_client_cert is not None:
+                        session.cert = ssl_client_cert
 
         # If we have credentials, but not a token, we want to fetch a token
         if TOKEN not in self.properties and CREDENTIAL in self.properties:
             self.properties[TOKEN] = self._fetch_access_token(session, self.properties[CREDENTIAL])
 
         # Set Auth token for subsequent calls in the session
-        if token := self.properties.get(TOKEN):
+        token = self.properties.get(TOKEN)
+        if token is not None:
             session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
 
         # Set HTTP headers
@@ -276,7 +282,8 @@ class RestCatalog(Catalog):
 
     def _fetch_config(self) -> None:
         params = {}
-        if warehouse_location := self.properties.get(WAREHOUSE_LOCATION):
+        warehouse_location = self.properties.get(WAREHOUSE_LOCATION)
+        if warehouse_location is not None:
             params[WAREHOUSE_LOCATION] = warehouse_location
 
         with self._create_session() as session:
@@ -336,9 +343,11 @@ class RestCatalog(Catalog):
                 # The OAuthErrorResponse has a different format
                 error = OAuthErrorResponse(**exc.response.json())
                 response = str(error.error)
-                if description := error.error_description:
+                description = error.error_description
+                if description is not None:
                     response += f": {description}"
-                if uri := error.error_uri:
+                uri = error.error_uri
+                if uri is not None:
                     response += f" ({uri})"
             else:
                 error = ErrorResponse(**exc.response.json()).error

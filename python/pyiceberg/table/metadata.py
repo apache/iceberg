@@ -110,7 +110,8 @@ class TableMetadataCommonFields(IcebergBaseModel):
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         # This is going to be much nicer as soon as refs is an actual pydantic object
-        if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
+        current_snapshot_id = data.get(CURRENT_SNAPSHOT_ID)
+        if current_snapshot_id is not None:
             if MAIN_BRANCH not in data[REFS]:
                 data[REFS][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
         return data
@@ -274,7 +275,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             check_partition_specs(data)
 
         if "last_partition_id" not in data or data.get("last_partition_id") is None:
-            if partition_specs := data.get(PARTITION_SPECS):
+            partition_specs = data.get(PARTITION_SPECS)
+            if partition_specs is not None:
                 data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
 
         return data

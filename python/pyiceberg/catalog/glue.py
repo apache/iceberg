@@ -95,7 +95,8 @@ def _construct_create_table_input(table_name: str, metadata_location: str, prope
         PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
     }
 
-    if table_description := properties.get(GLUE_DESCRIPTION_KEY):
+    table_description = properties.get(GLUE_DESCRIPTION_KEY)
+    if table_description is not None:
         table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
     return table_input
@@ -104,16 +105,16 @@ def _construct_create_table_input(table_name: str, metadata_location: str, prope
 def _construct_rename_table_input(to_table_name: str, glue_table: Dict[str, Any]) -> Dict[str, Any]:
     rename_table_input = {PROP_GLUE_TABLE_NAME: to_table_name}
     # use the same Glue info to create the new table, pointing to the old metadata
-    if table_type := glue_table.get(PROP_GLUE_TABLE_TYPE):
-        rename_table_input[PROP_GLUE_TABLE_TYPE] = table_type
-    if table_parameters := glue_table.get(PROP_GLUE_TABLE_PARAMETERS):
-        rename_table_input[PROP_GLUE_TABLE_PARAMETERS] = table_parameters
-    if table_owner := glue_table.get(PROP_GLUE_TABLE_OWNER):
-        rename_table_input[PROP_GLUE_TABLE_OWNER] = table_owner
-    if table_storage_descriptor := glue_table.get(PROP_GLUE_TABLE_STORAGE_DESCRIPTOR):
-        rename_table_input[PROP_GLUE_TABLE_STORAGE_DESCRIPTOR] = table_storage_descriptor
-    if table_description := glue_table.get(PROP_GLUE_TABLE_DESCRIPTION):
-        rename_table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
+    for key in [
+        PROP_GLUE_TABLE_TYPE,
+        PROP_GLUE_TABLE_PARAMETERS,
+        PROP_GLUE_TABLE_OWNER,
+        PROP_GLUE_TABLE_STORAGE_DESCRIPTOR,
+        PROP_GLUE_TABLE_DESCRIPTION,
+    ]:
+        table_property = glue_table.get(key)
+        if table_property is not None:
+            rename_table_input[key] = table_property
     return rename_table_input
 
 
@@ -446,9 +447,13 @@ class GlueCatalog(Catalog):
         database = database_response[PROP_GLUE_DATABASE]
 
         properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
-        if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
+
+        database_location = database.get(PROP_GLUE_DATABASE_LOCATION)
+        if database_location is not None:
             properties[LOCATION] = database_location
-        if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
+
+        database_description = database.get(PROP_GLUE_DATABASE_DESCRIPTION)
+        if database_description is not None:
             properties[GLUE_DESCRIPTION_KEY] = database_description
 
         return properties

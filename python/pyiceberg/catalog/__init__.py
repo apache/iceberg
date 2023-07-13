@@ -136,7 +136,8 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     Raises:
         ValueError: Raises a ValueError in case properties are missing, or the wrong type.
     """
-    if uri := catalog_properties.get("uri"):
+    uri = catalog_properties.get("uri")
+    if uri is not None:
         if isinstance(uri, str):
             if uri.startswith("http"):
                 return CatalogType.REST
@@ -477,11 +478,13 @@ class Catalog(ABC):
 
     def _get_default_warehouse_location(self, database_name: str, table_name: str) -> str:
         database_properties = self.load_namespace_properties(database_name)
-        if database_location := database_properties.get(LOCATION):
+        database_location = database_properties.get(LOCATION)
+        if database_location is not None:
             database_location = database_location.rstrip("/")
             return f"{database_location}/{table_name}"
 
-        if warehouse_path := self.properties.get(WAREHOUSE_LOCATION):
+        warehouse_path = self.properties.get(WAREHOUSE_LOCATION)
+        if warehouse_path is not None:
             warehouse_path = warehouse_path.rstrip("/")
             return f"{warehouse_path}/{database_name}.db/{table_name}"
 

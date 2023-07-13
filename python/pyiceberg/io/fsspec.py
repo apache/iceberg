@@ -102,10 +102,12 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     config_kwargs = {}
     register_events: Dict[str, Callable[[Properties], None]] = {}
 
-    if signer := properties.get("s3.signer"):
+    signer = properties.get("s3.signer")
+    if signer is not None:
         logger.info("Loading signer %s", signer)
-        if singer_func := SIGNERS.get(signer):
-            singer_func_with_properties = partial(singer_func, properties)
+        signer_func = SIGNERS.get(signer)
+        if signer_func is not None:
+            singer_func_with_properties = partial(signer_func, properties)
             register_events["before-sign.s3"] = singer_func_with_properties
 
             # Disable the AWS Signer
@@ -113,7 +115,8 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         else:
             raise ValueError(f"Signer not available: {signer}")
 
-    if proxy_uri := properties.get(S3_PROXY_URI):
+    proxy_uri = properties.get(S3_PROXY_URI)
+    if proxy_uri is not None:
         config_kwargs["proxies"] = {"http": proxy_uri, "https": proxy_uri}
 
     fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
@@ -163,9 +166,8 @@ class FsspecInputFile(InputFile):
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
-        if size := object_info.get("Size"):
-            return size
-        elif size := object_info.get("size"):
+        size = object_info.get("Size", object_info.get("size"))
+        if size is not None:
             return size
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 
@@ -207,9 +209,8 @@ class FsspecOutputFile(OutputFile):
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
-        if size := object_info.get("Size"):
-            return size
-        elif size := object_info.get("size"):
+        size = object_info.get("Size", object_info.get("size"))
+        if size is not None:
             return size
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 

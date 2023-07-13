@@ -84,10 +84,12 @@ class Config:
             return None
 
         # Give priority to the PYICEBERG_HOME directory
-        if pyiceberg_home_config := _load_yaml(os.environ.get(PYICEBERG_HOME)):
+        pyiceberg_home_config = _load_yaml(os.environ.get(PYICEBERG_HOME))
+        if pyiceberg_home_config is not None:
             return pyiceberg_home_config
         # Look into the home directory
-        if pyiceberg_home_config := _load_yaml(os.path.expanduser("~")):
+        pyiceberg_home_config = _load_yaml(os.path.expanduser("~"))
+        if pyiceberg_home_config is not None:
             return pyiceberg_home_config
         # Didn't find a config
         return None
@@ -137,7 +139,8 @@ class Config:
         Returns: The name of the default catalog in `default-catalog`.
                  Returns `default` when the key cannot be found in the config file.
         """
-        if default_catalog_name := self.config.get(DEFAULT_CATALOG):
+        default_catalog_name = self.config.get(DEFAULT_CATALOG)
+        if default_catalog_name is not None:
             if not isinstance(default_catalog_name, str):
                 raise ValueError(f"Default catalog name should be a str: {default_catalog_name}")
             return default_catalog_name

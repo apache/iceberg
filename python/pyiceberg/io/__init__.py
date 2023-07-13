@@ -291,9 +291,11 @@ PY_IO_IMPL = "py-io-impl"
 def _infer_file_io_from_scheme(path: str, properties: Properties) -> Optional[FileIO]:
     parsed_url = urlparse(path)
     if parsed_url.scheme:
-        if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+        file_ios = SCHEMA_TO_FILE_IO.get(parsed_url.scheme)
+        if file_ios is not None:
             for file_io_path in file_ios:
-                if file_io := _import_file_io(file_io_path, properties):
+                file_io = _import_file_io(file_io_path, properties)
+                if file_io is not None:
                     return file_io
         else:
             warnings.warn(f"No preferred file implementation for scheme: {parsed_url.scheme}")
@@ -302,8 +304,10 @@ def _infer_file_io_from_scheme(path: str, properties: Properties) -> Optional[Fi
 
 def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = None) -> FileIO:
     # First look for the py-io-impl property to directly load the class
-    if io_impl := properties.get(PY_IO_IMPL):
-        if file_io := _import_file_io(io_impl, properties):
+    io_impl = properties.get(PY_IO_IMPL)
+    if io_impl is not None:
+        file_io = _import_file_io(io_impl, properties)
+        if file_io is not None:
             logger.info("Loaded FileIO: %s", io_impl)
             return file_io
         else:
@@ -311,12 +315,15 @@ def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = 
 
     # Check the table location
     if location:
-        if file_io := _infer_file_io_from_scheme(location, properties):
+        file_io = _infer_file_io_from_scheme(location, properties)
+        if file_io is not None:
             return file_io
 
     # Look at the schema of the warehouse
-    if warehouse_location := properties.get(WAREHOUSE):
-        if file_io := _infer_file_io_from_scheme(warehouse_location, properties):
+    warehouse_location = properties.get(WAREHOUSE)
+    if warehouse_location is not None:
+        file_io = _infer_file_io_from_scheme(warehouse_location, properties)
+        if file_io is not None:
             return file_io
 
     try:

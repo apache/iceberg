@@ -127,7 +127,8 @@ class ConsoleOutput(Output):
         if history:
             snapshots = table.metadata.snapshots
         else:
-            if snapshot := table.current_snapshot():
+            snapshot = table.current_snapshot()
+            if snapshot is not None:
                 snapshots = [snapshot]
             else:
                 snapshots = []

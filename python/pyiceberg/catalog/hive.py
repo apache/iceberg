@@ -231,7 +231,8 @@ class HiveCatalog(Catalog):
                 f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}"
             )
 
-        if prop_metadata_location := properties.get(METADATA_LOCATION):
+        prop_metadata_location = properties.get(METADATA_LOCATION)
+        if prop_metadata_location is not None:
             metadata_location = prop_metadata_location
         else:
             raise NoSuchTableError(f"Table property {METADATA_LOCATION} is missing")
@@ -480,8 +481,8 @@ class HiveCatalog(Catalog):
                 database = open_client.get_database(name=database_name)
                 properties = database.parameters
                 properties[LOCATION] = database.locationUri
-                if comment := database.description:
-                    properties[COMMENT] = comment
+                if database.description is not None:
+                    properties[COMMENT] = database.description
                 return properties
         except NoSuchObjectException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e

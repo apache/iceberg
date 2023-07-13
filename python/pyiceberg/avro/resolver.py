@@ -271,7 +271,9 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
             (
                 expected_positions.get(field.field_id),
                 # Check if we need to convert it to an Enum
-                result_reader if not (enum_type := self.read_enums.get(field.field_id)) else EnumReader(enum_type, result_reader),
+                result_reader
+                if field.field_id in self.read_enums
+                else EnumReader(self.read_enums[field.field_id], result_reader),
             )
             for field, result_reader in zip(struct.fields, field_readers)
         ]

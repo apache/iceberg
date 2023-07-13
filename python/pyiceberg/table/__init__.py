@@ -461,7 +461,8 @@ class Table:
 
     def current_snapshot(self) -> Optional[Snapshot]:
         """Get the current snapshot for this table, or None if there is no current snapshot."""
-        if snapshot_id := self.metadata.current_snapshot_id:
+        snapshot_id = self.metadata.current_snapshot_id
+        if snapshot_id is not None:
             return self.snapshot_by_id(snapshot_id)
         return None
 
@@ -474,7 +475,8 @@ class Table:
 
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
-        if ref := self.metadata.refs.get(name):
+        ref = self.metadata.refs.get(name)
+        if ref is not None:
             return self.snapshot_by_id(ref.snapshot_id)
         return None
 
@@ -570,8 +572,10 @@ class TableScan(ABC):
 
     def projection(self) -> Schema:
         snapshot_schema = self.table.schema()
-        if snapshot := self.snapshot():
-            if snapshot_schema_id := snapshot.schema_id:
+        snapshot = self.snapshot()
+        if snapshot is not None:
+            snapshot_schema_id = snapshot.schema_id
+            if snapshot_schema_id is not None:
                 snapshot_schema = self.table.schemas()[snapshot_schema_id]
 
         if "*" in self.selected_fields:
@@ -598,7 +602,8 @@ class TableScan(ABC):
     def use_ref(self: S, name: str) -> S:
         if self.snapshot_id:
             raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
-        if snapshot := self.table.snapshot_by_name(name):
+        snapshot = self.table.snapshot_by_name(name)
+        if snapshot is not None:
             return self.update(snapshot_id=snapshot.snapshot_id)
 
         raise ValueError(f"Cannot scan unknown ref={name}")

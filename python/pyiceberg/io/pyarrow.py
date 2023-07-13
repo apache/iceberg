@@ -296,7 +296,8 @@ class PyArrowFileIO(FileIO):
                 "region": self.properties.get(S3_REGION),
             }
 
-            if proxy_uri := self.properties.get(S3_PROXY_URI):
+            proxy_uri = self.properties.get(S3_PROXY_URI)
+            if proxy_uri is not None:
                 client_kwargs["proxy_options"] = proxy_uri
 
             return S3FileSystem(**client_kwargs)
@@ -642,14 +643,16 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
 def _get_field_id(field: pa.Field) -> Optional[int]:
     for pyarrow_field_id_key in PYARROW_FIELD_ID_KEYS:
-        if field_id_str := field.metadata.get(pyarrow_field_id_key):
+        field_id_str = field.metadata.get(pyarrow_field_id_key)
+        if field_id_str is not None:
             return int(field_id_str.decode())
     return None
 
 
 def _get_field_doc(field: pa.Field) -> Optional[str]:
     for pyarrow_doc_key in PYARROW_FIELD_DOC_KEYS:
-        if doc_str := field.metadata.get(pyarrow_doc_key):
+        doc_str = field.metadata.get(pyarrow_doc_key)
+        if doc_str is not None:
             return doc_str.decode()
     return None
 
@@ -745,8 +748,8 @@ def _task_to_table(
         fragment = arrow_format.make_fragment(fin)
         physical_schema = fragment.physical_schema
         schema_raw = None
-        if metadata := physical_schema.metadata:
-            schema_raw = metadata.get(ICEBERG_SCHEMA)
+        if physical_schema.metadata is not None:
+            schema_raw = physical_schema.metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
         #  see https://github.com/apache/iceberg/issues/7451
         file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)

@@ -64,7 +64,8 @@ class Summary(IcebergBaseModel):
 
     @root_validator
     def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[str, Dict[str, Union[str, Operation]]]:
-        if operation := values["__root__"].get(OPERATION):
+        operation = values["__root__"].get(OPERATION)
+        if operation is not None:
             if isinstance(operation, str):
                 values["__root__"][OPERATION] = Operation(operation.lower())
         else:
