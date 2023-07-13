@@ -60,10 +60,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.Assertions;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -114,7 +114,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
     when(spyCachedClientPool.clientPool()).thenAnswer(invocation -> spyClientPool);
 
-    Assertions.assertNotNull(spyClientRef.get());
+    Assertions.assertThat(spyClientRef.get()).isNotNull();
 
     spyClient = spyClientRef.get();
   }
@@ -134,7 +134,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     metadataV2 = ops.current();
 
-    Assertions.assertEquals(2, ops.current().schema().columns().size());
+    Assertions.assertThat(ops.current().schema().columns()).hasSize(2);
 
     spyOps =
         spy(
@@ -165,7 +165,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
-    Assertions.assertEquals(1, spyOps.current().schema().columns().size()); // should be 1 again
+    Assertions.assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
   @Test
@@ -184,7 +184,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
-    Assertions.assertEquals(1, spyOps.current().schema().columns().size()); // should be 1 again
+    Assertions.assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
   @Test
@@ -202,7 +202,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
-    Assertions.assertEquals(1, spyOps.current().schema().columns().size()); // should be 1 again
+    Assertions.assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
   @Test
@@ -226,7 +226,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
-    Assertions.assertEquals(1, spyOps.current().schema().columns().size()); // should be 1 again
+    Assertions.assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
   @Test
@@ -527,10 +527,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     // Make sure that the expected parameter context values are set
     Map<String, String> context = contextCaptor.getValue().getProperties();
-    Assertions.assertEquals(3, context.size());
-    Assertions.assertEquals(
-        context.get("expected_parameter_key"), HiveTableOperations.METADATA_LOCATION_PROP);
-    Assertions.assertEquals(
-        context.get("expected_parameter_value"), metadataV2.metadataFileLocation());
+    Assertions.assertThat(context).hasSize(3);
+    Assertions.assertThat(HiveTableOperations.METADATA_LOCATION_PROP).isEqualTo(context.get("expected_parameter_key"));
+    Assertions.assertThat(metadataV2.metadataFileLocation()).isEqualTo(context.get("expected_parameter_value"));
   }
 }

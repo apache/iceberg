@@ -25,9 +25,9 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.Assertions;
 
 public class TestLoadHiveCatalog {
 
@@ -67,7 +67,7 @@ public class TestLoadHiveCatalog {
 
     CachedClientPool clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
     CachedClientPool clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assertions.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
+    Assertions.assertThat(clientPool2.clientPool()).isSameAs(clientPool1.clientPool());
 
     Configuration conf1 = new Configuration(metastore.hiveConf());
     Configuration conf2 = new Configuration(metastore.hiveConf());
@@ -89,7 +89,7 @@ public class TestLoadHiveCatalog {
                 conf2);
     clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assertions.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
+    Assertions.assertThat(clientPool2.clientPool()).isSameAs(clientPool1.clientPool());
 
     conf2.set("any.key", "any.value2");
     hiveCatalog2 =
@@ -100,6 +100,6 @@ public class TestLoadHiveCatalog {
                 ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "conf:any.key"),
                 conf2);
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assertions.assertNotSame(clientPool1.clientPool(), clientPool2.clientPool());
+    Assertions.assertThat(clientPool2.clientPool()).isNotSameAs(clientPool1.clientPool());
   }
 }
