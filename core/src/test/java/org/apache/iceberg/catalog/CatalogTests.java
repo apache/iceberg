@@ -74,19 +74,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   // Schema passed to create tables
   protected static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(3, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(1, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(2, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema REPLACE_SCHEMA =
       new Schema(
-          required(2, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(3, "data", Types.StringType.get()));
 
   // another schema that is not the same

@@ -94,6 +94,7 @@ import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -253,9 +254,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     shouldHaveFiles(table, 8);
     table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles =
-        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
@@ -299,9 +298,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     shouldHaveFiles(table, 1);
     table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles =
-        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
