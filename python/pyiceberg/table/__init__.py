@@ -639,18 +639,10 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-def _starmap_open_manifest(
+def _open_manifest(
     args: Tuple[FileIO, ManifestFile, Callable[[DataFile], bool], Callable[[DataFile], bool]]
 ) -> List[ManifestEntry]:
-    return _open_manifest(*args)
-
-
-def _open_manifest(
-    io: FileIO,
-    manifest: ManifestFile,
-    partition_filter: Callable[[DataFile], bool],
-    metrics_evaluator: Callable[[DataFile], bool],
-) -> List[ManifestEntry]:
+    io, manifest, partition_filter, metrics_evaluator = args
     return [
         manifest_entry
         for manifest_entry in manifest.fetch_manifest_entry(io, discard_deleted=True)
@@ -782,7 +774,7 @@ class DataScan(TableScan):
         with DynamicExecutor() as executor:
             for manifest_entry in chain(
                 *executor.map(
-                    _starmap_open_manifest,
+                    _open_manifest,
                     [
                         (
                             io,

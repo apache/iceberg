@@ -1208,7 +1208,7 @@ def deletes_file(tmp_path: str, example_task: FileScanTask) -> str:
 
 
 def test_read_deletes(deletes_file: str, example_task: FileScanTask) -> None:
-    deletes = _read_deletes(LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET))
+    deletes = _read_deletes((LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET)))
     assert set(deletes.keys()) == {example_task.file.file_path}
     assert list(deletes.values())[0] == pa.chunked_array([[1, 3, 5]])
 

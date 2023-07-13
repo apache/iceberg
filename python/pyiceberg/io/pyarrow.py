@@ -521,11 +521,8 @@ def _construct_fragment(fs: FileSystem, data_file: DataFile, file_format_kwargs:
     return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)
 
 
-def _starmap_read_deletes(args: Tuple[FileSystem, DataFile]) -> Dict[str, pa.ChunkedArray]:
-    return _read_deletes(*args)
-
-
-def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedArray]:
+def _read_deletes(args: Tuple[FileSystem, DataFile]) -> Dict[str, pa.ChunkedArray]:
+    fs, data_file = args
     delete_fragment = _construct_fragment(
         fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
     )
@@ -729,7 +726,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         raise TypeError(f"Unsupported type: {primitive}")
 
 
-def _starmap_task_to_table(
+def _task_to_table(
     args: Tuple[
         FileSystem,
         FileScanTask,
@@ -742,20 +739,18 @@ def _starmap_task_to_table(
         Optional[int],
     ]
 ) -> Optional[pa.Table]:
-    return _task_to_table(*args)
+    (
+        fs,
+        task,
+        bound_row_filter,
+        projected_schema,
+        projected_field_ids,
+        positional_deletes,
+        case_sensitive,
+        rows_counter,
+        limit,
+    ) = args
 
-
-def _task_to_table(
-    fs: FileSystem,
-    task: FileScanTask,
-    bound_row_filter: BooleanExpression,
-    projected_schema: Schema,
-    projected_field_ids: Set[int],
-    positional_deletes: Optional[List[ChunkedArray]],
-    case_sensitive: bool,
-    rows_counter: Synchronized[int],
-    limit: Optional[int] = None,
-) -> Optional[pa.Table]:
     if limit and rows_counter.value >= limit:
         return None
 
@@ -836,7 +831,7 @@ def _read_all_delete_files(fs: FileSystem, executor: Executor, tasks: Iterable[F
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
         deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
-            _starmap_read_deletes, [(fs, delete) for delete in unique_deletes]
+            _read_deletes, [(fs, delete) for delete in unique_deletes]
         )
         for delete in deletes_per_files:
             for file, arr in delete.items():
@@ -896,7 +891,7 @@ def project_table(
         tables = [
             table
             for table in executor.map(
-                _starmap_task_to_table,
+                _task_to_table,
                 [
                     (
                         fs,
