@@ -38,8 +38,8 @@ import org.apache.parquet.schema.Types.GroupBuilder;
 import org.apache.parquet.schema.Types.ListBuilder;
 import org.apache.parquet.schema.Types.MapBuilder;
 import org.apache.parquet.schema.Types.PrimitiveBuilder;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetSchemaUtil {
   private static final Types.StructType SUPPORTED_PRIMITIVES =
@@ -124,7 +124,7 @@ public class TestParquetSchemaUtil {
     MessageType messageTypeWithIdsFromNameMapping =
         ParquetSchemaUtil.applyNameMapping(RemoveIds.removeIds(messageTypeWithIds), nameMapping);
 
-    Assert.assertEquals(messageTypeWithIds, messageTypeWithIdsFromNameMapping);
+    Assertions.assertEquals(messageTypeWithIds, messageTypeWithIdsFromNameMapping);
   }
 
   @Test
@@ -259,7 +259,7 @@ public class TestParquetSchemaUtil {
                     28, 29, Types.IntegerType.get(), Types.IntegerType.get())));
 
     Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -286,7 +286,7 @@ public class TestParquetSchemaUtil {
     NameMapping nameMapping = MappingUtil.create(expectedSchema);
     MessageType messageTypeWithIds = ParquetSchemaUtil.applyNameMapping(messageType, nameMapping);
     Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageTypeWithIds);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -304,7 +304,7 @@ public class TestParquetSchemaUtil {
             optional(1, "arraybytes", Types.ListType.ofRequired(1000, Types.BinaryType.get())));
 
     Schema actualSchema = ParquetSchemaUtil.convert(messageType);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -338,7 +338,7 @@ public class TestParquetSchemaUtil {
                                 optional(1001, "f001", Types.LongType.get())))))));
 
     Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -362,7 +362,7 @@ public class TestParquetSchemaUtil {
                     1001, Types.StructType.of(required(1000, "str", Types.StringType.get())))));
 
     Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -386,7 +386,7 @@ public class TestParquetSchemaUtil {
                     1001, Types.StructType.of(required(1000, "str", Types.StringType.get())))));
 
     Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   @Test
@@ -410,7 +410,7 @@ public class TestParquetSchemaUtil {
                     1001, Types.ListType.ofRequired(1000, Types.IntegerType.get()))));
 
     Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
-    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+    Assertions.assertEquals( expectedSchema.asStruct(), actualSchema.asStruct(),"Schema must match");
   }
 
   private Type primitive(

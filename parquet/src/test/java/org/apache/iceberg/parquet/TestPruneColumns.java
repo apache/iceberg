@@ -30,8 +30,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestPruneColumns {
   @Test
@@ -118,7 +118,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should not rename repeated struct", expected, actual);
+    Assertions.assertEquals( expected, actual,"Pruned schema should not rename repeated struct");
   }
 
   @Test
@@ -193,7 +193,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should not rename repeated struct", expected, actual);
+    Assertions.assertEquals( expected, actual,"Pruned schema should not rename repeated struct");
   }
 
   @Test
@@ -267,6 +267,6 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should be matched", expected, actual);
+    Assertions.assertEquals( expected, actual,"Pruned schema should be matched");
   }
 }

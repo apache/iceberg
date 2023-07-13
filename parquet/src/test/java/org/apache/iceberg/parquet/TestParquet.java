@@ -49,14 +49,14 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  private File temp;
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
@@ -68,7 +68,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assert.assertEquals(2, reader.getRowGroups().size());
+      Assertions.assertEquals(2, reader.getRowGroups().size());
     }
   }
 
@@ -83,7 +83,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assert.assertEquals(2, reader.getRowGroups().size());
+      Assertions.assertEquals(2, reader.getRowGroups().size());
     }
   }
 
@@ -97,7 +97,7 @@ public class TestParquet {
     // for the 10th time (the last call of the checkSize method) nextCheckRecordCount == 100100
     // 100099 + 1 >= 100100
     int recordCount = 100099;
-    File file = createTempFile(temp);
+    File file = temp;
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
@@ -116,7 +116,7 @@ public class TestParquet {
             records.toArray(new GenericData.Record[] {}));
 
     long expectedSize = ParquetIO.file(localInput(file)).getLength();
-    Assert.assertEquals(expectedSize, actualSize);
+    Assertions.assertEquals(expectedSize, actualSize);
   }
 
   @Test
@@ -127,8 +127,8 @@ public class TestParquet {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
+    File testFile = temp;
+    Assertions.assertTrue(testFile.delete());
 
     ParquetWriter<GenericRecord> writer =
         AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
@@ -154,8 +154,8 @@ public class TestParquet {
         Iterables.getOnlyElement(
             Parquet.read(Files.localInput(testFile)).project(schema).callInit().build());
 
-    Assert.assertEquals(expectedByteList, recordRead.get("arraybytes"));
-    Assert.assertEquals(expectedBinary, recordRead.get("topbytes"));
+    Assertions.assertEquals(expectedByteList, recordRead.get("arraybytes"));
+    Assertions.assertEquals(expectedBinary, recordRead.get("topbytes"));
   }
 
   private Pair<File, Long> generateFile(
@@ -188,7 +188,7 @@ public class TestParquet {
       records.add(record);
     }
 
-    File file = createTempFile(temp);
+    File file = temp;
     long size =
         write(
             file,
