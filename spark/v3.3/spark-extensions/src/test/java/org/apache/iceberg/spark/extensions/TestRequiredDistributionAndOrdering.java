@@ -22,19 +22,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Test;
 
 public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase {
