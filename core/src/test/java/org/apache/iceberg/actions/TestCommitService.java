@@ -30,6 +30,7 @@ import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
@@ -62,30 +63,54 @@ public class TestCommitService extends TableTestBase {
     CustomCommitService commitService = new CustomCommitService(table, 5, 200);
     commitService.start();
 
-    // Add the number of less than rewritesPerCommit
+    // Add file groups [0-3] for commit.
+    // There are less than the rewritesPerCommit, and thus will not trigger a commit action. Those
+    // file groups will be added to the completedRewrites queue.
+    // Now the queue has 4 file groups that need to commit.
     for (int i = 0; i < 4; i++) {
       commitService.offer(i);
     }
 
-    // Simulate the last group of rewrite
+    // Add file groups [4-7] for commit
+    // These are gated to not be able to commit, so all those 4 file groups will be added to the
+    // queue as well.
+    // Now the queue has 8 file groups that need to commit.
     CustomCommitService spyCommitService = spy(commitService);
     doReturn(false).when(spyCommitService).canCreateCommitGroup();
     for (int i = 4; i < 8; i++) {
       spyCommitService.offer(i);
     }
 
+    // close commitService.
+    // This allows committerService thread to start to commit the remaining file groups [0-7] in the
+    // completedRewrites queue. And also the main thread waits for the committerService thread to
+    // finish within a timeout.
+
+    // The committerService thread commits file groups [0-4]. These will wait a fixed duration to
+    // simulate timeout on the main thread, which then tries to abort file groups [5-7].
+    // This tests the race conditions, as the committerService is also trying to commit groups
+    // [5-7].
     Assertions.assertThatThrownBy(commitService::close)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Timeout occurred when waiting for commits");
 
-    // Wait for the committerService finish commit the remaining file groups
+    // Wait for the commitService to finish. Committed all file groups or aborted remaining file
+    // groups.
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
         .pollInSameThread()
         .untilAsserted(() -> assertThat(commitService.completedRewritesAllCommitted()).isTrue());
-    Assertions.assertThat(commitService.results())
-        .doesNotContainAnyElementsOf(commitService.aborted);
-    Assertions.assertThat(commitService.results()).isEqualTo(ImmutableList.of(0, 1, 2, 3, 4));
+    if (commitService.aborted.isEmpty()) {
+      // All file groups are committed
+      Assertions.assertThat(commitService.results())
+          .isEqualTo(ImmutableList.of(0, 1, 2, 3, 4, 5, 6, 7));
+    } else {
+      // File groups [5-7] are aborted
+      Assertions.assertThat(commitService.results())
+          .doesNotContainAnyElementsOf(commitService.aborted);
+      Assertions.assertThat(commitService.results()).isEqualTo(ImmutableList.of(0, 1, 2, 3, 4));
+      Assertions.assertThat(commitService.aborted).isEqualTo(ImmutableSet.of(5, 6, 7));
+    }
   }
 
   private static class CustomCommitService extends BaseCommitService<Integer> {

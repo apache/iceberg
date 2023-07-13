@@ -245,6 +245,6 @@ abstract class BaseCommitService<T> implements Closeable {
 
   @VisibleForTesting
   boolean completedRewritesAllCommitted() {
-    return completedRewrites.isEmpty();
+    return completedRewrites.isEmpty() && inProgressCommits.isEmpty();
   }
 }
