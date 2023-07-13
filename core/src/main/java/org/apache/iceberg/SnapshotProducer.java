@@ -671,7 +671,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean shouldRollbackReplaceOnConflict() {
     return PropertyUtil.propertyAsBoolean(
         base.properties(),
-        TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED,
-        TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED_DEFAULT);
+        TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED,
+        TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED_DEFAULT);
   }
 }

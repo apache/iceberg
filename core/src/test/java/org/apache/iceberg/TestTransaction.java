@@ -771,7 +771,7 @@ public class TestTransaction extends TableTestBase {
     // add table property
     table
         .updateProperties()
-        .set(TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED, "true")
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
         .commit();
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -823,7 +823,7 @@ public class TestTransaction extends TableTestBase {
     // add table property
     table
         .updateProperties()
-        .set(TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED, "true")
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
         .commit();
     table.newAppend().appendFile(FILE_A).commit();
 
