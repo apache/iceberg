@@ -74,7 +74,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final String branch;
-  private final Supplier<ScanReport> metricsReportSupplier;
+  private final Supplier<ScanReport> scanReportSupplier;
 
   // lazy variables
   private StructType readSchema;
@@ -85,7 +85,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters,
-      Supplier<ScanReport> metricsReportSupplier) {
+      Supplier<ScanReport> scanReportSupplier) {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
@@ -96,7 +96,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.branch = readConf.branch();
-    this.metricsReportSupplier = metricsReportSupplier;
+    this.scanReportSupplier = scanReportSupplier;
   }
 
   protected Table table() {
@@ -191,7 +191,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    ScanReport scanReport = metricsReportSupplier != null ? metricsReportSupplier.get() : null;
+    ScanReport scanReport = scanReportSupplier != null ? scanReportSupplier.get() : null;
     if (scanReport == null) {
       return new CustomTaskMetric[0];
     }

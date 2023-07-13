@@ -28,9 +28,9 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.metric.SQLMetric;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 import scala.collection.JavaConverters;
 
 public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
@@ -41,18 +41,44 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testReadMetrics() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+  public void testReadMetricsForV1Table() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='2')",
+        tableName);
 
     spark.range(10000).coalesce(1).writeTo(tableName).append();
+    spark.range(10001, 20000).coalesce(1).writeTo(tableName).append();
 
-    Dataset<Row> df = spark.sql(String.format("select * from %s", tableName));
+    Dataset<Row> df = spark.sql(String.format("select * from %s where id < 10000", tableName));
     df.collect();
 
     List<SparkPlan> sparkPlans =
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-    Assertions.assertEquals(1, metricsMap.get("scannedDataManifests").value());
+    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+  }
+
+  @Test
+  public void testReadMetricsForV2Table() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='2')",
+        tableName);
+
+    spark.range(10000).coalesce(1).writeTo(tableName).append();
+    spark.range(10001, 20000).coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df = spark.sql(String.format("select * from %s where id < 10000", tableName));
+    df.collect();
+
+    List<SparkPlan> sparkPlans =
+        seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
+    Map<String, SQLMetric> metricsMap =
+        JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
   }
 }

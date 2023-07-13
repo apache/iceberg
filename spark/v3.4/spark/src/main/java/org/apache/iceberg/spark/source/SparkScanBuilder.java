@@ -43,7 +43,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.metrics.InMemoryReadMetricReporter;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -92,12 +92,12 @@ public class SparkScanBuilder
   private final CaseInsensitiveStringMap options;
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
+  private final InMemoryMetricsReporter metricsReporter;
 
   private Schema schema = null;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
-  private final InMemoryReadMetricReporter metricsReporter;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -111,7 +111,7 @@ public class SparkScanBuilder
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, branch, options);
     this.caseSensitive = readConf.caseSensitive();
-    this.metricsReporter = new InMemoryReadMetricReporter();
+    this.metricsReporter = new InMemoryMetricsReporter();
   }
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {

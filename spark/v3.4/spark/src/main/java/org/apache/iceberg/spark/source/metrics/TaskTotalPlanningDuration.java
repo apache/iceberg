@@ -26,7 +26,7 @@ public class TaskTotalPlanningDuration implements CustomTaskMetric {
 
   private final long value;
 
-  public TaskTotalPlanningDuration(long value) {
+  private TaskTotalPlanningDuration(long value) {
     this.value = value;
   }
 
@@ -40,9 +40,9 @@ public class TaskTotalPlanningDuration implements CustomTaskMetric {
     return value;
   }
 
-  public static TaskTotalFileSize from(ScanReport scanReport) {
+  public static TaskTotalPlanningDuration from(ScanReport scanReport) {
     TimerResult timerResult = scanReport.scanMetrics().totalPlanningDuration();
     long value = timerResult != null ? timerResult.count() : -1;
-    return new TaskTotalFileSize(value);
+    return new TaskTotalPlanningDuration(value);
   }
 }

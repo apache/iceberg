@@ -25,7 +25,7 @@ import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 public class TaskSkippedDataFiles implements CustomTaskMetric {
   private final long value;
 
-  public TaskSkippedDataFiles(long value) {
+  private TaskSkippedDataFiles(long value) {
     this.value = value;
   }
 

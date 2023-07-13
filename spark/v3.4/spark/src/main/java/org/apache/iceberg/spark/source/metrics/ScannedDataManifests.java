@@ -33,4 +33,13 @@ public class ScannedDataManifests extends CustomSumMetric {
   public String description() {
     return "num scanned data manifests";
   }
+
+  @Override
+  public String aggregateTaskMetrics(long[] taskMetrics) {
+    long sum = 0L;
+    for (long taskMetric : taskMetrics) {
+      sum += taskMetric;
+    }
+    return String.valueOf(sum);
+  }
 }

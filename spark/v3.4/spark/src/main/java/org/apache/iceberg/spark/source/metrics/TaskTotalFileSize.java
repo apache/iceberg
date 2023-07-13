@@ -26,7 +26,7 @@ public class TaskTotalFileSize implements CustomTaskMetric {
 
   private final long value;
 
-  public TaskTotalFileSize(long value) {
+  private TaskTotalFileSize(long value) {
     this.value = value;
   }
 

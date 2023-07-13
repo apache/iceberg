@@ -25,7 +25,7 @@ import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 public class TaskResultDataFiles implements CustomTaskMetric {
   private final long value;
 
-  public TaskResultDataFiles(long value) {
+  private TaskResultDataFiles(long value) {
     this.value = value;
   }
 
