@@ -32,6 +32,7 @@ import org.apache.spark.sql.connector.distributions.ClusteredDistribution
 import org.apache.spark.sql.connector.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering
+import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.connector.write.Write
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
@@ -61,7 +62,13 @@ object ExtendedDistributionAndOrderingUtils {
           conf.numShufflePartitions
         }
 
-        val strictDistributionMode = table.properties()
+        val tableProperties = if(table.isInstanceOf[RowLevelOperationTable])  {
+          table.asInstanceOf[RowLevelOperationTable].table.properties()
+        } else {
+          table.properties()
+        }
+
+        val strictDistributionMode = tableProperties
           .getOrDefault(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
             TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         if(strictDistributionMode.equals("false") && write.requiredDistribution().isInstanceOf[ClusteredDistribution]) {
