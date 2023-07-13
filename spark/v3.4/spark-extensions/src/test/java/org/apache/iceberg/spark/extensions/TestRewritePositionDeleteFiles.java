@@ -121,6 +121,13 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testBooleanPartition() throws Exception {
+    createTable("boolean");
+    insertData(i -> i % 2 == 0, 2);
+    testDanglingDelete(2);
+  }
+
+  @Test
   public void testTimestampPartition() throws Exception {
     createTable("timestamp");
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
@@ -180,10 +187,11 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testBooleanPartition() throws Exception {
-    createTable("boolean");
-    insertData(i -> i % 2 == 0, 2);
-    testDanglingDelete(2);
+  public void testDaysPartitionTransform() throws Exception {
+    createTable("timestamp", "days(partition_col)");
+    Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
+    insertData(i -> Timestamp.valueOf(baseTimestamp.toLocalDateTime().plusDays(i)));
+    testDanglingDelete();
   }
 
   private <T> void testDanglingDelete() throws Exception {
@@ -223,12 +231,16 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   private void createTable(String partitionType) {
+    sql(partitionType, "partition_col");
+  }
+
+  private void createTable(String partitionType, String partitionCol) {
     sql(
         "CREATE TABLE %s (id long, partition_col %s, c1 string, c2 string) "
             + "USING iceberg "
-            + "PARTITIONED BY (partition_col) "
+            + "PARTITIONED BY (%s) "
             + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionType);
+        tableName, partitionType, partitionCol);
   }
 
   private <T> void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
