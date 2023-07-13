@@ -1328,10 +1328,10 @@ public class TestTableMetadata {
   public void testParseMinimal() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
-    Assert.assertEquals(Lists.newArrayList(), parsed.snapshots());
-    Assert.assertEquals(Lists.newArrayList(), parsed.snapshotLog());
-    Assert.assertEquals(ImmutableMap.of(), parsed.properties());
-    Assert.assertEquals(Lists.newArrayList(), parsed.previousFiles());
+    Assertions.assertThat(parsed.snapshots()).isEmpty();
+    Assertions.assertThat(parsed.snapshotLog()).isEmpty();
+    Assertions.assertThat(parsed.properties()).isEmpty();
+    Assertions.assertThat(parsed.previousFiles()).isEmpty();
   }
 
   @Test
