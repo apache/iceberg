@@ -176,8 +176,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 }
 
 project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}") {
-  apply plugin: 'scala'
-  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -185,7 +183,6 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   sourceSets {
     integration {
       java.srcDir "$projectDir/src/integration/java"
-      scala.srcDir "$projectDir/src/integration/scala"
       resources.srcDir "$projectDir/src/integration/resources"
     }
   }

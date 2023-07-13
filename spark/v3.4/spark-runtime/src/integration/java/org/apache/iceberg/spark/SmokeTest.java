@@ -18,15 +18,28 @@
  */
 package org.apache.iceberg.spark;
 
+import com.google.common.collect.Lists;
 import java.io.IOException;
+import java.io.Serializable;
+import java.nio.file.Files;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.streaming.MemoryStream;
+import org.apache.spark.sql.streaming.StreamingQueryException;
+import org.apache.spark.sql.streaming.Trigger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import scala.collection.JavaConverters;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -169,10 +182,88 @@ public class SmokeTest extends SparkExtensionsTestBase {
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
   }
 
-  @Test
-  public void testStructuredStreaming() {
-    spark.
+  public static class StructuredStreamingRecord implements Serializable {
+    private Timestamp ts;
+    private String str;
+    private Double dbl;
 
+    public StructuredStreamingRecord() {}
+
+    public StructuredStreamingRecord(Timestamp ts, String str, Double dbl) {
+      this.ts = ts;
+      this.str = str;
+      this.dbl = dbl;
+    }
+
+    public Timestamp getTs() {
+      return ts;
+    }
+
+    public void setTs(Timestamp ts) {
+      this.ts = ts;
+    }
+
+    public String getStr() {
+      return str;
+    }
+
+    public void setStr(String str) {
+      this.str = str;
+    }
+
+    public Double getDbl() {
+      return dbl;
+    }
+
+    public void setDbl(Double dbl) {
+      this.dbl = dbl;
+    }
+  }
+
+  @Test
+  public void testStructuredStreaming()
+      throws TimeoutException, StreamingQueryException, IOException {
+    String checkpointDir =
+        Files.createTempDirectory("testStructuredStreaming").toFile().getAbsolutePath();
+
+    sql("DROP TABLE IF EXISTS %s", tableName("structured_streaming"));
+
+    sql(
+        "create table %s(dbl double, str string, ts timestamp) "
+            + "using iceberg partitioned by (days(ts))",
+        tableName("structured_streaming"));
+
+    SQLContext sqlContext = spark.sqlContext();
+
+    Encoder<StructuredStreamingRecord> encoder = Encoders.bean(StructuredStreamingRecord.class);
+    MemoryStream<StructuredStreamingRecord> testStream =
+        new MemoryStream<StructuredStreamingRecord>(
+            100, sqlContext, scala.Option.apply(null), encoder);
+
+    Table table = getTable("structured_streaming");
+    ArrayList<StructuredStreamingRecord> data =
+        Lists.newArrayList(
+            new StructuredStreamingRecord(Timestamp.valueOf("2023-01-04 19:25:00"), "dt", 123.4),
+            new StructuredStreamingRecord(
+                Timestamp.valueOf("2023-01-03 19:25:00"), "dt - 1d", 234.4),
+            new StructuredStreamingRecord(
+                Timestamp.valueOf("2023-01-02 19:25:00"), "dt - 2d", 345.4),
+            new StructuredStreamingRecord(
+                Timestamp.valueOf("2023-01-01 19:25:00"), "dt - 3d", 456.4));
+
+    testStream.addData(JavaConverters.iterableAsScalaIterable(data).toSeq());
+
+    testStream
+        .toDF()
+        .writeStream()
+        .format("iceberg")
+        .outputMode("append")
+        .option("path", "structured_streaming")
+        .option("fanout-enabled", true)
+        .option("checkpointLocation", checkpointDir)
+        .trigger(Trigger.AvailableNow())
+        .start()
+        .awaitTermination();
   }
 
   private Table getTable(String name) {
