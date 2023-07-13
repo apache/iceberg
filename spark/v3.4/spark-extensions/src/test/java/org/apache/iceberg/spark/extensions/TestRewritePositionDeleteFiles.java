@@ -75,7 +75,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
 
-public class TestRewritePositionDeleteFilesAction extends SparkExtensionsTestBase {
+public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
 
   private static final Map<String, String> CATALOG_PROPS =
       ImmutableMap.of(
@@ -102,7 +102,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkExtensionsTestBas
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  public TestRewritePositionDeleteFilesAction(
+  public TestRewritePositionDeleteFiles(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }

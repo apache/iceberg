@@ -145,7 +145,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
 
   /**
    * If necessary, convert the partition data (from avro) to its logical type, to use in the spark
-   * queries.  See https://iceberg.apache.org/spec/#avro.
+   * queries. See https://iceberg.apache.org/spec/#avro.
    *
    * @param value partition object
    * @param typeId iceberg type
