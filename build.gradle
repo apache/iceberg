@@ -213,6 +213,7 @@ subprojects {
     testImplementation 'org.slf4j:slf4j-simple'
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.mockito:mockito-inline'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.assertj:assertj-core'
   }
 
