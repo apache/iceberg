@@ -35,8 +35,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestHiveTableConcurrency extends HiveTableBaseTest {
 
@@ -78,7 +78,8 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
             });
 
     icebergTable.refresh();
-    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests(icebergTable.io()).size());
+    Assertions.assertEquals(
+        20, icebergTable.currentSnapshot().allManifests(icebergTable.io()).size());
   }
 
   @Test
@@ -109,7 +110,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(3, TimeUnit.MINUTES));
-    Assert.assertEquals(7, Iterables.size(icebergTable.snapshots()));
+    Assertions.assertTrue(executorService.awaitTermination(3, TimeUnit.MINUTES), "Timeout");
+    Assertions.assertEquals(7, Iterables.size(icebergTable.snapshots()));
   }
 }

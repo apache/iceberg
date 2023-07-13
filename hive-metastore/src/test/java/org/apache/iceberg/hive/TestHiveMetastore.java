@@ -52,7 +52,7 @@ import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportFactory;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 
 public class TestHiveMetastore {
 
@@ -112,7 +112,7 @@ public class TestHiveMetastore {
                     FileSystem fs = Util.getFs(localDirPath, new Configuration());
                     String errMsg = "Failed to delete " + localDirPath;
                     try {
-                      Assert.assertTrue(errMsg, fs.delete(localDirPath, true));
+                      Assertions.assertTrue(fs.delete(localDirPath, true), errMsg);
                     } catch (IOException e) {
                       throw new RuntimeException(errMsg, e);
                     }
