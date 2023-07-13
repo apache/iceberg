@@ -64,16 +64,19 @@ object ExtendedDistributionAndOrderingUtils {
         val strictDistributionMode = table.properties()
           .getOrDefault(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
             TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
-        if(strictDistributionMode.equals("true")) {
+        if(strictDistributionMode.equals("false") && write.requiredDistribution().isInstanceOf[ClusteredDistribution]) {
+          // if strict distribution mode is not enabled, then we fallback to spark AQE
+          // to determine the number of partitions by colaesceing and un-skewing partitions
+          // Also to note, Rebalance is only supported for hash distribution mode till spark 3.3
+          // By default the strictDistributionMode is set to true, to not disrupt regular
+          // plan of RepartitionByExpression
+          RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
+        }
+        else {
           // the conversion to catalyst expressions above produces SortOrder expressions
           // for OrderedDistribution and generic expressions for ClusteredDistribution
           // this allows RepartitionByExpression to pick either range or hash partitioning
           RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
-        }
-        else {
-          // if strict distribution mode is not enabled, then we fallback to spark AQE
-          // to determine the number of partitions by colaesceing and un-skewing partitions
-          RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
         }
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
