@@ -29,13 +29,13 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -55,8 +55,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
 
-  @TempDir
-  private File temp;
+  @TempDir private Path temp;
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
@@ -97,7 +96,7 @@ public class TestParquet {
     // for the 10th time (the last call of the checkSize method) nextCheckRecordCount == 100100
     // 100099 + 1 >= 100100
     int recordCount = 100099;
-    File file = temp;
+    File file = createTempFile(temp);
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
@@ -127,11 +126,11 @@ public class TestParquet {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp;
+    File testFile = temp.toFile();
     Assertions.assertTrue(testFile.delete());
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+        AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(testFile.toURI()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
@@ -188,7 +187,7 @@ public class TestParquet {
       records.add(record);
     }
 
-    File file = temp;
+    File file = createTempFile(temp);
     long size =
         write(
             file,

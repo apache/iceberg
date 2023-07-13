@@ -55,8 +55,7 @@ public class TestParquetDeleteWriters {
 
   private List<Record> records;
 
-  @TempDir
-  private File temp;
+  @TempDir private File temp;
 
   @BeforeEach
   public void createDeleteRecords() {
@@ -91,12 +90,13 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals( FileFormat.PARQUET, metadata.format(),"Format should be Parquet");
+    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
     Assertions.assertEquals(
-         FileContent.EQUALITY_DELETES, metadata.content(),"Should be equality deletes");
-    Assertions.assertEquals( records.size(), metadata.recordCount(),"Record count should be correct");
-    Assertions.assertEquals( 0, metadata.partition().size(),"Partition should be empty");
-    Assertions.assertNull( metadata.keyMetadata(),"Key metadata should be null");
+        FileContent.EQUALITY_DELETES, metadata.content(), "Should be equality deletes");
+    Assertions.assertEquals(
+        records.size(), metadata.recordCount(), "Record count should be correct");
+    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
+    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -107,7 +107,7 @@ public class TestParquetDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals( records, deletedRecords,"Deleted records should match expected");
+    Assertions.assertEquals(records, deletedRecords, "Deleted records should match expected");
   }
 
   @Test
@@ -147,12 +147,13 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals( FileFormat.PARQUET, metadata.format(),"Format should be Parquet");
+    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
     Assertions.assertEquals(
-         FileContent.POSITION_DELETES, metadata.content(),"Should be position deletes");
-    Assertions.assertEquals( records.size(), metadata.recordCount(),"Record count should be correct");
-    Assertions.assertEquals( 0, metadata.partition().size(),"Partition should be empty");
-    Assertions.assertNull( metadata.keyMetadata(),"Key metadata should be null");
+        FileContent.POSITION_DELETES, metadata.content(), "Should be position deletes");
+    Assertions.assertEquals(
+        records.size(), metadata.recordCount(), "Record count should be correct");
+    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
+    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -165,7 +166,7 @@ public class TestParquetDeleteWriters {
     }
 
     Assertions.assertEquals(
-         expectedDeleteRecords, deletedRecords,"Deleted records should match expected");
+        expectedDeleteRecords, deletedRecords, "Deleted records should match expected");
   }
 
   @Test
@@ -202,12 +203,13 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals( FileFormat.PARQUET, metadata.format(),"Format should be Parquet");
+    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
     Assertions.assertEquals(
-         FileContent.POSITION_DELETES, metadata.content(),"Should be position deletes");
-    Assertions.assertEquals( records.size(), metadata.recordCount(),"Record count should be correct");
-    Assertions.assertEquals( 0, metadata.partition().size(),"Partition should be empty");
-    Assertions.assertNull( metadata.keyMetadata(),"Key metadata should be null");
+        FileContent.POSITION_DELETES, metadata.content(), "Should be position deletes");
+    Assertions.assertEquals(
+        records.size(), metadata.recordCount(), "Record count should be correct");
+    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
+    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -220,6 +222,6 @@ public class TestParquetDeleteWriters {
     }
 
     Assertions.assertEquals(
-         expectedDeleteRecords, deletedRecords,"Deleted records should match expected");
+        expectedDeleteRecords, deletedRecords, "Deleted records should match expected");
   }
 }

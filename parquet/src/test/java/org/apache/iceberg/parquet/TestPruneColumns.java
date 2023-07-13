@@ -118,7 +118,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assertions.assertEquals( expected, actual,"Pruned schema should not rename repeated struct");
+    Assertions.assertEquals(expected, actual, "Pruned schema should not rename repeated struct");
   }
 
   @Test
@@ -193,7 +193,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assertions.assertEquals( expected, actual,"Pruned schema should not rename repeated struct");
+    Assertions.assertEquals(expected, actual, "Pruned schema should not rename repeated struct");
   }
 
   @Test
@@ -267,6 +267,6 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assertions.assertEquals( expected, actual,"Pruned schema should be matched");
+    Assertions.assertEquals(expected, actual, "Pruned schema should be matched");
   }
 }

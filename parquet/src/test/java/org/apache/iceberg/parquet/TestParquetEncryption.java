@@ -20,12 +20,14 @@ package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -51,8 +53,7 @@ public class TestParquetEncryption {
   private static File file;
   private static final Schema schema = new Schema(optional(1, columnName, IntegerType.get()));
 
-  @TempDir
-  private File temp;
+  @TempDir private Path temp;
 
   @BeforeEach
   public void writeEncryptedFile() throws IOException {
@@ -68,7 +69,7 @@ public class TestParquetEncryption {
     rand.nextBytes(fileDek.array());
     rand.nextBytes(aadPrefix.array());
 
-    file = temp;
+    file = createTempFile(temp);
 
     FileAppender<GenericData.Record> writer =
         Parquet.write(localOutput(file))
