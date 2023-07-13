@@ -19,7 +19,7 @@
 
 // overriding default versions for Hive3
 def hiveVersion = "3.1.3"
-def hadoopVersion = "3.3.5"
+def hadoopVersion = "3.3.6"
 def tezVersion = "0.10.2"
 
 project(':iceberg-hive3') {

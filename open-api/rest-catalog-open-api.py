@@ -362,6 +362,11 @@ class TableRequirement(BaseModel):
     default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
 
 
+class RegisterTableRequest(BaseModel):
+    name: str
+    metadata_location: str = Field(..., alias='metadata-location')
+
+
 class TokenType(Enum):
     """
     Token type identifier, from RFC 8693 Section 3

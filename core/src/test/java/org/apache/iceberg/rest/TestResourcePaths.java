@@ -135,4 +135,12 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
     Assertions.assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%1Fs/tables/table");
   }
+
+  @Test
+  public void testRegister() {
+    Namespace ns = Namespace.of("ns");
+    Assertions.assertThat(withPrefix.register(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/register");
+    Assertions.assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/ns/register");
+  }
 }

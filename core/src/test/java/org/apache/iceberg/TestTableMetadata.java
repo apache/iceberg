@@ -406,35 +406,34 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "Current snapshot ID does not match main branch",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                currentSnapshotId,
-                Arrays.asList(previousSnapshot, currentSnapshot),
-                null,
-                snapshotLog,
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    currentSnapshotId,
+                    Arrays.asList(previousSnapshot, currentSnapshot),
+                    null,
+                    snapshotLog,
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
 
   @Test
@@ -451,35 +450,34 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "Current snapshot is not set, but main branch exists",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                -1,
-                ImmutableList.of(snapshot),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(snapshot),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
 
   @Test
@@ -491,35 +489,34 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "does not exist in the existing snapshots list",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                -1,
-                ImmutableList.of(),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
 
   private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata) {
@@ -922,69 +919,67 @@ public class TestTableMetadata {
 
   @Test
   public void testV2UUIDValidation() {
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without a UUID",
-        IllegalArgumentException.class,
-        "UUID is required in format v2",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                null,
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    null,
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    LAST_ASSIGNED_COLUMN_ID,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    SPEC_5.specId(),
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of(),
+                    -1L,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("UUID is required in format v2");
   }
 
   @Test
   public void testVersionValidation() {
     int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
-    AssertHelpers.assertThrows(
-        "Should reject unsupported metadata",
-        IllegalArgumentException.class,
-        "Unsupported format version: v" + unsupportedVersion,
-        () ->
-            new TableMetadata(
-                null,
-                unsupportedVersion,
-                null,
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    unsupportedVersion,
+                    null,
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    LAST_ASSIGNED_COLUMN_ID,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    SPEC_5.specId(),
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of(),
+                    -1L,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported format version: v" + unsupportedVersion);
   }
 
   @Test
@@ -998,63 +993,51 @@ public class TestTableMetadata {
     Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
-    AssertHelpers.assertThrows(
-        "Should not read unsupported metadata",
-        IllegalArgumentException.class,
-        "Cannot read unsupported version",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot read unsupported version");
   }
 
   @Test
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without partition specs",
-        IllegalArgumentException.class,
-        "partition-specs must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("partition-specs must exist in format v2");
   }
 
   @Test
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without last assigned partition field id",
-        IllegalArgumentException.class,
-        "last-partition-id must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("last-partition-id must exist in format v2");
   }
 
   @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without sort order",
-        IllegalArgumentException.class,
-        "sort-orders must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("sort-orders must exist in format v2");
   }
 
   @Test
   public void testParserV2CurrentSchemaIdValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without valid schema id",
-        IllegalArgumentException.class,
-        "Cannot find schema with current-schema-id=2 from schemas",
-        () -> TableMetadataParser.fromJson(unsupported));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
 
   @Test
   public void testParserV2SchemasValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without schemas",
-        IllegalArgumentException.class,
-        "schemas must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupported));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("schemas must exist in format v2");
   }
 
   private String readTableMetadataInputFile(String fileName) throws Exception {
@@ -1105,11 +1088,9 @@ public class TestTableMetadata {
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
 
-    AssertHelpers.assertThrows(
-        "Should fail to update an invalid partition spec",
-        ValidationException.class,
-        "Spec does not use sequential IDs that are required in v1",
-        () -> metadata.updatePartitionSpec(spec));
+    Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Spec does not use sequential IDs that are required in v1");
   }
 
   @Test
@@ -1547,31 +1528,30 @@ public class TestTableMetadata {
   public void testNoReservedPropertyForTableMetadataCreation() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "should not allow reserved table property when creating table metadata",
-        IllegalArgumentException.class,
-        "Table properties should not contain reserved properties, but got {format-version=1}",
-        () ->
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                "/tmp",
-                ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
-                1));
+    Assertions.assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    null,
+                    "/tmp",
+                    ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Table properties should not contain reserved properties, but got {format-version=1}");
 
-    AssertHelpers.assertThrows(
-        "should not allow reserved table property when creating table metadata",
-        IllegalArgumentException.class,
-        "Table properties should not contain reserved properties, but got {uuid=uuid}",
-        () ->
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                "/tmp",
-                ImmutableMap.of(TableProperties.UUID, "uuid"),
-                1));
+    Assertions.assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    null,
+                    "/tmp",
+                    ImmutableMap.of(TableProperties.UUID, "uuid"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table properties should not contain reserved properties, but got {uuid=uuid}");
   }
 
   @Test

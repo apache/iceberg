@@ -81,6 +81,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     }
 
     @Override
+    public Schema schema() {
+      return fileScanTask.schema();
+    }
+
+    @Override
     public PartitionSpec spec() {
       return fileScanTask.spec();
     }

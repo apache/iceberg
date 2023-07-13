@@ -28,9 +28,12 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 import java.util.Arrays;
@@ -40,9 +43,12 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.And;
@@ -57,6 +63,7 @@ public class SparkV2Filters {
   private static final String FALSE = "ALWAYS_FALSE";
   private static final String EQ = "=";
   private static final String EQ_NULL_SAFE = "<=>";
+  private static final String NOT_EQ = "<>";
   private static final String GT = ">";
   private static final String GT_EQ = ">=";
   private static final String LT = "<";
@@ -75,6 +82,7 @@ public class SparkV2Filters {
           .put(FALSE, Operation.FALSE)
           .put(EQ, Operation.EQ)
           .put(EQ_NULL_SAFE, Operation.EQ)
+          .put(NOT_EQ, Operation.NOT_EQ)
           .put(GT, Operation.GT)
           .put(GT_EQ, Operation.GT_EQ)
           .put(LT, Operation.LT)
@@ -152,30 +160,34 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
-          Object value;
-          String columnName;
-          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            columnName = SparkUtil.toColumnName(leftChild(predicate));
-            value = convertLiteral(rightChild(predicate));
-          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            columnName = SparkUtil.toColumnName(rightChild(predicate));
-            value = convertLiteral(leftChild(predicate));
-          } else {
+          Pair<UnboundTerm<Object>, Object> eqChildren = predicateChildren(predicate);
+          if (eqChildren == null) {
             return null;
           }
 
           if (predicate.name().equals(EQ)) {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(
-                value, "Expression is always false (eq is not null-safe): %s", predicate);
-            return handleEqual(columnName, value);
-          } else { // "<=>"
-            if (value == null) {
-              return isNull(columnName);
-            } else {
-              return handleEqual(columnName, value);
-            }
+                eqChildren.second(),
+                "Expression is always false (eq is not null-safe): %s",
+                predicate);
           }
+
+          return handleEqual(eqChildren.first(), eqChildren.second());
+
+        case NOT_EQ:
+          Pair<UnboundTerm<Object>, Object> notEqChildren = predicateChildren(predicate);
+          if (notEqChildren == null) {
+            return null;
+          }
+
+          // comparison with null in normal equality is always null. this is probably a mistake.
+          Preconditions.checkNotNull(
+              notEqChildren.second(),
+              "Expression is always false (notEq is not null-safe): %s",
+              predicate);
+
+          return handleNotEqual(notEqChildren.first(), notEqChildren.second());
 
         case IN:
           if (isSupportedInPredicate(predicate)) {
@@ -245,6 +257,22 @@ public class SparkV2Filters {
     return null;
   }
 
+  private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {
+    if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(leftChild(predicate)));
+      Object value = convertLiteral(rightChild(predicate));
+      return Pair.of(term, value);
+
+    } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+      UnboundTerm<Object> term = ref(SparkUtil.toColumnName(rightChild(predicate)));
+      Object value = convertLiteral(leftChild(predicate));
+      return Pair.of(term, value);
+
+    } else {
+      return null;
+    }
+  }
+
   @SuppressWarnings("unchecked")
   private static <T> T child(Predicate predicate) {
     org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
@@ -289,11 +317,21 @@ public class SparkV2Filters {
     return literal.value();
   }
 
-  private static Expression handleEqual(String attribute, Object value) {
-    if (NaNUtil.isNaN(value)) {
-      return isNaN(attribute);
+  private static UnboundPredicate<Object> handleEqual(UnboundTerm<Object> term, Object value) {
+    if (value == null) {
+      return isNull(term);
+    } else if (NaNUtil.isNaN(value)) {
+      return isNaN(term);
     } else {
-      return equal(attribute, value);
+      return equal(term, value);
+    }
+  }
+
+  private static UnboundPredicate<Object> handleNotEqual(UnboundTerm<Object> term, Object value) {
+    if (NaNUtil.isNaN(value)) {
+      return notNaN(term);
+    } else {
+      return notEqual(term, value);
     }
   }
 

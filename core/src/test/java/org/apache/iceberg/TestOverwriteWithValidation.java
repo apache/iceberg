@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -339,11 +340,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
     long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found conflicting files",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -415,11 +414,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
     long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found conflicting files",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -446,11 +443,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     commit(table, table.newDelete().deleteFile(FILE_DAY_2), branch);
     long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Missing required files to delete:",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Missing required files to delete:");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -558,11 +553,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.expireSnapshots().expireSnapshotId(2L).commit();
     long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Cannot determine history",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot determine history");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -588,11 +581,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.expireSnapshots().expireSnapshotId(1L).commit();
     long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Cannot determine history",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot determine history");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -681,11 +672,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     commit(table, overwrite, branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found conflicting files",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -715,11 +704,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "found new delete",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
   }
 
   @Test
@@ -744,11 +731,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found new conflicting delete",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete");
   }
 
   @Test
@@ -770,11 +755,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     commit(table, table.newOverwrite().deleteFile(FILE_DAY_2), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found conflicting deleted files",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting deleted files");
   }
 
   @Test
@@ -879,11 +862,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_EQ_DELETES), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "found new delete",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
   }
 
   @Test
@@ -953,50 +934,47 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     Expression rowFilter = equal("dAtE", "2018-06-09");
 
-    AssertHelpers.assertThrows(
-        "Should use case sensitive binding by default",
-        ValidationException.class,
-        "Cannot find field 'dAtE'",
-        () ->
-            commit(
-                table,
-                table
-                    .newOverwrite()
-                    .addFile(FILE_DAY_2_MODIFIED)
-                    .conflictDetectionFilter(rowFilter)
-                    .validateNoConflictingData(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newOverwrite()
+                        .addFile(FILE_DAY_2_MODIFIED)
+                        .conflictDetectionFilter(rowFilter)
+                        .validateNoConflictingData(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'dAtE'");
 
-    AssertHelpers.assertThrows(
-        "Should fail with case sensitive binding",
-        ValidationException.class,
-        "Cannot find field 'dAtE'",
-        () ->
-            commit(
-                table,
-                table
-                    .newOverwrite()
-                    .caseSensitive(true)
-                    .addFile(FILE_DAY_2_MODIFIED)
-                    .conflictDetectionFilter(rowFilter)
-                    .validateNoConflictingData(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newOverwrite()
+                        .caseSensitive(true)
+                        .addFile(FILE_DAY_2_MODIFIED)
+                        .conflictDetectionFilter(rowFilter)
+                        .validateNoConflictingData(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'dAtE'");
 
     // binding should succeed and trigger the validation
-    AssertHelpers.assertThrows(
-        "Should trigger the validation",
-        ValidationException.class,
-        "Found conflicting files",
-        () ->
-            commit(
-                table,
-                table
-                    .newOverwrite()
-                    .caseSensitive(false)
-                    .addFile(FILE_DAY_2_MODIFIED)
-                    .conflictDetectionFilter(rowFilter)
-                    .validateNoConflictingData(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newOverwrite()
+                        .caseSensitive(false)
+                        .addFile(FILE_DAY_2_MODIFIED)
+                        .conflictDetectionFilter(rowFilter)
+                        .validateNoConflictingData(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files");
   }
 
   @Test
