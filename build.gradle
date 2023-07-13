@@ -530,6 +530,10 @@ project(':iceberg-delta-lake') {
     integrationRuntime.extendsFrom testRuntimeOnly
   }
 
+    test {
+        useJUnitPlatform()
+    }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
