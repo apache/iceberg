@@ -454,15 +454,15 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Namespace namespace1 = Namespace.of("dbname1");
     catalog.createNamespace(namespace1, meta);
     namespaces = catalog.listNamespaces(namespace1);
-    assertThat(namespaces.isEmpty()).as("Hive db not hive the namespace 'dbname1'").isTrue();
+    assertThat(namespaces).as("Hive db not hive the namespace 'dbname1'").isEmpty();
 
     Namespace namespace2 = Namespace.of("dbname2");
     catalog.createNamespace(namespace2, meta);
     namespaces = catalog.listNamespaces();
 
-    assertThat(namespaces.contains(namespace2))
-        .as("Hive db not hive the namespace 'dbname2'")
-        .isTrue();
+    assertThat(namespaces)
+        .as("Hive db not hive the namespace 'dbname2'").
+    contains(namespace2);
   }
 
   @Test
@@ -486,9 +486,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace, meta);
 
     assertThat(catalog.namespaceExists(namespace)).as("Should true to namespace exist").isTrue();
-    assertThat(!catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")))
+    assertThat(catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")))
         .as("Should false to namespace doesn't exist")
-        .isTrue();
+        .isFalse();
   }
 
   @Test
