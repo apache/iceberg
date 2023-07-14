@@ -460,9 +460,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace2, meta);
     namespaces = catalog.listNamespaces();
 
-    assertThat(namespaces)
-        .as("Hive db not hive the namespace 'dbname2'").
-    contains(namespace2);
+    assertThat(namespaces).as("Hive db not hive the namespace 'dbname2'").contains(namespace2);
   }
 
   @Test
