@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +50,6 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -67,7 +67,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assertions.assertEquals(2, reader.getRowGroups().size());
+      assertThat(reader.getRowGroups()).hasSize(2);
     }
   }
 
@@ -82,7 +82,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assertions.assertEquals(2, reader.getRowGroups().size());
+      assertThat(reader.getRowGroups()).hasSize(2);
     }
   }
 
@@ -115,7 +115,7 @@ public class TestParquet {
             records.toArray(new GenericData.Record[] {}));
 
     long expectedSize = ParquetIO.file(localInput(file)).getLength();
-    Assertions.assertEquals(expectedSize, actualSize);
+    assertThat(actualSize).isEqualTo(expectedSize);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestParquet {
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp.toFile();
-    Assertions.assertTrue(testFile.delete());
+    assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
         AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(testFile.toURI()))
@@ -153,8 +153,8 @@ public class TestParquet {
         Iterables.getOnlyElement(
             Parquet.read(Files.localInput(testFile)).project(schema).callInit().build());
 
-    Assertions.assertEquals(expectedByteList, recordRead.get("arraybytes"));
-    Assertions.assertEquals(expectedBinary, recordRead.get("topbytes"));
+    assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
+    assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
   }
 
   private Pair<File, Long> generateFile(

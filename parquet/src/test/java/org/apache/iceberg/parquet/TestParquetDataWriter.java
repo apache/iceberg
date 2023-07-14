@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -46,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -101,13 +101,14 @@ public class TestParquetDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assertions.assertEquals(FileFormat.PARQUET, dataFile.format(), "Format should be Parquet");
-    Assertions.assertEquals(FileContent.DATA, dataFile.content(), "Should be data file");
-    Assertions.assertEquals(records.size(), dataFile.recordCount(), "Record count should match");
-    Assertions.assertEquals(0, dataFile.partition().size(), "Partition should be empty");
-    Assertions.assertEquals(
-        sortOrder.orderId(), (int) dataFile.sortOrderId(), "Sort order should match");
-    Assertions.assertNull(dataFile.keyMetadata(), "Key metadata should be null");
+    assertThat(dataFile.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(records.size());
+    assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat((int) dataFile.sortOrderId())
+        .as("Sort order should match")
+        .isEqualTo(sortOrder.orderId());
+    assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
@@ -118,7 +119,7 @@ public class TestParquetDataWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(records, writtenRecords, "Written records should match");
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
@@ -169,12 +170,13 @@ public class TestParquetDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assertions.assertEquals(FileFormat.PARQUET, dataFile.format(), "Format should be Parquet");
-    Assertions.assertEquals(FileContent.DATA, dataFile.content(), "Should be data file");
-    Assertions.assertEquals(
-        overflowRecords.size(), dataFile.recordCount(), "Record count should match");
-    Assertions.assertEquals(0, dataFile.partition().size(), "Partition should be empty");
-    Assertions.assertNull(dataFile.keyMetadata(), "Key metadata should be null");
+    assertThat(dataFile.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount())
+        .as("Record count should match")
+        .isEqualTo(overflowRecords.size());
+    assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
@@ -185,12 +187,12 @@ public class TestParquetDataWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(overflowRecords, writtenRecords, "Written records should match");
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(overflowRecords);
 
-    Assertions.assertTrue(dataFile.lowerBounds().containsKey(1), "Should have a valid lower bound");
-    Assertions.assertTrue(dataFile.upperBounds().containsKey(1), "Should have a valid upper bound");
-    Assertions.assertTrue(dataFile.lowerBounds().containsKey(2), "Should have a valid lower bound");
-    Assertions.assertFalse(dataFile.upperBounds().containsKey(2), "Should have a null upper bound");
+    assertThat(dataFile.lowerBounds()).as("Should have a valid lower bound").containsKey(1);
+    assertThat(dataFile.upperBounds()).as("Should have a valid upper bound").containsKey(1);
+    assertThat(dataFile.lowerBounds()).as("Should have a valid lower bound").containsKey(2);
+    assertThat(dataFile.upperBounds()).as("Should have a null upper bound").doesNotContainKey(2);
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
@@ -240,12 +242,13 @@ public class TestParquetDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assertions.assertEquals(FileFormat.PARQUET, dataFile.format(), "Format should be Parquet");
-    Assertions.assertEquals(FileContent.DATA, dataFile.content(), "Should be data file");
-    Assertions.assertEquals(
-        overflowRecords.size(), dataFile.recordCount(), "Record count should match");
-    Assertions.assertEquals(0, dataFile.partition().size(), "Partition should be empty");
-    Assertions.assertNull(dataFile.keyMetadata(), "Key metadata should be null");
+    assertThat(dataFile.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount())
+        .as("Record count should match")
+        .isEqualTo(overflowRecords.size());
+    assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
@@ -256,11 +259,11 @@ public class TestParquetDataWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(overflowRecords, writtenRecords, "Written records should match");
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(overflowRecords);
 
-    Assertions.assertTrue(dataFile.lowerBounds().containsKey(1), "Should have a valid lower bound");
-    Assertions.assertTrue(dataFile.upperBounds().containsKey(1), "Should have a valid upper bound");
-    Assertions.assertTrue(dataFile.lowerBounds().containsKey(3), "Should have a valid lower bound");
-    Assertions.assertFalse(dataFile.upperBounds().containsKey(3), "Should have a null upper bound");
+    assertThat(dataFile.lowerBounds()).as("Should have a valid lower bound").containsKey(1);
+    assertThat(dataFile.upperBounds()).as("Should have a valid upper bound").containsKey(1);
+    assertThat(dataFile.lowerBounds()).as("Should have a valid lower bound").containsKey(3);
+    assertThat(dataFile.upperBounds()).as("Should have a null upper bound").doesNotContainKey(3);
   }
 }

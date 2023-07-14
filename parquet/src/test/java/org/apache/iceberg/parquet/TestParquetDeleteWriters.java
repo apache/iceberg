@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -90,13 +91,15 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
-    Assertions.assertEquals(
-        FileContent.EQUALITY_DELETES, metadata.content(), "Should be equality deletes");
-    Assertions.assertEquals(
-        records.size(), metadata.recordCount(), "Record count should be correct");
-    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
-    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
+    assertThat(metadata.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(metadata.content())
+        .as("Should be equality deletes")
+        .isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -107,7 +110,7 @@ public class TestParquetDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(records, deletedRecords, "Deleted records should match expected");
+    assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
   }
 
   @Test
@@ -147,13 +150,15 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
-    Assertions.assertEquals(
-        FileContent.POSITION_DELETES, metadata.content(), "Should be position deletes");
-    Assertions.assertEquals(
-        records.size(), metadata.recordCount(), "Record count should be correct");
-    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
-    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
+    assertThat(metadata.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(metadata.content())
+        .as("Should be position deletes")
+        .isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -165,8 +170,9 @@ public class TestParquetDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(
-        expectedDeleteRecords, deletedRecords, "Deleted records should match expected");
+    assertThat(deletedRecords)
+        .as("Deleted records should match expected")
+        .isEqualTo(expectedDeleteRecords);
   }
 
   @Test
@@ -203,13 +209,15 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertEquals(FileFormat.PARQUET, metadata.format(), "Format should be Parquet");
-    Assertions.assertEquals(
-        FileContent.POSITION_DELETES, metadata.content(), "Should be position deletes");
-    Assertions.assertEquals(
-        records.size(), metadata.recordCount(), "Record count should be correct");
-    Assertions.assertEquals(0, metadata.partition().size(), "Partition should be empty");
-    Assertions.assertNull(metadata.keyMetadata(), "Key metadata should be null");
+    assertThat(metadata.format()).as("Format should be Parquet").isEqualTo(FileFormat.PARQUET);
+    assertThat(metadata.content())
+        .as("Should be position deletes")
+        .isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -221,7 +229,8 @@ public class TestParquetDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertEquals(
-        expectedDeleteRecords, deletedRecords, "Deleted records should match expected");
+    assertThat(deletedRecords)
+        .as("Deleted records should match expected")
+        .isEqualTo(expectedDeleteRecords);
   }
 }

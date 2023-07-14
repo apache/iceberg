@@ -22,6 +22,7 @@ import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.Closeable;
 import java.io.File;
@@ -39,7 +40,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -120,7 +120,7 @@ public class TestParquetEncryption {
             .iterator()) {
       for (int i = 1; i <= recordCount; i++) {
         GenericData.Record readRecord = (GenericData.Record) readRecords.next();
-        Assertions.assertEquals(i, readRecord.get(columnName));
+        assertThat(readRecord.get(columnName)).isEqualTo(i);
       }
     }
   }

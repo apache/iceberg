@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.apache.parquet.column.statistics.Statistics;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -39,6 +39,6 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(0L);
-    Assertions.assertTrue(ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats));
+    assertThat(ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats)).isTrue();
   }
 }
