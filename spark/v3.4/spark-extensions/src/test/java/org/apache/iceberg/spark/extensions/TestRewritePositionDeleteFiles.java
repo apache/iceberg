@@ -194,6 +194,13 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
+  @Test
+  public void testNullTransform() throws Exception {
+    createTable("int");
+    insertData(i -> i == 0 ? null : 1, 2);
+    testDanglingDelete(2);
+  }
+
   private <T> void testDanglingDelete() throws Exception {
     testDanglingDelete(NUM_DATA_FILES);
   }

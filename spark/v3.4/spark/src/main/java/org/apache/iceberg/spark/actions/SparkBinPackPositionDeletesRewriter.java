@@ -130,9 +130,9 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
                 i -> {
                   Type type = fields.get(i).type();
                   Object value = partition.get(i, type.typeId().javaClass());
-                  Object converted = SparkValueConverter.convertToSpark(type, value);
+                  Object convertedValue = SparkValueConverter.convertToSpark(type, value);
                   Column col = col("partition." + fields.get(i).name());
-                  return col.equalTo(lit(converted));
+                  return col.eqNullSafe(lit(convertedValue));
                 })
             .reduce(Column::and);
     if (condition.isPresent()) {
