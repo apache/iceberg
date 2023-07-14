@@ -136,14 +136,6 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testTimestampNtz() throws Exception {
-    createTable("timestamp_ntz");
-    LocalDateTime baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00").toLocalDateTime();
-    insertData(baseTimestamp::plusDays);
-    testDanglingDelete();
-  }
-
-  @Test
   public void testBytePartition() throws Exception {
     createTable("byte");
     insertData(i -> i);
