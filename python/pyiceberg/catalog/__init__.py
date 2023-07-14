@@ -118,9 +118,9 @@ def load_dynamodb(name: str, conf: Properties) -> Catalog:
 
 def load_sql(name: str, conf: Properties) -> Catalog:
     try:
-        from pyiceberg.catalog.sql import SQLCatalog
+        from pyiceberg.catalog.sql import SqlCatalog
 
-        return SQLCatalog(name, **conf)
+        return SqlCatalog(name, **conf)
     except ImportError as exc:
         # TODO: is that really the package to install? (pyiceberg[sqlalchemy])
         raise NotInstalledError("SQLAlchemy support not installed: pip install 'pyiceberg[sqlalchemy]'") from exc
