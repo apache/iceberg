@@ -44,6 +44,11 @@ final class TestBucketPartitionerUtil {
     },
     IDENTITY_AND_BUCKET {
       @Override
+      public int bucketPartitionColumnPosition() {
+        return 1;
+      }
+
+      @Override
       public PartitionSpec getPartitionSpec(int numBuckets) {
         return PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
             .identity("id")
@@ -53,6 +58,11 @@ final class TestBucketPartitionerUtil {
     },
     TWO_BUCKETS {
       @Override
+      public int bucketPartitionColumnPosition() {
+        return 1;
+      }
+
+      @Override
       public PartitionSpec getPartitionSpec(int numBuckets) {
         return PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
             .bucket("id", numBuckets)
@@ -61,9 +71,7 @@ final class TestBucketPartitionerUtil {
       }
     };
 
-    public int bucketPartitionColumnPosition() {
-      return 1;
-    }
+    public abstract int bucketPartitionColumnPosition();
 
     public abstract PartitionSpec getPartitionSpec(int numBuckets);
   }

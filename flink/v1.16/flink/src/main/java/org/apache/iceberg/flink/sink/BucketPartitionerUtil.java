@@ -28,7 +28,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 
 final class BucketPartitionerUtil {
   static final String BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE =
-      "Unsupported partition spec: bucket partitioner expects 1 bucket partition, received: %s";
+      "Invalid number of buckets: %s (must be 1)";
 
   private BucketPartitionerUtil() {}
 
