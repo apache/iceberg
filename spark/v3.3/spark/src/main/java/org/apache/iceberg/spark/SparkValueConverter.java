@@ -122,7 +122,7 @@ public class SparkValueConverter {
     return record;
   }
 
- public static Object convertToSpark(Type type, Object object) {
+  public static Object convertToSpark(Type type, Object object) {
     if (object == null) {
       return null;
     }
