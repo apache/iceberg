@@ -62,29 +62,34 @@ object ExtendedDistributionAndOrderingUtils {
           conf.numShufflePartitions
         }
 
-        val tableProperties = if(table.isInstanceOf[RowLevelOperationTable])  {
-          table.asInstanceOf[RowLevelOperationTable].table.properties()
-        } else {
-          table.properties()
+        val tableProperties = table match {
+          case d : RowLevelOperationTable => d.table.properties()
+          case _ : Table => table.properties()
+        }
+
+        val isHashDistrubitionMode = distribution match {
+          case ClusteredDistribution => true
+          case _ => false
         }
 
         val strictDistributionMode = tableProperties
           .getOrDefault(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
             TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
-        if(strictDistributionMode.equals("false") && write.requiredDistribution().isInstanceOf[ClusteredDistribution]) {
+
+        if (strictDistributionMode.equals("false") && isHashDistrubitionMode) {
           // if strict distribution mode is not enabled, then we fallback to spark AQE
           // to determine the number of partitions by colaesceing and un-skewing partitions
           // Also to note, Rebalance is only supported for hash distribution mode till spark 3.3
           // By default the strictDistributionMode is set to true, to not disrupt regular
           // plan of RepartitionByExpression
           RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
-        }
-        else {
+        } else {
           // the conversion to catalyst expressions above produces SortOrder expressions
           // for OrderedDistribution and generic expressions for ClusteredDistribution
           // this allows RepartitionByExpression to pick either range or hash partitioning
           RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
         }
+
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {
