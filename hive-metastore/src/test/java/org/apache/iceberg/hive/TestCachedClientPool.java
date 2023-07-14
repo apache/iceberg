@@ -20,6 +20,8 @@ package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.security.PrivilegedAction;
 import java.util.Collections;
@@ -31,7 +33,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hive.CachedClientPool.Key;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCachedClientPool extends HiveMetastoreTest {
@@ -40,22 +41,22 @@ public class TestCachedClientPool extends HiveMetastoreTest {
   public void testClientPoolCleaner() throws InterruptedException {
     CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
     HiveClientPool clientPool1 = clientPool.clientPool();
-    Assertions.assertThat(clientPool1)
+    assertThat(clientPool1)
         .isSameAs(
             CachedClientPool.clientPoolCache()
                 .getIfPresent(CachedClientPool.extractKey(null, hiveConf)));
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
-    Assertions.assertThat(clientPool2).isSameAs(clientPool1);
+    assertThat(clientPool2).isSameAs(clientPool1);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
-    Assertions.assertThat(
+    assertThat(
             CachedClientPool.clientPoolCache()
                 .getIfPresent(CachedClientPool.extractKey(null, hiveConf)))
         .isNull();
 
     // The client has been really closed.
-    Assertions.assertThat(clientPool1.isClosed()).isTrue();
-    Assertions.assertThat(clientPool2.isClosed()).isTrue();
+    assertThat(clientPool1.isClosed()).isTrue();
+    assertThat(clientPool2.isClosed()).isTrue();
   }
 
   @Test
@@ -73,22 +74,20 @@ public class TestCachedClientPool extends HiveMetastoreTest {
         foo2.doAs(
             (PrivilegedAction<Key>)
                 () -> CachedClientPool.extractKey("conf:key1,user_name", hiveConf));
-    Assertions.assertThat(key2).as("Key elements order shouldn't matter").isEqualTo(key1);
+    assertThat(key2).as("Key elements order shouldn't matter").isEqualTo(key1);
 
     key1 = foo1.doAs((PrivilegedAction<Key>) () -> CachedClientPool.extractKey("ugi", hiveConf));
     key2 = bar.doAs((PrivilegedAction<Key>) () -> CachedClientPool.extractKey("ugi", hiveConf));
-    Assertions.assertThat(key2)
-        .as("Different users are not supposed to be equivalent")
-        .isNotEqualTo(key1);
+    assertThat(key2).as("Different users are not supposed to be equivalent").isNotEqualTo(key1);
 
     key2 = foo2.doAs((PrivilegedAction<Key>) () -> CachedClientPool.extractKey("ugi", hiveConf));
-    Assertions.assertThat(key2)
+    assertThat(key2)
         .as("Different UGI instances are not supposed to be equivalent")
         .isNotEqualTo(key1);
 
     key1 = CachedClientPool.extractKey("ugi", hiveConf);
     key2 = CachedClientPool.extractKey("ugi,conf:key1", hiveConf);
-    Assertions.assertThat(key2)
+    assertThat(key2)
         .as("Keys with different number of elements are not supposed to be equivalent")
         .isNotEqualTo(key1);
 
@@ -98,37 +97,33 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     conf1.set("key1", "val");
     key1 = CachedClientPool.extractKey("conf:key1", conf1);
     key2 = CachedClientPool.extractKey("conf:key1", conf2);
-    Assertions.assertThat(key2)
+    assertThat(key2)
         .as("Config with different values are not supposed to be equivalent")
         .isNotEqualTo(key1);
 
     conf2.set("key1", "val");
     conf2.set("key2", "val");
     key2 = CachedClientPool.extractKey("conf:key2", conf2);
-    Assertions.assertThat(key2)
+    assertThat(key2)
         .as("Config with different keys are not supposed to be equivalent")
         .isNotEqualTo(key1);
 
     key1 = CachedClientPool.extractKey("conf:key1,ugi", conf1);
     key2 = CachedClientPool.extractKey("ugi,conf:key1", conf2);
-    Assertions.assertThat(key2)
-        .as("Config with same key/value should be equivalent")
-        .isEqualTo(key1);
+    assertThat(key2).as("Config with same key/value should be equivalent").isEqualTo(key1);
 
     conf1.set("key2", "val");
     key1 = CachedClientPool.extractKey("conf:key2 ,conf:key1", conf1);
     key2 = CachedClientPool.extractKey("conf:key2,conf:key1", conf2);
-    Assertions.assertThat(key2)
-        .as("Config with same key/value should be equivalent")
-        .isEqualTo(key1);
+    assertThat(key2).as("Config with same key/value should be equivalent").isEqualTo(key1);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> CachedClientPool.extractKey("ugi,ugi", hiveConf),
             "Duplicate key elements should result in an error")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("UGI key element already specified");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> CachedClientPool.extractKey("conf:k1,conf:k2,CONF:k1", hiveConf),
             "Duplicate conf key elements should result in an error")
         .isInstanceOf(ValidationException.class)
@@ -164,16 +159,16 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     HiveClientPool pool3 = ((CachedClientPool) catalog3.clientPool()).clientPool();
     HiveClientPool pool4 = ((CachedClientPool) catalog4.clientPool()).clientPool();
 
-    Assertions.assertThat(pool2).isSameAs(pool1);
-    Assertions.assertThat(pool1).isNotSameAs(pool3);
-    Assertions.assertThat(pool2).isNotSameAs(pool3);
-    Assertions.assertThat(pool4).isNotSameAs(pool3);
-    Assertions.assertThat(pool1).isNotSameAs(pool4);
-    Assertions.assertThat(pool2).isNotSameAs(pool4);
+    assertThat(pool2).isSameAs(pool1);
+    assertThat(pool1).isNotSameAs(pool3);
+    assertThat(pool2).isNotSameAs(pool3);
+    assertThat(pool4).isNotSameAs(pool3);
+    assertThat(pool1).isNotSameAs(pool4);
+    assertThat(pool2).isNotSameAs(pool4);
 
-    Assertions.assertThat(pool1.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isEqualTo("foo");
-    Assertions.assertThat(pool3.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isEqualTo("bar");
-    Assertions.assertThat(pool4.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isNull();
+    assertThat(pool1.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isEqualTo("foo");
+    assertThat(pool3.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isEqualTo("bar");
+    assertThat(pool4.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG)).isNull();
 
     pool1.close();
     pool3.close();
