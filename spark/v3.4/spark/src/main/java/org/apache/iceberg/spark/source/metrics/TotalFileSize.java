@@ -31,6 +31,6 @@ public class TotalFileSize extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "total file size";
+    return "total file size (bytes)";
   }
 }

@@ -58,7 +58,7 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
   }
 
   @Test
@@ -79,6 +79,6 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
   }
 }

@@ -42,7 +42,7 @@ public class TaskTotalPlanningDuration implements CustomTaskMetric {
 
   public static TaskTotalPlanningDuration from(ScanReport scanReport) {
     TimerResult timerResult = scanReport.scanMetrics().totalPlanningDuration();
-    long value = timerResult != null ? timerResult.count() : -1;
+    long value = timerResult != null ? timerResult.totalDuration().toMillis() : -1;
     return new TaskTotalPlanningDuration(value);
   }
 }

@@ -73,7 +73,6 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       Schema expectedSchema,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-
     super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
 
     this.snapshot = snapshot;

@@ -31,6 +31,6 @@ public class TotalPlanningDuration extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "total planning duration";
+    return "total planning duration (ms)";
   }
 }

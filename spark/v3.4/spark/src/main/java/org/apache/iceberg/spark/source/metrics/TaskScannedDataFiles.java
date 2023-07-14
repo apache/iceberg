@@ -31,7 +31,7 @@ public class TaskScannedDataFiles implements CustomTaskMetric {
 
   @Override
   public String name() {
-    return scannedDataFiles.NAME;
+    return ScannedDataFiles.NAME;
   }
 
   @Override

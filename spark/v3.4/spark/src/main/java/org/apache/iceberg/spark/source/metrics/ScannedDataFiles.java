@@ -20,7 +20,7 @@ package org.apache.iceberg.spark.source.metrics;
 
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class scannedDataFiles extends CustomSumMetric {
+public class ScannedDataFiles extends CustomSumMetric {
 
   static final String NAME = "scannedDataFiles";
 

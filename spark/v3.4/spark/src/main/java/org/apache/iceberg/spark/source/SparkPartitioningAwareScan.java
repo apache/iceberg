@@ -78,7 +78,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema expectedSchema,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-
     super(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
 
     this.scan = scan;
