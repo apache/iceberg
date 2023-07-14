@@ -137,17 +137,6 @@ def test_write_bytes() -> None:
     assert output.getbuffer() == b"".join([b"\x06", _input])
 
 
-def test_write_bytes_fixed() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = b"\x12\x34\x56"
-
-    encoder.write_bytes_fixed(_input)
-
-    assert output.getbuffer() == _input
-
-
 def test_write_utf8() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)

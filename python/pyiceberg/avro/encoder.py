@@ -81,10 +81,6 @@ class BinaryEncoder:
         self.write_int(len(b))
         self.write(b)
 
-    def write_bytes_fixed(self, b: bytes) -> None:
-        """Writes fixed number of bytes."""
-        self.write(b)
-
     def write_utf8(self, s: str) -> None:
         """A string is encoded as a long followed by that many bytes of UTF-8 encoded character data."""
         self.write_bytes(s.encode("utf-8"))
