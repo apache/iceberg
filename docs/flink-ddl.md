@@ -150,7 +150,7 @@ USE iceberg_db;
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
-    `data` STRING NOT NULL
+    data STRING NOT NULL
 ) 
 WITH ('format-version'='2');
 ```
@@ -184,15 +184,15 @@ To create a partition table, use `PARTITIONED BY`:
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
-    `data` STRING NOT NULL
+    data STRING NOT NULL
 ) 
 PARTITIONED BY (data) 
 WITH ('format-version'='2');
 ```
 
-Iceberg supports hidden partition but Flink doesn't support partitioning by a function on columns, so there is no way to support hidden partition in Flink DDL.
+Iceberg supports hidden partitioning but Flink doesn't support partitioning by a function on columns. There is no way to support hidden partitions in the Flink DDL.
 
-## `CREATE TABLE LIKE`
+### `CREATE TABLE LIKE`
 
 To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
 
@@ -208,7 +208,7 @@ CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`defaul
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/dev/table/sql/create/).
 
 
-## `ALTER TABLE`
+### `ALTER TABLE`
 
 Iceberg only support altering table properties:
 
@@ -216,13 +216,13 @@ Iceberg only support altering table properties:
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
 ```
 
-## `ALTER TABLE .. RENAME TO`
+### `ALTER TABLE .. RENAME TO`
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` RENAME TO `hive_catalog`.`default`.`new_sample`;
 ```
 
-## `DROP TABLE`
+### `DROP TABLE`
 
 To delete a table, run:
 
