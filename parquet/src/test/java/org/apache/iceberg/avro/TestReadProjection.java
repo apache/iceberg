@@ -32,7 +32,6 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -178,7 +177,9 @@ public abstract class TestReadProjection {
 
     assertThat((long) projected.get("id")).as("Should contain the correct id value").isEqualTo(34L);
 
-    assertThat(projected.get("renamed").toString()).as("Should contain the correct data/renamed value").isEqualTo("test");
+    assertThat(projected.get("renamed").toString())
+        .as("Should contain the correct data/renamed value")
+        .isEqualTo("test");
   }
 
   @Test
