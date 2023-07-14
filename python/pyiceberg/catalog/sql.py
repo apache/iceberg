@@ -186,9 +186,9 @@ class SqlCatalog(Catalog):
                 IcebergTables.table_name == table_name,
             )
             result = session.scalar(stmt)
-            if result:
-                return self._convert_orm_to_iceberg(result)
-            raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
+        if result:
+            return self._convert_orm_to_iceberg(result)
+        raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}")
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.

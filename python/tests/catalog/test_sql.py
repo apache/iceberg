@@ -26,19 +26,19 @@ from pyiceberg.table.sorting import (
 from pyiceberg.transforms import IdentityTransform
 
 
-@pytest.fixture(scope="session")
-def warehouse(tmp_path_factory: TempPathFactory) -> Path:
+@pytest.fixture(name="warehouse", scope="session")
+def fixture_warehouse(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("test_sql")
 
 
-@pytest.fixture()
-def random_identifier(warehouse: Path, database_name: str, table_name: str) -> Identifier:
+@pytest.fixture(name="random_identifier")
+def fixture_random_identifier(warehouse: Path, database_name: str, table_name: str) -> Identifier:
     os.makedirs(f"{warehouse}/{database_name}.db/{table_name}/metadata/", exist_ok=True)
     return database_name, table_name
 
 
-@pytest.fixture()
-def another_random_identifier(warehouse: Path, database_name: str, table_name: str) -> Identifier:
+@pytest.fixture(name="another_random_identifier")
+def fixture_another_random_identifier(warehouse: Path, database_name: str, table_name: str) -> Identifier:
     database_name = database_name + "_new"
     table_name = table_name + "_new"
     os.makedirs(f"{warehouse}/{database_name}.db/{table_name}/metadata/", exist_ok=True)
@@ -76,7 +76,7 @@ def test_initialize(test_catalog: SqlCatalog) -> None:
 def test_create_table_default_sort_order(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier
 ) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
     assert table.sort_order().order_id == 0, "Order ID must match"
@@ -87,7 +87,7 @@ def test_create_table_default_sort_order(
 def test_create_table_custom_sort_order(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier
 ) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     order = SortOrder(SortField(source_id=2, transform=IdentityTransform(), null_order=NullOrder.NULLS_FIRST))
     table = test_catalog.create_table(random_identifier, table_schema_nested, sort_order=order)
@@ -103,7 +103,7 @@ def test_create_table_custom_sort_order(
 def test_create_table_with_default_warehouse_location(
     warehouse: Path, test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier
 ) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(random_identifier, table_schema_nested)
     table = test_catalog.load_table(random_identifier)
@@ -114,7 +114,7 @@ def test_create_table_with_default_warehouse_location(
 
 
 def test_create_duplicated_table(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(random_identifier, table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
@@ -136,7 +136,7 @@ def test_create_table_without_namespace(
 
 
 def test_load_table(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
     loaded_table = test_catalog.load_table(random_identifier)
@@ -146,7 +146,7 @@ def test_load_table(test_catalog: SqlCatalog, table_schema_nested: Schema, rando
 
 
 def test_drop_table(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:
-    database_name, table_name = random_identifier
+    database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
     assert table.identifier == (test_catalog.name,) + random_identifier
@@ -163,8 +163,8 @@ def test_drop_table_that_does_not_exist(test_catalog: SqlCatalog, random_identif
 def test_rename_table(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier, another_random_identifier: Identifier
 ) -> None:
-    from_database_name, from_table_name = random_identifier
-    to_database_name, to_table_name = another_random_identifier
+    from_database_name, _from_table_name = random_identifier
+    to_database_name, _to_table_name = another_random_identifier
     test_catalog.create_namespace(from_database_name)
     test_catalog.create_namespace(to_database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
@@ -180,8 +180,8 @@ def test_rename_table(
 def test_rename_table_to_existing_one(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier, another_random_identifier: Identifier
 ) -> None:
-    from_database_name, from_table_name = random_identifier
-    to_database_name, to_table_name = another_random_identifier
+    from_database_name, _from_table_name = random_identifier
+    to_database_name, _to_table_name = another_random_identifier
     test_catalog.create_namespace(from_database_name)
     test_catalog.create_namespace(to_database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
@@ -195,7 +195,7 @@ def test_rename_table_to_existing_one(
 def test_rename_missing_table(
     test_catalog: SqlCatalog, random_identifier: Identifier, another_random_identifier: Identifier
 ) -> None:
-    to_database_name, to_table_name = another_random_identifier
+    to_database_name, _to_table_name = another_random_identifier
     test_catalog.create_namespace(to_database_name)
     with pytest.raises(NoSuchTableError):
         test_catalog.rename_table(random_identifier, another_random_identifier)
@@ -204,7 +204,7 @@ def test_rename_missing_table(
 def test_rename_table_to_missing_namespace(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier, another_random_identifier: Identifier
 ) -> None:
-    from_database_name, from_table_name = random_identifier
+    from_database_name, _from_table_name = random_identifier
     test_catalog.create_namespace(from_database_name)
     table = test_catalog.create_table(random_identifier, table_schema_nested)
     assert table.identifier == (test_catalog.name,) + random_identifier
@@ -215,8 +215,8 @@ def test_rename_table_to_missing_namespace(
 def test_list_tables(
     test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier, another_random_identifier: Identifier
 ) -> None:
-    database_name_1, table_name_1 = random_identifier
-    database_name_2, table_name_2 = another_random_identifier
+    database_name_1, _table_name_1 = random_identifier
+    database_name_2, _table_name_2 = another_random_identifier
     test_catalog.create_namespace(database_name_1)
     test_catalog.create_namespace(database_name_2)
     test_catalog.create_table(random_identifier, table_schema_nested)
