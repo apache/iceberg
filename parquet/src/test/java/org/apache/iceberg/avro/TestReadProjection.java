@@ -178,8 +178,7 @@ public abstract class TestReadProjection {
 
     assertThat((long) projected.get("id")).as("Should contain the correct id value").isEqualTo(34L);
 
-    int cmp = Comparators.charSequences().compare("test", (CharSequence) projected.get("renamed"));
-    assertThat(cmp == 0).as("Should contain the correct data/renamed value").isTrue();
+    assertThat(projected.get("renamed").toString()).as("Should contain the correct data/renamed value").isEqualTo("test");
   }
 
   @Test
