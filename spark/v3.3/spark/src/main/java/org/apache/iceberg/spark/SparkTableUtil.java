@@ -441,12 +441,12 @@ public class SparkTableUtil {
       } else {
         List<SparkPartition> sourceTablePartitions =
             getPartitions(spark, sourceTableIdent, partitionFilter);
-        Preconditions.checkArgument(
-            !sourceTablePartitions.isEmpty(),
-            "Cannot find any partitions in table %s",
-            sourceTableIdent);
-        importSparkPartitions(
-            spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        if (sourceTablePartitions.isEmpty()) {
+          targetTable.newAppend().commit();
+        } else {
+          importSparkPartitions(
+              spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        }
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
