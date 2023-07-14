@@ -21,6 +21,7 @@ package org.apache.iceberg.hive;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -32,11 +33,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
 import org.junit.jupiter.api.Test;
-import org.assertj.core.api.Assertions;
 
 public class TestHiveTableConcurrency extends HiveTableBaseTest {
 
@@ -78,8 +77,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
             });
 
     icebergTable.refresh();
-    Assertions.assertThat(
-         icebergTable.currentSnapshot().allManifests(icebergTable.io())).hasSize(20);
+    assertThat(icebergTable.currentSnapshot().allManifests(icebergTable.io())).hasSize(20);
   }
 
   @Test
@@ -110,7 +108,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
     }
 
     executorService.shutdown();
-    Assertions.assertThat(executorService.awaitTermination(3, TimeUnit.MINUTES)).as("Timeout").isTrue();
-    Assertions.assertThat(Iterables.size(icebergTable.snapshots())).isEqualTo(7);
+    assertThat(executorService.awaitTermination(3, TimeUnit.MINUTES)).as("Timeout").isTrue();
+    assertThat(icebergTable.snapshots()).hasSize(7);
   }
 }

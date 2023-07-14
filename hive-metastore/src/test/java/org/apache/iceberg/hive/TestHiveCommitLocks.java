@@ -59,11 +59,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.assertj.core.api.Assertions;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -528,7 +528,9 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     // Make sure that the expected parameter context values are set
     Map<String, String> context = contextCaptor.getValue().getProperties();
     Assertions.assertThat(context).hasSize(3);
-    Assertions.assertThat(HiveTableOperations.METADATA_LOCATION_PROP).isEqualTo(context.get("expected_parameter_key"));
-    Assertions.assertThat(metadataV2.metadataFileLocation()).isEqualTo(context.get("expected_parameter_value"));
+    Assertions.assertThat(HiveTableOperations.METADATA_LOCATION_PROP)
+        .isEqualTo(context.get("expected_parameter_key"));
+    Assertions.assertThat(metadataV2.metadataFileLocation())
+        .isEqualTo(context.get("expected_parameter_value"));
   }
 }

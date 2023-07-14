@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_SUMMARY;
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_TIMESTAMP;
 import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -120,8 +121,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assertions.assertThat(table.location()).isEqualTo(location);
       Assertions.assertThat(table.schema().columns()).hasSize(2);
       Assertions.assertThat(table.spec().fields()).hasSize(1);
-      Assertions.assertThat(table.properties().get("key1")).isEqualTo("value1");
-      Assertions.assertThat(table.properties().get("key2")).isEqualTo("value2");
+      Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
+      Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -142,8 +143,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assertions.assertThat(table.location()).isEqualTo(location);
       Assertions.assertThat(table.schema().columns()).hasSize(2);
       Assertions.assertThat(table.spec().fields()).hasSize(1);
-      Assertions.assertThat(table.properties().get("key1")).isEqualTo("value1");
-      Assertions.assertThat(table.properties().get("key2")).isEqualTo("value2");
+      Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
+      Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
     } finally {
       cachingCatalog.dropTable(tableIdent);
     }
@@ -151,20 +152,22 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testInitialize() {
-    assertThatNoException().isThrownBy(
-        () -> {
-          HiveCatalog catalog = new HiveCatalog();
-          catalog.initialize("hive", Maps.newHashMap());
-        });
+    assertThatNoException()
+        .isThrownBy(
+            () -> {
+              HiveCatalog catalog = new HiveCatalog();
+              catalog.initialize("hive", Maps.newHashMap());
+            });
   }
 
   @Test
   public void testToStringWithoutSetConf() {
-    assertThatNoException().isThrownBy(
-        () -> {
-          HiveCatalog catalog = new HiveCatalog();
-          catalog.toString();
-        });
+    assertThatNoException()
+        .isThrownBy(
+            () -> {
+              HiveCatalog catalog = new HiveCatalog();
+              catalog.toString();
+            });
   }
 
   @Test
@@ -175,8 +178,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     HiveCatalog catalog = new HiveCatalog();
     catalog.initialize("hive", properties);
 
-    Assertions.assertThat("thrift://examplehost:9083").isEqualTo(catalog.getConf().get("hive.metastore.uris"));
-    Assertions.assertThat("/user/hive/testwarehouse").isEqualTo(catalog.getConf().get("hive.metastore.warehouse.dir"));
+    Assertions.assertThat(catalog.getConf().get("hive.metastore.uris"))
+        .isEqualTo("thrift://examplehost:9083");
+    Assertions.assertThat(catalog.getConf().get("hive.metastore.warehouse.dir"))
+        .isEqualTo("/user/hive/testwarehouse");
   }
 
   @Test
@@ -237,10 +242,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
               .alwaysNull("data", "data_bucket")
               .withSpecId(1)
               .build();
-      Assertions.assertThat(table.spec()).as("Table should have a spec with one void field").isEqualTo(v1Expected);
+      Assertions.assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
 
-      Assertions.assertThat(table.properties().get("key1")).isEqualTo("value1");
-      Assertions.assertThat(table.properties().get("key2")).isEqualTo("value2");
+      Assertions.assertThat(table.properties()).containsEntry("key1", "value1");
+      Assertions.assertThat(table.properties()).containsEntry("key2", "value2");
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -272,7 +279,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
       Assertions.assertThat(hmsTable.getOwner()).isEqualTo(owner);
       Map<String, String> hmsTableParams = hmsTable.getParameters();
-      Assertions.assertThat(hmsTableParams.containsKey(HiveCatalog.HMS_TABLE_OWNER)).isFalse();
+      Assertions.assertThat(hmsTableParams).doesNotContainKey(HiveCatalog.HMS_TABLE_OWNER);
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -289,7 +296,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assertions.assertThat(table.sortOrder().orderId()).as("Order ID must match").isEqualTo(0);
       Assertions.assertThat(table.sortOrder().isUnsorted()).as("Order must unsorted").isTrue();
 
-      Assertions.assertThat(hmsTableParameters().containsKey(DEFAULT_SORT_ORDER)).as("Must not have default sort order in catalog").isFalse();
+      Assertions.assertThat(hmsTableParameters())
+          .doesNotContainKey(DEFAULT_SORT_ORDER)
+          .as("Must not have default sort order in catalog");
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -312,12 +321,19 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       SortOrder sortOrder = table.sortOrder();
       Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
       Assertions.assertThat(sortOrder.fields()).as("Order must have 1 field").hasSize(1);
-      Assertions.assertThat(sortOrder.fields().get(0).direction()).as("Direction must match ").isEqualTo(ASC);
-      Assertions.assertThat(sortOrder.fields().get(0).nullOrder()). as("Null order must match ").isEqualTo(NULLS_FIRST);
+      Assertions.assertThat(sortOrder.fields().get(0).direction())
+          .as("Direction must match ")
+          .isEqualTo(ASC);
+      Assertions.assertThat(sortOrder.fields().get(0).nullOrder())
+          .as("Null order must match ")
+          .isEqualTo(NULLS_FIRST);
       Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
-      Assertions.assertThat(sortOrder.fields().get(0).transform()).as("Transform must match").isEqualTo(transform);
+      Assertions.assertThat(sortOrder.fields().get(0).transform())
+          .as("Transform must match")
+          .isEqualTo(transform);
 
-      Assertions.assertThat(hmsTableParameters().get(DEFAULT_SORT_ORDER)).isEqualTo(SortOrderParser.toJson(table.sortOrder()));
+      Assertions.assertThat(hmsTableParameters())
+          .containsEntry(DEFAULT_SORT_ORDER, SortOrderParser.toJson(table.sortOrder()));
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -329,10 +345,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace1, meta);
     Database database1 = metastoreClient.getDatabase(namespace1.toString());
 
-    Assertions.assertThat(database1.getParameters().get("owner").equals("apache")).isTrue();
-    Assertions.assertThat(database1.getParameters().get("group").equals("iceberg")).isTrue();
+    Assertions.assertThat(database1.getParameters()).containsEntry("owner", "apache");
+    Assertions.assertThat(database1.getParameters()).containsEntry("group", "iceberg");
 
-    Assertions.assertThat(defaultUri(namespace1)).as("There no same location for db and namespace").isEqualTo(database1.getLocationUri());
+    Assertions.assertThat(defaultUri(namespace1))
+        .as("There no same location for db and namespace")
+        .isEqualTo(database1.getLocationUri());
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
@@ -349,7 +367,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     catalog.createNamespace(namespace2, newMeta);
     Database database2 = metastoreClient.getDatabase(namespace2.toString());
-    Assertions.assertThat(hiveLocalDir).as("There no same location for db and namespace").isEqualTo(database2.getLocationUri());
+    Assertions.assertThat(hiveLocalDir)
+        .as("There no same location for db and namespace")
+        .isEqualTo(database2.getLocationUri());
   }
 
   @Test
@@ -438,13 +458,17 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Namespace namespace1 = Namespace.of("dbname1");
     catalog.createNamespace(namespace1, meta);
     namespaces = catalog.listNamespaces(namespace1);
-    Assertions.assertThat(namespaces.isEmpty()).as("Hive db not hive the namespace 'dbname1'").isTrue();
+    Assertions.assertThat(namespaces.isEmpty())
+        .as("Hive db not hive the namespace 'dbname1'")
+        .isTrue();
 
     Namespace namespace2 = Namespace.of("dbname2");
     catalog.createNamespace(namespace2, meta);
     namespaces = catalog.listNamespaces();
 
-    Assertions.assertThat(namespaces.contains(namespace2)).as("Hive db not hive the namespace 'dbname2'").isTrue();
+    Assertions.assertThat(namespaces.contains(namespace2))
+        .as("Hive db not hive the namespace 'dbname2'")
+        .isTrue();
   }
 
   @Test
@@ -454,9 +478,11 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace, meta);
 
     Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
-    Assertions.assertThat(nameMata.get("owner").equals("apache")).isTrue();
-    Assertions.assertThat(nameMata.get("group").equals("iceberg")).isTrue();
-    Assertions.assertThat(catalog.convertToDatabase(namespace,meta).getLocationUri()).as("There no same location for db and namespace").isEqualTo(nameMata.get("location"));
+    Assertions.assertThat(nameMata).containsEntry("owner", "apache");
+    Assertions.assertThat(nameMata).containsEntry("group", "iceberg");
+    Assertions.assertThat(catalog.convertToDatabase(namespace, meta).getLocationUri())
+        .as("There no same location for db and namespace")
+        .isEqualTo(nameMata.get("location"));
   }
 
   @Test
@@ -465,8 +491,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     catalog.createNamespace(namespace, meta);
 
-    Assertions.assertThat(catalog.namespaceExists(namespace)).as("Should true to namespace exist").isTrue();
-    Assertions.assertThat(!catalog.namespaceExists(Namespace.of("db2", "db2", "ns2"))).as("Should false to namespace doesn't exist").isTrue();
+    Assertions.assertThat(catalog.namespaceExists(namespace))
+        .as("Should true to namespace exist")
+        .isTrue();
+    Assertions.assertThat(!catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")))
+        .as("Should false to namespace doesn't exist")
+        .isTrue();
   }
 
   @Test
@@ -483,9 +513,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
             "comment", "iceberg test"));
 
     Database database = metastoreClient.getDatabase(namespace.level(0));
-    Assertions.assertThat("alter_apache").isEqualTo(database.getParameters().get("owner"));
-    Assertions.assertThat("test").isEqualTo(database.getParameters().get("test"));
-    Assertions.assertThat("iceberg").isEqualTo(database.getParameters().get("group"));
+    Assertions.assertThat(database.getParameters()).containsEntry("owner", "alter_apache");
+    Assertions.assertThat(database.getParameters()).containsEntry("test", "test");
+    Assertions.assertThat(database.getParameters()).containsEntry("group", "iceberg");
 
     assertThatThrownBy(
             () -> catalog.setProperties(Namespace.of("db2", "db2", "ns2"), ImmutableMap.of()))
@@ -684,8 +714,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     Database database = metastoreClient.getDatabase(namespace.level(0));
 
-    Assertions.assertThat(database.getParameters().get("owner")).isNull();
-    Assertions.assertThat("iceberg").isEqualTo(database.getParameters().get("group"));
+    Assertions.assertThat(database.getParameters()).doesNotContainKey("owner");
+    Assertions.assertThat(database.getParameters()).containsEntry("group", "iceberg");
 
     assertThatThrownBy(
             () ->
@@ -829,15 +859,19 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace, meta);
     catalog.createTable(identifier, schema);
     Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
-    Assertions.assertThat(nameMata.get("owner").equals("apache")).isTrue();
-    Assertions.assertThat(nameMata.get("group").equals("iceberg")).isTrue();
+    Assertions.assertThat(nameMata).containsEntry("owner", "apache");
+    Assertions.assertThat(nameMata).containsEntry("group", "iceberg");
 
     assertThatThrownBy(() -> catalog.dropNamespace(namespace))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace dbname_drop is not empty. One or more tables exist.");
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
-    Assertions.assertThat(catalog.dropNamespace(namespace)).as("Should fail to drop namespace if it is not empty").isTrue();
-    Assertions.assertThat(catalog.dropNamespace(Namespace.of("db.ns1"))).as("Should fail to drop when namespace doesn't exist").isFalse();
+    Assertions.assertThat(catalog.dropNamespace(namespace))
+        .as("Should fail to drop namespace if it is not empty")
+        .isTrue();
+    Assertions.assertThat(catalog.dropNamespace(Namespace.of("db.ns1")))
+        .as("Should fail to drop when namespace doesn't exist")
+        .isFalse();
     assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: dbname_drop");
@@ -871,7 +905,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       TableIdentifier snapshotsTableIdent = TableIdentifier.of(DB_NAME, "tbl", "snapshots");
       Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
-      Assertions.assertThat(snapshotsTable.name()).as("Name must match").isEqualTo("hive.hivedb.tbl.snapshots");
+      Assertions.assertThat(snapshotsTable.name())
+          .as("Name must match")
+          .isEqualTo("hive.hivedb.tbl.snapshots");
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -893,7 +929,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     try {
       catalog.buildTable(tableIdentifier, schema).withLocation(location).create();
 
-      Assertions.assertThat(hmsTableParameters().get(TableProperties.UUID)).isNotNull();
+      Assertions.assertThat(hmsTableParameters()).containsKey(TableProperties.UUID);
     } finally {
       catalog.dropTable(tableIdentifier);
     }
@@ -910,10 +946,11 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       // check whether parameters are in expected state
       Map<String, String> parameters = hmsTableParameters();
-      Assertions.assertThat(parameters.get(TableProperties.SNAPSHOT_COUNT)).isEqualTo("0");
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_SUMMARY)).isNull();
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_ID)).isNull();
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_TIMESTAMP)).isNull();
+      Assertions.assertThat(parameters).containsEntry(SNAPSHOT_COUNT, "0");
+      Assertions.assertThat(parameters)
+          .doesNotContainKey(CURRENT_SNAPSHOT_SUMMARY)
+          .doesNotContainKey(CURRENT_SNAPSHOT_ID)
+          .doesNotContainKey(CURRENT_SNAPSHOT_TIMESTAMP);
 
       // create a snapshot
       Table icebergTable = catalog.loadTable(tableIdentifier);
@@ -928,14 +965,17 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       // check whether parameters are in expected state
       parameters = hmsTableParameters();
-      Assertions.assertThat(parameters.get(TableProperties.SNAPSHOT_COUNT)).isEqualTo("1");
+      Assertions.assertThat(parameters).containsEntry(SNAPSHOT_COUNT, "1");
       String summary =
           JsonUtil.mapper().writeValueAsString(icebergTable.currentSnapshot().summary());
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_SUMMARY)).isEqualTo(summary);
+      Assertions.assertThat(parameters).containsEntry(CURRENT_SNAPSHOT_SUMMARY, summary);
       long snapshotId = icebergTable.currentSnapshot().snapshotId();
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_ID)).isEqualTo(String.valueOf(snapshotId));
-      Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_TIMESTAMP)).isEqualTo(String.valueOf(icebergTable.currentSnapshot().timestampMillis()));
-
+      Assertions.assertThat(parameters)
+          .containsEntry(CURRENT_SNAPSHOT_ID, String.valueOf(snapshotId));
+      Assertions.assertThat(parameters)
+          .containsEntry(
+              CURRENT_SNAPSHOT_TIMESTAMP,
+              String.valueOf(icebergTable.currentSnapshot().timestampMillis()));
     } finally {
       catalog.dropTable(tableIdentifier);
     }
@@ -969,7 +1009,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assertions.assertThat(summarySize > 4000 && summarySize < 32672).isTrue();
     parameters.remove(CURRENT_SNAPSHOT_SUMMARY);
     ops.setSnapshotSummary(parameters, snapshot);
-    Assertions.assertThat(parameters).as("The snapshot summary must not be in parameters due to the size limit").isEmpty();
+    Assertions.assertThat(parameters)
+        .as("The snapshot summary must not be in parameters due to the size limit")
+        .isEmpty();
   }
 
   @Test
@@ -988,18 +1030,19 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     parameters.put(DEFAULT_SORT_ORDER, "sortOrder");
 
     ops.setSnapshotStats(metadata, parameters);
-    Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_SUMMARY)).isNull();
-    Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_ID)).isNull();
-    Assertions.assertThat(parameters.get(CURRENT_SNAPSHOT_TIMESTAMP)).isNull();
+    Assertions.assertThat(parameters)
+        .doesNotContainKey(CURRENT_SNAPSHOT_SUMMARY)
+        .doesNotContainKey(CURRENT_SNAPSHOT_ID)
+        .doesNotContainKey(CURRENT_SNAPSHOT_TIMESTAMP);
 
     ops.setSchema(metadata, parameters);
-    Assertions.assertThat(parameters.get(CURRENT_SCHEMA)).isNull();
+    Assertions.assertThat(parameters).doesNotContainKey(CURRENT_SCHEMA);
 
     ops.setPartitionSpec(metadata, parameters);
-    Assertions.assertThat(parameters.get(DEFAULT_PARTITION_SPEC)).isNull();
+    Assertions.assertThat(parameters).doesNotContainKey(DEFAULT_PARTITION_SPEC);
 
     ops.setSortOrder(metadata, parameters);
-    Assertions.assertThat(parameters.get(DEFAULT_SORT_ORDER)).isNull();
+    Assertions.assertThat(parameters).doesNotContainKey(DEFAULT_SORT_ORDER);
   }
 
   @Test
@@ -1009,10 +1052,14 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     try {
       Table table = catalog.buildTable(tableIdent, schema).create();
-      Assertions.assertThat(hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC)).as("Must not have default partition spec").isFalse();
+      Assertions.assertThat(hmsTableParameters())
+          .doesNotContainKey(TableProperties.DEFAULT_PARTITION_SPEC)
+          .as("Must not have default partition spec");
 
       table.updateSpec().addField(bucket("data", 16)).commit();
-      Assertions.assertThat(hmsTableParameters().get(TableProperties.DEFAULT_PARTITION_SPEC)).isEqualTo(PartitionSpecParser.toJson(table.spec()));
+      Assertions.assertThat(hmsTableParameters())
+          .containsEntry(
+              TableProperties.DEFAULT_PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -1026,7 +1073,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     try {
       Table table = catalog.buildTable(tableIdent, schema).create();
 
-      Assertions.assertThat(hmsTableParameters().get(CURRENT_SCHEMA)).isEqualTo(SchemaParser.toJson(table.schema()));
+      Assertions.assertThat(hmsTableParameters().get(CURRENT_SCHEMA))
+          .isEqualTo(SchemaParser.toJson(table.schema()));
 
       // add many new fields to make the schema json string exceed the limit
       UpdateSchema updateSchema = table.updateSchema();
@@ -1054,7 +1102,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     catalogWithSlash.initialize(
         "hive_catalog", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, wareHousePath + "/"));
-    Assertions.assertThat(catalogWithSlash.getConf().get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname)).as("Should have trailing slash stripped").isEqualTo(wareHousePath);
+    Assertions.assertThat(
+            catalogWithSlash.getConf().get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
+        .as("Should have trailing slash stripped")
+        .isEqualTo(wareHousePath);
   }
 
   @Test
@@ -1085,11 +1136,25 @@ public class TestHiveCatalog extends HiveMetastoreTest {
               .withProperty("key5", "table-key5")
               .create();
 
-      Assertions.assertThat(table.properties().get("key1")).as("Table defaults set for the catalog must be added to the table properties.").isEqualTo("catalog-default-key1");
-      Assertions.assertThat(table.properties().get("key2")).as("Table property must override table default properties set at catalog level.").isEqualTo("table-key2");
-      Assertions.assertThat(table.properties().get("key3")).as("Table property override set at catalog level must override table default" + " properties set at catalog level and table property specified.").isEqualTo("catalog-override-key3");
-      Assertions.assertThat(table.properties().get("key4")).as("Table override not in table props or defaults should be added to table properties").isEqualTo("catalog-override-key4");
-      Assertions.assertThat(table.properties().get("key5")).as("Table properties without any catalog level default or override should be added to table" + " properties.").isEqualTo("table-key5");
+      Assertions.assertThat(table.properties().get("key1"))
+          .as("Table defaults set for the catalog must be added to the table properties.")
+          .isEqualTo("catalog-default-key1");
+      Assertions.assertThat(table.properties().get("key2"))
+          .as("Table property must override table default properties set at catalog level.")
+          .isEqualTo("table-key2");
+      Assertions.assertThat(table.properties().get("key3"))
+          .as(
+              "Table property override set at catalog level must override table default"
+                  + " properties set at catalog level and table property specified.")
+          .isEqualTo("catalog-override-key3");
+      Assertions.assertThat(table.properties().get("key4"))
+          .as("Table override not in table props or defaults should be added to table properties")
+          .isEqualTo("catalog-override-key4");
+      Assertions.assertThat(table.properties().get("key5"))
+          .as(
+              "Table properties without any catalog level default or override should be added to table"
+                  + " properties.")
+          .isEqualTo("table-key5");
     } finally {
       hiveCatalog.dropTable(tableIdent);
     }

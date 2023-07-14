@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
@@ -25,7 +26,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -39,7 +39,6 @@ import org.apache.thrift.transport.TTransportException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
 public class TestHiveClientPool {
@@ -76,14 +75,14 @@ public class TestHiveClientPool {
     HiveClientPool clientPool = new HiveClientPool(10, conf);
     HiveConf clientConf = clientPool.hiveConf();
 
-    Assertions.assertThat(
-        clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname)).isEqualTo(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
-    Assertions.assertThat(clientPool.poolSize()).isEqualTo(10);
+    assertThat(clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
+        .isEqualTo(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    assertThat(clientPool.poolSize()).isEqualTo(10);
 
     // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
-    Assertions.assertThat(
-        clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname)).isEqualTo( conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
-    Assertions.assertThat(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL)).isTrue();
+    assertThat(clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname))
+        .isEqualTo(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
+    assertThat(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL)).isTrue();
   }
 
   private HiveConf createHiveConf() {
@@ -132,7 +131,8 @@ public class TestHiveClientPool {
 
     Mockito.doReturn(databases).when(newClient).getAllDatabases();
     // The return is OK when the reconnect method is called.
-    Assertions.assertThat((List<String>) clients.run(client -> client.getAllDatabases(), true)).isEqualTo(databases);
+    assertThat((List<String>) clients.run(client -> client.getAllDatabases(), true))
+        .isEqualTo(databases);
 
     // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
@@ -159,7 +159,8 @@ public class TestHiveClientPool {
             FunctionType.JAVA,
             null));
     Mockito.doReturn(response).when(newClient).getAllFunctions();
-    Assertions.assertThat((GetAllFunctionsResponse) clients.run(client -> client.getAllFunctions(), true)).isEqualTo(response);
+    assertThat((GetAllFunctionsResponse) clients.run(client -> client.getAllFunctions(), true))
+        .isEqualTo(response);
 
     Mockito.verify(clients).reconnect(hmsClient);
     Mockito.verify(clients, Mockito.never()).reconnect(newClient);
