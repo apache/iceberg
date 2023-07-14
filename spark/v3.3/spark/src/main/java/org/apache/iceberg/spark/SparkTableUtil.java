@@ -443,8 +443,7 @@ public class SparkTableUtil {
             getPartitions(spark, sourceTableIdent, partitionFilter);
         if (sourceTablePartitions.isEmpty()) {
           targetTable.newAppend().commit();
-        }
-        else {
+        } else {
           importSparkPartitions(
               spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
         }
