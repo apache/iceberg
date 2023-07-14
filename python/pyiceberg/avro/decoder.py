@@ -132,7 +132,7 @@ class BinaryDecoder:
         """
         return self.read_bytes().decode("utf-8")
 
-    def read_uuid_from_fixed(self) -> UUID:
+    def read_uuid(self) -> UUID:
         """Reads a UUID as a fixed[16]."""
         return UUID(bytes=self.read(16))
 

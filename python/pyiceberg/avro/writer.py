@@ -39,6 +39,7 @@ from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.types import StructType
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -81,22 +82,25 @@ class DoubleWriter(Writer):
 
 class DateWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: Any) -> None:
-        encoder.write_date_int(val)
+        encoder.write_int(date_to_days(val))
 
 
 class TimeWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: time) -> None:
-        encoder.write_time_micros_long(val)
+        encoder.write_time_micros(val)
 
 
 class TimestampWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        encoder.write_timestamp_micros_long(val)
+        if val.tzinfo is not None:
+            raise ValueError(f"Timestamp should not have a timezone, but has: {val.tzinfo}")
+
+        encoder.write_int(datetime_to_micros(val))
 
 
 class TimestamptzWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        encoder.write_timestamp_micros_long(val)
+        encoder.write_int(datetime_to_micros(val))
 
 
 class StringWriter(Writer):
@@ -106,12 +110,9 @@ class StringWriter(Writer):
 
 class UUIDWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: UUID) -> None:
-        uuid_bytes = val.bytes
-
-        if len(uuid_bytes) != 16:
-            raise ValueError(f"Expected UUID to be 16 bytes, got: {len(uuid_bytes)}")
-
-        encoder.write_bytes_fixed(uuid_bytes)
+        if len(val.bytes) != 16:
+            raise ValueError(f"Expected UUID to be 16 bytes, got: {len(val.bytes)}")
+        encoder.write(val.bytes)
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,8 @@ class FixedWriter(Writer):
     _len: int = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: bytes) -> None:
+        if len(val) != self._len:
+            raise ValueError(f"Expected {self._len} bytes, got {len(val)}")
         encoder.write(val)
 
     def __len__(self) -> int:

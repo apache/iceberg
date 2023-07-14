@@ -28,7 +28,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import datetime, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import (
     Any,
@@ -43,6 +43,7 @@ from uuid import UUID
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
+from pyiceberg.utils.datetime import days_to_date
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -152,8 +153,8 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_int()
+    def read(self, decoder: BinaryDecoder) -> date:
+        return days_to_date(decoder.read_int())
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
@@ -193,10 +194,10 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
-        return decoder.read_uuid_from_fixed()
+        return decoder.read_uuid()
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip(16)
+        decoder.skip_utf8()
 
 
 @dataclass(frozen=True)

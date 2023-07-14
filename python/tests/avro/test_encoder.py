@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime
 import io
 import struct
+import uuid
 from decimal import Decimal
 
 from pyiceberg.avro.encoder import BinaryEncoder
@@ -120,6 +121,8 @@ def test_write_decimal_fixed() -> None:
 
     encoder.write_decimal_fixed(_input, 8)
 
+    buf = output.getbuffer()
+    assert len(buf) == 8
     assert output.getbuffer() == b"\x00\x00\x00\x49\x25\x59\xf6\x4f"
 
 
@@ -156,52 +159,24 @@ def test_write_utf8() -> None:
     assert output.getbuffer() == b"".join([b"\x7a", bin_input])
 
 
-def test_write_date_int() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.date(1970, 1, 2)
-    encoder.write_date_int(_input)
-
-    assert output.getbuffer() == b"\x02"
-
-
-def test_write_time_millis_int() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.time(1, 2, 3, 456000)
-    encoder.write_time_millis_int(_input)
-
-    assert output.getbuffer() == b"\x80\xc3\xc6\x03"
-
-
 def test_write_time_micros_long() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
     _input = datetime.time(1, 2, 3, 456000)
 
-    encoder.write_time_micros_long(_input)
+    encoder.write_time_micros(_input)
 
     assert output.getbuffer() == b"\x80\xb8\xfb\xde\x1b"
 
 
-def test_write_timestamp_millis_long() -> None:
+def test_write_uuid() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
-    encoder.write_timestamp_millis_long(_input)
+    _input = uuid.UUID("{12345678-1234-5678-1234-567812345678}")
+    encoder.write_uuid(_input)
 
-    assert output.getbuffer() == b"\xf0\xdb\xcc\xad\xad\x61"
-
-
-def test_write_timestamp_micros_long() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
-    encoder.write_timestamp_micros_long(_input)
-
-    assert output.getbuffer() == b"\x80\xe3\xad\x9f\xac\xca\xf8\x05"
+    buf = output.getbuffer()
+    assert len(buf) == 16
+    assert buf.tobytes() == b"\x124Vx\x124Vx\x124Vx\x124Vx"
