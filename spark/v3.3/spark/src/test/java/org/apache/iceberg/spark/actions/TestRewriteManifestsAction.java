@@ -109,7 +109,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     actions
         .rewriteManifests(table)
         .rewriteIf(manifest -> true)
-        .stagingLocation(temp.newFolder().toString())
+        .stagingLocation(temp.newFolder().toURI().toString())
         .execute();
 
     Assert.assertNull("Table must stay empty", table.currentSnapshot());

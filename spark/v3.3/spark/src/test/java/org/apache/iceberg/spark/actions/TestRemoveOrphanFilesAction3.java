@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
+import java.net.URI;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
@@ -50,8 +52,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     spark.sql("INSERT INTO mycat.default.table VALUES (1,1,1)");
 
-    String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String location = table.table().location();
+    File trashFile = new File(Paths.get(URI.create(location)).toFile(), "/data/trashfile");
+    trashFile.createNewFile();
+    URI trashUri = trashFile.toURI();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
@@ -61,7 +65,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+            .anyMatch(file -> file.equals(trashUri.toString())));
   }
 
   @Test
@@ -80,8 +84,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     spark.sql("INSERT INTO hadoop.default.table VALUES (1,1,1)");
 
-    String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String location = table.table().location();
+    File trashFile = new File(Paths.get(URI.create(location)).toFile(), "/data/trashfile");
+    trashFile.createNewFile();
+    URI trashUri = trashFile.toURI();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
@@ -91,7 +97,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+            .anyMatch(file -> file.equals(trashUri.toString())));
   }
 
   @Test
@@ -110,8 +116,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     spark.sql("INSERT INTO hive.default.table VALUES (1,1,1)");
 
-    String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String location = table.table().location();
+    File trashFile = new File(Paths.get(URI.create(location)).toFile(), "/data/trashfile");
+    trashFile.createNewFile();
+    URI trashUri = trashFile.toURI();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
@@ -121,7 +129,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+            .anyMatch(file -> file.equals(trashUri.toString())));
   }
 
   @Test
@@ -143,8 +151,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     spark.sql("INSERT INTO default.table VALUES (1,1,1)");
 
-    String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String location = table.table().location();
+    File trashFile = new File(Paths.get(URI.create(location)).toFile(), "/data/trashfile");
+    trashFile.createNewFile();
+    URI trashUri = trashFile.toURI();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
@@ -154,7 +164,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+            .anyMatch(file -> file.equals(trashUri.toString())));
   }
 
   @Test
@@ -176,8 +186,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     spark.sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
 
-    String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String location = table.table().location();
+    File trashFile = new File(Paths.get(URI.create(location)).toFile(), "/data/trashfile");
+    trashFile.createNewFile();
+    URI trashUri = trashFile.toURI();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
@@ -187,7 +199,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+            .anyMatch(file -> file.equals(trashUri.toString())));
   }
 
   @After

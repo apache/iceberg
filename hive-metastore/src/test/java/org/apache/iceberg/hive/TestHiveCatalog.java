@@ -105,7 +105,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
 
     try {
       Table table =
@@ -132,7 +132,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
     ImmutableMap<String, String> properties = ImmutableMap.of("key1", "value1", "key2", "value2");
     Catalog cachingCatalog = CachingCatalog.wrap(catalog);
 
@@ -184,7 +184,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   public void testCreateTableTxnBuilder() throws Exception {
     Schema schema = getTestSchema();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
 
     try {
       Transaction txn =
@@ -205,7 +205,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
 
     try {
       Transaction createTxn =
@@ -220,7 +220,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Table table = catalog.loadTable(tableIdent);
       Assert.assertEquals(1, table.spec().fields().size());
 
-      String newLocation = temp.newFolder("tbl-2").toString();
+      String newLocation = temp.newFolder("tbl-2").toURI().toString();
 
       Transaction replaceTxn =
           catalog
@@ -267,7 +267,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
-    String location = temp.newFolder(tbl).toString();
+    String location = temp.newFolder(tbl).toURI().toString();
     try {
       Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
       org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
@@ -905,7 +905,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   public void testUUIDinTableProperties() throws Exception {
     Schema schema = getTestSchema();
     TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
 
     try {
       catalog.buildTable(tableIdentifier, schema).withLocation(location).create();
@@ -920,7 +920,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   public void testSnapshotStatsTableProperties() throws Exception {
     Schema schema = getTestSchema();
     TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
+    String location = temp.newFolder("tbl").toURI().toString();
 
     try {
       catalog.buildTable(tableIdentifier, schema).withLocation(location).create();

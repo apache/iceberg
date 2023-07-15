@@ -37,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.StreamingOverwriteSnapshotReadMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -83,7 +84,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
-  private final boolean skipOverwrite;
+  private final StreamingOverwriteSnapshotReadMode overwriteSnapshotReadMode;
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
@@ -112,7 +113,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
-    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
+    this.overwriteSnapshotReadMode = readConf.streamingOverwriteSnapshotsReadMode();
   }
 
   @Override
@@ -268,12 +269,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
             SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            skipOverwrite,
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
+        switch (overwriteSnapshotReadMode) {
+          case SKIP:
+            return false;
+          case ADDED_FILES_ONLY:
+            return true;
+          case BREAK:
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot process overwrite snapshot: %s, to ignore overwrites or to only care about appended records in an overwrite scenario checkout configuration: %s",
+                    snapshot.snapshotId(),
+                    SparkReadOptions.STREAMING_OVERWRITE_SNAPSHOTS_READ_MODE));
+        }
       default:
         throw new IllegalStateException(
             String.format(

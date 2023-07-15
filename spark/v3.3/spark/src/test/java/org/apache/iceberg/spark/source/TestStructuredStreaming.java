@@ -21,6 +21,8 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
+import java.net.URI;
+import java.nio.file.Paths;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
@@ -79,7 +81,8 @@ public class TestStructuredStreaming {
   @Test
   public void testStreamingWriteAppendMode() throws Exception {
     File parent = temp.newFolder("parquet");
-    File location = new File(parent, "test-table");
+    File locationFile = new File(parent, "test-table");
+    URI location = locationFile.toURI();
     File checkpoint = new File(parent, "checkpoint");
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -140,8 +143,8 @@ public class TestStructuredStreaming {
   @Test
   public void testStreamingWriteCompleteMode() throws Exception {
     File parent = temp.newFolder("parquet");
-    File location = new File(parent, "test-table");
-    File checkpoint = new File(parent, "checkpoint");
+    URI location = new File(parent, "test-table").toURI();
+    URI checkpoint = new File(parent, "checkpoint").toURI();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -176,14 +179,14 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(Paths.get(checkpoint).toFile(), "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
       restartedQuery.processAllAvailable();
 
-      // ensure the write was idempotent
+      // ensure that write was idempotent
       Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
       List<SimpleRecord> actual =
           result.orderBy("data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -200,8 +203,8 @@ public class TestStructuredStreaming {
   @Test
   public void testStreamingWriteCompleteModeWithProjection() throws Exception {
     File parent = temp.newFolder("parquet");
-    File location = new File(parent, "test-table");
-    File checkpoint = new File(parent, "checkpoint");
+    URI location = new File(parent, "test-table").toURI();
+    URI checkpoint = new File(parent, "checkpoint").toURI();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -236,7 +239,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(Paths.get(checkpoint).toFile(), "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
 
       // restart the query from the checkpoint
@@ -260,8 +263,8 @@ public class TestStructuredStreaming {
   @Test
   public void testStreamingWriteUpdateMode() throws Exception {
     File parent = temp.newFolder("parquet");
-    File location = new File(parent, "test-table");
-    File checkpoint = new File(parent, "checkpoint");
+    URI location = new File(parent, "test-table").toURI();
+    URI checkpoint = new File(parent, "checkpoint").toURI();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();

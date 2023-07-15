@@ -25,6 +25,7 @@ import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -139,19 +140,19 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    File location = createTableFolder();
+    URI location = createTableFolder().toURI();
     Table table = createTable(schema, location);
-    writeAndValidateWithLocations(table, location, new File(location, "data"));
+    writeAndValidateWithLocations(table, location, new File(location.getPath(), "data").toURI());
   }
 
   @Test
   public void testWriteWithCustomDataLocation() throws IOException {
-    File location = createTableFolder();
-    File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
+    URI location = createTableFolder().toURI();
+    URI tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir").toURI();
     Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
     table
         .updateProperties()
-        .set(TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath())
+        .set(TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.toString())
         .commit();
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
@@ -163,23 +164,23 @@ public class TestDataFrameWrites extends AvroDataTest {
     return location;
   }
 
-  private Table createTable(Schema schema, File location) {
+  private Table createTable(Schema schema, URI location) {
     HadoopTables tables = new HadoopTables(CONF);
     return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
   }
 
-  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir)
+  private void writeAndValidateWithLocations(Table table, URI location, URI expectedDataDir)
       throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     Iterable<Record> expected = RandomData.generate(tableSchema, 100, 0L);
-    writeData(expected, tableSchema, location.toString());
+    writeData(expected, tableSchema, location);
 
     table.refresh();
 
-    List<Row> actual = readTable(location.toString());
+    List<Row> actual = readTable(location);
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
@@ -193,44 +194,43 @@ public class TestDataFrameWrites extends AvroDataTest {
         .currentSnapshot()
         .addedDataFiles(table.io())
         .forEach(
-            dataFile ->
-                Assert.assertTrue(
-                    String.format(
-                        "File should have the parent directory %s, but has: %s.",
-                        expectedDataDir.getAbsolutePath(), dataFile.path()),
-                    URI.create(dataFile.path().toString())
-                        .getPath()
-                        .startsWith(expectedDataDir.getAbsolutePath())));
+            dataFile -> {
+              String filePath = Paths.get(URI.create(dataFile.path().toString())).toString();
+              String expectedFilePath = Paths.get(expectedDataDir).toString();
+              Assert.assertTrue(
+                  String.format(
+                      "File should have the parent directory %s, but has: %s.",
+                      expectedFilePath, filePath),
+                  filePath.startsWith(expectedFilePath));
+            });
   }
 
-  private List<Row> readTable(String location) {
-    Dataset<Row> result = spark.read().format("iceberg").load(location);
+  private List<Row> readTable(URI location) {
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
     return result.collectAsList();
   }
 
-  private void writeData(Iterable<Record> records, Schema schema, String location)
-      throws IOException {
+  private void writeData(Iterable<Record> records, Schema schema, URI location) throws IOException {
     Dataset<Row> df = createDataset(records, schema);
     DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
-    writer.save(location);
+    writer.save(location.toString());
   }
 
-  private void writeDataWithFailOnPartition(
-      Iterable<Record> records, Schema schema, String location) throws IOException, SparkException {
+  private void writeDataWithFailOnPartition(Iterable<Record> records, Schema schema, URI location)
+      throws IOException {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
     MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
-        (MapPartitionsFunction<Row, Row>)
-            input -> {
-              int partitionId = TaskContext.getPartitionId();
+        input -> {
+          int partitionId = TaskContext.getPartitionId();
 
-              if (partitionId == partitionToFail) {
-                throw new SparkException(
-                    String.format("Intended exception in partition %d !", partitionId));
-              }
-              return input;
-            };
+          if (partitionId == partitionToFail) {
+            throw new SparkException(
+                String.format("Intended exception in partition %d !", partitionId));
+          }
+          return input;
+        };
 
     Dataset<Row> df =
         createDataset(records, schema)
@@ -241,7 +241,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     // Setting "check-nullability" option to "false" doesn't help as it fails at Spark analyzer.
     Dataset<Row> convertedDf = df.sqlContext().createDataFrame(df.rdd(), convert(schema));
     DataFrameWriter<?> writer = convertedDf.write().format("iceberg").mode("append");
-    writer.save(location);
+    writer.save(location.toString());
   }
 
   private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
@@ -285,9 +285,9 @@ public class TestDataFrameWrites extends AvroDataTest {
     Assume.assumeTrue(
         "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
-    File location = new File(temp.newFolder("parquet"), "test");
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+    URI location = new File(temp.newFolder("parquet"), "test").toURI();
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 
@@ -394,28 +394,27 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Test
   public void testFaultToleranceOnWrite() throws IOException {
-    File location = createTableFolder();
+    URI location = createTableFolder().toURI();
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     Table table = createTable(schema, location);
 
     Iterable<Record> records = RandomData.generate(schema, 100, 0L);
-    writeData(records, schema, location.toString());
+    writeData(records, schema, location);
 
     table.refresh();
 
     Snapshot snapshotBeforeFailingWrite = table.currentSnapshot();
-    List<Row> resultBeforeFailingWrite = readTable(location.toString());
+    List<Row> resultBeforeFailingWrite = readTable(location);
 
     Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
 
-    Assertions.assertThatThrownBy(
-            () -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+    Assertions.assertThatThrownBy(() -> writeDataWithFailOnPartition(records2, schema, location))
         .isInstanceOf(SparkException.class);
 
     table.refresh();
 
     Snapshot snapshotAfterFailingWrite = table.currentSnapshot();
-    List<Row> resultAfterFailingWrite = readTable(location.toString());
+    List<Row> resultAfterFailingWrite = readTable(location);
 
     Assert.assertEquals(snapshotAfterFailingWrite, snapshotBeforeFailingWrite);
     Assert.assertEquals(resultAfterFailingWrite, resultBeforeFailingWrite);

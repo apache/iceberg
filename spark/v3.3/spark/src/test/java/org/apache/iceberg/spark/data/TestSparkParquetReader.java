@@ -112,7 +112,7 @@ public class TestSparkParquetReader extends AvroDataTest {
             schema,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of(),
-            temp.newFolder().getCanonicalPath());
+            temp.newFolder().toURI().toString());
 
     table
         .newAppend()

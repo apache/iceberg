@@ -243,15 +243,14 @@ public class TestBaseReader {
   private List<FileScanTask> createFileScanTasks(Integer totalTasks, Integer recordPerTask)
       throws IOException {
     String desc = "make_scan_tasks";
-    File parent = temp.newFolder(desc);
-    File location = new File(parent, "test");
-    File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
-
+    File parentFile = temp.newFolder(desc);
+    File locationFile = new File(parentFile, "test");
+    File dataFolderFile = new File(locationFile, "data");
+    Assert.assertTrue("mkdirs should succeed", dataFolderFile.mkdirs());
     Schema schema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     try {
-      this.table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
+      this.table = TestTables.create(locationFile, desc, schema, PartitionSpec.unpartitioned());
       // Important: use the table's schema for the rest of the test
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
@@ -259,7 +258,8 @@ public class TestBaseReader {
 
       AppendFiles appendFiles = table.newAppend();
       for (int i = 0; i < totalTasks; i++) {
-        File parquetFile = new File(dataFolder, PARQUET.addExtension(UUID.randomUUID().toString()));
+        File parquetFile =
+            new File(dataFolderFile, PARQUET.addExtension(UUID.randomUUID().toString()));
         try (FileAppender<GenericData.Record> writer =
             Parquet.write(localOutput(parquetFile)).schema(tableSchema).build()) {
           writer.addAll(expected);

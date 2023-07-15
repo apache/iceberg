@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -103,10 +104,11 @@ public class TestIdentityPartitionData extends SparkTestBase {
    * also fail.
    */
   private void setupParquet() throws Exception {
-    File location = temp.newFolder("logs");
-    File hiveLocation = temp.newFolder("hive");
+    File locationFile = temp.newFolder("logs");
+    URI location = locationFile.toURI();
+    URI hiveLocation = temp.newFolder("hive").toURI();
     String hiveTable = "hivetable";
-    Assert.assertTrue("Temp folder should exist", location.exists());
+    Assert.assertTrue("Temp folder should exist", locationFile.exists());
 
     Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
     this.logs =

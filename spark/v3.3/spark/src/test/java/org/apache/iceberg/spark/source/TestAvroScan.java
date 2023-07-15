@@ -22,6 +22,7 @@ import static org.apache.iceberg.Files.localOutput;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -69,12 +70,13 @@ public class TestAvroScan extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     File parent = temp.newFolder("avro");
-    File location = new File(parent, "test");
-    File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    File locationFile = new File(parent, "test");
+    File dataFolderFile = new File(locationFile, "data");
+    dataFolderFile.mkdirs();
+    URI location = locationFile.toURI();
 
     File avroFile =
-        new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+        new File(dataFolderFile, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
