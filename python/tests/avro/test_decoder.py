@@ -16,9 +16,9 @@
 # under the License.
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 from decimal import Decimal
-import io
 from io import SEEK_SET
 from types import TracebackType
 from typing import Optional, Type

@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=protected-access
-import json
 import io
+import json
+
 import pytest
 
 from pyiceberg.avro.decoder import BinaryDecoder

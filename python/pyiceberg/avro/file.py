@@ -192,9 +192,7 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(
-            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(io.BytesIO(block_bytes))
-        )
+        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(io.BytesIO(block_bytes)))
         return block_records
 
     def __next__(self) -> D:
