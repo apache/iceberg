@@ -21,8 +21,8 @@ package org.apache.iceberg.spark;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
 
-public class SystemFunPushDownHelper {
-  private SystemFunPushDownHelper() {}
+public class SystemFunctionPushDownHelper {
+  private SystemFunctionPushDownHelper() {}
 
   public static void createUnpartitionedTable(SparkSession spark, String tableName) {
     sql(spark, "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg", tableName);

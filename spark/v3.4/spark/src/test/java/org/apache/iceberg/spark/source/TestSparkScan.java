@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.createPartitionedTable;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.days;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.hours;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.days;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.hours;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
@@ -41,9 +41,11 @@ import org.apache.iceberg.spark.functions.YearsFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
@@ -84,7 +86,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   @After
   public void removeTables() {
-    sql("DROP TABLE IF EXISTS %s PURGE", tableName);
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   @Test
@@ -117,12 +119,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction function = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            "=", expressions(udf, LiteralValue.apply(years("2017-11-22"), DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate("=", expressions(udf, intLit(years("2017-11-22"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -145,12 +143,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction function = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            "=", expressions(udf, LiteralValue.apply(years("2017-11-22"), DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate("=", expressions(udf, intLit(years("2017-11-22"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -174,12 +168,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     MonthsFunction.TimestampToMonthsFunction function =
         new MonthsFunction.TimestampToMonthsFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            ">", expressions(udf, LiteralValue.apply(months("2017-11-22"), DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate(">", expressions(udf, intLit(months("2017-11-22"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -203,12 +193,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     MonthsFunction.TimestampToMonthsFunction function =
         new MonthsFunction.TimestampToMonthsFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            ">", expressions(udf, LiteralValue.apply(months("2017-11-22"), DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate(">", expressions(udf, intLit(months("2017-11-22"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -231,12 +217,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     DaysFunction.TimestampToDaysFunction function = new DaysFunction.TimestampToDaysFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.DateType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate("<", expressions(udf, dateLit(days("2018-11-20"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -259,12 +241,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     DaysFunction.TimestampToDaysFunction function = new DaysFunction.TimestampToDaysFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate =
-        new Predicate(
-            "<", expressions(udf, LiteralValue.apply(days("2018-11-20"), DataTypes.DateType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
+    Predicate predicate = new Predicate("<", expressions(udf, dateLit(days("2018-11-20"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -287,16 +265,9 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
     Predicate predicate =
-        new Predicate(
-            ">=",
-            expressions(
-                udf,
-                LiteralValue.apply(
-                    hours("2017-11-22T06:02:09.243857+00:00"), DataTypes.IntegerType)));
+        new Predicate(">=", expressions(udf, intLit(hours("2017-11-22T06:02:09.243857+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -319,16 +290,9 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(), function.canonicalName(), expressions(FieldReference.apply("ts")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
     Predicate predicate =
-        new Predicate(
-            ">=",
-            expressions(
-                udf,
-                LiteralValue.apply(
-                    hours("2017-11-22T06:02:09.243857+00:00"), DataTypes.IntegerType)));
+        new Predicate(">=", expressions(udf, intLit(hours("2017-11-22T06:02:09.243857+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -351,13 +315,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     BucketFunction.BucketLong function = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate = new Predicate(">=", expressions(udf, intLit(2)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -380,13 +339,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     BucketFunction.BucketLong function = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate = new Predicate(">=", expressions(udf, intLit(2)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -409,14 +363,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     BucketFunction.BucketString function = new BucketFunction.BucketString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("data")));
-    Predicate predicate =
-        new Predicate("<=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(5), fieldRef("data")));
+    Predicate predicate = new Predicate("<=", expressions(udf, intLit(2)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -439,14 +387,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     BucketFunction.BucketString function = new BucketFunction.BucketString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("data")));
-    Predicate predicate =
-        new Predicate("<=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(5), fieldRef("data")));
+    Predicate predicate = new Predicate("<=", expressions(udf, intLit(2)));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -469,14 +411,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
-    Predicate predicate =
-        new Predicate("<>", expressions(udf, LiteralValue.apply("data", DataTypes.StringType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
+    Predicate predicate = new Predicate("<>", expressions(udf, stringLit("data")));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -499,14 +435,8 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
-    Predicate predicate =
-        new Predicate("<>", expressions(udf, LiteralValue.apply("data", DataTypes.StringType)));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
+    Predicate predicate = new Predicate("<>", expressions(udf, stringLit("data")));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -529,12 +459,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
     Predicate predicate = new Predicate("IS_NULL", expressions(udf));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
@@ -558,12 +483,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
     Predicate predicate = new Predicate("IS_NULL", expressions(udf));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
@@ -587,12 +507,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
     Predicate predicate = new Predicate("IS_NOT_NULL", expressions(udf));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
@@ -616,12 +531,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     TruncateFunction.TruncateString function = new TruncateFunction.TruncateString();
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            function.name(),
-            function.canonicalName(),
-            expressions(
-                LiteralValue.apply(4, DataTypes.IntegerType), FieldReference.apply("data")));
+    UserDefinedScalarFunc udf = toUDF(function, expressions(intLit(4), fieldRef("data")));
     Predicate predicate = new Predicate("IS_NOT_NULL", expressions(udf));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
@@ -645,21 +555,12 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction tsToYears = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf1 =
-        new UserDefinedScalarFunc(
-            tsToYears.name(), tsToYears.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate1 =
-        new Predicate(
-            "=", expressions(udf1, LiteralValue.apply(2017 - 1970, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf1 = toUDF(tsToYears, expressions(fieldRef("ts")));
+    Predicate predicate1 = new Predicate("=", expressions(udf1, intLit(2017 - 1970)));
 
     BucketFunction.BucketLong bucketLong = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            bucketLong.name(),
-            bucketLong.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate2 =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(bucketLong, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate2 = new Predicate(">=", expressions(udf, intLit(2)));
     Predicate predicate = new And(predicate1, predicate2);
 
     pushFilters(builder, predicate);
@@ -684,21 +585,12 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction tsToYears = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf1 =
-        new UserDefinedScalarFunc(
-            tsToYears.name(), tsToYears.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate1 =
-        new Predicate(
-            "=", expressions(udf1, LiteralValue.apply(2017 - 1970, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf1 = toUDF(tsToYears, expressions(fieldRef("ts")));
+    Predicate predicate1 = new Predicate("=", expressions(udf1, intLit(2017 - 1970)));
 
     BucketFunction.BucketLong bucketLong = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            bucketLong.name(),
-            bucketLong.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate2 =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(bucketLong, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate2 = new Predicate(">=", expressions(udf, intLit(2)));
     Predicate predicate = new And(predicate1, predicate2);
 
     pushFilters(builder, predicate);
@@ -723,21 +615,12 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction tsToYears = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf1 =
-        new UserDefinedScalarFunc(
-            tsToYears.name(), tsToYears.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate1 =
-        new Predicate(
-            "=", expressions(udf1, LiteralValue.apply(2017 - 1970, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf1 = toUDF(tsToYears, expressions(fieldRef("ts")));
+    Predicate predicate1 = new Predicate("=", expressions(udf1, intLit(2017 - 1970)));
 
     BucketFunction.BucketLong bucketLong = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            bucketLong.name(),
-            bucketLong.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate2 =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(bucketLong, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate2 = new Predicate(">=", expressions(udf, intLit(2)));
     Predicate predicate = new Or(predicate1, predicate2);
 
     pushFilters(builder, predicate);
@@ -762,21 +645,12 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     SparkScanBuilder builder = scanBuilder();
 
     YearsFunction.TimestampToYearsFunction tsToYears = new YearsFunction.TimestampToYearsFunction();
-    UserDefinedScalarFunc udf1 =
-        new UserDefinedScalarFunc(
-            tsToYears.name(), tsToYears.canonicalName(), expressions(FieldReference.apply("ts")));
-    Predicate predicate1 =
-        new Predicate(
-            "=", expressions(udf1, LiteralValue.apply(2018 - 1970, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf1 = toUDF(tsToYears, expressions(fieldRef("ts")));
+    Predicate predicate1 = new Predicate("=", expressions(udf1, intLit(2018 - 1970)));
 
     BucketFunction.BucketLong bucketLong = new BucketFunction.BucketLong(DataTypes.LongType);
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            bucketLong.name(),
-            bucketLong.canonicalName(),
-            expressions(LiteralValue.apply(5, DataTypes.IntegerType), FieldReference.apply("id")));
-    Predicate predicate2 =
-        new Predicate(">=", expressions(udf, LiteralValue.apply(2, DataTypes.IntegerType)));
+    UserDefinedScalarFunc udf = toUDF(bucketLong, expressions(intLit(5), fieldRef("id")));
+    Predicate predicate2 = new Predicate(">=", expressions(udf, intLit(2)));
     Predicate predicate = new Or(predicate1, predicate2);
 
     pushFilters(builder, predicate);
@@ -810,5 +684,25 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
   private Expression[] expressions(Expression... expressions) {
     return expressions;
+  }
+
+  private static LiteralValue<Integer> intLit(int value) {
+    return LiteralValue.apply(value, DataTypes.IntegerType);
+  }
+
+  private static LiteralValue<Integer> dateLit(int value) {
+    return LiteralValue.apply(value, DataTypes.DateType);
+  }
+
+  private static LiteralValue<String> stringLit(String value) {
+    return LiteralValue.apply(value, DataTypes.StringType);
+  }
+
+  private static NamedReference fieldRef(String col) {
+    return FieldReference.apply(col);
+  }
+
+  private static UserDefinedScalarFunc toUDF(BoundFunction function, Expression[] expressions) {
+    return new UserDefinedScalarFunc(function.name(), function.canonicalName(), expressions);
   }
 }

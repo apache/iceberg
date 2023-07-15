@@ -435,52 +435,37 @@ public class SparkV2Filters {
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static UnboundTerm<Object> udfToTerm(UserDefinedScalarFunc udf) {
-    switch (udf.name().toLowerCase(Locale.ROOT)) {
-      case "years":
-        if (udf.children().length == 1 && isRef(udf.children()[0])) {
-          return year(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
+    org.apache.spark.sql.connector.expressions.Expression[] children = udf.children();
+    String udfName = udf.name().toLowerCase(Locale.ROOT);
+    if (children.length == 1) {
+      org.apache.spark.sql.connector.expressions.Expression child = children[0];
+      if (isRef(child)) {
+        String column = SparkUtil.toColumnName((NamedReference) child);
+        switch (udfName) {
+          case "years":
+            return year(column);
+          case "months":
+            return month(column);
+          case "days":
+            return day(column);
+          case "hours":
+            return hour(column);
         }
-
-        return null;
-      case "months":
-        if (udf.children().length == 1 && isRef(udf.children()[0])) {
-          return month(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
+      }
+    } else if (children.length == 2) {
+      if (isLiteral(children[0]) && isRef(children[1])) {
+        String column = SparkUtil.toColumnName((NamedReference) children[1]);
+        switch (udfName) {
+          case "bucket":
+            int numBuckets = (Integer) convertLiteral((Literal<?>) children[0]);
+            return bucket(column, numBuckets);
+          case "truncate":
+            int width = (Integer) convertLiteral((Literal<?>) children[0]);
+            return truncate(column, width);
         }
-
-        return null;
-      case "days":
-        if (udf.children().length == 1 && isRef(udf.children()[0])) {
-          return day(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
-        }
-
-        return null;
-      case "hours":
-        if (udf.children().length == 1 && isRef(udf.children()[0])) {
-          return hour(SparkUtil.toColumnName((NamedReference) udf.children()[0]));
-        }
-
-        return null;
-      case "bucket":
-        if (udf.children().length == 2
-            && isLiteral(udf.children()[0])
-            && isRef(udf.children()[1])) {
-          int numBuckets = (Integer) convertLiteral((Literal<?>) udf.children()[0]);
-          return bucket(SparkUtil.toColumnName((NamedReference) udf.children()[1]), numBuckets);
-        }
-
-        return null;
-      case "truncate":
-        if (udf.children().length == 2
-            && isLiteral(udf.children()[0])
-            && isRef(udf.children()[1])) {
-          int width = (Integer) convertLiteral((Literal<?>) udf.children()[0]);
-          return truncate(SparkUtil.toColumnName((NamedReference) udf.children()[1]), width);
-        }
-
-        return null;
-      default:
-        // Should not reach here
-        return null;
+      }
     }
+
+    return null;
   }
 }

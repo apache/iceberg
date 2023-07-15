@@ -18,28 +18,40 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.createPartitionedTable;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.days;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.hours;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.days;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.hours;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
 
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
 public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   public TestSystemFunctionPushDownDQL(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+  }
+
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties()
+      }
+    };
   }
 
   @Before
@@ -54,8 +66,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testYearsFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "years(ts)");
 
     String date = "2017-11-22";
@@ -84,8 +94,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testMonthsFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "months(ts)");
 
     String date = "2017-11-22";
@@ -113,8 +121,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testDaysFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "days(ts)");
 
     String date = "2018-11-20";
@@ -143,8 +149,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testHoursFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "hours(ts)");
 
     String ts = "2017-11-22T06:02:09.243857+00:00";
@@ -173,8 +177,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testBucketLongFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "bucket(5, id)");
 
     int target = 2;
@@ -202,8 +204,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testBucketStringFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "bucket(5, data)");
 
     int target = 2;
@@ -231,8 +231,6 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testTruncateFunction() {
-    Assume.assumeTrue(!catalogName.equals("spark_catalog"));
-
     createPartitionedTable(spark, tableName, "truncate(4, data)");
 
     String target = "data";
