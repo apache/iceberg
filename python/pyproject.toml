@@ -65,7 +65,10 @@ s3fs = { version = ">=2021.09.0,<2024.1.0", optional = true } # Upper bound set 
 adlfs = { version = ">=2021.09.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
 # It will try to install 1.21.1, but that one does is not 3.11 compatible
 # and is missing the upperbound: https://pypi.org/project/numpy/1.21.1/
-numpy = { version = ">=1.22.0,<2.0.0", python = ">=3.11", optional = true }
+numpy = [
+  { version = ">=1.22.0,<2.0.0", python = ">=3.11", optional = true },
+  { version = ">=1.21.0,<2.0.0", python = "<3.11", optional = true },
+]
 
 [tool.poetry.dev-dependencies]
 pytest = "7.4.0"
