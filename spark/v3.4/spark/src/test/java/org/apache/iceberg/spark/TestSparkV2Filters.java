@@ -57,10 +57,10 @@ public class TestSparkV2Filters {
 
   private static final Types.StructType STRUCT =
       Types.StructType.of(
-          Types.NestedField.required(1, "dateCol", Types.DateType.get()),
-          Types.NestedField.required(2, "tsCol", Types.TimestampType.withZone()),
-          Types.NestedField.required(3, "tsNtzCol", Types.TimestampType.withoutZone()),
-          Types.NestedField.required(4, "intCol", Types.IntegerType.get()),
+          Types.NestedField.optional(1, "dateCol", Types.DateType.get()),
+          Types.NestedField.optional(2, "tsCol", Types.TimestampType.withZone()),
+          Types.NestedField.optional(3, "tsNtzCol", Types.TimestampType.withoutZone()),
+          Types.NestedField.optional(4, "intCol", Types.IntegerType.get()),
           Types.NestedField.optional(5, "strCol", Types.StringType.get()));
 
   @SuppressWarnings("checkstyle:MethodLength")
