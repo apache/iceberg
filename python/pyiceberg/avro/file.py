@@ -46,7 +46,6 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
@@ -194,7 +193,7 @@ class AvroFile(Generic[D]):
             block_bytes = codec.decompress(block_bytes)
 
         self.block = Block(
-            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(MemoryInputStream(block_bytes))
+            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(io.BytesIO(block_bytes))
         )
         return block_records
 
