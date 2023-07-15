@@ -78,6 +78,22 @@ public class GCSInputStreamTest {
     }
   }
 
+  @Test
+  public void testReadSingle() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read.dat");
+    int i0 = 1;
+    int i1 = 255;
+    byte[] data = {(byte) i0, (byte) i1};
+
+    writeGCSData(uri, data);
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, gcpProperties, MetricsContext.nullMetrics())) {
+      assertThat(in.read()).isEqualTo(i0);
+      assertThat(in.read()).isEqualTo(i1);
+    }
+  }
+
   private void readAndCheck(
       SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
