@@ -360,7 +360,7 @@ class SqlCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
         # Hierarchical namespace is not supported. Return an empty list
-        # TODO: Or is it?
+        # TODO: Or should it support hierarchical namespace?
         if namespace:
             return []
 
