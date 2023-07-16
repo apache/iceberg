@@ -117,7 +117,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
+            "CALL %s.system.fast_forward(table => '%s', branch => '%s', source => '%s')",
             catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch);
 
     table.refresh();
@@ -163,7 +163,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
+                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', source => '%s')",
                     catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot fast-forward: main is not an ancestor of testBranch");
@@ -175,7 +175,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('test_table', branch => 'main', to => 'newBranch')",
+                    "CALL %s.system.fast_forward('test_table', branch => 'main', source => 'newBranch')",
                     catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
@@ -189,7 +189,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [to]");
+        .hasMessage("Missing required parameters: [source]");
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.fast_forward('', 'main', 'newBranch')", catalogName))

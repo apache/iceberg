@@ -33,7 +33,7 @@ public class FastForwardBranchProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.required("branch", DataTypes.StringType),
-        ProcedureParameter.required("to", DataTypes.StringType)
+        ProcedureParameter.required("source", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
