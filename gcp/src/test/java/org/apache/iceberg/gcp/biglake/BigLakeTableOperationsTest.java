@@ -69,7 +69,7 @@ public class BigLakeTableOperationsTest {
   private static final String TABLE_ID = "tbl";
   private static final TableName TABLE_NAME =
       TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, DB_ID, TABLE_ID);
-  private static final TableIdentifier SPARK_TABLE_ID = TableIdentifier.of(DB_ID, TABLE_ID);
+  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_ID, TABLE_ID);
 
   private static final Schema SCHEMA =
       new Schema(
@@ -78,25 +78,23 @@ public class BigLakeTableOperationsTest {
 
   private BigLakeClient bigLakeClient = mock(BigLakeClient.class);
   private BigLakeCatalog bigLakeCatalog;
-  private String warehouseLocation;
   private BigLakeTableOperations tableOps;
 
   @BeforeEach
   public void before() throws Exception {
-    warehouseLocation = temp.toFile().getAbsolutePath();
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
             GCPProperties.BIGLAKE_PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
-            warehouseLocation,
+            temp.toFile().getAbsolutePath(),
             GCPProperties.BIGLAKE_CATALOG_ID,
             CATALOG_ID);
 
     bigLakeCatalog = new BigLakeCatalog();
     bigLakeCatalog.setConf(new Configuration());
     bigLakeCatalog.initialize(CATALOG_NAME, properties, GCP_PROJECT, GCP_REGION, bigLakeClient);
-    this.tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(SPARK_TABLE_ID);
+    tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(TABLE_IDENTIFIER);
   }
 
   @AfterEach
@@ -114,7 +112,7 @@ public class BigLakeTableOperationsTest {
     reset(bigLakeClient);
     when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
 
-    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(SPARK_TABLE_ID);
+    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(TABLE_IDENTIFIER);
 
     when(bigLakeClient.updateTableParameters(any(), any(), any())).thenReturn(tableWithEtag);
     loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
@@ -137,7 +135,7 @@ public class BigLakeTableOperationsTest {
     reset(bigLakeClient);
     when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
 
-    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(SPARK_TABLE_ID);
+    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(TABLE_IDENTIFIER);
 
     when(bigLakeClient.updateTableParameters(any(), any(), any()))
         .thenThrow(
@@ -152,7 +150,7 @@ public class BigLakeTableOperationsTest {
   }
 
   @Test
-  public void testDoFreshRefreshShouldReturnNullForNonIcebergTable() throws Exception {
+  public void testDoFreshRefreshShouldReturnNullForNonIcebergTable() {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
@@ -160,14 +158,15 @@ public class BigLakeTableOperationsTest {
   }
 
   @Test
-  public void testTableName() throws Exception {
+  public void testTableName() {
     assertThat(tableOps.tableName()).isEqualTo("iceberg.db.tbl");
   }
 
   private Table createTestTable() throws IOException {
     TableIdentifier tableIdent =
         TableIdentifier.of(TABLE_NAME.getDatabase(), TABLE_NAME.getTable());
-    String tableDir = new File(warehouseLocation, TABLE_NAME.getTable()).getAbsolutePath();
+    String tableDir =
+        new File(temp.toFile().getAbsolutePath(), TABLE_NAME.getTable()).getAbsolutePath();
 
     bigLakeCatalog
         .buildTable(tableIdent, SCHEMA)

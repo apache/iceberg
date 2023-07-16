@@ -103,9 +103,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       client =
           new BigLakeClient(
               properties.getOrDefault(
-                  GCPProperties.BIGLAKE_ENDPOINT, DEFAULT_BIGLAKE_SERVICE_ENDPOINT),
-              projectId,
-              region);
+                  GCPProperties.BIGLAKE_ENDPOINT, DEFAULT_BIGLAKE_SERVICE_ENDPOINT));
     } catch (IOException e) {
       throw new ServiceFailureException(e, "Creating BigLake client failed");
     }
@@ -189,16 +187,21 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    TableOperations ops = newTableOps(identifier);
-    // TODO: to catch NotFoundException as in https://github.com/apache/iceberg/pull/5510.
-    TableMetadata lastMetadata = ops.current();
+    TableOperations ops = null;
+    TableMetadata lastMetadata = null;
+    if (purge) {
+      ops = newTableOps(identifier);
+      // TODO: to catch NotFoundException as in https://github.com/apache/iceberg/pull/5510.
+      lastMetadata = ops.current();
+    }
+
     try {
       bigLakeClient.deleteTable(tableName(databaseId(identifier.namespace()), identifier.name()));
     } catch (NoSuchTableException e) {
       return false;
     }
 
-    if (purge && lastMetadata != null) {
+    if (ops != null && lastMetadata != null) {
       CatalogUtil.dropTableData(ops.io(), lastMetadata);
     }
 
@@ -245,8 +248,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   public List<Namespace> listNamespaces(Namespace namespace) {
     if (!namespace.isEmpty()) {
       // BLMS does not support namespaces under database or tables, returns empty.
-      // It is called when dropping a namespace to make sure it's empty (listTables is called as
-      // well), returns empty to unblock deletion.
+      // It is called when dropping a namespace to make sure it's empty, returns empty to unblock
+      // deletion.
       return ImmutableList.of();
     }
 
@@ -327,7 +330,9 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
   }
 
   @Override
@@ -359,8 +364,11 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   private String databaseId(Namespace namespace) {
     if (namespace.levels().length != 1) {
       throw new NoSuchNamespaceException(
-          "BigLake database namespace must use format <catalog>.<database>, invalid namespace: %s",
-          namespace);
+          namespace.isEmpty()
+              ? "Invalid BigLake database namespace: empty"
+              : String.format(
+                  "BigLake database namespace must use format <catalog>.<database>, invalid namespace: %s",
+                  namespace));
     }
 
     return namespace.level(0);
@@ -377,7 +385,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   private static Map<String, String> metadata(Database db) {
     HiveDatabaseOptions options = db.getHiveOptions();
     return new ImmutableMap.Builder<String, String>()
-        .putAll(options.getParameters())
+        .putAll(options.getParametersMap())
+        // Add the storage location of the database to metadata.
         .put("location", options.getLocationUri())
         .build();
   }

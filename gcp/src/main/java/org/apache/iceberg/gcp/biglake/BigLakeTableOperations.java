@@ -46,7 +46,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   private final BigLakeClient client;
   private final FileIO io;
-  // The catalog name.
+  // The name of this Iceberg catalog plugin: spark.sql.catalog.<catalog_plugin>.
   private final String name;
   private final TableName tableName;
 
@@ -96,7 +96,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       }
 
       commitStatus = CommitStatus.SUCCESS;
-    } catch (AlreadyExistsException | CommitFailedException | CommitStateUnknownException e) {
+    } catch (AlreadyExistsException | CommitFailedException e) {
+      throw e;
+    } catch (CommitStateUnknownException e) {
+      commitStatus = CommitStatus.UNKNOWN;
       throw e;
     } catch (Throwable e) {
       commitStatus = checkCommitStatus(newMetadataLocation, metadata);
