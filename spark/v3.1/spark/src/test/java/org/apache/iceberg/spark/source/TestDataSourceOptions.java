@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -34,13 +33,14 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -52,6 +52,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -427,8 +428,14 @@ public class TestDataSourceOptions {
     Thread writerThread =
         new Thread(
             () -> {
-              Map<String, String> properties = Maps.newHashMap();
-              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
               CommitMetadata.withCommitProperties(
                   properties,
                   () -> {
@@ -440,12 +447,13 @@ public class TestDataSourceOptions {
     writerThread.setName("test-extra-commit-message-writer-thread");
     writerThread.start();
     writerThread.join();
-    Set<String> threadNames = Sets.newHashSet();
-    for (Snapshot snapshot : table.snapshots()) {
-      threadNames.add(snapshot.summary().get("writer-thread"));
-    }
-    Assert.assertEquals(2, threadNames.size());
-    Assert.assertTrue(threadNames.contains(null));
-    Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
+
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    Assert.assertEquals(2, snapshots.size());
+    Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
+    Assertions.assertThat(snapshots.get(1).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 }

@@ -40,7 +40,7 @@ from pyiceberg.table.sorting import (
     assign_fresh_sort_order_ids,
 )
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties
-from pyiceberg.utils.datetime import datetime_to_micros
+from pyiceberg.utils.datetime import datetime_to_millis
 
 CURRENT_SNAPSHOT_ID = "current_snapshot_id"
 CURRENT_SCHEMA_ID = "current_schema_id"
@@ -124,7 +124,9 @@ class TableMetadataCommonFields(IcebergBaseModel):
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_updated_ms: int = Field(alias="last-updated-ms", default_factory=lambda: datetime_to_micros(datetime.datetime.now()))
+    last_updated_ms: int = Field(
+        alias="last-updated-ms", default_factory=lambda: datetime_to_millis(datetime.datetime.now().astimezone())
+    )
     """Timestamp in milliseconds from the unix epoch when the table
     was last updated. Each table metadata file should update this
     field just before writing."""

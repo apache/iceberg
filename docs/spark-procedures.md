@@ -514,6 +514,10 @@ will then treat these files as if they are part of the set of files  owned by Ic
 `expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
 `migrate` or `snapshot` are possible.
 
+{{< hint warning >}}
+Keep in mind the `add_files` procedure will fetch the Parquet metadata from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the underlying, file will be retrieved from the archive, and will remain on a higher tier for a set period of time.
+{{< /hint >}}
+
 #### Usage
 
 | Argument Name           | Required? | Type                | Description                                                                                         |

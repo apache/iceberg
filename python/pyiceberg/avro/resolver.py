@@ -48,12 +48,34 @@ from pyiceberg.avro.reader import (
     TimestamptzReader,
     UUIDReader,
 )
+from pyiceberg.avro.writer import (
+    BinaryWriter,
+    BooleanWriter,
+    DateWriter,
+    DecimalWriter,
+    DoubleWriter,
+    FixedWriter,
+    FloatWriter,
+    IntegerWriter,
+    ListWriter,
+    MapWriter,
+    OptionWriter,
+    StringWriter,
+    StructWriter,
+    TimestamptzWriter,
+    TimestampWriter,
+    TimeWriter,
+    UUIDWriter,
+    Writer,
+)
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.schema import (
     PartnerAccessor,
     PrimitiveWithPartnerVisitor,
     Schema,
+    SchemaVisitorPerPrimitiveType,
     promote,
+    visit,
     visit_with_partner,
 )
 from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
@@ -97,6 +119,79 @@ def construct_reader(
     return resolve(file_schema, file_schema, read_types)
 
 
+def construct_writer(file_schema: Union[Schema, IcebergType]) -> Writer:
+    """Constructs a writer from a file schema.
+
+    Args:
+        file_schema (Schema | IcebergType): The schema of the Avro file.
+
+    Raises:
+        NotImplementedError: If attempting to resolve an unrecognized object type.
+    """
+    return visit(file_schema, ConstructWriter())
+
+
+class ConstructWriter(SchemaVisitorPerPrimitiveType[Writer]):
+    """Constructs a writer tree from an Iceberg schema."""
+
+    def schema(self, schema: Schema, struct_result: Writer) -> Writer:
+        return struct_result
+
+    def struct(self, struct: StructType, field_results: List[Writer]) -> Writer:
+        return StructWriter(tuple(field_results))
+
+    def field(self, field: NestedField, field_result: Writer) -> Writer:
+        return field_result if field.required else OptionWriter(field_result)
+
+    def list(self, list_type: ListType, element_result: Writer) -> Writer:
+        return ListWriter(element_result)
+
+    def map(self, map_type: MapType, key_result: Writer, value_result: Writer) -> Writer:
+        return MapWriter(key_result, value_result)
+
+    def visit_fixed(self, fixed_type: FixedType) -> Writer:
+        return FixedWriter(len(fixed_type))
+
+    def visit_decimal(self, decimal_type: DecimalType) -> Writer:
+        return DecimalWriter(decimal_type.precision, decimal_type.scale)
+
+    def visit_boolean(self, boolean_type: BooleanType) -> Writer:
+        return BooleanWriter()
+
+    def visit_integer(self, integer_type: IntegerType) -> Writer:
+        return IntegerWriter()
+
+    def visit_long(self, long_type: LongType) -> Writer:
+        return IntegerWriter()
+
+    def visit_float(self, float_type: FloatType) -> Writer:
+        return FloatWriter()
+
+    def visit_double(self, double_type: DoubleType) -> Writer:
+        return DoubleWriter()
+
+    def visit_date(self, date_type: DateType) -> Writer:
+        return DateWriter()
+
+    def visit_time(self, time_type: TimeType) -> Writer:
+        return TimeWriter()
+
+    def visit_timestamp(self, timestamp_type: TimestampType) -> Writer:
+        return TimestampWriter()
+
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> Writer:
+        return TimestamptzWriter()
+
+    def visit_string(self, string_type: StringType) -> Writer:
+        return StringWriter()
+
+    def visit_uuid(self, uuid_type: UUIDType) -> Writer:
+        return UUIDWriter()
+
+    def visit_binary(self, binary_type: BinaryType) -> Writer:
+        return BinaryWriter()
+
+
 def resolve(
     file_schema: Union[Schema, IcebergType],
     read_schema: Union[Schema, IcebergType],
@@ -106,7 +201,7 @@ def resolve(
     """Resolves the file and read schema to produce a reader.
 
     Args:
-        file_schema (Schema | IcebergType): The schema of the Avro file
+        file_schema (Schema | IcebergType): The schema of the Avro file.
         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema.
         read_types (Dict[int, Callable[..., StructProtocol]]): A dict of types to use for struct data.
         read_enums (Dict[int, Callable[..., Enum]]): A dict of fields that have to be converted to an enum.
@@ -249,7 +344,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
     def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[IcebergType]) -> Reader:
         return TimestampReader()
 
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
         return TimestamptzReader()
 
     def visit_string(self, string_type: StringType, partner: Optional[IcebergType]) -> Reader:
