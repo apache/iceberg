@@ -127,18 +127,23 @@ class IcebergBaseModel(BaseModel):
         )
 
 
+CACHED_STRUCT_TO_FIELD_NAME_POSITIONS: Dict[StructType, List[str]] = {}
+
+
 class Record(StructProtocol):
     __slots__ = ("_position_to_field_name",)
-    _position_to_field_name: Dict[int, str]
+    _position_to_field_name: List[str]
 
     def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:
         if struct is not None:
-            self._position_to_field_name = {idx: field.name for idx, field in enumerate(struct.fields)}
+            self._position_to_field_name = CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.get(
+                struct
+            ) or CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.setdefault(struct, [field.name for field in struct.fields])
         elif named_data:
             # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
-            self._position_to_field_name = dict(enumerate(named_data.keys()))
+            self._position_to_field_name = list(named_data.keys())
         else:
-            self._position_to_field_name = {idx: f"field{idx + 1}" for idx in range(len(data))}
+            self._position_to_field_name = [f"field{idx + 1}" for idx in range(len(data))]
 
         for idx, d in enumerate(data):
             self[idx] = d
@@ -165,4 +170,4 @@ class Record(StructProtocol):
         return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"
 
     def record_fields(self) -> List[str]:
-        return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name.values()]
+        return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name]
