@@ -248,19 +248,6 @@ public class TestBaseIncrementalChangelogScan
     Assert.assertTrue("Must be no deletes", t2.deletes().isEmpty());
   }
 
-  //  @Test
-  //  public void testDeleteFilesAreNotSupported() {
-  //    Assume.assumeTrue(formatVersion == 2);
-  //
-  //    table.newFastAppend().appendFile(FILE_A2).appendFile(FILE_B).commit();
-  //
-  //    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
-  //
-  //    Assertions.assertThatThrownBy(() -> plan(newScan()))
-  //        .isInstanceOf(UnsupportedOperationException.class)
-  //        .hasMessage("Delete files are currently not supported in changelog scans");
-  //  }
-
   @Test
   public void testDeleteFiles() {
     Assume.assumeTrue(formatVersion == 2);

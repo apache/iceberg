@@ -165,11 +165,6 @@ class BaseIncrementalChangelogScan
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
       if (!snapshot.operation().equals(DataOperations.REPLACE)) {
-        //        if (snapshot.deleteManifests(table().io()).size() > 0) {
-        //          throw new UnsupportedOperationException(
-        //              "Delete files are currently not supported in changelog scans");
-        //        }
-
         changelogSnapshots.addFirst(snapshot);
       }
     }
