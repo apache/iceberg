@@ -108,7 +108,7 @@ class BaseIncrementalChangelogScan
 
     if (!newDeleteManifests.isEmpty()) {
       // build a map from snapshotId to delete entries
-      Map<Long, List<ManifestEntry<DeleteFile>>> deleteEntriesMap = Maps.newHashMap();
+      Map<Snapshot, List<ManifestEntry<DeleteFile>>> deleteEntriesMap = Maps.newHashMap();
       newDeleteManifests.forEach(
           file -> {
             ManifestReader<DeleteFile> deleteFiles =
@@ -116,7 +116,7 @@ class BaseIncrementalChangelogScan
             try (CloseableIterable<ManifestEntry<DeleteFile>> entries = deleteFiles.entries()) {
               List<ManifestEntry<DeleteFile>> entryList = Lists.newArrayList();
               entries.forEach(entry -> entryList.add(entry.copy()));
-              deleteEntriesMap.put(file.snapshotId(), entryList);
+              deleteEntriesMap.put(table().snapshot(file.snapshotId()), entryList);
             } catch (IOException e) {
               throw new RuntimeException("Failed to close delete entries.");
             }
@@ -188,16 +188,6 @@ class BaseIncrementalChangelogScan
     return snapshotOrdinals;
   }
 
-  private static Map<Long, Long> computeSnapshotSequenceNumber(Deque<Snapshot> snapshots) {
-    Map<Long, Long> snapshotSequence = Maps.newHashMap();
-
-    for (Snapshot snapshot : snapshots) {
-      snapshotSequence.put(snapshot.snapshotId(), snapshot.sequenceNumber());
-    }
-
-    return snapshotSequence;
-  }
-
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
     private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
@@ -248,13 +238,11 @@ class BaseIncrementalChangelogScan
 
   private static class CreateDeletedRowsScanTask implements CreateTasksFunction<ChangelogScanTask> {
     private final Map<Long, Integer> snapshotOrdinals;
-    private final Map<Long, Long> snapshotSequenceNumber;
-    private final Map<Long, List<ManifestEntry<DeleteFile>>> newDeleteEntries;
+    private final Map<Snapshot, List<ManifestEntry<DeleteFile>>> newDeleteEntries;
 
     CreateDeletedRowsScanTask(
-        Deque<Snapshot> snapshots, Map<Long, List<ManifestEntry<DeleteFile>>> deleteEntries) {
+        Deque<Snapshot> snapshots, Map<Snapshot, List<ManifestEntry<DeleteFile>>> deleteEntries) {
       this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
-      this.snapshotSequenceNumber = computeSnapshotSequenceNumber(snapshots);
       this.newDeleteEntries = deleteEntries;
     }
 
@@ -263,8 +251,8 @@ class BaseIncrementalChangelogScan
         CloseableIterable<ManifestEntry<DataFile>> dataEntries, TaskContext ctx) {
       List<CloseableIterable<ChangelogScanTask>> taskIteratorList = Lists.newArrayList();
       newDeleteEntries.forEach(
-          (snapshotId, deleteEntries) ->
-              taskIteratorList.add(transformTask(dataEntries, ctx, snapshotId, deleteEntries)));
+          (snapshot, deleteEntries) ->
+              taskIteratorList.add(transformTask(dataEntries, ctx, snapshot, deleteEntries)));
 
       return CloseableIterable.filter(CloseableIterable.concat(taskIteratorList), Objects::nonNull);
     }
@@ -272,7 +260,7 @@ class BaseIncrementalChangelogScan
     private CloseableIterable<ChangelogScanTask> transformTask(
         CloseableIterable<ManifestEntry<DataFile>> dataEntries,
         TaskContext ctx,
-        Long snapshotId,
+        Snapshot snapshot,
         List<ManifestEntry<DeleteFile>> deleteEntries) {
       return CloseableIterable.transform(
           dataEntries,
@@ -290,8 +278,7 @@ class BaseIncrementalChangelogScan
                     file -> {
                       if (newDeleteFileSet.contains(file)) {
                         addedDeleteFileList.add(file);
-                      } else if (file.dataSequenceNumber()
-                          < snapshotSequenceNumber.get(snapshotId)) {
+                      } else if (file.dataSequenceNumber() < snapshot.sequenceNumber()) {
                         existingDeleteFileList.add(file);
                       }
                     });
@@ -302,8 +289,8 @@ class BaseIncrementalChangelogScan
             }
 
             return new BaseDeletedRowsScanTask(
-                snapshotOrdinals.get(snapshotId),
-                snapshotId,
+                snapshotOrdinals.get(snapshot.snapshotId()),
+                snapshot.snapshotId(),
                 dataFile,
                 addedDeleteFileList.toArray(new DeleteFile[0]),
                 existingDeleteFileList.toArray(new DeleteFile[0]),
