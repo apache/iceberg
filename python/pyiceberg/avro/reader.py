@@ -267,7 +267,7 @@ class OptionReader(Reader):
 
 
 class StructReader(Reader):
-    __slots__ = ("field_readers", "create_struct", "struct")
+    __slots__ = ("field_readers", "create_struct", "struct", "create_with_keyword")
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Callable[..., StructProtocol]
     struct: StructType
@@ -282,18 +282,22 @@ class StructReader(Reader):
         self.create_struct = create_struct
         self.struct = struct
 
-    def read(self, decoder: BinaryDecoder) -> StructProtocol:
         try:
             # Try initializing the struct, first with the struct keyword argument
-            struct = self.create_struct(struct=self.struct)
+            created_struct = self.create_struct(struct=self.struct)
+            self._create_with_keyword = True
         except TypeError as e:
             if "'struct' is an invalid keyword argument for" in str(e):
-                struct = self.create_struct()
+                created_struct = self.create_struct()
+                self._create_with_keyword = False
             else:
                 raise ValueError(f"Unable to initialize struct: {self.create_struct}") from e
 
-        if not isinstance(struct, StructProtocol):
+        if not isinstance(created_struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
+
+    def read(self, decoder: BinaryDecoder) -> StructProtocol:
+        struct = self.create_struct(struct=self.struct) if self._create_with_keyword else self.create_struct()
 
         for pos, field in self.field_readers:
             if pos is not None:
