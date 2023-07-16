@@ -41,6 +41,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
@@ -170,15 +171,30 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidFastForwardBranchCases() {
-    String newBranch = "newBranch";
 
     Assertions.assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('%s', branch => '%s', to => '%s')",
-                    catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch))
+                    "CALL %s.system.fast_forward('test_table', branch => 'main', to => 'newBranch')",
+                    catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.fast_forward not found");
+
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [to]");
+
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.fast_forward('', 'main', 'newBranch')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
   private DataFile writeDataFile(Table table, List<GenericRecord> records) {
