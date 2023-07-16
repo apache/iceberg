@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
@@ -29,7 +33,11 @@ import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 
@@ -64,6 +72,7 @@ class BaseIncrementalChangelogScan
     }
 
     Set<Long> changelogSnapshotIds = toSnapshotIds(changelogSnapshots);
+    Snapshot toSnapshot = table().snapshot(toSnapshotIdInclusive);
 
     Set<ManifestFile> newDataManifests =
         FluentIterable.from(changelogSnapshots)
@@ -88,6 +97,58 @@ class BaseIncrementalChangelogScan
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
+    ImmutableSet<ManifestFile> allDeleteManifestFiles =
+        FluentIterable.from(toSnapshot.deleteManifests(table().io())).toSet();
+
+    // collect delete manifest files between fromSnapshotIdExclusive and to toSnapshotIdInclusive
+    Set<ManifestFile> newDeleteManifests =
+        allDeleteManifestFiles.stream()
+            .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
+            .collect(Collectors.toSet());
+
+    if (!newDeleteManifests.isEmpty()) {
+      // build a map from snapshotId to delete entries
+      Map<Long, List<ManifestEntry<DeleteFile>>> deleteEntriesMap = Maps.newHashMap();
+      newDeleteManifests.forEach(
+          file -> {
+            ManifestReader<DeleteFile> deleteFiles =
+                ManifestFiles.readDeleteManifest(file, table().io(), table().specs());
+            try (CloseableIterable<ManifestEntry<DeleteFile>> entries = deleteFiles.entries()) {
+              List<ManifestEntry<DeleteFile>> entryList = Lists.newArrayList();
+              entries.forEach(entry -> entryList.add(entry.copy()));
+              deleteEntriesMap.put(file.snapshotId(), entryList);
+            } catch (IOException e) {
+              throw new RuntimeException("Failed to close delete entries.");
+            }
+          });
+
+      ImmutableSet<ManifestFile> allDataManifestFiles =
+          FluentIterable.from(toSnapshot.dataManifests(table().io())).toSet();
+
+      ManifestGroup deleteManifestGroup =
+          new ManifestGroup(table().io(), allDataManifestFiles, allDeleteManifestFiles)
+              .specsById(table().specs())
+              .caseSensitive(isCaseSensitive())
+              .select(scanColumns())
+              .filterData(filter())
+              .ignoreExisting();
+
+      if (shouldIgnoreResiduals()) {
+        deleteManifestGroup = deleteManifestGroup.ignoreResiduals();
+      }
+
+      if (shouldPlanWithExecutor()) {
+        deleteManifestGroup = deleteManifestGroup.planWith(planExecutor());
+      }
+
+      // combine data file change tasks and delete rows scan tasks
+      return CloseableIterable.withNoopClose(
+          Iterables.concat(
+              manifestGroup.plan(new CreateDataFileChangeTasks(changelogSnapshots)),
+              deleteManifestGroup.plan(
+                  new CreateDeletedRowsScanTask(changelogSnapshots, deleteEntriesMap))));
+    }
+
     return manifestGroup.plan(new CreateDataFileChangeTasks(changelogSnapshots));
   }
 
@@ -104,10 +165,10 @@ class BaseIncrementalChangelogScan
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
       if (!snapshot.operation().equals(DataOperations.REPLACE)) {
-        if (snapshot.deleteManifests(table().io()).size() > 0) {
-          throw new UnsupportedOperationException(
-              "Delete files are currently not supported in changelog scans");
-        }
+        //        if (snapshot.deleteManifests(table().io()).size() > 0) {
+        //          throw new UnsupportedOperationException(
+        //              "Delete files are currently not supported in changelog scans");
+        //        }
 
         changelogSnapshots.addFirst(snapshot);
       }
@@ -130,6 +191,16 @@ class BaseIncrementalChangelogScan
     }
 
     return snapshotOrdinals;
+  }
+
+  private static Map<Long, Long> computeSnapshotSequenceNumber(Deque<Snapshot> snapshots) {
+    Map<Long, Long> snapshotSequence = Maps.newHashMap();
+
+    for (Snapshot snapshot : snapshots) {
+      snapshotSequence.put(snapshot.snapshotId(), snapshot.sequenceNumber());
+    }
+
+    return snapshotSequence;
   }
 
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
@@ -158,7 +229,7 @@ class BaseIncrementalChangelogScan
                     changeOrdinal,
                     commitSnapshotId,
                     dataFile,
-                    NO_DELETES,
+                    context.deletes().forEntry(entry),
                     context.schemaAsString(),
                     context.specAsString(),
                     context.residuals());
@@ -176,6 +247,74 @@ class BaseIncrementalChangelogScan
               default:
                 throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
             }
+          });
+    }
+  }
+
+  private static class CreateDeletedRowsScanTask implements CreateTasksFunction<ChangelogScanTask> {
+    private final Map<Long, Integer> snapshotOrdinals;
+    private final Map<Long, Long> snapshotSequenceNumber;
+    private final Map<Long, List<ManifestEntry<DeleteFile>>> newDeleteEntries;
+
+    CreateDeletedRowsScanTask(
+        Deque<Snapshot> snapshots, Map<Long, List<ManifestEntry<DeleteFile>>> deleteEntries) {
+      this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
+      this.snapshotSequenceNumber = computeSnapshotSequenceNumber(snapshots);
+      this.newDeleteEntries = deleteEntries;
+    }
+
+    @Override
+    public CloseableIterable<ChangelogScanTask> apply(
+        CloseableIterable<ManifestEntry<DataFile>> dataEntries, TaskContext ctx) {
+      List<CloseableIterable<ChangelogScanTask>> taskIteratorList = Lists.newArrayList();
+      newDeleteEntries.forEach(
+          (snapshotId, deleteEntries) ->
+              taskIteratorList.add(transformTask(dataEntries, ctx, snapshotId, deleteEntries)));
+
+      return CloseableIterable.filter(CloseableIterable.concat(taskIteratorList), Objects::nonNull);
+    }
+
+    private CloseableIterable<ChangelogScanTask> transformTask(
+        CloseableIterable<ManifestEntry<DataFile>> dataEntries,
+        TaskContext ctx,
+        Long snapshotId,
+        List<ManifestEntry<DeleteFile>> deleteEntries) {
+      return CloseableIterable.transform(
+          dataEntries,
+          dataEntry -> {
+            DataFile dataFile = dataEntry.file().copy(ctx.shouldKeepStats());
+            DeleteFile[] allDeleteFiles =
+                ctx.deletes().forDataFile(dataEntry.dataSequenceNumber(), dataFile);
+            Set<DeleteFile> newDeleteFileSet = Sets.newHashSet();
+            deleteEntries.forEach(deleteEntry -> newDeleteFileSet.add(deleteEntry.file()));
+            List<DeleteFile> addedDeleteFileList = Lists.newArrayList();
+            List<DeleteFile> existingDeleteFileList = Lists.newArrayList();
+
+            Arrays.stream(allDeleteFiles)
+                .forEach(
+                    file -> {
+                      if (newDeleteFileSet.contains(file)) {
+                        addedDeleteFileList.add(file);
+                      } else if (file.dataSequenceNumber()
+                          < snapshotSequenceNumber.get(snapshotId)) {
+                        existingDeleteFileList.add(file);
+                      }
+                    });
+
+            // If no deleted files match, no task is created, null will be filtered.
+            if (addedDeleteFileList.isEmpty()) {
+              return null;
+            }
+
+            return new BaseDeletedRowsScanTask(
+                snapshotOrdinals.get(snapshotId),
+                snapshotId,
+                dataFile,
+                addedDeleteFileList.toArray(new DeleteFile[0]),
+                existingDeleteFileList.toArray(new DeleteFile[0]),
+                ctx.schemaAsString(),
+                ctx.specAsString(),
+                ctx.residuals());
           });
     }
   }
