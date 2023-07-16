@@ -84,8 +84,10 @@ public class BigLakeTableOperationsTest {
   public void before() throws Exception {
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            GCPProperties.BIGLAKE_PROJECT_ID,
+            GCPProperties.PROJECT_ID,
             GCP_PROJECT,
+            GCPProperties.REGION,
+            GCP_REGION,
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toFile().getAbsolutePath(),
             GCPProperties.BIGLAKE_CATALOG_ID,
@@ -93,7 +95,7 @@ public class BigLakeTableOperationsTest {
 
     bigLakeCatalog = new BigLakeCatalog();
     bigLakeCatalog.setConf(new Configuration());
-    bigLakeCatalog.initialize(CATALOG_NAME, properties, GCP_PROJECT, GCP_REGION, bigLakeClient);
+    bigLakeCatalog.initialize(CATALOG_NAME, properties, bigLakeClient);
     tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(TABLE_IDENTIFIER);
   }
 

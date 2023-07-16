@@ -68,7 +68,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   private BigLakeCatalog bigLakeCatalogUsingMockService;
 
   // For tests using a BigLake catalog with a mocked client.
-  private BigLakeClient mockBigLakeClient = mock(BigLakeClient.class);;
+  private BigLakeClient mockBigLakeClient = mock(BigLakeClient.class);
   private BigLakeCatalog bigLakeCatalogUsingMockClient;
 
   @BeforeEach
@@ -81,8 +81,10 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            GCPProperties.BIGLAKE_PROJECT_ID,
+            GCPProperties.PROJECT_ID,
             GCP_PROJECT,
+            GCPProperties.REGION,
+            GCP_REGION,
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toAbsolutePath().toString());
 
@@ -94,13 +96,11 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
     bigLakeCatalogUsingMockService = new BigLakeCatalog();
     bigLakeCatalogUsingMockService.setConf(new Configuration());
-    bigLakeCatalogUsingMockService.initialize(
-        CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, new BigLakeClient(settings));
+    bigLakeCatalogUsingMockService.initialize(CATALOG_ID, properties, new BigLakeClient(settings));
 
     bigLakeCatalogUsingMockClient = new BigLakeCatalog();
     bigLakeCatalogUsingMockClient.setConf(new Configuration());
-    bigLakeCatalogUsingMockClient.initialize(
-        CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, mockBigLakeClient);
+    bigLakeCatalogUsingMockClient.initialize(CATALOG_ID, properties, mockBigLakeClient);
   }
 
   @AfterEach
@@ -247,8 +247,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 bigLakeCatalogUsingMockClient.setProperties(
                     Namespace.of("db", "tbl"), ImmutableMap.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "BigLake database namespace must use format <catalog>.<database>, invalid namespace: db.tbl");
+        .hasMessage("Invalid BigLake database namespace: db.tbl");
   }
 
   @Test
@@ -286,8 +285,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 bigLakeCatalogUsingMockClient.removeProperties(
                     Namespace.of("db", "tbl"), ImmutableSet.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "BigLake database namespace must use format <catalog>.<database>, invalid namespace: db.tbl");
+        .hasMessage("Invalid BigLake database namespace: db.tbl");
   }
 
   @Test
@@ -331,8 +329,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 .build());
 
     assertThat(bigLakeCatalogUsingMockClient.loadNamespaceMetadata(Namespace.of("db")))
-        .containsAllEntriesOf(
-            ImmutableMap.of("location", "my location uri", "key1", "value1", "key2", "value2"));
+        .containsAllEntriesOf(ImmutableMap.of("key1", "value1", "key2", "value2"));
   }
 
   @Test
@@ -350,7 +347,6 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 bigLakeCatalogUsingMockClient.newTableOps(
                     TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "BigLake database namespace must use format <catalog>.<database>, invalid namespace: n0.n1");
+        .hasMessage("Invalid BigLake database namespace: n0.n1");
   }
 }

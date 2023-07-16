@@ -46,7 +46,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   private final BigLakeClient client;
   private final FileIO io;
-  // The name of this Iceberg catalog plugin: spark.sql.catalog.<catalog_plugin>.
+  // The name of this Iceberg catalog plugin.
   private final String name;
   private final TableName tableName;
 

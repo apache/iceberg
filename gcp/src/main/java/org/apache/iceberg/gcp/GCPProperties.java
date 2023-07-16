@@ -37,18 +37,16 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
-  // For BigQuery BigLake Metastore.
-  // The endpoint of BigLake API.
-  // Optional, default to BigLakeCatalog.DEFAULT_BIGLAKE_SERVICE_ENDPOINT.
-  public static final String BIGLAKE_ENDPOINT = "biglake.endpoint";
   // The GCP project ID. Required.
-  public static final String BIGLAKE_PROJECT_ID = "biglake.project-id";
+  public static final String PROJECT_ID = "project-id";
+
   // The GCP region (https://cloud.google.com/bigquery/docs/locations). Required.
-  public static final String BIGLAKE_GCP_REGION = "biglake.region";
+  public static final String REGION = "region";
+
   // The BigLake Metastore catalog ID. It is the container resource of databases and tables.
   // It links a BLMS catalog with this Iceberg catalog.
   // Optional, default to the Spark catalog plugin name.
-  public static final String BIGLAKE_CATALOG_ID = "biglake.catalog-id";
+  public static final String BIGLAKE_CATALOG_ID = "catalog-id";
 
   private String projectId;
   private String clientLibToken;
