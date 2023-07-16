@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import com.adobe.testing.s3mock.junit4.S3MockRule;
+import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
@@ -26,22 +26,25 @@ import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+@ExtendWith(S3MockExtension.class)
 public class TestS3InputStream {
-  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @RegisterExtension
+  public static final S3MockExtension S3_MOCK_RULE = S3MockExtension.builder().silent().build();
 
   private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
 
-  @Before
+  @BeforeEach
   public void before() {
     createBucket("bucket");
   }

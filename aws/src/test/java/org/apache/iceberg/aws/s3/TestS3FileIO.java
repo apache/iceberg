@@ -25,7 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.adobe.testing.s3mock.junit4.S3MockRule;
+import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -57,13 +57,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -74,10 +73,12 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(S3MockExtension.class)
 public class TestS3FileIO {
-  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
-  public SerializableSupplier<S3Client> s3 = S3_MOCK_RULE::createS3ClientV2;
+  @RegisterExtension
+  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
+
+  public SerializableSupplier<S3Client> s3 = S3_MOCK::createS3ClientV2;
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -92,7 +93,7 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  @Before
+  @BeforeEach
   public void before() {
     s3FileIO = new S3FileIO(() -> s3mock);
     s3FileIO.initialize(properties);
@@ -103,7 +104,7 @@ public class TestS3FileIO {
     StaticClientFactory.client = s3mock;
   }
 
-  @After
+  @AfterEach
   public void after() {
     if (null != s3FileIO) {
       s3FileIO.close();
@@ -248,7 +249,7 @@ public class TestS3FileIO {
    * exists through integration tests.
    */
   @Test
-  @Ignore
+  @Disabled
   public void testPrefixDelete() {
     String prefix = "s3://bucket/path/to/delete";
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1001);

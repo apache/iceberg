@@ -489,6 +489,11 @@ project(':iceberg-aws') {
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation("com.adobe.testing:s3mock-junit5:3.0.0") {
+      exclude module: "spring-boot-starter-logging"
+      exclude module: "logback-classic"
+      exclude group: 'junit'
+    }
     testImplementation("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"

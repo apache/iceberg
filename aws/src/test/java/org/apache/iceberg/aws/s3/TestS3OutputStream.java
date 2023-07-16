@@ -27,7 +27,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.adobe.testing.s3mock.junit4.S3MockRule;
+import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,14 +44,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -69,13 +68,14 @@ import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(S3MockExtension.class)
 public class TestS3OutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @RegisterExtension
+  public static final S3MockExtension S3_MOCK_RULE = S3MockExtension.builder().silent().build();
 
   private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
@@ -99,13 +99,13 @@ public class TestS3OutputStream {
 
   public TestS3OutputStream() throws IOException {}
 
-  @Before
+  @BeforeEach
   public void before() {
     properties.setChecksumEnabled(false);
     createBucket(BUCKET);
   }
 
-  @After
+  @AfterEach
   public void after() {
     File newStagingDirectory = new File(newTmpDirectory);
     if (newStagingDirectory.exists()) {
