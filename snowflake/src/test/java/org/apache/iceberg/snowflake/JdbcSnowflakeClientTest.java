@@ -23,7 +23,7 @@ import static org.apache.iceberg.snowflake.JdbcSnowflakeClient.SCHEMA_NOT_FOUND_
 import static org.apache.iceberg.snowflake.JdbcSnowflakeClient.TABLE_NOT_FOUND_ERROR_CODES;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,8 +44,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class JdbcSnowflakeClientTest {
   @Mock private Connection mockConnection;
   @Mock private JdbcClientPool mockClientPool;
@@ -58,13 +61,10 @@ public class JdbcSnowflakeClientTest {
   public void before() throws SQLException, InterruptedException {
     snowflakeClient = new JdbcSnowflakeClient(mockClientPool);
     snowflakeClient.setQueryHarness(mockQueryHarness);
-    lenient()
-        .doAnswer(
-            invocation -> ((ClientPool.Action) invocation.getArguments()[0]).run(mockConnection))
+    doAnswer(invocation -> ((ClientPool.Action) invocation.getArguments()[0]).run(mockConnection))
         .when(mockClientPool)
         .run(any(ClientPool.Action.class));
-    lenient()
-        .doAnswer(
+    doAnswer(
             invocation ->
                 ((JdbcSnowflakeClient.ResultSetParser) invocation.getArguments()[2])
                     .parse(mockResultSet))

@@ -75,9 +75,9 @@ public class TestS3OutputStream {
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
   @RegisterExtension
-  public static final S3MockExtension S3_MOCK_RULE = S3MockExtension.builder().silent().build();
+  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
 
-  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
+  private final S3Client s3 = S3_MOCK.createS3ClientV2();
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");

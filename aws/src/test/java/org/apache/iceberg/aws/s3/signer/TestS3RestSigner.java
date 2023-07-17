@@ -120,6 +120,7 @@ public class TestS3RestSigner {
 
   @BeforeEach
   public void before() throws Exception {
+    MINIO_CONTAINER.start();
     s3 =
         S3Client.builder()
             .region(REGION)

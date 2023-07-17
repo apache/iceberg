@@ -39,9 +39,9 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @ExtendWith(S3MockExtension.class)
 public class TestS3InputStream {
   @RegisterExtension
-  public static final S3MockExtension S3_MOCK_RULE = S3MockExtension.builder().silent().build();
+  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
 
-  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
+  private final S3Client s3 = S3_MOCK.createS3ClientV2();
   private final Random random = new Random(1);
 
   @BeforeEach
