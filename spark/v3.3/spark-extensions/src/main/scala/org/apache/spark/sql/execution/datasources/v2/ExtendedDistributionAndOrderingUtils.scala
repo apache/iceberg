@@ -68,7 +68,7 @@ object ExtendedDistributionAndOrderingUtils {
         }
 
         val isHashDistributionMode = write.requiredDistribution match {
-          case ClusteredDistribution => true
+          case _ : ClusteredDistribution => true
           case _ => false
         }
 
