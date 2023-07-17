@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
@@ -28,12 +29,11 @@ import pytest
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream
-from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
 
 
 def test_read_decimal_from_fixed() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
+    mis = io.BytesIO(b"\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_fixed(28, 15, 12)
     expected = Decimal("99892.123400000000000")
@@ -41,19 +41,19 @@ def test_read_decimal_from_fixed() -> None:
 
 
 def test_read_boolean_true() -> None:
-    mis = MemoryInputStream(b"\x01")
+    mis = io.BytesIO(b"\x01")
     decoder = BinaryDecoder(mis)
     assert decoder.read_boolean() is True
 
 
 def test_read_boolean_false() -> None:
-    mis = MemoryInputStream(b"\x00")
+    mis = io.BytesIO(b"\x00")
     decoder = BinaryDecoder(mis)
     assert decoder.read_boolean() is False
 
 
 def test_skip_boolean() -> None:
-    mis = MemoryInputStream(b"\x00")
+    mis = io.BytesIO(b"\x00")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
     decoder.skip_boolean()
@@ -61,13 +61,13 @@ def test_skip_boolean() -> None:
 
 
 def test_read_int() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
     assert decoder.read_int() == 12
 
 
 def test_skip_int() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
     decoder.skip_int()
@@ -75,7 +75,7 @@ def test_skip_int() -> None:
 
 
 def test_read_decimal() -> None:
-    mis = MemoryInputStream(b"\x18\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
+    mis = io.BytesIO(b"\x18\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_bytes(28, 15)
     expected = Decimal("99892.123400000000000")
@@ -83,7 +83,7 @@ def test_read_decimal() -> None:
 
 
 def test_decimal_from_fixed_big() -> None:
-    mis = MemoryInputStream(b"\x0E\xC2\x02\xE9\x06\x16\x33\x49\x77\x67\xA8\x00")
+    mis = io.BytesIO(b"\x0E\xC2\x02\xE9\x06\x16\x33\x49\x77\x67\xA8\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_fixed(28, 15, 12)
     expected = Decimal("4567335489766.998340000000000")
@@ -91,7 +91,7 @@ def test_decimal_from_fixed_big() -> None:
 
 
 def test_read_negative_bytes() -> None:
-    mis = MemoryInputStream(b"")
+    mis = io.BytesIO(b"")
     decoder = BinaryDecoder(mis)
 
     with pytest.raises(ValueError) as exc_info:
@@ -136,13 +136,13 @@ def test_read_single_byte_at_the_time() -> None:
 
 
 def test_read_float() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x9A\x41")
+    mis = io.BytesIO(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     assert decoder.read_float() == 19.25
 
 
 def test_skip_float() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x9A\x41")
+    mis = io.BytesIO(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
     decoder.skip_float()
@@ -150,13 +150,13 @@ def test_skip_float() -> None:
 
 
 def test_read_double() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
+    mis = io.BytesIO(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     decoder = BinaryDecoder(mis)
     assert decoder.read_double() == 19.25
 
 
 def test_skip_double() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
+    mis = io.BytesIO(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
     decoder.skip_double()
@@ -164,50 +164,50 @@ def test_skip_double() -> None:
 
 
 def test_read_uuid_from_fixed() -> None:
-    mis = MemoryInputStream(b"\x12\x34\x56\x78" * 4)
+    mis = io.BytesIO(b"\x12\x34\x56\x78" * 4)
     decoder = BinaryDecoder(mis)
     assert decoder.read_uuid_from_fixed() == UUID("{12345678-1234-5678-1234-567812345678}")
 
 
 def test_read_time_millis() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
+    mis = io.BytesIO(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_time_millis().microsecond == 30000
 
 
 def test_read_time_micros() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
+    mis = io.BytesIO(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_time_micros().microsecond == 8030
 
 
 def test_read_timestamp_micros() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
+    mis = io.BytesIO(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_timestamp_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030)
 
 
 def test_read_timestamptz_micros() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
+    mis = io.BytesIO(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_timestamptz_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030, tzinfo=timezone.utc)
 
 
 def test_read_bytes() -> None:
-    mis = MemoryInputStream(b"\x08\x01\x02\x03\x04")
+    mis = io.BytesIO(b"\x08\x01\x02\x03\x04")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_bytes()
     assert actual == b"\x01\x02\x03\x04"
 
 
 def test_read_utf8() -> None:
-    mis = MemoryInputStream(b"\x04\x76\x6F")
+    mis = io.BytesIO(b"\x04\x76\x6F")
     decoder = BinaryDecoder(mis)
     assert decoder.read_utf8() == "vo"
 
 
 def test_skip_utf8() -> None:
-    mis = MemoryInputStream(b"\x04\x76\x6F")
+    mis = io.BytesIO(b"\x04\x76\x6F")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
     decoder.skip_utf8()
@@ -215,7 +215,7 @@ def test_skip_utf8() -> None:
 
 
 def test_read_int_as_float() -> None:
-    mis = MemoryInputStream(b"\x00\x00\x9A\x41")
+    mis = io.BytesIO(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     reader = resolve(FloatType(), DoubleType())
     assert reader.read(decoder) == 19.25

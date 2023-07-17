@@ -128,6 +128,7 @@ class IcebergBaseModel(BaseModel):
 
 
 class Record(StructProtocol):
+    __slots__ = ("_position_to_field_name",)
     _position_to_field_name: Dict[int, str]
 
     def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:

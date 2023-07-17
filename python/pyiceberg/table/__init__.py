@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from itertools import chain
-from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -789,11 +789,11 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPool() as pool:
+        with ThreadPoolExecutor() as executor:
             for manifest_entry in chain(
-                *pool.starmap(
-                    func=_open_manifest,
-                    iterable=[
+                *executor.map(
+                    lambda args: _open_manifest(*args),
+                    [
                         (
                             io,
                             manifest,
