@@ -321,7 +321,7 @@ public class TestS3FileIO {
     String json = FileIOParser.toJson(s3FileIO);
     try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
       Assertions.assertThat(deserialized).isInstanceOf(S3FileIO.class);
-      Assertions.assertThat(deserialized).isNotSameAs(s3FileIO);
+      Assertions.assertThat(deserialized.properties).isEqualTo(s3FileIO.properties();
     }
   }
 
