@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.spark.functions;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 
 public class SparkFunctions {
 
