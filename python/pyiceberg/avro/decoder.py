@@ -18,7 +18,7 @@ import decimal
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from io import SEEK_CUR
-from typing import List
+from typing import Dict, List
 from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
@@ -29,6 +29,10 @@ from pyiceberg.utils.decimal import unscaled_to_decimal
 
 class BinaryDecoder(ABC):
     """Read leaf values."""
+
+    @abstractmethod
+    def __init__(self, input_stream: InputStream) -> None:
+        """Create the decoder."""
 
     @abstractmethod
     def tell(self) -> int:
@@ -65,19 +69,19 @@ class BinaryDecoder(ABC):
         datum = (n >> 1) ^ -(n & 1)
         return datum
 
-    def read_ints(self, n: int, dest: list[int]) -> None:
+    def read_ints(self, n: int, dest: List[int]) -> None:
         """Reads a list of integers."""
         for _ in range(n):
             dest.append(self.read_int())
 
-    def read_int_int_dict(self, n: int, dest: dict[int, int]) -> None:
+    def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
         """Reads a dictionary of integers for keys and values into a destination dictionary."""
         for _ in range(n):
             k = self.read_int()
             v = self.read_int()
             dest[k] = v
 
-    def read_int_bytes_dict(self, n: int, dest: dict[int, bytes]) -> None:
+    def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
         """Reads a dictionary of integers for keys and bytes for values into a destination dictionary."""
         for _ in range(n):
             k = self.read_int()
@@ -202,8 +206,8 @@ class StreamingBinaryDecoder(BinaryDecoder):
 
     def __init__(self, input_stream: InputStream) -> None:
         """Reader is a Python object on which we can call read, seek, and tell."""
+        super().__init__(input_stream)
         self._input_stream = input_stream
-        super().__init__()
 
     def tell(self) -> int:
         """Return the current stream position."""
@@ -241,18 +245,16 @@ class InMemoryBinaryDecoder(BinaryDecoder):
     as it does not need to interact with the I/O subsystem.
     """
 
-    __slots__ = ["_contents", "_input_stream", "_position", "_size"]
-    _input_stream: InputStream
+    __slots__ = ["_contents", "_position", "_size"]
     _contents: bytes
     _position: int
     _size: int
 
     def __init__(self, input_stream: InputStream) -> None:
         """Reader is a Python object on which we can call read, seek, and tell."""
-        super().__init__()
+        super().__init__(input_stream)
         self._contents = input_stream.read()
         self._size = len(self._contents)
-        self._input_stream = input_stream
         self._position = 0
 
     def tell(self) -> int:
