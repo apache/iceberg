@@ -19,13 +19,20 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -58,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
@@ -76,6 +84,7 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -1304,6 +1313,83 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           Assertions.assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
+        });
+  }
+
+  @Test
+  public void testDeleteFilterWithSystemFuncOnPartitionedTable() {
+    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
+
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
+    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
+    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
+    tableProperties.putAll(extraTableProperties());
+    createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
+
+    String date = "2018-12-21";
+    String remainSql =
+        sqlFormat(
+            "SELECT * FROM %s WHERE %s.system.years(ts) != %s.system.years(date('%s')) ORDER BY id",
+            tableName, catalogName, catalogName, date);
+
+    List<Object[]> expected = sql(remainSql);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        () -> {
+          String deleteSql =
+              sqlFormat(
+                  "DELETE FROM %s WHERE %s.system.years(ts) == %s.system.years(date('%s'))",
+                  tableName, catalogName, catalogName, date);
+          Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
+          // Metadata delete
+          Assertions.assertThat((String) explain).contains("DeleteFromTableWithFilters");
+          Assertions.assertThat((String) explain).contains("[years(ts) = " + years(date));
+
+          sql(deleteSql);
+
+          List<Object[]> actual = sql(remainSql);
+          assertEquals("Results should match", expected, actual);
+        });
+  }
+
+  @Test
+  public void testDeleteFilterWithSystemFuncOnUnpartitionedTable() {
+    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
+
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
+    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
+    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
+    tableProperties.putAll(extraTableProperties());
+    createUnpartitionedTable(spark, tableName, tableProperties);
+
+    String date = "2018-12-21";
+    String remainSql =
+        sqlFormat(
+            "SELECT * FROM %s WHERE %s.system.months(ts) = %s.system.months(date('%s')) ORDER BY id",
+            tableName, catalogName, catalogName, date);
+
+    List<Object[]> expected = sql(remainSql);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        () -> {
+          String deleteSql =
+              sqlFormat(
+                  "DELETE FROM %s WHERE %s.system.months(ts) != %s.system.months(date('%s'))",
+                  tableName, catalogName, catalogName, date);
+          Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
+          Assertions.assertThat((String) explain)
+              .contains(
+                  "Filter NOT (applyfunctionexpression(org.apache.iceberg.spark.functions.MonthsFunction$TimestampToMonthsFunction");
+          Assertions.assertThat((String) explain).contains("[filters=NOT (ts = " + months(date));
+
+          sql(deleteSql);
+
+          List<Object[]> actual = sql(remainSql);
+          assertEquals("Results should match", expected, actual);
         });
   }
 
