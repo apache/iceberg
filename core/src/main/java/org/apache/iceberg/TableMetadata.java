@@ -556,6 +556,21 @@ public class TableMetadata implements Serializable {
     return new Builder(this).removeSnapshots(toRemove).build();
   }
 
+  /**
+   * This will remove the snapshots matching the given predicate but will not suppress those
+   * snapshots from the snapshot log. The snapshots that are being removed must be lazily provided
+   * via the {@link TableMetadata#snapshotsSupplier}.
+   *
+   * @param removeIf The snapshots to be removed that will later be lazily loaded via the configured
+   *     {@link TableMetadata#snapshotsSupplier}
+   * @return a new TableMetadata with snapshots removed without suppressing the removed snapshots
+   *     from the snapshot log
+   */
+  public TableMetadata removeLazilyLoadedSnapshotsIf(Predicate<Snapshot> removeIf) {
+    List<Snapshot> toRemove = snapshots().stream().filter(removeIf).collect(Collectors.toList());
+    return new Builder(this).removeSnapshots(toRemove).keepSnapshotLog().build();
+  }
+
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
     ValidationException.check(rawProperties != null, "Cannot set properties to null");
     Map<String, String> newProperties = unreservedProperties(rawProperties);
@@ -863,6 +878,8 @@ public class TableMetadata implements Serializable {
     private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
+    // to indicate that the snapshot log should not be truncated with lazy snapshot loading
+    private boolean keepSnapshotLog;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -1314,6 +1331,11 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    private Builder keepSnapshotLog() {
+      this.keepSnapshotLog = true;
+      return this;
+    }
+
     public Builder setPreviousFileLocation(String previousFileLocation) {
       this.previousFileLocation = previousFileLocation;
       return this;
@@ -1355,8 +1377,13 @@ public class TableMetadata implements Serializable {
             addPreviousFile(
                 previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
       }
+
+      // on the server the keepSnapshotLog flag will be set while on the client side the
+      // snapshotsSupplier is non-null
+      boolean lazySnapshotLoadingEnabled = keepSnapshotLog || null != snapshotsSupplier;
       List<HistoryEntry> newSnapshotLog =
-          updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
+          updateSnapshotLog(
+              snapshotLog, snapshotsById, currentSnapshotId, changes, lazySnapshotLoadingEnabled);
 
       return new TableMetadata(
           metadataLocation,
@@ -1627,7 +1654,8 @@ public class TableMetadata implements Serializable {
         List<HistoryEntry> snapshotLog,
         Map<Long, Snapshot> snapshotsById,
         long currentSnapshotId,
-        List<MetadataUpdate> changes) {
+        List<MetadataUpdate> changes,
+        boolean lazySnapshotLoadingEnabled) {
       // find intermediate snapshots to suppress incorrect entries in the snapshot log.
       //
       // transactions can create snapshots that are never the current snapshot because several
@@ -1646,7 +1674,7 @@ public class TableMetadata implements Serializable {
       List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
       for (HistoryEntry logEntry : snapshotLog) {
         long snapshotId = logEntry.snapshotId();
-        if (snapshotsById.containsKey(snapshotId)) {
+        if (snapshotsById.containsKey(snapshotId) || lazySnapshotLoadingEnabled) {
           if (!intermediateSnapshotIds.contains(snapshotId)) {
             // copy the log entries that are still valid
             newSnapshotLog.add(logEntry);
