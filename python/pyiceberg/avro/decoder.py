@@ -300,7 +300,7 @@ class InMemoryBinaryDecoder(BinaryDecoder):
             shift += 7
         return (n >> 1) ^ -(n & 1)
 
-    def read_int_bytes_dict(self, n: int, dest: dict[int, bytes]) -> None:
+    def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
         """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
         for _ in range(n):
             k = self.read_int()
