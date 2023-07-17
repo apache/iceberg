@@ -16,89 +16,92 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AesGcmInputStream extends SeekableInputStream {
   private final SeekableInputStream sourceStream;
-  private final boolean emptyCipherStream;
-  private final long netSourceFileSize;
   private final Ciphers.AesGcmDecryptor gcmDecryptor;
-  private final byte[] ciphertextBlockBuffer;
+  private final byte[] cipherBlockBuffer;
   private final int cipherBlockSize;
   private final int plainBlockSize;
   private final int numberOfBlocks;
   private final int lastCipherBlockSize;
   private final long plainStreamSize;
-  private final byte[] fileAadPrefix;
+  private final byte[] fileAADPrefix;
 
   private long plainStreamPosition;
   private int currentBlockIndex;
   private int currentOffsetInPlainBlock;
+  private byte[] currentDecryptedBlock;
+  private int currentDecryptedBlockIndex;
 
-  AesGcmInputStream(SeekableInputStream sourceStream, long sourceLength,
-                    byte[] aesKey, byte[] fileAadPrefix) throws IOException {
-    this.netSourceFileSize = sourceLength - Ciphers.GCM_STREAM_PREFIX_LENGTH;
-    Preconditions.checkArgument(netSourceFileSize >= 0,
-        "Source length " + sourceLength + " is shorter than GCM prefix. File is not encrypted");
-
-    this.emptyCipherStream = (0 == netSourceFileSize);
+  AesGcmInputStream(
+      SeekableInputStream sourceStream, long sourceLength, byte[] aesKey, byte[] fileAADPrefix)
+      throws IOException {
+    long netSourceLength = netSourceFileLength(sourceLength);
+    boolean emptyCipherStream = (0 == netSourceLength);
     this.sourceStream = sourceStream;
-    byte[] prefixBytes = new byte[Ciphers.GCM_STREAM_PREFIX_LENGTH];
-    int fetched = sourceStream.read(prefixBytes);
-    Preconditions.checkState(fetched == Ciphers.GCM_STREAM_PREFIX_LENGTH,
-        "Insufficient read " + fetched +
-            ". The stream length should be at least " + Ciphers.GCM_STREAM_PREFIX_LENGTH);
-
+    byte[] headerBytes = new byte[Ciphers.GCM_STREAM_HEADER_LENGTH];
+    IOUtil.readFully(sourceStream, headerBytes, 0, headerBytes.length);
     byte[] magic = new byte[Ciphers.GCM_STREAM_MAGIC_ARRAY.length];
-    System.arraycopy(prefixBytes, 0, magic, 0, Ciphers.GCM_STREAM_MAGIC_ARRAY.length);
-    Preconditions.checkState(Arrays.equals(Ciphers.GCM_STREAM_MAGIC_ARRAY, magic),
-        "Cannot open encrypted file, it does not begin with magic string " + Ciphers.GCM_STREAM_MAGIC_STRING);
+    System.arraycopy(headerBytes, 0, magic, 0, Ciphers.GCM_STREAM_MAGIC_ARRAY.length);
+    Preconditions.checkState(
+        Arrays.equals(Ciphers.GCM_STREAM_MAGIC_ARRAY, magic),
+        "Cannot open encrypted file, it does not begin with magic string "
+            + Ciphers.GCM_STREAM_MAGIC_STRING);
+    this.currentDecryptedBlockIndex = -1;
 
     if (!emptyCipherStream) {
       this.plainStreamPosition = 0;
-      this.fileAadPrefix = fileAadPrefix;
+      this.fileAADPrefix = fileAADPrefix;
       gcmDecryptor = new Ciphers.AesGcmDecryptor(aesKey);
-      plainBlockSize = ByteBuffer.wrap(prefixBytes, Ciphers.GCM_STREAM_MAGIC_ARRAY.length, 4)
-          .order(ByteOrder.LITTLE_ENDIAN).getInt();
+      plainBlockSize =
+          ByteBuffer.wrap(headerBytes, Ciphers.GCM_STREAM_MAGIC_ARRAY.length, 4)
+              .order(ByteOrder.LITTLE_ENDIAN)
+              .getInt();
       Preconditions.checkState(plainBlockSize > 0, "Wrong plainBlockSize " + plainBlockSize);
 
+      Preconditions.checkState(
+          plainBlockSize == AesGcmOutputStream.plainBlockSize,
+          "Wrong plainBlockSize "
+              + plainBlockSize
+              + ". Only size of "
+              + AesGcmOutputStream.plainBlockSize
+              + " is currently supported");
+
       cipherBlockSize = plainBlockSize + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-      this.ciphertextBlockBuffer = new byte[cipherBlockSize];
+      this.cipherBlockBuffer = new byte[cipherBlockSize];
       this.currentBlockIndex = 0;
       this.currentOffsetInPlainBlock = 0;
 
-      int numberOfFullBlocks = Math.toIntExact(netSourceFileSize / cipherBlockSize);
-      int cipherBytesInLastBlock = Math.toIntExact(netSourceFileSize - numberOfFullBlocks * cipherBlockSize);
+      int numberOfFullBlocks = Math.toIntExact(netSourceLength / cipherBlockSize);
+      int cipherBytesInLastBlock =
+          Math.toIntExact(netSourceLength - numberOfFullBlocks * cipherBlockSize);
       boolean fullBlocksOnly = (0 == cipherBytesInLastBlock);
       numberOfBlocks = fullBlocksOnly ? numberOfFullBlocks : numberOfFullBlocks + 1;
       lastCipherBlockSize = fullBlocksOnly ? cipherBlockSize : cipherBytesInLastBlock; // never 0
-      int plainBytesInLastBlock = fullBlocksOnly ? 0 :
-          (cipherBytesInLastBlock - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH);
-      plainStreamSize = numberOfFullBlocks * plainBlockSize + plainBytesInLastBlock;
+      plainStreamSize = calculatePlaintextLength(sourceLength, plainBlockSize);
     } else {
       plainStreamSize = 0;
 
       gcmDecryptor = null;
-      ciphertextBlockBuffer = null;
+      cipherBlockBuffer = null;
       cipherBlockSize = -1;
       plainBlockSize = -1;
       numberOfBlocks = -1;
       lastCipherBlockSize = -1;
-      this.fileAadPrefix = null;
+      this.fileAADPrefix = null;
     }
-  }
-
-  public long plaintextStreamSize() {
-    return plainStreamSize;
   }
 
   @Override
@@ -114,51 +117,48 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    if (len < 0) {
-      throw new IOException("Negative read length " + len);
+    Preconditions.checkState(len >= 0, "Negative read length " + len);
+
+    if (available() <= 0 && len > 0) {
+      throw new EOFException();
     }
 
-    if (available() <= 0) {
-      return -1;
+    if (len == 0) {
+      return 0;
     }
 
-    boolean lastBlock = (currentBlockIndex + 1 == numberOfBlocks);
+    boolean isLastBlockInStream = (currentBlockIndex + 1 == numberOfBlocks);
     int resultBufferOffset = off;
-    int remaining = len;
+    int remainingBytesToRead = len;
 
-    sourceStream.seek(Ciphers.GCM_STREAM_PREFIX_LENGTH + currentBlockIndex * cipherBlockSize);
+    if (currentBlockIndex != currentDecryptedBlockIndex) {
+      sourceStream.seek(blockOffset(currentBlockIndex));
+    }
 
-    while (remaining > 0) {
-      int toLoad = lastBlock ? lastCipherBlockSize : cipherBlockSize;
-      int loaded = sourceStream.read(ciphertextBlockBuffer, 0, toLoad);
-      if (loaded != toLoad) {
-        throw new IOException("Should read " + toLoad + " bytes, but got only " + loaded + " bytes");
-      }
+    while (remainingBytesToRead > 0) {
+      byte[] plainBlock = decryptNextBlock(isLastBlockInStream);
 
-      byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);
-      byte[] plaintextBlock = gcmDecryptor.decrypt(ciphertextBlockBuffer, 0, toLoad, aad);
+      int remainingBytesInBlock = plainBlock.length - currentOffsetInPlainBlock;
+      boolean finishTheBlock = remainingBytesToRead >= remainingBytesInBlock;
+      int bytesToCopy = finishTheBlock ? remainingBytesInBlock : remainingBytesToRead;
+      System.arraycopy(plainBlock, currentOffsetInPlainBlock, b, resultBufferOffset, bytesToCopy);
+      remainingBytesToRead -= bytesToCopy;
+      resultBufferOffset += bytesToCopy;
+      currentOffsetInPlainBlock += bytesToCopy;
 
-      int remainingInBlock = plaintextBlock.length - currentOffsetInPlainBlock;
-      boolean finishTheBlock = remaining >= remainingInBlock;
-      int toCopy = finishTheBlock ? remainingInBlock : remaining;
-
-      System.arraycopy(plaintextBlock, currentOffsetInPlainBlock, b, resultBufferOffset, toCopy);
-      remaining -= toCopy;
-      resultBufferOffset += toCopy;
-      currentOffsetInPlainBlock += toCopy;
-      boolean endOfStream = lastBlock && finishTheBlock;
+      boolean endOfStream = isLastBlockInStream && finishTheBlock;
       if (endOfStream) {
         break;
       }
       if (finishTheBlock) {
         currentBlockIndex++;
         currentOffsetInPlainBlock = 0;
-        lastBlock = (currentBlockIndex + 1 == numberOfBlocks);
+        isLastBlockInStream = (currentBlockIndex + 1 == numberOfBlocks);
       }
     }
 
-    plainStreamPosition += len - remaining;
-    return len - remaining;
+    plainStreamPosition += len - remainingBytesToRead;
+    return len - remainingBytesToRead;
   }
 
   @Override
@@ -166,7 +166,8 @@ public class AesGcmInputStream extends SeekableInputStream {
     if (newPos < 0) {
       throw new IOException("Negative new position " + newPos);
     } else if (newPos > plainStreamSize) {
-      throw new IOException("New position " + newPos + " exceeds the max stream size "  + plainStreamSize);
+      throw new IOException(
+          "New position " + newPos + " exceeds the max stream size " + plainStreamSize);
     }
     currentBlockIndex = Math.toIntExact(newPos / plainBlockSize);
     currentOffsetInPlainBlock = Math.toIntExact(newPos % plainBlockSize);
@@ -214,5 +215,52 @@ public class AesGcmInputStream extends SeekableInputStream {
   @Override
   public void close() throws IOException {
     sourceStream.close();
+    currentDecryptedBlock = null;
+  }
+
+  static long calculatePlaintextLength(long sourceLength, int plainBlockSize) {
+    long netSourceFileLength = netSourceFileLength(sourceLength);
+    if (netSourceFileLength == 0) {
+      return 0;
+    }
+
+    int cipherBlockSize = plainBlockSize + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
+    int numberOfFullBlocks = Math.toIntExact(netSourceFileLength / cipherBlockSize);
+
+    int cipherBytesInLastBlock =
+        Math.toIntExact(netSourceFileLength - numberOfFullBlocks * cipherBlockSize);
+    boolean fullBlocksOnly = (0 == cipherBytesInLastBlock);
+    int plainBytesInLastBlock =
+        fullBlocksOnly
+            ? 0
+            : (cipherBytesInLastBlock - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH);
+    return numberOfFullBlocks * plainBlockSize + plainBytesInLastBlock;
+  }
+
+  private byte[] decryptNextBlock(boolean isLastBlockInStream) throws IOException {
+    if (currentBlockIndex == currentDecryptedBlockIndex) {
+      return currentDecryptedBlock;
+    }
+
+    int currentCipherBlockSize = isLastBlockInStream ? lastCipherBlockSize : cipherBlockSize;
+    IOUtil.readFully(sourceStream, cipherBlockBuffer, 0, currentCipherBlockSize);
+
+    byte[] aad = Ciphers.streamBlockAAD(fileAADPrefix, currentBlockIndex);
+    byte[] result = gcmDecryptor.decrypt(cipherBlockBuffer, 0, currentCipherBlockSize, aad);
+    currentDecryptedBlockIndex = currentBlockIndex;
+    currentDecryptedBlock = result;
+    return result;
+  }
+
+  private long blockOffset(int blockIndex) {
+    return Ciphers.GCM_STREAM_HEADER_LENGTH + blockIndex * cipherBlockSize;
+  }
+
+  private static long netSourceFileLength(long sourceFileLength) {
+    long netSourceLength = sourceFileLength - Ciphers.GCM_STREAM_HEADER_LENGTH;
+    Preconditions.checkArgument(
+        netSourceLength >= 0,
+        "Source length " + sourceFileLength + " is shorter than GCM prefix. File is not encrypted");
+    return netSourceLength;
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
@@ -27,35 +26,40 @@ import org.apache.iceberg.io.SeekableInputStream;
 public class AesGcmInputFile implements InputFile {
   private final InputFile sourceFile;
   private final byte[] dataKey;
+  private final byte[] fileAADPrefix;
   private long plaintextLength;
 
-  public AesGcmInputFile(InputFile sourceFile, byte[] dataKey) {
+  public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix) {
     this.sourceFile = sourceFile;
     this.dataKey = dataKey;
+    this.fileAADPrefix = fileAADPrefix;
     this.plaintextLength = -1;
   }
 
   @Override
   public long getLength() {
     if (plaintextLength == -1) {
-      try {
-        this.newStream().close();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+      // Presumes all streams use hard-coded plaintext block size.
+      // Actual plaintext block size is checked upon stream creation (exception if different).
+      plaintextLength =
+          AesGcmInputStream.calculatePlaintextLength(
+              sourceFile.getLength(), AesGcmOutputStream.plainBlockSize);
     }
     return plaintextLength;
   }
 
   @Override
   public SeekableInputStream newStream() {
+    getLength();
     AesGcmInputStream result;
     try {
-      result = new AesGcmInputStream(sourceFile.newStream(), sourceFile.getLength(), dataKey, null);
+      result =
+          new AesGcmInputStream(
+              sourceFile.newStream(), sourceFile.getLength(), dataKey, fileAADPrefix);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-    plaintextLength = result.plaintextStreamSize();
+
     return result;
   }
 

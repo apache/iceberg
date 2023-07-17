@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
@@ -29,27 +28,30 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   private final Ciphers.AesGcmEncryptor gcmEncryptor;
   private final PositionOutputStream targetStream;
-  private final byte[] plaintextBlockBuffer;
+  private final byte[] plainBlockBuffer;
   private final byte[] fileAadPrefix;
 
   private int positionInBuffer;
   private long streamPosition;
   private int currentBlockIndex;
 
-  AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix) throws IOException {
+  AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix)
+      throws IOException {
     this.targetStream = targetStream;
     this.gcmEncryptor = new Ciphers.AesGcmEncryptor(aesKey);
-    this.plaintextBlockBuffer = new byte[plainBlockSize];
+    this.plainBlockBuffer = new byte[plainBlockSize];
     this.positionInBuffer = 0;
     this.streamPosition = 0;
     this.currentBlockIndex = 0;
     this.fileAadPrefix = fileAadPrefix;
 
-    byte[] prefixBytes = ByteBuffer.allocate(Ciphers.GCM_STREAM_PREFIX_LENGTH).order(ByteOrder.LITTLE_ENDIAN)
-        .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
-        .putInt(plainBlockSize)
-        .array();
-    targetStream.write(prefixBytes);
+    byte[] headerBytes =
+        ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
+            .putInt(plainBlockSize)
+            .array();
+    targetStream.write(headerBytes);
   }
 
   @Override
@@ -60,7 +62,8 @@ public class AesGcmOutputStream extends PositionOutputStream {
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
     if (b.length - off < len) {
-      throw new IOException("Insufficient bytes in buffer: " + b.length + " - " + off + " < " + len);
+      throw new IOException(
+          "Insufficient bytes in buffer: " + b.length + " - " + off + " < " + len);
     }
     int remaining = len;
     int offset = off;
@@ -69,7 +72,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
       int freeBlockBytes = plainBlockSize - positionInBuffer;
       int toWrite = freeBlockBytes <= remaining ? freeBlockBytes : remaining;
 
-      System.arraycopy(b, offset, plaintextBlockBuffer, positionInBuffer, toWrite);
+      System.arraycopy(b, offset, plainBlockBuffer, positionInBuffer, toWrite);
       positionInBuffer += toWrite;
       if (positionInBuffer == plainBlockSize) {
         encryptAndWriteBlock();
@@ -101,9 +104,12 @@ public class AesGcmOutputStream extends PositionOutputStream {
   }
 
   private void encryptAndWriteBlock() throws IOException {
+    if (currentBlockIndex == Integer.MAX_VALUE) {
+      throw new IOException("Too many blocks - exceed Integer.MAX_VALUE");
+    }
     byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);
-    byte[] cipherText = gcmEncryptor.encrypt(plaintextBlockBuffer, 0, positionInBuffer, aad);
+    byte[] cipherBlockBuffer = gcmEncryptor.encrypt(plainBlockBuffer, 0, positionInBuffer, aad);
     currentBlockIndex++;
-    targetStream.write(cipherText);
+    targetStream.write(cipherBlockBuffer);
   }
 }

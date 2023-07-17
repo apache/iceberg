@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
@@ -28,16 +27,18 @@ import org.apache.iceberg.io.PositionOutputStream;
 public class AesGcmOutputFile implements OutputFile {
   private final OutputFile targetFile;
   private final byte[] dataKey;
+  private final byte[] fileAADPrefix;
 
-  public AesGcmOutputFile(OutputFile targetFile, byte[] dataKey) {
+  public AesGcmOutputFile(OutputFile targetFile, byte[] dataKey, byte[] fileAADPrefix) {
     this.targetFile = targetFile;
     this.dataKey = dataKey;
+    this.fileAADPrefix = fileAADPrefix;
   }
 
   @Override
   public PositionOutputStream create() {
     try {
-      return new AesGcmOutputStream(targetFile.create(), dataKey, null);
+      return new AesGcmOutputStream(targetFile.create(), dataKey, fileAADPrefix);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create GCM stream for " + targetFile.location(), e);
     }
@@ -46,9 +47,10 @@ public class AesGcmOutputFile implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new AesGcmOutputStream(targetFile.createOrOverwrite(), dataKey, null);
+      return new AesGcmOutputStream(targetFile.createOrOverwrite(), dataKey, fileAADPrefix);
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create or overwrite GCM stream for " + targetFile.location(), e);
+      throw new UncheckedIOException(
+          "Failed to create or overwrite GCM stream for " + targetFile.location(), e);
     }
   }
 
