@@ -743,6 +743,12 @@ acceptedBreaks:
       new: "method java.util.List<org.apache.iceberg.UpdateRequirement> org.apache.iceberg.rest.requests.UpdateTableRequest::requirements()"
       justification: "Signature changed to an interface, but this is safe because\
         \ of type erasure and the original type is always returned"
+  "1.3.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      justification: "Static utility class - should not have public constructor"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

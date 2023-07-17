@@ -45,6 +45,7 @@ public class AesGcmInputFile implements InputFile {
           AesGcmInputStream.calculatePlaintextLength(
               sourceFile.getLength(), AesGcmOutputStream.plainBlockSize);
     }
+
     return plaintextLength;
   }
 
@@ -52,6 +53,7 @@ public class AesGcmInputFile implements InputFile {
   public SeekableInputStream newStream() {
     getLength();
     AesGcmInputStream result;
+
     try {
       result =
           new AesGcmInputStream(

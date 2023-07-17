@@ -107,6 +107,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
     if (currentBlockIndex == Integer.MAX_VALUE) {
       throw new IOException("Too many blocks - exceed Integer.MAX_VALUE");
     }
+
     byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);
     byte[] cipherBlockBuffer = gcmEncryptor.encrypt(plainBlockBuffer, 0, positionInBuffer, aad);
     currentBlockIndex++;
