@@ -127,26 +127,24 @@ class IcebergBaseModel(BaseModel):
         )
 
 
-CACHED_STRUCT_TO_POSITION: Dict[StructType, Dict[int, str]] = {}
+CACHED_STRUCT_TO_FIELD_NAME_POSITIONS: Dict[int, Tuple[str, ...]] = {}
 
 
 class Record(StructProtocol):
     __slots__ = ("_position_to_field_name",)
-    _position_to_field_name: Dict[int, str]
+    _position_to_field_name: Tuple[str, ...]
 
     def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:
         if struct is not None:
-            if struct in CACHED_STRUCT_TO_POSITION:
-                self._position_to_field_name = CACHED_STRUCT_TO_POSITION[struct]
-            else:
-                self._position_to_field_name = CACHED_STRUCT_TO_POSITION[struct] = {
-                    idx: field.name for idx, field in enumerate(struct.fields)
-                }
+            struct_hash = hash(struct)
+            self._position_to_field_name = CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.get(
+                struct_hash
+            ) or CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.setdefault(struct_hash, tuple([field.name for field in struct.fields]))
         elif named_data:
             # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
-            self._position_to_field_name = dict(enumerate(named_data.keys()))
+            self._position_to_field_name = tuple(named_data.keys())
         else:
-            self._position_to_field_name = {idx: f"field{idx + 1}" for idx in range(len(data))}
+            self._position_to_field_name = tuple([f"field{idx + 1}" for idx in range(len(data))])
 
         for idx, d in enumerate(data):
             self[idx] = d
@@ -173,4 +171,4 @@ class Record(StructProtocol):
         return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"
 
     def record_fields(self) -> List[str]:
-        return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name.values()]
+        return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name]

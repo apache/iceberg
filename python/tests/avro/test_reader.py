@@ -20,7 +20,7 @@ import json
 
 import pytest
 
-from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.decoder import StreamingBinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -337,7 +337,7 @@ def test_uuid_reader() -> None:
 
 def test_read_struct() -> None:
     mis = io.BytesIO(b"\x18")
-    decoder = BinaryDecoder(mis)
+    decoder = StreamingBinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
@@ -346,7 +346,7 @@ def test_read_struct() -> None:
 
 def test_read_struct_lambda() -> None:
     mis = io.BytesIO(b"\x18")
-    decoder = BinaryDecoder(mis)
+    decoder = StreamingBinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     # You can also pass in an arbitrary function that returns a struct
@@ -358,7 +358,7 @@ def test_read_struct_lambda() -> None:
 
 def test_read_not_struct_type() -> None:
     mis = io.BytesIO(b"\x18")
-    decoder = BinaryDecoder(mis)
+    decoder = StreamingBinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     with pytest.raises(ValueError) as exc_info:
@@ -369,7 +369,7 @@ def test_read_not_struct_type() -> None:
 
 def test_read_struct_exception_handling() -> None:
     mis = io.BytesIO(b"\x18")
-    decoder = BinaryDecoder(mis)
+    decoder = StreamingBinaryDecoder(mis)
 
     def raise_err(struct: StructType) -> None:
         raise TypeError("boom")

@@ -35,7 +35,7 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder, StreamingBinaryDecoder
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.reader import Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
@@ -173,7 +173,7 @@ class AvroFile(Generic[D]):
             A generator returning the AvroStructs.
         """
         self.input_stream = self.input_file.open(seekable=False)
-        self.decoder = BinaryDecoder(self.input_stream)
+        self.decoder = StreamingBinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
@@ -206,7 +206,9 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(io.BytesIO(block_bytes)))
+        self.block = Block(
+            reader=self.reader, block_records=block_records, block_decoder=InMemoryBinaryDecoder(io.BytesIO(block_bytes))
+        )
         return block_records
 
     def __next__(self) -> D:
