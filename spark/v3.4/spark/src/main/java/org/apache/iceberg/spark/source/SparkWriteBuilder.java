@@ -25,26 +25,26 @@ import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite;
-import org.apache.spark.sql.connector.write.SupportsOverwriteV2;
+import org.apache.spark.sql.connector.write.SupportsOverwrite;
 import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
+import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 
-class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwriteV2 {
+class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
   private final SparkSession spark;
   private final Table table;
   private final SparkWriteConf writeConf;
@@ -97,12 +97,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   @Override
-  public WriteBuilder overwrite(Predicate[] predicates) {
+  public WriteBuilder overwrite(Filter[] filters) {
     Preconditions.checkState(
         !overwriteFiles, "Cannot overwrite individual files and using filters");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
 
-    this.overwriteExpr = SparkV2Filters.convert(predicates);
+    this.overwriteExpr = SparkFilters.convert(filters);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;
