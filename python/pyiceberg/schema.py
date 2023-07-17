@@ -16,16 +16,16 @@
 # under the License.
 # pylint: disable=W0511
 import itertools
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import cached_property, partial, singledispatch
+from functools import partial, singledispatch
 from typing import (
     Any,
     Callable,
     Dict,
     Generic,
     List,
-    Literal,
     Optional,
     Set,
     Tuple,
@@ -59,6 +59,17 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
+if sys.version_info <= (3, 7):
+    from backports.cached_property import cached_property
+else:
+    from functools import cached_property
+
 
 T = TypeVar("T")
 P = TypeVar("P")

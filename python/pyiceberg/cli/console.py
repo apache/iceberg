@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
+import sys
 from functools import wraps
 from typing import (
     Any,
     Callable,
-    Literal,
     Optional,
     Tuple,
 )
@@ -30,6 +30,11 @@ from click import Context
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 
 def catch_exception() -> Callable:  # type: ignore
@@ -295,7 +300,7 @@ def set() -> None:
     """Sets a property on tables/namespaces."""
 
 
-@set.command()  # type: ignore
+@set.command()  # type: ignore  # noqa: F811
 @click.argument("identifier")
 @click.argument("property_name")
 @click.argument("property_value")
@@ -309,7 +314,7 @@ def namespace(ctx: Context, identifier: str, property_name: str, property_value:
     output.text(f"Updated {property_name} on {identifier}")
 
 
-@set.command()  # type: ignore
+@set.command()  # type: ignore  # noqa: F811
 @click.argument("identifier")
 @click.argument("property_name")
 @click.argument("property_value")
@@ -330,7 +335,7 @@ def remove() -> None:
     """Removes a property from tables/namespaces."""
 
 
-@remove.command()  # type: ignore
+@remove.command()  # type: ignore  # noqa: F811
 @click.argument("identifier")
 @click.argument("property_name")
 @click.pass_context
@@ -347,7 +352,7 @@ def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noq
         raise NoSuchPropertyException(f"Property {property_name} does not exist on {identifier}")
 
 
-@remove.command()  # type: ignore
+@remove.command()  # type: ignore  # noqa: F811
 @click.argument("identifier")
 @click.argument("property_name")
 @click.pass_context

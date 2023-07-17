@@ -22,9 +22,9 @@
 from __future__ import annotations
 
 import struct
+import sys
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatchmethod
 from math import isnan
 from typing import Any, Generic, Type
 from uuid import UUID
@@ -56,6 +56,11 @@ from pyiceberg.utils.datetime import (
 )
 from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
+
+if sys.version_info <= (3, 7):
+    from singledispatchmethod import singledispatchmethod
+else:
+    from functools import singledispatchmethod
 
 
 class Literal(Generic[L], ABC):
@@ -251,7 +256,7 @@ class BooleanLiteral(Literal[bool]):
         super().__init__(value, bool)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal[bool]:  # type: ignore
+    def to(self, type_var: IcebergType) -> Literal[bool]:
         raise TypeError(f"Cannot convert BooleanLiteral into {type_var}")
 
     @to.register(BooleanType)

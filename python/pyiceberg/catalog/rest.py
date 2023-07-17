@@ -14,12 +14,12 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+import sys
 from json import JSONDecodeError
 from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
     Set,
     Tuple,
@@ -66,6 +66,11 @@ from pyiceberg.table import (
 )
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 ICEBERG_REST_SPEC_VERSION = "0.14.1"
 

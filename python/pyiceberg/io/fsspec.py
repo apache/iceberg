@@ -251,7 +251,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
-        self.get_fs: Callable[[str], AbstractFileSystem] = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], AbstractFileSystem] = lru_cache(self._get_fs)  # type: ignore
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:

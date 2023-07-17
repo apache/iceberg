@@ -209,9 +209,9 @@ def resolve(
     Raises:
         NotImplementedError: If attempting to resolve an unrecognized object type.
     """
-    return visit_with_partner(
+    return visit_with_partner(  # type: ignore
         file_schema, read_schema, SchemaResolver(read_types, read_enums), SchemaPartnerAccessor()
-    )  # type: ignore
+    )
 
 
 class EnumReader(Reader):

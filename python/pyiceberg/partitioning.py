@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from functools import cached_property
+import sys
 from typing import (
     Any,
     Dict,
@@ -29,6 +29,11 @@ from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
+
+if sys.version_info <= (3, 7):
+    from backports.cached_property import cached_property
+else:
+    from functools import cached_property
 
 INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000

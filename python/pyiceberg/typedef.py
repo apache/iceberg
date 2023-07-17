@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=super-init-not-called
+
 from __future__ import annotations
 
 from abc import abstractmethod
 from decimal import Decimal
-from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -106,7 +107,6 @@ class IcebergBaseModel(BaseModel):
     """
 
     class Config:
-        keep_untouched = (cached_property,)
         allow_population_by_field_name = True
         frozen = True
 

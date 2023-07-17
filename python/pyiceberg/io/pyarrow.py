@@ -277,7 +277,7 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)  # type: ignore
         super().__init__(properties=properties)
 
     @staticmethod
@@ -509,7 +509,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-@lru_cache
+@lru_cache  # type: ignore
 def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.FileFormat:
     if file_format == FileFormat.PARQUET:
         return ds.ParquetFileFormat(**kwargs)
@@ -519,7 +519,7 @@ def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.Fi
 
 def _construct_fragment(fs: FileSystem, data_file: DataFile, file_format_kwargs: Dict[str, Any] = EMPTY_DICT) -> ds.Fragment:
     _, path = PyArrowFileIO.parse_location(data_file.file_path)
-    return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)
+    return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)  # type: ignore
 
 
 def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedArray]:

@@ -32,12 +32,12 @@ Notes:
 from __future__ import annotations
 
 import re
+import sys
 from typing import (
     Any,
     ClassVar,
     Dict,
     Generator,
-    Literal,
     Optional,
     Tuple,
 )
@@ -52,6 +52,11 @@ from pyiceberg.utils.singleton import Singleton
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
 FIXED = "fixed"
 FIXED_PARSER = ParseNumberFromBrackets(FIXED)
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 
 class IcebergType(IcebergBaseModel, Singleton):
@@ -283,7 +288,7 @@ class StructType(IcebergType):
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
 
-    type: Literal["struct"] = "struct"
+    type: str = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
 
     def __init__(self, *fields: NestedField, **data: Any):

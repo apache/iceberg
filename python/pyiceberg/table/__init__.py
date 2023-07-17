@@ -16,10 +16,10 @@
 # under the License.
 from __future__ import annotations
 
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from functools import cached_property
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 from typing import (
@@ -29,7 +29,6 @@ from typing import (
     Dict,
     Iterable,
     List,
-    Literal,
     Optional,
     Set,
     Tuple,
@@ -70,6 +69,18 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
+
+if sys.version_info <= (3, 7):
+    from backports.cached_property import cached_property
+else:
+    from functools import cached_property
+
 
 if TYPE_CHECKING:
     import pandas as pd

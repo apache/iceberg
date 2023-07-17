@@ -149,7 +149,7 @@ def test_integer_to_double_conversion() -> None:
 def test_integer_to_decimal_conversion(decimal_type: DecimalType, decimal_value: str) -> None:
     lit = literal(34).to(IntegerType())
 
-    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()  # type: ignore
+    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()
 
 
 def test_integer_to_date_conversion() -> None:
@@ -213,7 +213,7 @@ def test_long_to_timestamp() -> None:
 def test_long_to_decimal_conversion(decimal_type: DecimalType, decimal_value: str) -> None:
     lit = literal(34).to(LongType())
 
-    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()  # type: ignore
+    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()
 
 
 def test_float_to_double() -> None:
@@ -229,7 +229,7 @@ def test_float_to_double() -> None:
 def test_float_to_decimal_conversion(decimal_type: DecimalType, decimal_value: str) -> None:
     lit = literal(34.56).to(FloatType())
 
-    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()  # type: ignore
+    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()
 
 
 def test_double_to_float_within_bound() -> None:
@@ -255,7 +255,7 @@ def test_double_to_float_outside_bound() -> None:
 def test_double_to_decimal_conversion(decimal_type: DecimalType, decimal_value: str) -> None:
     lit = literal(34.56).to(DoubleType())
 
-    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()  # type: ignore
+    assert lit.to(decimal_type).value.as_tuple() == Decimal(decimal_value).as_tuple()
 
 
 def test_decimal_to_decimal_conversion() -> None:
@@ -319,8 +319,8 @@ def test_string_to_time_literal() -> None:
 
     avro_val = 51661919000
 
-    assert isinstance(time_lit, TimeLiteral)  # type: ignore
-    assert avro_val == time_lit.value  # type: ignore
+    assert isinstance(time_lit, TimeLiteral)
+    assert avro_val == time_lit.value
 
 
 def test_string_to_timestamp_literal() -> None:
@@ -380,8 +380,8 @@ def test_string_to_decimal_literal() -> None:
     decimal_str = literal("34.560")
     decimal_lit = decimal_str.to(DecimalType(9, 3))
 
-    assert 3 == abs(decimal_lit.value.as_tuple().exponent)  # type: ignore
-    assert Decimal("34.560").as_tuple() == decimal_lit.value.as_tuple()  # type: ignore
+    assert 3 == abs(decimal_lit.value.as_tuple().exponent)
+    assert Decimal("34.560").as_tuple() == decimal_lit.value.as_tuple()
 
 
 def test_string_to_boolean_literal() -> None:
@@ -406,8 +406,8 @@ def test_python_date_conversion() -> None:
 
     from_str_lit = literal(one_day_str).to(DateType())
 
-    assert isinstance(from_str_lit, DateLiteral)  # type: ignore
-    assert from_str_lit.value == 19079  # type: ignore
+    assert isinstance(from_str_lit, DateLiteral)
+    assert from_str_lit.value == 19079
 
 
 @pytest.mark.parametrize(

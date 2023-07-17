@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import datetime
+import sys
 import uuid
 from copy import copy
 from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
     Union,
 )
@@ -41,6 +41,12 @@ from pyiceberg.table.sorting import (
 )
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties
 from pyiceberg.utils.datetime import datetime_to_millis
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 
 CURRENT_SNAPSHOT_ID = "current_snapshot_id"
 CURRENT_SCHEMA_ID = "current_schema_id"

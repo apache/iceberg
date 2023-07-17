@@ -17,8 +17,9 @@
 
 from __future__ import annotations
 
+import sys
 from abc import ABC, abstractmethod
-from functools import cached_property, reduce
+from functools import reduce
 from typing import (
     Any,
     Generic,
@@ -40,6 +41,11 @@ from pyiceberg.schema import Accessor, Schema
 from pyiceberg.typedef import L, StructProtocol
 from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
+
+if sys.version_info <= (3, 7):
+    from backports.cached_property import cached_property
+else:
+    from functools import cached_property
 
 
 def _to_unbound_term(term: Union[str, UnboundTerm[Any]]) -> UnboundTerm[Any]:

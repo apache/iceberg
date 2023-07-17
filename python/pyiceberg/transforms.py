@@ -17,6 +17,7 @@
 
 import base64
 import struct
+import sys
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
@@ -25,9 +26,9 @@ from typing import (
     Callable,
     Generator,
     Generic,
+    Optional,
+    TypeVar,
 )
-from typing import Literal as LiteralType
-from typing import Optional, TypeVar
 
 import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
@@ -83,6 +84,11 @@ from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Literal as LiteralType
+else:
+    from typing import Literal as LiteralType
 
 S = TypeVar("S")
 T = TypeVar("T")
