@@ -107,7 +107,7 @@ class BaseIncrementalChangelogScan
             .collect(Collectors.toSet());
 
     if (!newDeleteManifests.isEmpty()) {
-      // build a map from snapshotId to delete entries
+      // build a map from snapshot to delete entries
       Map<Snapshot, List<ManifestEntry<DeleteFile>>> deleteEntriesMap = Maps.newHashMap();
       newDeleteManifests.forEach(
           file -> {
@@ -214,7 +214,7 @@ class BaseIncrementalChangelogScan
                     changeOrdinal,
                     commitSnapshotId,
                     dataFile,
-                    context.deletes().forEntry(entry),
+                    NO_DELETES,
                     context.schemaAsString(),
                     context.specAsString(),
                     context.residuals());
