@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 import static org.apache.iceberg.spark.SparkSQLProperties.WAP_ID;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -39,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -114,7 +114,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.fast_forward(table => '%s', branch => '%s', source => '%s')",
+            "CALL %s.system.fast_forward(table => '%s', source => '%s', target => '%s')",
             catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch);
 
     table.refresh();
@@ -157,10 +157,10 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
     String newBranch = "testBranch";
     table.manageSnapshots().createBranch(newBranch, wapSnapshotId).commit();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', source => '%s')",
+                    "CALL %s.system.fast_forward(table => '%s', source => '%s', target => '%s')",
                     catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot fast-forward: main is not an ancestor of testBranch");
@@ -169,26 +169,25 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
   @Test
   public void testInvalidFastForwardBranchCases() {
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('test_table', branch => 'main', source => 'newBranch')",
+                    "CALL %s.system.fast_forward('test_table', source => 'main', target => 'newBranch')",
                     catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.fast_forward not found");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [source]");
+        .hasMessage("Missing required parameters: [target]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.fast_forward('', 'main', 'newBranch')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");

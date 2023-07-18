@@ -32,8 +32,8 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("branch", DataTypes.StringType),
-        ProcedureParameter.required("source", DataTypes.StringType)
+        ProcedureParameter.required("source", DataTypes.StringType),
+        ProcedureParameter.required("target", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -68,13 +68,13 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String name = args.getString(1); // Branch to fast-forward
-    String source = args.getString(2); // Target branch
+    String source = args.getString(1);
+    String target = args.getString(2);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          table.manageSnapshots().fastForwardBranch(name, source).commit();
+          table.manageSnapshots().fastForwardBranch(source, target).commit();
 
           Long updatedRef = table.currentSnapshot().snapshotId();
 
