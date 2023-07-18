@@ -72,7 +72,6 @@ __Modules__
 `iceberg-core`
 `iceberg-data`
 `iceberg-orc`
-`iceberg-parquet`
 
 Changes to public interfaces and classes in the subprojects listed above require a deprecation cycle of one minor
 release.  These projects contain common and internal code used by other projects and can evolve within a major release.

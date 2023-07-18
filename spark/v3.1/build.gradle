@@ -57,7 +57,6 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-data')
     implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
 
     compileOnly libs.errorprone.annotations

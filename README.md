@@ -65,7 +65,6 @@ Iceberg table support is organized in library modules:
 * `iceberg-common` contains utility classes used in other modules
 * `iceberg-api` contains the public Iceberg API
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
-* `iceberg-parquet` is an optional module for working with tables backed by Parquet files
 * `iceberg-arrow` is an optional module for reading Parquet into Arrow memory
 * `iceberg-orc` is an optional module for working with tables backed by ORC files
 * `iceberg-hive-metastore` is an implementation of Iceberg tables backed by the Hive metastore Thrift client

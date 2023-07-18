@@ -40,7 +40,6 @@ project(':iceberg-hive3') {
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(':iceberg-hive-metastore')
-    compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-hive3-orc-bundle')
     compileOnly project(':iceberg-mr')
     compileOnly project(':iceberg-data')

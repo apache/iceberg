@@ -32,7 +32,6 @@ project(':iceberg-mr') {
     api project(':iceberg-data')
     implementation project(':iceberg-hive-metastore')
     implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
 
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'

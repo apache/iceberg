@@ -46,6 +46,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
+import org.assertj.core.api.AbstractThrowableAssert;
 import org.assertj.core.api.Assertions;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
@@ -262,6 +263,18 @@ public class TestHelpers {
     Preconditions.checkNotNull(outputStream, "outputStream");
     try (ObjectOutputStream out = new ObjectOutputStream(outputStream)) {
       out.writeObject(obj);
+    }
+  }
+
+  public static void assertThrows(
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Runnable runnable) {
+    AbstractThrowableAssert<?, ? extends Throwable> check =
+        Assertions.assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
+    if (null != containedInMessage) {
+      check.hasMessageContaining(containedInMessage);
     }
   }
 
