@@ -151,8 +151,7 @@ USE iceberg_db;
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING NOT NULL
-) 
-WITH ('format-version'='2');
+) WITH ('format-version'='2');
 ```
 
 Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
@@ -173,8 +172,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING NOT NULL,
     PRIMARY KEY(`id`) NOT ENFORCED
-) 
-WITH ('format-version'='2');
+) WITH ('format-version'='2');
 ```
 
 #### `PARTITIONED BY`
