@@ -171,7 +171,7 @@ It's required for [`UPSERT` mode](../flink/flink-writes.md#upsert).
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
-    `data` STRING NOT NULL,
+    data STRING NOT NULL,
     PRIMARY KEY(`id`) NOT ENFORCED
 ) 
 WITH ('format-version'='2');
