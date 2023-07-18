@@ -148,11 +148,12 @@ public class BigLakeTableOperationsTest {
 
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
-        .isInstanceOf(CommitFailedException.class);
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Updating table failed due to conflict updates (etag mismatch)");
   }
 
   @Test
-  public void testDoFreshRefreshShouldReturnNullForNonIcebergTable() {
+  public void testInitRefreshShouldReturnNullForNonIcebergTable() {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
@@ -176,7 +177,7 @@ public class BigLakeTableOperationsTest {
         .createTransaction()
         .commitTransaction();
 
-    Optional<String> metadataLocation = getAnyIcebergMetadataFilePath(tableDir);
+    Optional<String> metadataLocation = getAnyJsonFilePath(tableDir);
     assertThat(metadataLocation).isPresent();
     return Table.newBuilder()
         .setName(TABLE_NAME.toString())
@@ -187,8 +188,7 @@ public class BigLakeTableOperationsTest {
         .build();
   }
 
-  private static Optional<String> getAnyIcebergMetadataFilePath(String tableDir)
-      throws IOException {
+  private static Optional<String> getAnyJsonFilePath(String tableDir) throws IOException {
     for (File file :
         FileUtils.listFiles(new File(tableDir), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)) {
       if (file.getCanonicalPath().endsWith(".json")) {

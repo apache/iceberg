@@ -236,7 +236,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testSetPropertiesShouldFailWhenNamespacesAreInvalid() {
+  public void testSetPropertiesShouldFailWhenNamespaceIsInvalid() {
     assertThatThrownBy(
             () -> bigLakeCatalogUsingMockClient.setProperties(Namespace.empty(), ImmutableMap.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
@@ -272,7 +272,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testRemovePropertiesShouldFailWhenNamespacesAreInvalid() {
+  public void testRemovePropertiesShouldFailWhenNamespaceIsInvalid() {
     assertThatThrownBy(
             () ->
                 bigLakeCatalogUsingMockClient.removeProperties(
@@ -341,7 +341,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testNewTableOpsShouldfailedForInvalidNamespace() {
+  public void testNewTableOpsShouldFailForInvalidNamespace() {
     assertThatThrownBy(
             () ->
                 bigLakeCatalogUsingMockClient.newTableOps(

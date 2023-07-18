@@ -107,7 +107,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     this.name = initName;
     this.properties = ImmutableMap.copyOf(initProperties);
 
-    Preconditions.checkNotNull(initClient, "BigLake client must not be null");
+    Preconditions.checkArgument(initClient != null, "BigLake client must not be null");
     this.client = initClient;
 
     Preconditions.checkArgument(
@@ -361,7 +361,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   private String databaseLocation(String dbId) {
     String warehouseLocation =
         LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
-    Preconditions.checkNotNull(warehouseLocation, "Data warehouse location is not set");
+    Preconditions.checkArgument(warehouseLocation != null, "Data warehouse location is not set");
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }
 
