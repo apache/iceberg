@@ -54,8 +54,6 @@ dependencies {
 }
 ```
 
-You may also want to include `iceberg-parquet` for Parquet file support.
-
 ### Maven
 
 To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:

@@ -111,7 +111,7 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
 }
 
 def projectVersion = getProjectVersion()
-final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
+final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
   group = "org.apache.iceberg"
@@ -157,7 +157,7 @@ subprojects {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
     }
-    
+
     tasks.named("revapiAnalyze").configure {
       dependsOn(":iceberg-common:jar")
     }
@@ -353,6 +353,13 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    implementation(libs.parquet.avro) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
+
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
@@ -371,7 +378,6 @@ project(':iceberg-data') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation project(':iceberg-core')
-    compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
     compileOnly(libs.hadoop2.common) {
       exclude group: 'commons-beanutils'
@@ -564,7 +570,6 @@ project(':iceberg-delta-lake') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.databind
     annotationProcessor libs.immutables.value
@@ -770,33 +775,6 @@ project(':iceberg-orc') {
   }
 }
 
-project(':iceberg-parquet') {
-  test {
-    useJUnitPlatform()
-  }
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-common')
-
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
-    compileOnly libs.avro.avro
-    compileOnly(libs.hadoop2.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-  }
-}
-
 project(':iceberg-arrow') {
   test {
     useJUnitPlatform()
@@ -805,7 +783,6 @@ project(':iceberg-arrow') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
 
     implementation(libs.arrow.vector) {
       exclude group: 'io.netty', module: 'netty-buffer'
@@ -897,7 +874,9 @@ project(':iceberg-snowflake') {
   }
 
   dependencies {
-    implementation project(':iceberg-core')
+    implementation(project(':iceberg-core')) {
+      exclude group: 'com.github.luben', module: 'zstd-jni'
+    }
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation platform(libs.jackson.bom)
