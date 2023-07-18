@@ -256,7 +256,7 @@ class BooleanLiteral(Literal[bool]):
         super().__init__(value, bool)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal[bool]:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert BooleanLiteral into {type_var}")
 
     @to.register(BooleanType)
