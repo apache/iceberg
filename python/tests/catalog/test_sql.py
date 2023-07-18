@@ -127,12 +127,9 @@ def test_create_table_with_non_existing_namespace(test_catalog: SqlCatalog, tabl
         test_catalog.create_table(identifier, table_schema_nested)
 
 
-def test_create_table_without_namespace(
-    test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier
-) -> None:
-    # TODO: Should SqlCatalog support tables without a namespace?
-    # See Java unit test TestJdbcCatalog.testCreateAndDropTableWithoutNamespace()
-    pass
+def test_create_table_without_namespace(test_catalog: SqlCatalog, table_schema_nested: Schema, table_name: str) -> None:
+    with pytest.raises(ValueError):
+        test_catalog.create_table(table_name, table_schema_nested)
 
 
 def test_load_table(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:
@@ -261,7 +258,12 @@ def test_list_namespaces(test_catalog: SqlCatalog, database_list: List[str]) -> 
     db_list = test_catalog.list_namespaces()
     for database_name in database_list:
         assert (database_name,) in db_list
-    assert len(test_catalog.list_namespaces(list(database_list)[0])) == 0
+        assert len(test_catalog.list_namespaces(database_name)) == 1
+
+
+def test_list_non_existing_namespaces(test_catalog: SqlCatalog) -> None:
+    with pytest.raises(NoSuchNamespaceError):
+        test_catalog.list_namespaces("does_not_exist")
 
 
 def test_drop_namespace(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:

@@ -200,7 +200,6 @@ class SqlCatalog(Catalog):
             NoSuchTableError: If a table with the name does not exist.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
-        database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         with Session(self.engine) as session:
             res = session.execute(
                 delete(IcebergTables).where(
@@ -251,7 +250,8 @@ class SqlCatalog(Catalog):
                 raise TableAlreadyExistsError(f"Table {to_database_name}.{to_table_name} already exists") from e
         return self.load_table(to_identifier)
 
-    def _namespace_exists(self, namespace: str) -> bool:
+    def _namespace_exists(self, identifier: Union[str, Identifier]) -> bool:
+        namespace = self.identifier_to_database(identifier)
         with Session(self.engine) as session:
             stmt = (
                 select(IcebergTables)
@@ -359,14 +359,18 @@ class SqlCatalog(Catalog):
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
-        # Hierarchical namespace is not supported. Return an empty list
-        # TODO: Or should it support hierarchical namespace?
-        if namespace:
-            return []
+        if namespace and not self._namespace_exists(namespace):
+            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
 
+        table_stmt = select(IcebergTables.table_namespace).where(IcebergTables.catalog_name == self.name)
+        namespace_stmt = select(IcebergNamespaceProperties.namespace).where(IcebergNamespaceProperties.catalog_name == self.name)
+        if namespace:
+            database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
+            table_stmt = table_stmt.where(IcebergTables.table_namespace.like(database_name))
+            namespace_stmt = namespace_stmt.where(IcebergNamespaceProperties.namespace.like(database_name))
         stmt = union(
-            select(IcebergTables.table_namespace).where(IcebergTables.catalog_name == self.name),
-            select(IcebergNamespaceProperties.namespace).where(IcebergNamespaceProperties.catalog_name == self.name),
+            table_stmt,
+            namespace_stmt,
         )
         with Session(self.engine) as session:
             return [self.identifier_to_tuple(namespace_col) for namespace_col in session.execute(stmt).scalars()]
