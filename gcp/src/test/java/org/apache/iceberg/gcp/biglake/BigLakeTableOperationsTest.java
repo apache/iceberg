@@ -42,6 +42,7 @@ import java.util.Optional;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -81,7 +82,7 @@ public class BigLakeTableOperationsTest {
   private BigLakeTableOperations tableOps;
 
   @BeforeEach
-  public void before() throws Exception {
+  public void before() {
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
             GCPProperties.PROJECT_ID,
@@ -149,7 +150,7 @@ public class BigLakeTableOperationsTest {
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Updating table failed due to conflict updates (etag mismatch)");
+        .hasMessage("Updating table failed due to conflicting updates (etag mismatch)");
   }
 
   @Test
@@ -183,7 +184,8 @@ public class BigLakeTableOperationsTest {
         .setName(TABLE_NAME.toString())
         .setHiveOptions(
             HiveTableOptions.newBuilder()
-                .putParameters("metadata_location", metadataLocation.get())
+                .putParameters(
+                    BaseMetastoreTableOperations.METADATA_LOCATION_PROP, metadataLocation.get())
                 .setStorageDescriptor(StorageDescriptor.newBuilder().setLocationUri(tableDir)))
         .build();
   }

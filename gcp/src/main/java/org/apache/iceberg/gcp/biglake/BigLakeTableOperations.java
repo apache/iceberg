@@ -40,7 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Handles BigLake table operations. */
-public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
+final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(BigLakeTableOperations.class);
 
@@ -59,7 +59,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   // The doRefresh method should provide implementation on how to get the metadata location
   @Override
-  public void doRefresh() {
+  protected void doRefresh() {
     // Must default to null.
     String metadataLocation = null;
     try {
@@ -83,7 +83,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   // The doCommit method should provide implementation on how to update with metadata location
   // atomically
   @Override
-  public void doCommit(TableMetadata base, TableMetadata metadata) {
+  protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean isNewTable = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(isNewTable, metadata);
 
@@ -127,7 +127,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  public String tableName() {
+  protected String tableName() {
     return String.format("%s.%s.%s", name, tableName.getDatabase(), tableName.getTable());
   }
 
@@ -182,7 +182,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     } catch (AbortedException e) {
       if (e.getMessage().toLowerCase().contains("etag mismatch")) {
         throw new CommitFailedException(
-            "Updating table failed due to conflict updates (etag mismatch)");
+            "Updating table failed due to conflicting updates (etag mismatch)");
       }
       throw e;
     }

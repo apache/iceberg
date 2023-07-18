@@ -70,12 +70,14 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   private FileIO io;
   private Object conf;
 
+  private BigLakeClient client;
+
   private String projectId;
   private String region;
   // BLMS catalog ID and fully qualified name.
   private String catalogId;
   private CatalogName catalogName;
-  private BigLakeClient client;
+  private String warehouseLocation;
 
   private CloseableGroup closeableGroup;
 
@@ -124,11 +126,18 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     this.catalogId = properties.getOrDefault(GCPProperties.BIGLAKE_CATALOG_ID, initName);
     this.catalogName = CatalogName.of(projectId, region, catalogId);
 
+    Preconditions.checkArgument(
+        properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION),
+        "Data warehouse location must be specified");
+    this.warehouseLocation =
+        LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+
     String ioImpl =
         properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
     this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
 
     this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(io);
     closeableGroup.setSuppressCloseFailure(true);
   }
@@ -359,10 +368,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   }
 
   private String databaseLocation(String dbId) {
-    String warehouseLocation =
-        LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
-    Preconditions.checkArgument(warehouseLocation != null, "Data warehouse location is not set");
-    return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
+    return String.format("%s/%s.db", warehouseLocation, dbId);
   }
 
   private static TableIdentifier tableIdentifier(Table table) {

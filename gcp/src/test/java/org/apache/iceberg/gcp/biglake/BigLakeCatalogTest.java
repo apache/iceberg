@@ -231,7 +231,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @Test
-  public void testDropNamespaceShouldFailWhenNamespaceIsTooLong() {
+  public void testDropTooLongNamespace() {
     assertThat(bigLakeCatalogUsingMockClient.dropNamespace(Namespace.of("n0", "n1"))).isFalse();
   }
 

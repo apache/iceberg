@@ -44,6 +44,7 @@ import com.google.cloud.bigquery.biglake.v1.UpdateDatabaseRequest;
 import com.google.cloud.bigquery.biglake.v1.UpdateTableRequest;
 import com.google.protobuf.Empty;
 import com.google.protobuf.FieldMask;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -53,7 +54,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 
 /** A client of Google BigLake service. */
-final class BigLakeClient {
+final class BigLakeClient implements Closeable {
 
   private final MetastoreServiceClient stub;
 
@@ -275,6 +276,11 @@ final class BigLakeClient {
             stub.listTables(ListTablesRequest.newBuilder().setParent(name.toString()).build())
                 .iterateAll(),
         name.getDatabase());
+  }
+
+  @Override
+  public void close() {
+    stub.close();
   }
 
   // Converts BigLake API errors to Iceberg errors.
