@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import sys
 from abc import abstractmethod
 from decimal import Decimal
 from typing import (
@@ -27,7 +28,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Protocol,
     Set,
     Tuple,
     TypeVar,
@@ -37,6 +37,11 @@ from typing import (
 from uuid import UUID
 
 from pydantic import BaseModel
+
+if sys.version_info <= (3, 7):
+    from typing_extensions import Protocol
+else:
+    from typing import Protocol
 
 if TYPE_CHECKING:
     from pyiceberg.types import StructType
