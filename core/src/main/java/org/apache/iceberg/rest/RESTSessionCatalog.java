@@ -132,7 +132,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+    this(
+        config -> RESTClient.buildFrom(config).uri(config.get(CatalogProperties.URI)).build(),
+        null);
   }
 
   public RESTSessionCatalog(

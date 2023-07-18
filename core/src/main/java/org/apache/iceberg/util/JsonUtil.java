@@ -24,6 +24,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -80,6 +84,33 @@ public class JsonUtil {
     }
   }
 
+  public static InputStream generateStream(ToJson toJson, boolean pretty) {
+    PipedInputStream in = new PipedInputStream();
+    try (PipedOutputStream out = new PipedOutputStream(in);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(out)) {
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson.generate(generator);
+      generator.flush();
+      return in;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public static void writeToStream(OutputStream stream, ToJson toJson, boolean pretty) {
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(stream)) {
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson.generate(generator);
+      generator.flush();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
   @FunctionalInterface
   public interface FromJson<T> {
     T parse(JsonNode node);
@@ -94,6 +125,14 @@ public class JsonUtil {
    * @return the parsed Java object
    */
   public static <T> T parse(String json, FromJson<T> parser) {
+    try {
+      return parser.parse(JsonUtil.mapper().readValue(json, JsonNode.class));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public static <T> T parseStream(InputStream json, FromJson<T> parser) {
     try {
       return parser.parse(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {

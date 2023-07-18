@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -158,4 +159,14 @@ public interface RESTClient extends Closeable {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
+
+  default void initialize(
+      String uri,
+      ObjectMapper objectMapper,
+      Map<String, String> baseHeaders,
+      Map<String, String> properties) {}
+
+  static RESTClientBuilder buildFrom(Map<String, String> properties) {
+    return new RESTClientBuilder(properties);
+  }
 }

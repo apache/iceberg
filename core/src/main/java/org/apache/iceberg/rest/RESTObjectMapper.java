@@ -25,14 +25,14 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 
-class RESTObjectMapper {
+public class RESTObjectMapper {
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
   private static volatile boolean isInitialized = false;
 
   private RESTObjectMapper() {}
 
-  static ObjectMapper mapper() {
+  public static ObjectMapper mapper() {
     if (!isInitialized) {
       synchronized (RESTObjectMapper.class) {
         if (!isInitialized) {
