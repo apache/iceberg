@@ -624,6 +624,10 @@ project(':iceberg-gcp') {
 }
 
 project(':iceberg-hive-metastore') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation project(':iceberg-core')

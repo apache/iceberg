@@ -105,6 +105,7 @@ class NoneReader(Reader):
 
 
 class DefaultReader(Reader):
+    __slots__ = ("default_value",)
     default_value: Any
 
     def __init__(self, default_value: Any) -> None:
@@ -266,6 +267,7 @@ class OptionReader(Reader):
 
 
 class StructReader(Reader):
+    __slots__ = ("field_readers", "create_struct", "struct")
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Callable[..., StructProtocol]
     struct: StructType
@@ -324,6 +326,7 @@ class StructReader(Reader):
 
 @dataclass(frozen=True)
 class ListReader(Reader):
+    __slots__ = ("element",)
     element: Reader
 
     def read(self, decoder: BinaryDecoder) -> List[Any]:
@@ -344,20 +347,24 @@ class ListReader(Reader):
 
 @dataclass(frozen=True)
 class MapReader(Reader):
+    __slots__ = ("key", "value")
     key: Reader
     value: Reader
 
     def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
         read_items = {}
         block_count = decoder.read_int()
+        key_reader = self.key.read
+        value_reader = self.value.read
+
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
                 # We ignore the block size for now
                 _ = decoder.read_int()
             for _ in range(block_count):
-                key = self.key.read(decoder)
-                read_items[key] = self.value.read(decoder)
+                key = key_reader(decoder)
+                read_items[key] = value_reader(decoder)
             block_count = decoder.read_int()
 
         return read_items
