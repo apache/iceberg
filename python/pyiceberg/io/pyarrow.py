@@ -1090,7 +1090,7 @@ class MetricModeTypes(Enum):
 
 
 DEFAULT_METRICS_MODE_KEY = "write.metadata.metrics.default"
-COLUMN_METRICS_MODE_KEY = "write.metadata.metrics.column"
+COLUMN_METRICS_MODE_KEY_PREFIX = "write.metadata.metrics.column"
 
 
 @dataclass(frozen=True)
@@ -1172,7 +1172,7 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         if default_mode:
             metrics_mode = match_metrics_mode(default_mode)
 
-        col_mode = self._properties.get(f"{COLUMN_METRICS_MODE_KEY}.{column_name}")
+        col_mode = self._properties.get(f"{COLUMN_METRICS_MODE_KEY_PREFIX}.{column_name}")
         if col_mode:
             metrics_mode = match_metrics_mode(col_mode)
 
@@ -1240,39 +1240,37 @@ def fill_parquet_file_metadata(
         else:
             split_offsets.append(data_offset)
 
-        for c in range(parquet_metadata.num_columns):
-            col_id = stats_columns[c].field_id
+        for pos, stats_col in enumerate(stats_columns):
+            field_id = stats_col.field_id
 
-            column = row_group.column(c)
+            column = row_group.column(pos)
 
-            column_sizes[col_id] = column_sizes.get(col_id, 0) + column.total_compressed_size
+            column_sizes[field_id] = column_sizes.get(field_id, 0) + column.total_compressed_size
 
-            metrics_mode = stats_columns[c].mode
-
-            if metrics_mode == MetricsMode(MetricModeTypes.NONE):
+            if stats_col.mode == MetricsMode(MetricModeTypes.NONE):
                 continue
 
-            value_counts[col_id] = value_counts.get(col_id, 0) + column.num_values
+            value_counts[field_id] = value_counts.get(field_id, 0) + column.num_values
 
             if column.is_stats_set:
                 try:
                     statistics = column.statistics
 
-                    null_value_counts[col_id] = null_value_counts.get(col_id, 0) + statistics.null_count
+                    null_value_counts[field_id] = null_value_counts.get(field_id, 0) + statistics.null_count
 
-                    if metrics_mode == MetricsMode(MetricModeTypes.COUNTS):
+                    if stats_col.mode == MetricsMode(MetricModeTypes.COUNTS):
                         continue
 
-                    if col_id not in col_aggs:
-                        col_aggs[col_id] = StatsAggregator(statistics.physical_type, metrics_mode.length)
+                    if field_id not in col_aggs:
+                        col_aggs[field_id] = StatsAggregator(statistics.physical_type, stats_col.mode.length)
 
-                    col_aggs[col_id].add_min(statistics.min)
-                    col_aggs[col_id].add_max(statistics.max)
+                    col_aggs[field_id].add_min(statistics.min)
+                    col_aggs[field_id].add_max(statistics.max)
 
                 except pyarrow.lib.ArrowNotImplementedError as e:
                     logger.warning(e)
             else:
-                logger.warning("PyArrow statistics missing for column %d when writing file", c)
+                logger.warning("PyArrow statistics missing for column %d when writing file", pos)
 
     split_offsets.sort()
 
