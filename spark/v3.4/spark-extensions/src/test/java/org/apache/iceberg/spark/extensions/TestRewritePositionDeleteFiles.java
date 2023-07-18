@@ -209,7 +209,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     List<DataFile> dataFiles = dataFiles(table);
-    assertThat(numDataFiles).isEqualTo(dataFiles.size());
+    assertThat(dataFiles).hasSize(numDataFiles);
 
     SparkActions.get(spark)
         .rewriteDataFiles(table)
@@ -219,7 +219,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     // write dangling delete files for 'old data files'
     writePosDeletesForFiles(table, dataFiles);
     List<DeleteFile> deleteFiles = deleteFiles(table);
-    assertThat(numDataFiles * DELETE_FILES_PER_PARTITION).isEqualTo(deleteFiles.size());
+    assertThat(deleteFiles).hasSize(numDataFiles * DELETE_FILES_PER_PARTITION);
 
     List<Object[]> expectedRecords = records(tableName);
 
@@ -230,7 +230,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles.size()).as("Remaining dangling deletes").isEqualTo(0);
+    assertThat(newDeleteFiles).as("Remaining dangling deletes").isEmpty();
     checkResult(result, deleteFiles, Lists.newArrayList(), numDataFiles);
 
     List<Object[]> actualRecords = records(tableName);
@@ -378,9 +378,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
         .isEqualTo(size(rewrittenDeletes));
     assertThat(result.addedBytesCount()).as("New Delete byte count").isEqualTo(size(newDeletes));
 
-    assertThat(result.rewriteResults().size())
-        .as("Rewritten group count")
-        .isEqualTo(expectedGroups);
+    assertThat(result.rewriteResults()).as("Rewritten group count").hasSize(expectedGroups);
     assertThat(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
