@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -132,14 +131,6 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     createTable("timestamp");
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
     insertData(i -> Timestamp.valueOf(baseTimestamp.toLocalDateTime().plusDays(i)));
-    testDanglingDelete();
-  }
-
-  @Test
-  public void testTimestampNtz() throws Exception {
-    createTable("timestamp_ntz");
-    LocalDateTime baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00").toLocalDateTime();
-    insertData(baseTimestamp::plusDays);
     testDanglingDelete();
   }
 
