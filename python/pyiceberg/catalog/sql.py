@@ -58,8 +58,8 @@ class IcebergTables(SqlCatalogBaseTable):
     catalog_name: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
     table_namespace: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
     table_name: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
-    metadata_location: Mapped[str] = mapped_column(String(1000), nullable=True)
-    previous_metadata_location: Mapped[str] = mapped_column(String(1000), nullable=True)
+    metadata_location: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    previous_metadata_location: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
 
 
 class IcebergNamespaceProperties(SqlCatalogBaseTable):
@@ -81,7 +81,7 @@ class SqlCatalog(Catalog):
             raise NoSuchPropertyException("SQL connection URI is required")
         self.engine = create_engine(uri_prop, echo=True)
 
-    def initialize_tables(self) -> None:
+    def create_tables(self) -> None:
         SqlCatalogBaseTable.metadata.create_all(self.engine)
 
     def destroy_tables(self) -> None:
@@ -255,7 +255,7 @@ class SqlCatalog(Catalog):
         with Session(self.engine) as session:
             stmt = (
                 select(IcebergTables)
-                .where(IcebergTables.catalog_name == self.name, IcebergTables.table_namespace.like(namespace + "%"))
+                .where(IcebergTables.catalog_name == self.name, IcebergTables.table_namespace == namespace)
                 .limit(1)
             )
             result = session.execute(stmt).all()
