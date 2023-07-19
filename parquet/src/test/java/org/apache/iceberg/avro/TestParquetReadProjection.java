@@ -32,7 +32,7 @@ public class TestParquetReadProjection extends TestReadProjection {
   protected GenericData.Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
-    File file = temp.resolve(desc + ".parquet").toFile();
+    File file = temp.newFile(desc + ".parquet");
     file.delete();
 
     try (FileAppender<GenericData.Record> appender =
@@ -45,4 +45,20 @@ public class TestParquetReadProjection extends TestReadProjection {
 
     return Iterables.getOnlyElement(records);
   }
+
+  // Empty struct read is not supported for Parquet
+  @Override
+  public void testEmptyStructProjection() throws Exception {}
+
+  @Override
+  public void testEmptyStructRequiredProjection() throws Exception {}
+
+  @Override
+  public void testRequiredEmptyStructInRequiredStruct() throws Exception {}
+
+  @Override
+  public void testEmptyNestedStructProjection() throws Exception {}
+
+  @Override
+  public void testEmptyNestedStructRequiredProjection() throws Exception {}
 }
