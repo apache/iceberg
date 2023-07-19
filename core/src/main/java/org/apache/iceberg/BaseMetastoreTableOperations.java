@@ -306,7 +306,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    *
    * @param newMetadataLocation the path of the new commit file
    * @param config metadata to use for configuration
-   * @return Commit Status of Success, Failure or Unknown
+   * @return Commit Status of Success or Unknown
    */
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
     int maxAttempts =

@@ -336,7 +336,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                   mapProperties.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
 
               // Simulate lock expiration or removal, use commit status null to avoid deleting data
-              realOps.cleanupMetadataAndUnlock(null, newMetadataLocation);
+              realOps.unlockMetadataFile(newMetadataLocation);
 
               table.refresh();
               table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
