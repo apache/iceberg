@@ -738,6 +738,9 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
