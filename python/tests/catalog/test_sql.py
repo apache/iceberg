@@ -4,7 +4,7 @@ from typing import Generator, List
 
 import pytest
 from pytest import TempPathFactory
-from sqlalchemy.exc import ArgumentError
+from sqlalchemy.exc import ArgumentError, IntegrityError
 
 from pyiceberg.catalog import Identifier
 from pyiceberg.catalog.sql import SqlCatalog
@@ -52,7 +52,7 @@ def fixture_test_catalog(warehouse: Path) -> Generator[SqlCatalog, None, None]:
         "warehouse": f"file://{warehouse}",
     }
     test_catalog = SqlCatalog("test_sql_catalog", **props)
-    test_catalog.initialize_tables()
+    test_catalog.create_tables()
     yield test_catalog
     test_catalog.destroy_tables()
 
@@ -69,8 +69,8 @@ def test_creation_with_unsupported_uri() -> None:
 
 def test_initialize(test_catalog: SqlCatalog) -> None:
     # Second initialization should not fail even if tables are already created
-    test_catalog.initialize_tables()
-    test_catalog.initialize_tables()
+    test_catalog.create_tables()
+    test_catalog.create_tables()
 
 
 def test_create_table_default_sort_order(
@@ -238,6 +238,12 @@ def test_create_duplicate_namespace(test_catalog: SqlCatalog, database_name: str
         test_catalog.create_namespace(database_name)
 
 
+def test_create_namespaces_sharing_same_prefix(test_catalog: SqlCatalog, database_name: str) -> None:
+    test_catalog.create_namespace(database_name + "_1")
+    # Second namespace is a prefix of the first one, make sure it can be added.
+    test_catalog.create_namespace(database_name)
+
+
 def test_create_namespace_with_comment_and_location(test_catalog: SqlCatalog, database_name: str) -> None:
     test_location = "/test/location"
     test_properties = {
@@ -250,6 +256,14 @@ def test_create_namespace_with_comment_and_location(test_catalog: SqlCatalog, da
     properties = test_catalog.load_namespace_properties(database_name)
     assert properties["comment"] == "this is a test description"
     assert properties["location"] == test_location
+
+
+def test_create_namespace_with_null_properties(test_catalog: SqlCatalog, database_name: str) -> None:
+    with pytest.raises(IntegrityError):
+        test_catalog.create_namespace(namespace=database_name, properties={None: "value"})  # type: ignore
+
+    with pytest.raises(IntegrityError):
+        test_catalog.create_namespace(namespace=database_name, properties={"key": None})  # type: ignore
 
 
 def test_list_namespaces(test_catalog: SqlCatalog, database_list: List[str]) -> None:

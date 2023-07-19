@@ -70,7 +70,7 @@ class IcebergNamespaceProperties(SqlCatalogBaseTable):
     catalog_name: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
     namespace: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
     property_key: Mapped[str] = mapped_column(String(255), nullable=False, primary_key=True)
-    property_value: Mapped[str] = mapped_column(String(1000), nullable=True)
+    property_value: Mapped[str] = mapped_column(String(1000), nullable=False)
 
 
 class SqlCatalog(Catalog):
@@ -265,7 +265,7 @@ class SqlCatalog(Catalog):
                 select(IcebergNamespaceProperties)
                 .where(
                     IcebergNamespaceProperties.catalog_name == self.name,
-                    IcebergNamespaceProperties.namespace.like(namespace + "%"),
+                    IcebergNamespaceProperties.namespace == namespace,
                 )
                 .limit(1)
             )

@@ -99,6 +99,7 @@ glue = ["boto3"]
 adlfs = ["adlfs"]
 dynamodb = ["boto3"]
 zstandard = ["zstandard"]
+sql-postgres = ["sqlalchemy", "psycopg2-binary"]
 
 [tool.pytest.ini_options]
 markers = [
