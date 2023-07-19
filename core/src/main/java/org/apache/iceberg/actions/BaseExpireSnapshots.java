@@ -16,22 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.actions;
 
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.BuilderVisibility;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-/**
- * View history entry.
- *
- * <p>An entry contains a change to the view state. At the given timestamp, the current version was
- * set to the given version ID.
- */
-@Value.Immutable
+@Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
-    typeImmutable = "ImmutableViewHistoryEntry",
+    typeImmutableEnclosing = "ImmutableExpireSnapshots",
     visibility = ImplementationVisibility.PUBLIC,
     builderVisibility = BuilderVisibility.PUBLIC)
-interface BaseViewHistoryEntry extends ViewHistoryEntry {}
+interface BaseExpireSnapshots extends ExpireSnapshots {
+
+  @Value.Immutable
+  interface Result extends ExpireSnapshots.Result {
+    @Override
+    @Value.Default
+    default long deletedStatisticsFilesCount() {
+      return ExpireSnapshots.Result.super.deletedStatisticsFilesCount();
+    }
+  }
+}
