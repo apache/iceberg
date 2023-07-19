@@ -18,6 +18,9 @@
  */
 
 project(':iceberg-mr') {
+  test {
+    useJUnitPlatform()
+  }
   configurations {
     testImplementation {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
