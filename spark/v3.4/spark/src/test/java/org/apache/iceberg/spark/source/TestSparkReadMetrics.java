@@ -59,6 +59,9 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
     Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
   }
 
   @Test
@@ -80,5 +83,8 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
     Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
   }
 }

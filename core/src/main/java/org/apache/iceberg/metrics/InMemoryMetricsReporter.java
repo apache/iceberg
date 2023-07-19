@@ -32,7 +32,7 @@ public class InMemoryMetricsReporter implements MetricsReporter {
   public ScanReport scanReport() {
     Preconditions.checkArgument(
         metricsReport == null || metricsReport instanceof ScanReport,
-        "Metric report is not a scan report");
+        "Metrics report is not a scan report");
     return (ScanReport) metricsReport;
   }
 }
