@@ -94,7 +94,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 )));
   }
 
-  @TempDir Path temp;
+  @TempDir private Path temp;
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
