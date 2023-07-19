@@ -51,6 +51,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
