@@ -33,12 +33,11 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.jetbrains.annotations.NotNull;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -69,18 +68,14 @@ public class TestS3RestSigner {
   static final AwsCredentialsProvider CREDENTIALS_PROVIDER =
       StaticCredentialsProvider.create(
           AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
+  private static final MinioContainer MINIO_CONTAINER =
+      new MinioContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;
   private S3Client s3;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Rule
-  public MinioContainer minioContainer =
-      new MinioContainer(CREDENTIALS_PROVIDER.resolveCredentials());
-
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() throws Exception {
     if (null == httpServer) {
       httpServer = initHttpServer();
@@ -99,7 +94,7 @@ public class TestS3RestSigner {
             new CustomAwsS3V4Signer());
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() throws Exception {
     assertThat(validatingSigner.icebergSigner.tokenRefreshExecutor())
         .isInstanceOf(ScheduledThreadPoolExecutor.class);
@@ -123,8 +118,9 @@ public class TestS3RestSigner {
     }
   }
 
-  @Before
+  @BeforeEach
   public void before() throws Exception {
+    MINIO_CONTAINER.start();
     s3 =
         S3Client.builder()
             .region(REGION)
@@ -133,7 +129,7 @@ public class TestS3RestSigner {
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
                         software.amazon.awssdk.http.apache.ApacheHttpClient.builder()))
-            .endpointOverride(minioContainer.getURI())
+            .endpointOverride(MINIO_CONTAINER.getURI())
             .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(
                 c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, validatingSigner))
@@ -197,6 +193,11 @@ public class TestS3RestSigner {
   public void validatedCreateMultiPartUpload() {
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("some/multipart-key").build());
+  }
+
+  @AfterEach
+  public void after() {
+    MINIO_CONTAINER.stop();
   }
 
   @Test

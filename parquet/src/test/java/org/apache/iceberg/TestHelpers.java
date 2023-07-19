@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.concurrent.Callable;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericRecord;
 import org.assertj.core.api.AbstractThrowableAssert;
-import org.assertj.core.api.Assertions;
 
 public class TestHelpers {
 
@@ -42,7 +43,7 @@ public class TestHelpers {
       String containedInMessage,
       Callable callable) {
     AbstractThrowableAssert<?, ? extends Throwable> check =
-        Assertions.assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
+        assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }
@@ -62,7 +63,7 @@ public class TestHelpers {
       String containedInMessage,
       Runnable runnable) {
     AbstractThrowableAssert<?, ? extends Throwable> check =
-        Assertions.assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
+        assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }

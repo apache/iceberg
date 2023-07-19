@@ -23,8 +23,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -39,13 +44,21 @@ import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -58,6 +71,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Tuple2;
 
 /**
  * An action that removes orphan metadata, data and delete files by listing a given location and
@@ -79,6 +93,8 @@ public class BaseDeleteOrphanFilesSparkAction
     implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteOrphanFilesSparkAction.class);
+  private static final Splitter COMMA = Splitter.on(",");
+  private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
   private static final UserDefinedFunction filenameUDF =
       functions.udf(
           (String path) -> {
@@ -97,6 +113,9 @@ public class BaseDeleteOrphanFilesSparkAction
   private final int partitionDiscoveryParallelism;
   private final Table table;
 
+  private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
+  private Map<String, String> equalAuthorities = Collections.emptyMap();
+  private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Consumer<String> deleteFunc =
@@ -131,6 +150,29 @@ public class BaseDeleteOrphanFilesSparkAction
   @Override
   public BaseDeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
+    return this;
+  }
+
+  @Override
+  public BaseDeleteOrphanFilesSparkAction prefixMismatchMode(
+      PrefixMismatchMode newPrefixMismatchMode) {
+    this.prefixMismatchMode = newPrefixMismatchMode;
+    return this;
+  }
+
+  @Override
+  public BaseDeleteOrphanFilesSparkAction equalSchemes(Map<String, String> newEqualSchemes) {
+    this.equalSchemes = Maps.newHashMap();
+    equalSchemes.putAll(flattenMap(EQUAL_SCHEMES_DEFAULT));
+    equalSchemes.putAll(flattenMap(newEqualSchemes));
+    return this;
+  }
+
+  @Override
+  public BaseDeleteOrphanFilesSparkAction equalAuthorities(
+      Map<String, String> newEqualAuthorities) {
+    this.equalAuthorities = Maps.newHashMap();
+    equalAuthorities.putAll(flattenMap(newEqualAuthorities));
     return this;
   }
 
@@ -174,13 +216,9 @@ public class BaseDeleteOrphanFilesSparkAction
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));
-    Column validFileName = filenameUDF.apply(validFileDF.col("file_path"));
-    Column nameEqual = actualFileName.equalTo(validFileName);
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
-    Column joinCond = nameEqual.and(actualContains);
     List<String> orphanFiles =
-        actualFileDF.join(validFileDF, joinCond, "leftanti").as(Encoders.STRING()).collectAsList();
+        findOrphanFiles(
+            spark(), actualFileDF, validFileDF, equalSchemes, equalAuthorities, prefixMismatchMode);
 
     Tasks.foreach(orphanFiles)
         .noRetry()
@@ -295,5 +333,161 @@ public class BaseDeleteOrphanFilesSparkAction
 
       return files.iterator();
     };
+  }
+
+  @VisibleForTesting
+  static List<String> findOrphanFiles(
+      SparkSession spark,
+      Dataset<Row> actualFileDF,
+      Dataset<Row> validFileDF,
+      Map<String, String> equalSchemes,
+      Map<String, String> equalAuthorities,
+      PrefixMismatchMode prefixMismatchMode) {
+    Dataset<FileMetadata> actualFileMetadataDS =
+        actualFileDF.mapPartitions(
+            toFileMetadata(equalSchemes, equalAuthorities), Encoders.bean(FileMetadata.class));
+    Dataset<FileMetadata> validFileMetadataDS =
+        validFileDF.mapPartitions(
+            toFileMetadata(equalSchemes, equalAuthorities), Encoders.bean(FileMetadata.class));
+
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    spark.sparkContext().register(conflicts);
+
+    Column joinCond = actualFileMetadataDS.col("path").equalTo(validFileMetadataDS.col("path"));
+
+    List<String> orphanFiles =
+        actualFileMetadataDS
+            .joinWith(validFileMetadataDS, joinCond, "leftouter")
+            .mapPartitions(findOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
+            .collectAsList();
+
+    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+      throw new ValidationException(
+          "Unable to determine whether certain files are orphan. "
+              + "Metadata references files that match listed/provided files except for authority/scheme. "
+              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
+              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
+              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
+              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
+              + "authorities/schemes are different. It will be impossible to recover deleted files. "
+              + "Conflicting authorities/schemes: %s.",
+          conflicts.value());
+    }
+
+    return orphanFiles;
+  }
+
+  private static Map<String, String> flattenMap(Map<String, String> map) {
+    Map<String, String> flattenedMap = Maps.newHashMap();
+    if (map != null) {
+      for (String key : map.keySet()) {
+        String value = map.get(key);
+        for (String splitKey : COMMA.split(key)) {
+          flattenedMap.put(splitKey.trim(), value.trim());
+        }
+      }
+    }
+    return flattenedMap;
+  }
+
+  private static MapPartitionsFunction<Tuple2<FileMetadata, FileMetadata>, String> findOrphanFiles(
+      PrefixMismatchMode mode, SetAccumulator<Pair<String, String>> conflicts) {
+    return rows -> {
+      Iterator<String> transformed =
+          Iterators.transform(
+              rows,
+              row -> {
+                FileMetadata actual = row._1;
+                FileMetadata valid = row._2;
+
+                if (valid == null) {
+                  return actual.location;
+                }
+
+                boolean schemeMatch =
+                    Strings.isNullOrEmpty(valid.scheme)
+                        || valid.scheme.equalsIgnoreCase(actual.scheme);
+                boolean authorityMatch =
+                    Strings.isNullOrEmpty(valid.authority)
+                        || valid.authority.equalsIgnoreCase(actual.authority);
+
+                if ((!schemeMatch || !authorityMatch) && mode == PrefixMismatchMode.DELETE) {
+                  return actual.location;
+                } else {
+                  if (!schemeMatch) {
+                    conflicts.add(Pair.of(valid.scheme, actual.scheme));
+                  }
+                  if (!authorityMatch) {
+                    conflicts.add(Pair.of(valid.authority, actual.authority));
+                  }
+                }
+
+                return null;
+              });
+      return Iterators.filter(transformed, Objects::nonNull);
+    };
+  }
+
+  private static MapPartitionsFunction<Row, FileMetadata> toFileMetadata(
+      Map<String, String> equalSchemesMap, Map<String, String> equalAuthoritiesMap) {
+    return rows ->
+        Iterators.transform(
+            rows,
+            row -> {
+              String location = row.getString(0);
+              URI uri = new Path(location).toUri();
+              String scheme = equalSchemesMap.getOrDefault(uri.getScheme(), uri.getScheme());
+              String authority =
+                  equalAuthoritiesMap.getOrDefault(uri.getAuthority(), uri.getAuthority());
+              return new FileMetadata(scheme, authority, uri.getPath(), location);
+            });
+  }
+
+  public static class FileMetadata implements Serializable {
+    private String scheme;
+    private String authority;
+    private String path;
+    private String location;
+
+    public FileMetadata(String scheme, String authority, String path, String location) {
+      this.scheme = scheme;
+      this.authority = authority;
+      this.path = path;
+      this.location = location;
+    }
+
+    public FileMetadata() {}
+
+    public void setScheme(String scheme) {
+      this.scheme = scheme;
+    }
+
+    public void setAuthority(String authority) {
+      this.authority = authority;
+    }
+
+    public void setPath(String path) {
+      this.path = path;
+    }
+
+    public void setLocation(String location) {
+      this.location = location;
+    }
+
+    public String getScheme() {
+      return scheme;
+    }
+
+    public String getAuthority() {
+      return authority;
+    }
+
+    public String getPath() {
+      return path;
+    }
+
+    public String getLocation() {
+      return location;
+    }
   }
 }
