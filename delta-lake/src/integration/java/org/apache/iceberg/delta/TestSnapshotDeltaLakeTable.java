@@ -77,7 +77,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static Dataset<Row> typeTestDataFrame;
   private static Dataset<Row> nestedDataFrame;
 
-  public static Stream<Arguments> parameters() {
+  static Stream<Arguments> parameters() {
     return Stream.of(
         Arguments.of(
             icebergCatalogName,
