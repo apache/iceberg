@@ -107,13 +107,13 @@ public class BigLakeTableOperationsTest {
 
   @Test
   public void testDoCommitShouldUseEtagForUpdateTable() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
+    when(bigLakeClient.table(TABLE_NAME))
         .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
 
     Table tableWithEtag = createdTable.toBuilder().setEtag("etag").build();
     reset(bigLakeClient);
-    when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
+    when(bigLakeClient.table(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(TABLE_IDENTIFIER);
 
@@ -130,13 +130,13 @@ public class BigLakeTableOperationsTest {
 
   @Test
   public void testDoCommitShouldFailWhenEtagMismatch() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
+    when(bigLakeClient.table(TABLE_NAME))
         .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
 
     Table tableWithEtag = createdTable.toBuilder().setEtag("etag").build();
     reset(bigLakeClient);
-    when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
+    when(bigLakeClient.table(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(TABLE_IDENTIFIER);
 
@@ -155,7 +155,7 @@ public class BigLakeTableOperationsTest {
 
   @Test
   public void testInitRefreshShouldReturnNullForNonIcebergTable() {
-    when(bigLakeClient.getTable(TABLE_NAME))
+    when(bigLakeClient.table(TABLE_NAME))
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
     assertThat(tableOps.refresh()).isNull();

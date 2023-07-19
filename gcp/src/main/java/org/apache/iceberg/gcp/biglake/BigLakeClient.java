@@ -88,14 +88,14 @@ final class BigLakeClient implements Closeable {
         name.getCatalog());
   }
 
-  public Catalog getCatalog(CatalogName name) {
+  public Catalog catalog(CatalogName name) {
     return convertException(
         () -> {
           try {
             return stub.getCatalog(GetCatalogRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Namespace does not exist: %s", name.getCatalog());
+                e, "Namespace does not exist: %s (or permission denied)", name.getCatalog());
           }
         },
         name.getCatalog());
@@ -109,7 +109,7 @@ final class BigLakeClient implements Closeable {
             return Empty.getDefaultInstance();
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Namespace does not exist: %s", name.getCatalog());
+                e, "Namespace does not exist: %s (or permission denied)", name.getCatalog());
           }
         },
         name.getCatalog());
@@ -129,7 +129,7 @@ final class BigLakeClient implements Closeable {
         name.getDatabase());
   }
 
-  public Database getDatabase(DatabaseName name) {
+  public Database database(DatabaseName name) {
     return convertException(
         () -> {
           try {
@@ -137,7 +137,7 @@ final class BigLakeClient implements Closeable {
                 GetDatabaseRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Namespace does not exist: %s", name.getDatabase());
+                e, "Namespace does not exist: %s (or permission denied)", name.getDatabase());
           }
         },
         name.getDatabase());
@@ -156,7 +156,7 @@ final class BigLakeClient implements Closeable {
                     .build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Namespace does not exist: %s", name.getDatabase());
+                e, "Namespace does not exist: %s (or permission denied)", name.getDatabase());
           }
         },
         name.getDatabase());
@@ -179,7 +179,7 @@ final class BigLakeClient implements Closeable {
             return Empty.getDefaultInstance();
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Namespace does not exist: %s", name.getDatabase());
+                e, "Namespace does not exist: %s (or permission denied)", name.getDatabase());
           }
         },
         name.getDatabase());
@@ -202,7 +202,7 @@ final class BigLakeClient implements Closeable {
         name.getTable());
   }
 
-  public Table getTable(TableName name) {
+  public Table table(TableName name) {
     if (name.getTable().isEmpty()) {
       throw new NoSuchTableException("BigLake API does not allow tables with empty ID");
     }
@@ -288,8 +288,9 @@ final class BigLakeClient implements Closeable {
     try {
       return result.get();
     } catch (PermissionDeniedException e) {
-      throw new NotAuthorizedException(e, "BigLake API permission denied");
+      throw new NotAuthorizedException(e, "Permission denied");
     } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
+      // "Table already exists" error should be caught earlier.
       throw new AlreadyExistsException(e, "Namespace already exists: %s", resourceId);
     }
   }

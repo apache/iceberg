@@ -135,7 +135,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
   @Test
   public void testDefaultWarehouseWithDatabaseLocation() {
-    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.database(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(HiveDatabaseOptions.newBuilder().setLocationUri("db_folder"))
@@ -149,7 +149,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
   @Test
   public void testDefaultWarehouseWithoutDatabaseLocation() {
-    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, "us", CATALOG_ID, "db")))
+    when(mockBigLakeClient.database(DatabaseName.of(GCP_PROJECT, "us", CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder().setHiveOptions(HiveDatabaseOptions.getDefaultInstance()).build());
 
@@ -240,19 +240,19 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
     assertThatThrownBy(
             () -> bigLakeCatalogUsingMockClient.setProperties(Namespace.empty(), ImmutableMap.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid BigLake database namespace: empty");
+        .hasMessage("Invalid namespace: empty");
 
     assertThatThrownBy(
             () ->
                 bigLakeCatalogUsingMockClient.setProperties(
                     Namespace.of("db", "tbl"), ImmutableMap.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid BigLake database namespace: db.tbl");
+        .hasMessage("Invalid namespace: db.tbl");
   }
 
   @Test
   public void testSetPropertiesShouldSucceedForDatabase() {
-    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.database(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -278,19 +278,19 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 bigLakeCatalogUsingMockClient.removeProperties(
                     Namespace.empty(), ImmutableSet.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid BigLake database namespace: empty");
+        .hasMessage("Invalid namespace: empty");
 
     assertThatThrownBy(
             () ->
                 bigLakeCatalogUsingMockClient.removeProperties(
                     Namespace.of("db", "tbl"), ImmutableSet.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid BigLake database namespace: db.tbl");
+        .hasMessage("Invalid namespace: db.tbl");
   }
 
   @Test
   public void testRemovePropertiesShouldSucceedForDatabase() {
-    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.database(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -313,12 +313,12 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   public void testEmptyNamespaceLoadsCatalogMetadata() {
     assertThat(bigLakeCatalogUsingMockClient.loadNamespaceMetadata(Namespace.empty())).isEmpty();
     verify(mockBigLakeClient, times(1))
-        .getCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
+        .catalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
   }
 
   @Test
   public void testLoadNamespaceMetadataForDatabases() {
-    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.database(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -347,6 +347,6 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
                 bigLakeCatalogUsingMockClient.newTableOps(
                     TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid BigLake database namespace: n0.n1");
+        .hasMessage("Invalid namespace: n0.n1");
   }
 }

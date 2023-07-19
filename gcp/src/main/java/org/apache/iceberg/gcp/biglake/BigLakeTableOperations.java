@@ -63,7 +63,7 @@ final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     // Must default to null.
     String metadataLocation = null;
     try {
-      HiveTableOptions hiveOptions = client.getTable(tableName).getHiveOptions();
+      HiveTableOptions hiveOptions = client.table(tableName).getHiveOptions();
       if (!hiveOptions.containsParameters(METADATA_LOCATION_PROP)) {
         throw new NoSuchIcebergTableException(
             "Invalid Iceberg table %s: missing metadata location", tableName());
@@ -144,7 +144,7 @@ final class BigLakeTableOperations extends BaseMetastoreTableOperations {
   /** Update table properties with concurrent update detection using etag. */
   private void updateTable(
       String oldMetadataLocation, String newMetadataLocation, TableMetadata metadata) {
-    Table table = client.getTable(tableName);
+    Table table = client.table(tableName);
     String etag = table.getEtag();
     Preconditions.checkArgument(
         !etag.isEmpty(),
