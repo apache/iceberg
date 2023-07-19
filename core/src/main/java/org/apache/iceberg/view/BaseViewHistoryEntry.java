@@ -18,16 +18,17 @@
  */
 package org.apache.iceberg.view;
 
+import org.immutables.value.Value;
+
 /**
  * View history entry.
  *
  * <p>An entry contains a change to the view state. At the given timestamp, the current version was
  * set to the given version ID.
  */
-public interface ViewHistoryEntry {
-  /** Return the timestamp in milliseconds of the change */
-  long timestampMillis();
-
-  /** Return ID of the new current version */
-  int versionId();
-}
+@Value.Immutable
+// https://github.com/immutables/immutables/issues/291 does not apply here because we're not adding
+// any Immutable-specific class to the classpath
+@SuppressWarnings("ImmutablesStyle")
+@Value.Style(typeImmutable = "ImmutableViewHistoryEntry")
+public interface BaseViewHistoryEntry extends ViewHistoryEntry {}

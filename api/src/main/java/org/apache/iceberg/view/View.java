@@ -89,5 +89,7 @@ public interface View {
    *
    * @return a new {@link ReplaceViewVersion}
    */
-  ReplaceViewVersion replaceVersion();
+  default ReplaceViewVersion replaceVersion() {
+    throw new UnsupportedOperationException("Replacing a view's version is not supported");
+  }
 }
