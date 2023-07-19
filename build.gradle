@@ -486,7 +486,7 @@ project(':iceberg-aws') {
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation("com.adobe.testing:s3mock-junit4") {
+    testImplementation("com.adobe.testing:s3mock-junit5") {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"
       exclude group: 'junit'
@@ -525,6 +525,9 @@ project(':iceberg-aws') {
 project(':iceberg-delta-lake') {
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
+  test {
+    useJUnitPlatform()
+  }
   configurations {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
@@ -912,6 +915,7 @@ project(':iceberg-snowflake') {
 
     runtimeOnly("net.snowflake:snowflake-jdbc")
 
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
