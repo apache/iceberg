@@ -299,7 +299,7 @@ public class TableMetadataParser {
     return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
-  public static TableMetadata fromJson(InputFile file, JsonNode node) {
+  static TableMetadata fromJson(InputFile file, JsonNode node) {
     return fromJson(file.location(), node);
   }
 
@@ -308,7 +308,7 @@ public class TableMetadataParser {
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
