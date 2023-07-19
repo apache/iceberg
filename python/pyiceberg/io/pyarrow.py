@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor
+from concurrent.futures import Executor, ThreadPoolExecutor
 from functools import lru_cache, singledispatch
 from itertools import chain
 from typing import (
@@ -123,7 +123,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -733,10 +732,10 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    rows_counter: Synchronized[int],
+    row_count_log: List[int],
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and rows_counter.value >= limit:
+    if limit and sum(row_count_log) >= limit:
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -798,17 +797,15 @@ def _task_to_table(
             else:
                 arrow_table = fragment_scanner.to_table()
 
-        if limit:
-            with rows_counter:
-                if rows_counter.value >= limit:
-                    return None
-                rows_counter.value += len(arrow_table)
-
-        # If there is no data, we don't have to go through the schema
-        if len(arrow_table) > 0:
-            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
-        else:
+        if len(arrow_table) < 1:
             return None
+
+        if limit:
+            if sum(row_count_log) >= limit:
+                return None
+            row_count_log.append(len(arrow_table))
+
+        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
 
 def _read_all_delete_files(fs: FileSystem, executor: Executor, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
@@ -870,8 +867,8 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    with ManagedThreadPoolExecutor() as executor:
-        rows_counter = executor.synchronized(0)
+    with ThreadPoolExecutor() as executor:
+        row_count_log: List[int] = []
         deletes_per_file = _read_all_delete_files(fs, executor, tasks)
         tables = [
             table
@@ -886,7 +883,7 @@ def project_table(
                         projected_field_ids,
                         deletes_per_file.get(task.file.file_path),
                         case_sensitive,
-                        rows_counter,
+                        row_count_log,
                         limit,
                     )
                     for task in tasks
