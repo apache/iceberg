@@ -74,9 +74,7 @@ public class TestParquetDeleteWriters {
 
   @Test
   public void testEqualityDeleteWriter() throws IOException {
-    File deleteFile = temp;
-
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     EqualityDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(out)
             .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -115,8 +113,6 @@ public class TestParquetDeleteWriters {
 
   @Test
   public void testPositionDeleteWriter() throws IOException {
-    File deleteFile = temp;
-
     Schema deleteSchema =
         new Schema(
             MetadataColumns.DELETE_FILE_PATH,
@@ -128,7 +124,7 @@ public class TestParquetDeleteWriters {
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(out)
             .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -177,8 +173,6 @@ public class TestParquetDeleteWriters {
 
   @Test
   public void testPositionDeleteWriterWithEmptyRow() throws IOException {
-    File deleteFile = temp;
-
     Schema deleteSchema =
         new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
@@ -186,7 +180,7 @@ public class TestParquetDeleteWriters {
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Void> deleteWriter =
         Parquet.writeDeletes(out)
             .createWriterFunc(GenericParquetWriter::buildWriter)

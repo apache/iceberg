@@ -216,7 +216,7 @@ public class TestDictionaryRowGroupFilter {
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
-    assertThat(reader.getRowGroups().size()).as("Should create only one row group").isEqualTo(1);
+    assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
     rowGroupMetadata = reader.getRowGroups().get(0);
     parquetSchema = reader.getFileMetaData().getSchema();
     dictionaryStore = reader.getNextDictionaryReader();

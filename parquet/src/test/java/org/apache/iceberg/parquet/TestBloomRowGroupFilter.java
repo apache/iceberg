@@ -187,13 +187,13 @@ public class TestBloomRowGroupFilter {
 
   @BeforeEach
   public void createInputFile() throws IOException {
-    File parquetFile = temp;
-    assertThat(parquetFile.delete()).isTrue();
+
+    assertThat(temp.delete()).isTrue();
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
-    OutputFile outFile = Files.localOutput(parquetFile);
+    OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
@@ -263,7 +263,7 @@ public class TestBloomRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(parquetFile);
+    InputFile inFile = Files.localInput(temp);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
