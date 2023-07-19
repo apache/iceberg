@@ -152,7 +152,6 @@ public class LambdaRESTInvoker extends BaseRESTClient {
     this.functionArn = lambdaRESTInvokerProperties.functionArn();
     this.lambda = LambdaRESTInvokerAwsClientFactories.from(properties).lambda();
     this.baseHeaders = headers;
-    LOG.info("Initialized invoker with function {} and headers {}", functionArn, baseHeaders);
     // TODO: support sigv4 signer
   }
 
