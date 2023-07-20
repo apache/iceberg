@@ -62,6 +62,8 @@ thrift = { version = ">=0.13.0,<1.0.0", optional = true }
 boto3 = { version = ">=1.17.106", optional = true }
 s3fs = { version = ">=2021.08.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
 adlfs = { version = ">=2021.07.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
+psycopg2-binary = { version = ">=2.9.6", optional = true }
+sqlalchemy = { version = "^2.0.18", optional = true }
 
 [tool.poetry.dev-dependencies]
 pytest = "7.4.0"
@@ -97,6 +99,7 @@ glue = ["boto3"]
 adlfs = ["adlfs"]
 dynamodb = ["boto3"]
 zstandard = ["zstandard"]
+sql-postgres = ["sqlalchemy", "psycopg2-binary"]
 
 [tool.pytest.ini_options]
 markers = [
@@ -250,6 +253,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "numpy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]

@@ -80,6 +80,7 @@ class CatalogType(Enum):
     HIVE = "hive"
     GLUE = "glue"
     DYNAMODB = "dynamodb"
+    SQL = "sql"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -115,11 +116,21 @@ def load_dynamodb(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("AWS DynamoDB support not installed: pip install 'pyiceberg[dynamodb]'") from exc
 
 
+def load_sql(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.sql import SqlCatalog
+
+        return SqlCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("SQLAlchemy support not installed: pip install 'pyiceberg[sql-postgres]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
     CatalogType.GLUE: load_glue,
     CatalogType.DYNAMODB: load_dynamodb,
+    CatalogType.SQL: load_sql,
 }
 
 
@@ -142,6 +153,8 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
                 return CatalogType.REST
             elif uri.startswith("thrift"):
                 return CatalogType.HIVE
+            elif uri.startswith("postgresql"):
+                return CatalogType.SQL
             else:
                 raise ValueError(f"Could not infer the catalog type from the uri: {uri}")
         else:
