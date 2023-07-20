@@ -871,7 +871,7 @@ def project_table(
     executor = ThreadPoolExecutor()
     row_count_log: List[int] = []
     deletes_per_file = _read_all_delete_files(fs, executor, tasks)
-    futures = (
+    futures = [
         executor.submit(
             _task_to_table,
             fs,
@@ -885,7 +885,7 @@ def project_table(
             limit,
         )
         for task in tasks
-    )
+    ]
 
     tables: List[pa.Table] = []
     row_count = 0
@@ -899,8 +899,11 @@ def project_table(
                     break
 
     # by now, we've either gathered enough rows or completed all tasks
-    # when min python version is 3.9, we can cancel pending futures using cancel_futures=True
-    # until then, tasks need to know how to short-circuit using `row_count_log`
+    # when min python version is 3.9, we can cancel pending futures using
+    # `Executor.shutdown` via `cancel_futures=True`
+    for future in futures:
+        future.cancel()
+
     executor.shutdown(wait=False)
 
     if len(tables) > 1:
