@@ -1,0 +1,11 @@
+dependencies {
+  implementation libs.slf4j
+  compileOnly libs.bundles.kafka.connect
+
+  testImplementation libs.junit.api
+  testRuntimeOnly libs.junit.engine
+}
+
+configurations {
+  testImplementation.extendsFrom compileOnly
+}
