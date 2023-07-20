@@ -24,6 +24,7 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import os
 from abc import ABC, abstractmethod
 from concurrent.futures import Executor, ThreadPoolExecutor
@@ -867,30 +868,42 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    with ThreadPoolExecutor() as executor:
-        row_count_log: List[int] = []
-        deletes_per_file = _read_all_delete_files(fs, executor, tasks)
-        tables = [
-            table
-            for table in executor.map(
-                lambda args: _task_to_table(*args),
-                [
-                    (
-                        fs,
-                        task,
-                        bound_row_filter,
-                        projected_schema,
-                        projected_field_ids,
-                        deletes_per_file.get(task.file.file_path),
-                        case_sensitive,
-                        row_count_log,
-                        limit,
-                    )
-                    for task in tasks
-                ],
-            )
-            if table is not None
-        ]
+    executor = ThreadPoolExecutor()
+    row_count_log: List[int] = []
+    deletes_per_file = _read_all_delete_files(fs, executor, tasks)
+    futures = (
+        executor.submit(
+            _task_to_table,
+            *(
+                fs,
+                task,
+                bound_row_filter,
+                projected_schema,
+                projected_field_ids,
+                deletes_per_file.get(task.file.file_path),
+                case_sensitive,
+                row_count_log,
+                limit,
+            ),
+        )
+        for task in tasks
+    )
+
+    tables: List[pa.Table] = []
+    row_count = 0
+    for future in concurrent.futures.as_completed(futures):
+        if result := future.result():
+            tables.append(result)
+
+            if limit:
+                row_count += len(result)
+                if row_count >= limit:
+                    break
+
+    # by now, we've either gathered enough rows or completed all tasks
+    # when our min python version is 3.9, we can cancel pending futures using cancel_futures=True
+    # until then, tasks need to know how to short-circuit themselves using `row_count_log`
+    executor.shutdown(wait=False)
 
     if len(tables) > 1:
         final_table = pa.concat_tables(tables)
