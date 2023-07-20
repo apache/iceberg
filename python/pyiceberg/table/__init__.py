@@ -382,12 +382,7 @@ class Table:
     catalog: Catalog
 
     def __init__(
-        self,
-        identifier: Identifier,
-        metadata: TableMetadata,
-        metadata_location: str,
-        io: FileIO,
-        catalog: Catalog,
+        self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO, catalog: Catalog
     ) -> None:
         self.identifier = identifier
         self.metadata = metadata
