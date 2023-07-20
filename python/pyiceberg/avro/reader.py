@@ -267,7 +267,7 @@ class OptionReader(Reader):
 
 
 class StructReader(Reader):
-    __slots__ = ("field_readers", "create_struct", "struct", "create_with_keyword", "_field_reader_functions", "_hash")
+    __slots__ = ("field_readers", "create_struct", "struct", "_create_with_keyword", "_field_reader_functions", "_hash")
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Callable[..., StructProtocol]
     struct: StructType
@@ -341,7 +341,7 @@ class StructReader(Reader):
 
 @dataclass(frozen=False, init=False)
 class ListReader(Reader):
-    __slots__ = ("element", "is_int_list", "_hash")
+    __slots__ = ("element", "_is_int_list", "_hash")
     element: Reader
 
     def __init__(self, element: Reader) -> None:
@@ -383,10 +383,14 @@ class MapReader(Reader):
         super().__init__()
         self.key = key
         self.value = value
-        self._is_int_int = isinstance(self.key, IntegerReader) and isinstance(self.value, IntegerReader)
-        self._is_int_bytes = isinstance(self.key, IntegerReader) and isinstance(self.value, BinaryReader)
-        self._key_reader = self.key.read
-        self._value_reader = self.value.read
+        if isinstance(self.key, IntegerReader):
+            self._is_int_int = isinstance(self.value, IntegerReader)
+            self._is_int_bytes = isinstance(self.value, BinaryReader)
+        else:
+            self._is_int_int = False
+            self._is_int_bytes = False
+            self._key_reader = self.key.read
+            self._value_reader = self.value.read
         self._hash = hash((self.key, self.value))
 
     def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
