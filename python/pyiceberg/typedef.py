@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from decimal import Decimal
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -127,23 +127,23 @@ class IcebergBaseModel(BaseModel):
         )
 
 
-CACHED_STRUCT_TO_FIELD_NAME_POSITIONS: Dict[StructType, List[str]] = {}
+@lru_cache
+def _get_struct_fields(struct_type: StructType) -> Tuple[str, ...]:
+    return tuple([field.name for field in struct_type.fields])
 
 
 class Record(StructProtocol):
     __slots__ = ("_position_to_field_name",)
-    _position_to_field_name: List[str]
+    _position_to_field_name: Tuple[str, ...]
 
     def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:
         if struct is not None:
-            self._position_to_field_name = CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.get(
-                struct
-            ) or CACHED_STRUCT_TO_FIELD_NAME_POSITIONS.setdefault(struct, [field.name for field in struct.fields])
+            self._position_to_field_name = _get_struct_fields(struct)
         elif named_data:
             # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
-            self._position_to_field_name = list(named_data.keys())
+            self._position_to_field_name = tuple(named_data.keys())
         else:
-            self._position_to_field_name = [f"field{idx + 1}" for idx in range(len(data))]
+            self._position_to_field_name = tuple(f"field{idx + 1}" for idx in range(len(data)))
 
         for idx, d in enumerate(data):
             self[idx] = d
