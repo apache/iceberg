@@ -1,0 +1,138 @@
+plugins {
+  id "distribution"
+}
+
+configurations {
+  hive {
+    extendsFrom runtimeClasspath
+  }
+  all {
+    resolutionStrategy.force "net.minidev:json-smart:2.4.11"
+    resolutionStrategy.force "com.nimbusds:nimbus-jose-jwt:9.31"
+    resolutionStrategy.force "org.codehaus.jettison:jettison:1.5.4"
+    resolutionStrategy.force "org.xerial.snappy:snappy-java:1.1.10.1"
+  }
+}
+
+dependencies {
+  implementation project(":iceberg-kafka-connect")
+  implementation project(":iceberg-kafka-connect-transforms")
+  implementation libs.bundles.iceberg.ext
+  implementation libs.bundles.aws
+  implementation(libs.hadoop.common) {
+    exclude group: "log4j"
+    exclude group: "org.slf4j"
+    exclude group: "ch.qos.reload4j"
+  }
+
+  hive libs.iceberg.hive.metastore
+  hive(libs.hive.metastore) {
+    exclude group: "org.apache.avro", module: "avro"
+    exclude group: "org.slf4j", module: "slf4j-log4j12"
+    exclude group: "org.pentaho" // missing dependency
+    exclude group: "org.apache.hbase"
+    exclude group: "org.apache.logging.log4j"
+    exclude group: "co.cask.tephra"
+    exclude group: "com.google.code.findbugs", module: "jsr305"
+    exclude group: "org.eclipse.jetty.aggregate", module: "jetty-all"
+    exclude group: "org.eclipse.jetty.orbit", module: "javax.servlet"
+    exclude group: "org.apache.parquet", module: "parquet-hadoop-bundle"
+    exclude group: "com.tdunning", module: "json"
+    exclude group: "javax.transaction", module: "transaction-api"
+    exclude group: "com.zaxxer", module: "HikariCP"
+    exclude group: "org.apache.hadoop", module: "hadoop-yarn-server-common"
+    exclude group: "org.apache.hadoop", module: "hadoop-yarn-server-applicationhistoryservice"
+    exclude group: "org.apache.hadoop", module: "hadoop-yarn-server-resourcemanager"
+    exclude group: "org.apache.hadoop", module: "hadoop-yarn-server-web-proxy"
+    exclude group: "org.apache.hive", module: "hive-service-rpc"
+    exclude group: "com.github.joshelser", module: "dropwizard-metrics-hadoop-metrics2-reporter"
+  }
+  hive(libs.hadoop.client) {
+    exclude group: "org.apache.avro", module: "avro"
+    exclude group: "org.slf4j", module: "slf4j-log4j12"
+  }
+
+  testImplementation libs.bundles.iceberg
+  testImplementation libs.bundles.aws
+  testImplementation libs.bundles.jackson
+  testImplementation libs.bundles.kafka.connect
+
+  testImplementation libs.junit.api
+  testRuntimeOnly libs.junit.engine
+
+  testImplementation libs.mockito
+  testImplementation libs.assertj
+  testImplementation libs.awaitility
+  testImplementation libs.testcontainers
+  testImplementation libs.testcontainers.kafka
+  testImplementation libs.http.client
+}
+
+processResources {
+  filter {
+    it.replace("__VERSION__", project.version)
+  }
+}
+
+distributions {
+  main {
+    contents {
+      from(processResources.destinationDir) {
+        include "manifest.json"
+      }
+      into("lib/") {
+        from configurations.runtimeClasspath
+      }
+      into("doc/") {
+        from "$rootDir/LICENSE"
+        from "$rootDir/README.md"
+      }
+      into("assets/") {
+        from "$rootDir/logos"
+      }
+    }
+  }
+  hive {
+    contents {
+      from(processResources.destinationDir) {
+        include "manifest.json"
+      }
+      into("lib/") {
+        from configurations.hive
+      }
+      into("doc/") {
+        from "$rootDir/LICENSE"
+        from "$rootDir/README.md"
+      }
+      into("assets/") {
+        from "$rootDir/logos"
+      }
+    }
+  }
+}
+
+publishing {
+  publications {
+    main(MavenPublication) {
+      artifact distZip
+    }
+    hive(MavenPublication) {
+      artifact hiveDistZip
+    }
+  }
+}
+
+tasks.jar.enabled = false
+
+tasks.distTar.enabled = false
+distZip.dependsOn processResources
+installDist.dependsOn processResources
+
+tasks.hiveDistTar.enabled = false
+hiveDistZip.dependsOn processResources
+installHiveDist.dependsOn processResources
+
+// build the install before test so it can be installed into kafka connect
+test.dependsOn installDist
+
+assemble.dependsOn distZip, hiveDistZip
