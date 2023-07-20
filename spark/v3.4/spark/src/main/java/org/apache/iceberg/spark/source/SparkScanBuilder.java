@@ -453,6 +453,7 @@ public class SparkScanBuilder
     }
 
     scan = configureSplitPlanning(scan);
+
     return new SparkBatchQueryScan(
         spark,
         table,
