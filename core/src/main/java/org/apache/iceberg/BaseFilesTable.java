@@ -40,8 +40,13 @@ import org.apache.iceberg.types.Types.StructType;
 /** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
 
+  private final int defaultSpecId;
+  private final Map<Integer, PartitionSpec> specs;
+
   BaseFilesTable(Table table, String name) {
     super(table, name);
+    this.defaultSpecId = table.spec().specId();
+    this.specs = transformSpecs(schema(), table.specs());
   }
 
   @Override
@@ -55,6 +60,16 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return specs.get(defaultSpecId);
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return specs;
   }
 
   private static CloseableIterable<FileScanTask> planFiles(
