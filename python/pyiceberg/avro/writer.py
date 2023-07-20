@@ -176,7 +176,7 @@ class StructWriter(Writer):
 
     def __repr__(self) -> str:
         """Returns string representation of this object."""
-        return f"StructReader({','.join(repr(field) for field in self.field_writers)})"
+        return f"StructWriter({','.join(repr(field) for field in self.field_writers)})"
 
     def __hash__(self) -> int:
         """Returns the hash of the writer as hash of this object."""
