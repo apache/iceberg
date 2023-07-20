@@ -733,10 +733,10 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    row_count_log: List[int],
+    row_count: int,
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and sum(row_count_log) >= limit:
+    if limit and row_count >= limit:
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -801,10 +801,8 @@ def _task_to_table(
         if len(arrow_table) < 1:
             return None
 
-        if limit and sum(row_count_log) >= limit:
+        if limit and row_count >= limit:
             return None
-
-        row_count_log.append(len(arrow_table))
 
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
@@ -868,7 +866,7 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    row_count_log: List[int] = []
+    row_count = 0
     deletes_per_file = _read_all_delete_files(fs, table.executor, tasks)
     futures = [
         table.executor.submit(
@@ -880,7 +878,7 @@ def project_table(
             projected_field_ids,
             deletes_per_file.get(task.file.file_path),
             case_sensitive,
-            row_count_log,
+            row_count,
             limit,
         )
         for task in tasks
@@ -889,7 +887,6 @@ def project_table(
     # for consistent ordering, we need to maintain result order
     futures_index = {f: i for i, f in enumerate(futures)}
     tables: List[Tuple[int, pa.Table]] = []
-    row_count = 0
     for future in concurrent.futures.as_completed(futures):
         if result := future.result():
             ix = futures_index[future]
