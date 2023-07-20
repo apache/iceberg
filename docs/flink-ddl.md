@@ -150,8 +150,8 @@ USE iceberg_db;
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
-    data STRING
-);
+    data STRING NOT NULL
+) WITH ('format-version'='2');
 ```
 
 Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
@@ -160,20 +160,35 @@ Table create commands support the commonly used [Flink create clauses](https://n
 * `COMMENT 'table document'` to set a table description.
 * `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in Iceberg table properties.
 
-Currently, it does not support computed column, primary key and watermark definition etc.
+Currently, it does not support computed column and watermark definition etc.
 
-### `PARTITIONED BY`
+#### `PRIMARY KEY`
+
+Primary key constraint can be declared for a column or a set of columns, which must be unique and do not contain null.
+It's required for [`UPSERT` mode](../flink/flink-writes.md#upsert).
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT COMMENT 'unique id',
+    data STRING NOT NULL,
+    PRIMARY KEY(`id`) NOT ENFORCED
+) WITH ('format-version'='2');
+```
+
+#### `PARTITIONED BY`
 
 To create a partition table, use `PARTITIONED BY`:
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
-    data STRING
-) PARTITIONED BY (data);
+    data STRING NOT NULL
+) 
+PARTITIONED BY (data) 
+WITH ('format-version'='2');
 ```
 
-Iceberg support hidden partition but Flink don't support partitioning by a function on columns, so there is no way to support hidden partition in Flink DDL.
+Iceberg supports hidden partitioning but Flink doesn't support partitioning by a function on columns. There is no way to support hidden partitions in the Flink DDL.
 
 ### `CREATE TABLE LIKE`
 

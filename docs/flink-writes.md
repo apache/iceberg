@@ -69,9 +69,9 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-  `id`  INT UNIQUE COMMENT 'unique id',
-  `data` STRING NOT NULL,
- PRIMARY KEY(`id`) NOT ENFORCED
+    `id`  INT UNIQUE COMMENT 'unique id',
+    `data` STRING NOT NULL,
+    PRIMARY KEY(`id`) NOT ENFORCED
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 

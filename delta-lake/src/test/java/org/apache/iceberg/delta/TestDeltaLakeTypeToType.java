@@ -32,8 +32,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestDeltaLakeTypeToType {
   private static final String optionalBooleanType = "testNullableBoolType";
@@ -48,7 +48,7 @@ public class TestDeltaLakeTypeToType {
   private StructType deltaShallowNullTypeSchema;
   private StructType deltaNullTypeSchema;
 
-  @Before
+  @BeforeEach
   public void constructDeltaLakeSchema() {
     deltaAtomicSchema =
         new StructType()
