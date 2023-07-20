@@ -29,6 +29,7 @@ from pyiceberg.utils.decimal import unscaled_to_decimal
 class BinaryDecoder:
     """Read leaf values."""
 
+    __slots__ = "_input_stream"
     _input_stream: InputStream
 
     def __init__(self, input_stream: InputStream) -> None:

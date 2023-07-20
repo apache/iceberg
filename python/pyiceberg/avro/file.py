@@ -46,7 +46,6 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
@@ -78,6 +77,7 @@ _SCHEMA_KEY = "avro.schema"
 
 
 class AvroFileHeader(Record):
+    __slots__ = ("magic", "meta", "sync")
     magic: bytes
     meta: Dict[str, str]
     sync: bytes
@@ -129,6 +129,18 @@ class Block(Generic[D]):
 
 
 class AvroFile(Generic[D]):
+    __slots__ = (
+        "input_file",
+        "read_schema",
+        "read_types",
+        "read_enums",
+        "input_stream",
+        "header",
+        "schema",
+        "reader",
+        "decoder",
+        "block",
+    )
     input_file: InputFile
     read_schema: Optional[Schema]
     read_types: Dict[int, Callable[..., StructProtocol]]
@@ -139,7 +151,7 @@ class AvroFile(Generic[D]):
     reader: Reader
 
     decoder: BinaryDecoder
-    block: Optional[Block[D]] = None
+    block: Optional[Block[D]]
 
     def __init__(
         self,
@@ -152,6 +164,7 @@ class AvroFile(Generic[D]):
         self.read_schema = read_schema
         self.read_types = read_types
         self.read_enums = read_enums
+        self.block = None
 
     def __enter__(self) -> AvroFile[D]:
         """Generates a reader tree for the payload within an avro file.
@@ -193,9 +206,7 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(
-            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(MemoryInputStream(block_bytes))
-        )
+        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(io.BytesIO(block_bytes)))
         return block_records
 
     def __next__(self) -> D:

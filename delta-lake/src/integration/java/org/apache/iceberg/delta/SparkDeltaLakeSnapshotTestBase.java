@@ -23,8 +23,8 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 @SuppressWarnings("VisibilityModifier")
 public abstract class SparkDeltaLakeSnapshotTestBase {
@@ -32,7 +32,7 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startMetastoreAndSpark() {
     SparkDeltaLakeSnapshotTestBase.metastore = new TestHiveMetastore();
     metastore.start();
@@ -52,7 +52,7 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
             .getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopMetastoreAndSpark() throws Exception {
     if (metastore != null) {
       metastore.stop();

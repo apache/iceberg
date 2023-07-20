@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=protected-access
+import io
 import json
 
 import pytest
@@ -38,7 +39,6 @@ from pyiceberg.avro.reader import (
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
-from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
@@ -336,7 +336,7 @@ def test_uuid_reader() -> None:
 
 
 def test_read_struct() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -345,7 +345,7 @@ def test_read_struct() -> None:
 
 
 def test_read_struct_lambda() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -357,7 +357,7 @@ def test_read_struct_lambda() -> None:
 
 
 def test_read_not_struct_type() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -368,7 +368,7 @@ def test_read_not_struct_type() -> None:
 
 
 def test_read_struct_exception_handling() -> None:
-    mis = MemoryInputStream(b"\x18")
+    mis = io.BytesIO(b"\x18")
     decoder = BinaryDecoder(mis)
 
     def raise_err(struct: StructType) -> None:

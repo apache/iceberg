@@ -164,6 +164,25 @@ DATA_FILE_TYPE = StructType(
 
 
 class DataFile(Record):
+    __slots__ = (
+        "content",
+        "file_path",
+        "file_format",
+        "partition",
+        "record_count",
+        "file_size_in_bytes",
+        "column_sizes",
+        "value_counts",
+        "null_value_counts",
+        "nan_value_counts",
+        "lower_bounds",
+        "upper_bounds",
+        "key_metadata",
+        "split_offsets",
+        "equality_ids",
+        "sort_order_id",
+        "spec_id",
+    )
     content: DataFileContent
     file_path: str
     file_format: FileFormat
@@ -214,6 +233,7 @@ MANIFEST_ENTRY_SCHEMA = Schema(
 
 
 class ManifestEntry(Record):
+    __slots__ = ("status", "snapshot_id", "data_sequence_number", "file_sequence_number", "data_file")
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
     data_sequence_number: Optional[int]
@@ -233,6 +253,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 
 
 class PartitionFieldSummary(Record):
+    __slots__ = ("contains_null", "contains_nan", "lower_bound", "upper_bound")
     contains_null: bool
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
@@ -266,6 +287,23 @@ POSITIONAL_DELETE_SCHEMA = Schema(
 
 
 class ManifestFile(Record):
+    __slots__ = (
+        "manifest_path",
+        "manifest_length",
+        "partition_spec_id",
+        "content",
+        "sequence_number",
+        "min_sequence_number",
+        "added_snapshot_id",
+        "added_files_count",
+        "existing_files_count",
+        "deleted_files_count",
+        "added_rows_count",
+        "existing_rows_count",
+        "deleted_rows_count",
+        "partitions",
+        "key_metadata",
+    )
     manifest_path: str
     manifest_length: int
     partition_spec_id: int

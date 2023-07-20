@@ -24,7 +24,7 @@ hide:
 
 # Catalogs
 
-PyIceberg currently has native support for REST, Hive and Glue.
+PyIceberg currently has native support for REST, SQL, Hive, Glue and DynamoDB.
 
 There are three ways to pass in configuration:
 
@@ -106,6 +106,18 @@ catalog:
 | rest.sigv4-enabled  | true                    | Sign requests to the REST Server using AWS SigV4 protocol                  |
 | rest.signing-region | us-east-1               | The region to use when SigV4 signing a request                             |
 | rest.signing-name   | execute-api             | The service signing name to use when SigV4 signing a request               |
+
+## SQL Catalog
+
+The SQL catalog requires a database for its backend. As of now, pyiceberg only supports PostgreSQL through psycopg2.
+The database connection has to be configured using the `uri` property (see SQLAlchemy's [documentation for URL format](https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls)):
+
+```yaml
+catalog:
+  default:
+    type: sql
+    uri: postgresql+psycopg2://username:password@localhost/mydatabase
+```
 
 ## Hive Catalog
 
