@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.SparkSession
@@ -43,7 +42,9 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
-case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
+case class RewriteUpdate(spark: SparkSession)
+    extends Rule[LogicalPlan]
+    with RewriteRowLevelOperationHelper {
 
   import ExtendedDataSourceV2Implicits._
 
@@ -53,7 +54,6 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case UpdateTable(r: DataSourceV2Relation, assignments, Some(cond))
         if isIcebergRelation(r) && SubqueryExpression.hasSubquery(cond) =>
-
       val writeInfo = newWriteInfo(r.schema)
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("update", writeInfo)
 
@@ -62,7 +62,8 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       // so the first job uses DynamicFileFilter and the second one uses the underlying scan plan
       // both jobs share the same SparkMergeScan instance to ensure they operate on same files
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan =
+        buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
       val underlyingScanPlan = scanPlan match {
         case DynamicFileFilter(plan, _, _) => plan.clone()
         case _ => scanPlan.clone()
@@ -88,7 +89,8 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("update", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan =
+        buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val updateProjection = buildUpdateProjection(r, scanPlan, assignments, cond)
 

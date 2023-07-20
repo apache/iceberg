@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED
@@ -55,7 +54,9 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
-case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
+case class RewriteMergeInto(spark: SparkSession)
+    extends Rule[LogicalPlan]
+    with RewriteRowLevelOperationHelper {
   import ExtendedDataSourceV2Implicits._
   import RewriteMergeInto._
 
@@ -63,9 +64,13 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan transform {
-      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+      case MergeIntoTable(
+            target: DataSourceV2Relation,
+            source,
+            cond,
+            matchedActions,
+            notMatchedActions)
           if matchedActions.isEmpty && notMatchedActions.size == 1 && isIcebergRelation(target) =>
-
         val targetTableScan = buildSimpleScanPlan(target, cond)
 
         // NOT MATCHED conditions may only refer to columns in source so we can push them down
@@ -81,16 +86,20 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         val outputExprs = insertAction.assignments.map(_.value)
         val outputColNames = target.output.map(_.name)
-        val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) => Alias(expr, name)() }
+        val outputCols =
+          outputExprs.zip(outputColNames).map { case (expr, name) => Alias(expr, name)() }
         val mergePlan = Project(outputCols, joinPlan)
 
         val writePlan = buildWritePlan(mergePlan, target.table)
 
         AppendData.byPosition(target, writePlan, Map.empty)
 
-      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
-          if matchedActions.isEmpty && isIcebergRelation(target) =>
-
+      case MergeIntoTable(
+            target: DataSourceV2Relation,
+            source,
+            cond,
+            matchedActions,
+            notMatchedActions) if matchedActions.isEmpty && isIcebergRelation(target) =>
         val targetTableScan = buildSimpleScanPlan(target, cond)
 
         // when there are no matched actions, use a left anti join to remove any matching rows and rewrite to use
@@ -105,28 +114,34 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
           notMatchedConditions = notMatchedActions.map(getClauseCondition),
           notMatchedOutputs = notMatchedActions.map(actionOutput),
           targetOutput = Nil,
-          joinedAttributes = joinPlan.output
-        )
+          joinedAttributes = joinPlan.output)
 
         val mergePlan = MergeInto(mergeParams, target.output, joinPlan)
         val writePlan = buildWritePlan(mergePlan, target.table)
 
         AppendData.byPosition(target, writePlan, Map.empty)
 
-      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
-          if notMatchedActions.isEmpty && isIcebergRelation(target) =>
-
-        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
+      case MergeIntoTable(
+            target: DataSourceV2Relation,
+            source,
+            cond,
+            matchedActions,
+            notMatchedActions) if notMatchedActions.isEmpty && isIcebergRelation(target) =>
+        val mergeBuilder =
+          target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
-        val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
+        val (matchedConditions, matchedOutputs) =
+          rewriteMatchedActions(matchedActions, target.output)
 
         // when there are no not-matched actions, use a right outer join to ignore source rows that do not match, but
         // keep all unmatched target rows that must be preserved.
         val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
         val newSourceTableScan = Project(sourceTableProj, source)
-        val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
-        val joinPlan = Join(newSourceTableScan, targetTableScan, RightOuter, Some(cond), JoinHint.NONE)
+        val targetTableScan =
+          buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
+        val joinPlan =
+          Join(newSourceTableScan, targetTableScan, RightOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
           isSourceRowPresent = IsNotNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
@@ -136,29 +151,35 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
           notMatchedConditions = Nil,
           notMatchedOutputs = Nil,
           targetOutput = target.output,
-          joinedAttributes = joinPlan.output
-        )
+          joinedAttributes = joinPlan.output)
         val mergePlan = MergeInto(mergeParams, target.output, joinPlan)
         val writePlan = buildWritePlan(mergePlan, target.table)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
 
         ReplaceData(target, batchWrite, writePlan)
 
-      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
-          if isIcebergRelation(target) =>
-
-        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
+      case MergeIntoTable(
+            target: DataSourceV2Relation,
+            source,
+            cond,
+            matchedActions,
+            notMatchedActions) if isIcebergRelation(target) =>
+        val mergeBuilder =
+          target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
-        val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
+        val (matchedConditions, matchedOutputs) =
+          rewriteMatchedActions(matchedActions, target.output)
 
         // use a full outer join because there are both matched and not matched actions
         val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
         val newSourceTableScan = Project(sourceTableProj, source)
-        val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
+        val targetTableScan =
+          buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
         val targetTableProj = targetTableScan.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_TARGET)())
         val newTargetTableScan = Project(targetTableProj, targetTableScan)
-        val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
+        val joinPlan =
+          Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
           isSourceRowPresent = IsNotNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
@@ -168,8 +189,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
           notMatchedConditions = notMatchedActions.map(getClauseCondition),
           notMatchedOutputs = notMatchedActions.map(actionOutput),
           targetOutput = target.output,
-          joinedAttributes = joinPlan.output
-        )
+          joinedAttributes = joinPlan.output)
         val mergePlan = MergeInto(mergeParams, target.output, joinPlan)
         val writePlan = buildWritePlan(mergePlan, target.table)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
@@ -203,8 +223,16 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
     val table = target.table
     val output = target.output
     val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
-    val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
-    buildDynamicFilterScanPlan(spark, target, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
+    val runCardinalityCheck =
+      isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
+    buildDynamicFilterScanPlan(
+      spark,
+      target,
+      output,
+      mergeBuilder,
+      cond,
+      matchingRowsPlanBuilder,
+      runCardinalityCheck)
   }
 
   private def rewriteMatchedActions(

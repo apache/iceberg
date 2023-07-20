@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkFilters
@@ -27,23 +26,29 @@ import org.apache.spark.sql.catalyst.plans.logical.Filter
 
 object SparkExpressionConverter {
 
-  def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
+  def convertToIcebergExpression(
+      sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
     // Currently, it is a double conversion as we are converting Spark expression to Spark filter
     // and then converting Spark filter to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+    SparkFilters.convert(
+      DataSourceStrategy
+        .translateFilter(sparkExpression, supportNestedPredicatePushdown = true)
+        .get)
   }
 
   @throws[AnalysisException]
-  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
+  def collectResolvedSparkExpression(
+      session: SparkSession,
+      tableName: String,
+      where: String): Expression = {
     var expression: Expression = null
     // Add a dummy prefix linking to the table to collect the resolved spark expression from optimized plan.
     val prefix = String.format("SELECT 42 from %s where ", tableName)
     val logicalPlan = session.sessionState.sqlParser.parsePlan(prefix + where)
     val optimizedLogicalPlan = session.sessionState.executePlan(logicalPlan).optimizedPlan
-    optimizedLogicalPlan.collectFirst {
-      case filter: Filter =>
-        expression = filter.expressions.head
+    optimizedLogicalPlan.collectFirst { case filter: Filter =>
+      expression = filter.expressions.head
     }
     expression
   }

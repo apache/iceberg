@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.catalyst.expressions.And
@@ -51,21 +50,21 @@ import org.apache.spark.util.Utils
  */
 object ExtendedReplaceNullWithFalseInPredicate extends Rule[LogicalPlan] {
 
-  def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
-    _.containsAnyPattern(NULL_LITERAL, TRUE_OR_FALSE_LITERAL, INSET)) {
+  def apply(plan: LogicalPlan): LogicalPlan =
+    plan.transformWithPruning(_.containsAnyPattern(NULL_LITERAL, TRUE_OR_FALSE_LITERAL, INSET)) {
 
-    case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
-      d.copy(condition = Some(replaceNullWithFalse(cond)))
+      case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
+        d.copy(condition = Some(replaceNullWithFalse(cond)))
 
-    case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
-      u.copy(condition = Some(replaceNullWithFalse(cond)))
+      case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
+        u.copy(condition = Some(replaceNullWithFalse(cond)))
 
-    case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
-      m.copy(
-        mergeCondition = replaceNullWithFalse(mergeCond),
-        matchedActions = replaceNullWithFalse(matchedActions),
-        notMatchedActions = replaceNullWithFalse(notMatchedActions))
-  }
+      case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
+        m.copy(
+          mergeCondition = replaceNullWithFalse(mergeCond),
+          matchedActions = replaceNullWithFalse(matchedActions),
+          notMatchedActions = replaceNullWithFalse(notMatchedActions))
+    }
 
   /**
    * Recursively traverse the Boolean-type expression to replace

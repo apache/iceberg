@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -24,7 +23,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 case class DeleteFromIcebergTable(
     table: LogicalPlan,
     condition: Option[Expression],
-    rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
+    rewritePlan: Option[LogicalPlan] = None)
+    extends RowLevelCommand {
 
   override def children: Seq[LogicalPlan] = if (rewritePlan.isDefined) {
     table :: rewritePlan.get :: Nil

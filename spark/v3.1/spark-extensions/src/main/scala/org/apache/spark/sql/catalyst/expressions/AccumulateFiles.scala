@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.expressions
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -25,9 +24,9 @@ import org.apache.spark.sql.catalyst.utils.SetAccumulator
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.IntegerType
 
-case class AccumulateFiles(
-    filesAccumulator: SetAccumulator[String],
-    child: Expression) extends UnaryExpression with CodegenFallback {
+case class AccumulateFiles(filesAccumulator: SetAccumulator[String], child: Expression)
+    extends UnaryExpression
+    with CodegenFallback {
 
   override def dataType: DataType = IntegerType
   override def nullable: Boolean = true
@@ -35,7 +34,7 @@ case class AccumulateFiles(
   override lazy val deterministic: Boolean = false
   private val RETURN_VAL: Integer = 1
 
-  override def eval(input: InternalRow) : Any = {
+  override def eval(input: InternalRow): Any = {
     val resultVal = child.eval(input)
     filesAccumulator.add(resultVal.toString)
     RETURN_VAL

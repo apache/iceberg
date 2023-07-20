@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.connector.write.BatchWrite
 
-case class ReplaceData(
-    table: NamedRelation,
-    write: BatchWrite,
-    query: LogicalPlan) extends V2WriteCommand {
+case class ReplaceData(table: NamedRelation, write: BatchWrite, query: LogicalPlan)
+    extends V2WriteCommand {
 
   def isByName: Boolean = false
 

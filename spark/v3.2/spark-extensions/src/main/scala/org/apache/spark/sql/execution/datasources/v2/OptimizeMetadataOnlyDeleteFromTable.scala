@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -51,7 +50,8 @@ object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with Predic
           val dataSourceFilters = toDataSourceFilters(normalizedPredicates)
           val allPredicatesTranslated = normalizedPredicates.size == dataSourceFilters.length
           if (allPredicatesTranslated && table.canDeleteWhere(dataSourceFilters)) {
-            logger.info(s"Optimizing delete expression: ${dataSourceFilters.mkString(",")} as metadata delete")
+            logger.info(
+              s"Optimizing delete expression: ${dataSourceFilters.mkString(",")} as metadata delete")
             d.copy(rewritePlan = None)
           } else {
             d

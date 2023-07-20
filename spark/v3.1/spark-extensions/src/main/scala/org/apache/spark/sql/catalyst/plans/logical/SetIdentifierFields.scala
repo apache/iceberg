@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class SetIdentifierFields(
-    table: Seq[String],
-    fields: Seq[String]) extends Command {
+case class SetIdentifierFields(table: Seq[String], fields: Seq[String]) extends Command {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil

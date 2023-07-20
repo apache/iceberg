@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.write
 
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-case class RowLevelOperationInfoImpl(
-    command: Command,
-    options: CaseInsensitiveStringMap) extends RowLevelOperationInfo
+case class RowLevelOperationInfoImpl(command: Command, options: CaseInsensitiveStringMap)
+    extends RowLevelOperationInfo

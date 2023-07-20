@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.expressions
 
 import java.nio.ByteBuffer
@@ -41,13 +40,14 @@ import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.unsafe.types.UTF8String
 
 abstract class IcebergTransformExpression
-  extends UnaryExpression with CodegenFallback with NullIntolerant {
+    extends UnaryExpression
+    with CodegenFallback
+    with NullIntolerant {
 
   @transient lazy val icebergInputType: Type = SparkSchemaUtil.convert(child.dataType)
 }
 
-abstract class IcebergTimeTransform
-  extends IcebergTransformExpression with ImplicitCastInputTypes {
+abstract class IcebergTimeTransform extends IcebergTransformExpression with ImplicitCastInputTypes {
 
   def transform: function.Function[Any, Integer]
 
@@ -60,47 +60,48 @@ abstract class IcebergTimeTransform
   override def inputTypes: Seq[AbstractDataType] = Seq(TimestampType)
 }
 
-case class IcebergYearTransform(child: Expression)
-  extends IcebergTimeTransform {
+case class IcebergYearTransform(child: Expression) extends IcebergTimeTransform {
 
-  @transient lazy val transform: function.Function[Any, Integer] = Transforms.year[Any]().bind(icebergInputType)
-
-  override protected def withNewChildInternal(newChild: Expression): Expression = {
-    copy(child = newChild)
-  }
-}
-
-case class IcebergMonthTransform(child: Expression)
-  extends IcebergTimeTransform {
-
-  @transient lazy val transform: function.Function[Any, Integer] = Transforms.month[Any]().bind(icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] =
+    Transforms.year[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
   }
 }
 
-case class IcebergDayTransform(child: Expression)
-  extends IcebergTimeTransform {
+case class IcebergMonthTransform(child: Expression) extends IcebergTimeTransform {
 
-  @transient lazy val transform: function.Function[Any, Integer] = Transforms.day[Any]().bind(icebergInputType)
-
-  override protected def withNewChildInternal(newChild: Expression): Expression = {
-    copy(child = newChild)
-  }
-}
-
-case class IcebergHourTransform(child: Expression)
-  extends IcebergTimeTransform {
-
-  @transient lazy val transform: function.Function[Any, Integer] = Transforms.hour[Any]().bind(icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] =
+    Transforms.month[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
   }
 }
 
-case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends IcebergTransformExpression {
+case class IcebergDayTransform(child: Expression) extends IcebergTimeTransform {
+
+  @transient lazy val transform: function.Function[Any, Integer] =
+    Transforms.day[Any]().bind(icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
+}
+
+case class IcebergHourTransform(child: Expression) extends IcebergTimeTransform {
+
+  @transient lazy val transform: function.Function[Any, Integer] =
+    Transforms.hour[Any]().bind(icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
+}
+
+case class IcebergBucketTransform(numBuckets: Int, child: Expression)
+    extends IcebergTransformExpression {
 
   @transient lazy val bucketFunc: Any => Int = child.dataType match {
     case _: DecimalType =>
@@ -130,7 +131,8 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
   }
 }
 
-case class IcebergTruncateTransform(child: Expression, width: Int) extends IcebergTransformExpression {
+case class IcebergTruncateTransform(child: Expression, width: Int)
+    extends IcebergTransformExpression {
 
   @transient lazy val truncateFunc: Any => Any = child.dataType match {
     case _: DecimalType =>
@@ -139,7 +141,8 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
     case _: StringType =>
       val t = Transforms.truncate[CharSequence](width).bind(icebergInputType)
       s: Any => {
-        val charSequence = t(StandardCharsets.UTF_8.decode(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)))
+        val charSequence = t(
+          StandardCharsets.UTF_8.decode(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)))
         val bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(charSequence));
         UTF8String.fromBytes(ByteBuffers.toByteArray(bb))
       }

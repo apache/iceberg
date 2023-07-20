@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.SparkException
@@ -46,7 +45,8 @@ case class MergeRowsExec(
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
-    child: SparkPlan) extends UnaryExecNode {
+    child: SparkPlan)
+    extends UnaryExecNode {
 
   override def requiredChildOrdering: Seq[Seq[SortOrder]] = {
     if (performCardinalityCheck) {
@@ -93,8 +93,8 @@ case class MergeRowsExec(
     //   WHEN MATCHED AND id > 1 AND id < 10 UPDATE *
     //   WHEN MATCHED AND id = 5 OR id = 21 DELETE
 
-    val pair = actions.find {
-      case (predicate, _) => predicate.eval(inputRow)
+    val pair = actions.find { case (predicate, _) =>
+      predicate.eval(inputRow)
     }
 
     // apply the projection to produce an output row, or return null to suppress this row
@@ -159,9 +159,9 @@ case class MergeRowsExec(
         if (currentRowId == lastMatchedRowId) {
           throw new SparkException(
             "The ON search condition of the MERGE statement matched a single row from " +
-            "the target table with multiple rows of the source table. This could result " +
-            "in the target row being operated on more than once with an update or delete " +
-            "operation and is not allowed.")
+              "the target table with multiple rows of the source table. This could result " +
+              "in the target row being operated on more than once with an update or delete " +
+              "operation and is not allowed.")
         }
         lastMatchedRowId = currentRowId.copy()
       } else {

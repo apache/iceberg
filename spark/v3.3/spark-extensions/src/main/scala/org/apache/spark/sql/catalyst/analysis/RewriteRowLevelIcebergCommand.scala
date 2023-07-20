@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -72,9 +71,8 @@ trait RewriteRowLevelIcebergCommand extends RewriteRowLevelCommand {
 
     operation match {
       case supportsDelta: SupportsDelta =>
-        val rowIdAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-          supportsDelta.rowId.toSeq,
-          relation)
+        val rowIdAttrs = ExtendedV2ExpressionUtils
+          .resolveRefs[AttributeReference](supportsDelta.rowId.toSeq, relation)
 
         val nullableRowIdAttrs = rowIdAttrs.filter(_.nullable)
         if (nullableRowIdAttrs.nonEmpty) {

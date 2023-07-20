@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.rdd.RDD
@@ -33,7 +32,8 @@ import org.apache.spark.sql.execution.UnaryExecNode
 case class MergeIntoExec(
     mergeIntoParams: MergeIntoParams,
     output: Seq[Attribute],
-    override val child: SparkPlan) extends UnaryExecNode {
+    override val child: SparkPlan)
+    extends UnaryExecNode {
 
   protected override def doExecute(): RDD[InternalRow] = {
     child.execute().mapPartitions {
@@ -41,7 +41,9 @@ case class MergeIntoExec(
     }
   }
 
-  private def generateProjection(exprs: Seq[Expression], attrs: Seq[Attribute]): UnsafeProjection = {
+  private def generateProjection(
+      exprs: Seq[Expression],
+      attrs: Seq[Attribute]): UnsafeProjection = {
     UnsafeProjection.create(exprs, attrs)
   }
 
@@ -62,8 +64,8 @@ case class MergeIntoExec(
     // In above case, when id = 5, it applies both that matched predicates. In this
     // case the first one we see is applied.
 
-    val pair = actions.find {
-      case (predicate, _) => predicate.eval(inputRow)
+    val pair = actions.find { case (predicate, _) =>
+      predicate.eval(inputRow)
     }
 
     // Now apply the appropriate projection to produce an output row, or return null to suppress this row
@@ -76,8 +78,8 @@ case class MergeIntoExec(
   }
 
   private def processPartition(
-     params: MergeIntoParams,
-     rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
+      params: MergeIntoParams,
+      rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
 
     val joinedAttrs = params.joinedAttributes
     val isSourceRowPresentPred = generatePredicate(params.isSourceRowPresent, joinedAttrs)
@@ -87,7 +89,7 @@ case class MergeIntoExec(
     val notMatchedPreds = params.notMatchedConditions.map(generatePredicate(_, joinedAttrs))
     val notMatchedProjs = params.notMatchedOutputs.map(_.map(generateProjection(_, joinedAttrs)))
     val projectTargetCols = generateProjection(params.targetOutput, joinedAttrs)
-    val nonMatchedPairs =   notMatchedPreds zip notMatchedProjs
+    val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
     val matchedPairs = matchedPreds zip matchedProjs
 
     /**

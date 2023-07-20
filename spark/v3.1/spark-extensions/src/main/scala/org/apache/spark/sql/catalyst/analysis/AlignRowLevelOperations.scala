@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -31,13 +30,15 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.internal.SQLConf
 
-case object AlignRowLevelOperations extends Rule[LogicalPlan]
-    with AssignmentAlignmentSupport with CastSupport {
+case object AlignRowLevelOperations
+    extends Rule[LogicalPlan]
+    with AssignmentAlignmentSupport
+    with CastSupport {
 
   override def conf: SQLConf = SQLConf.get
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case u: UpdateTable if u.resolved && isIcebergRelation(u.table)=>
+    case u: UpdateTable if u.resolved && isIcebergRelation(u.table) =>
       u.copy(assignments = alignAssignments(u.table, u.assignments))
 
     case m: MergeIntoTable if m.resolved && isIcebergRelation(m.targetTable) =>
@@ -58,7 +59,7 @@ case object AlignRowLevelOperations extends Rule[LogicalPlan]
             if (ref.size > 1) {
               throw new AnalysisException(
                 "Nested fields are not supported inside INSERT clauses of MERGE operations: " +
-                s"${ref.mkString("`", "`.`", "`")}")
+                  s"${ref.mkString("`", "`.`", "`")}")
             }
           }
 
@@ -99,8 +100,8 @@ case object AlignRowLevelOperations extends Rule[LogicalPlan]
       if (assignment.isEmpty) {
         throw new AnalysisException(
           s"Cannot find column '${targetAttr.name}' of the target table among " +
-          s"the INSERT columns: ${assignmentMap.keys.mkString(", ")}. " +
-          "INSERT clauses must provide values for all columns of the target table.")
+            s"the INSERT columns: ${assignmentMap.keys.mkString(", ")}. " +
+            "INSERT clauses must provide values for all columns of the target table.")
       }
 
       val key = assignment.get.key

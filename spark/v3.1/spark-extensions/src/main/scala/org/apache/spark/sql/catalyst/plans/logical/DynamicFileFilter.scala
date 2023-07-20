@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -29,7 +28,8 @@ import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 case class DynamicFileFilter(
     scanPlan: LogicalPlan,
     fileFilterPlan: LogicalPlan,
-    filterable: SupportsFileFilter) extends BinaryNode {
+    filterable: SupportsFileFilter)
+    extends BinaryNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterPlan.output)
@@ -47,7 +47,8 @@ case class DynamicFileFilterWithCardinalityCheck(
     scanPlan: LogicalPlan,
     fileFilterPlan: LogicalPlan,
     filterable: SupportsFileFilter,
-    filesAccumulator: SetAccumulator[String]) extends BinaryNode {
+    filesAccumulator: SetAccumulator[String])
+    extends BinaryNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterPlan.output)

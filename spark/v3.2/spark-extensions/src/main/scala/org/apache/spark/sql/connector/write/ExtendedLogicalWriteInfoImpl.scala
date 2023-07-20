@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.write
 
 import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo
@@ -28,4 +27,5 @@ private[sql] case class ExtendedLogicalWriteInfoImpl(
     schema: StructType,
     options: CaseInsensitiveStringMap,
     rowIdSchema: StructType = null,
-    metadataSchema: StructType = null) extends ExtendedLogicalWriteInfo
+    metadataSchema: StructType = null)
+    extends ExtendedLogicalWriteInfo

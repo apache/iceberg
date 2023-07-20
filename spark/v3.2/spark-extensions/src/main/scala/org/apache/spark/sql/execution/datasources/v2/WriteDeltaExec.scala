@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.SparkEnv
@@ -51,7 +50,8 @@ case class WriteDeltaExec(
     query: SparkPlan,
     refreshCache: () => Unit,
     projections: WriteDeltaProjections,
-    write: DeltaWrite) extends ExtendedV2ExistingTableWriteExec[DeltaWriter[InternalRow]] {
+    write: DeltaWrite)
+    extends ExtendedV2ExistingTableWriteExec[DeltaWriter[InternalRow]] {
 
   override lazy val references: AttributeSet = query.outputSet
   override lazy val stringArgs: Iterator[Any] = Iterator(query, write)
@@ -66,7 +66,8 @@ case class WriteDeltaExec(
 }
 
 // a trait similar to V2ExistingTableWriteExec but supports custom write tasks
-trait ExtendedV2ExistingTableWriteExec[W <: DataWriter[InternalRow]] extends V2ExistingTableWriteExec {
+trait ExtendedV2ExistingTableWriteExec[W <: DataWriter[InternalRow]]
+    extends V2ExistingTableWriteExec {
   def writingTask: WritingSparkTask[W]
 
   protected override def writeWithV2(batchWrite: BatchWrite): Seq[InternalRow] = {
@@ -82,14 +83,15 @@ trait ExtendedV2ExistingTableWriteExec[W <: DataWriter[InternalRow]] extends V2E
     }
     // introduce a local var to avoid serializing the whole class
     val task = writingTask
-    val writerFactory = batchWrite.createBatchWriterFactory(
-      PhysicalWriteInfoImpl(rdd.getNumPartitions))
+    val writerFactory =
+      batchWrite.createBatchWriterFactory(PhysicalWriteInfoImpl(rdd.getNumPartitions))
     val useCommitCoordinator = batchWrite.useCommitCoordinator
     val messages = new Array[WriterCommitMessage](rdd.partitions.length)
     val totalNumRowsAccumulator = new LongAccumulator()
 
-    logInfo(s"Start processing data source write support: $batchWrite. " +
-      s"The input RDD has ${messages.length} partitions.")
+    logInfo(
+      s"Start processing data source write support: $batchWrite. " +
+        s"The input RDD has ${messages.length} partitions.")
 
     // Avoid object not serializable issue.
     val writeMetrics: Map[String, SQLMetric] = customMetrics
@@ -105,8 +107,7 @@ trait ExtendedV2ExistingTableWriteExec[W <: DataWriter[InternalRow]] extends V2E
           messages(index) = commitMessage
           totalNumRowsAccumulator.add(result.numRows)
           batchWrite.onDataWriterCommit(commitMessage)
-        }
-      )
+        })
 
       logInfo(s"Data source write support $batchWrite is committing.")
       batchWrite.commit(messages)
@@ -157,7 +158,9 @@ trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serial
     Utils.tryWithSafeFinallyAndFailureCallbacks(block = {
       while (iter.hasNext) {
         if (count % CustomMetrics.NUM_ROWS_PER_UPDATE == 0) {
-          CustomMetrics.updateMetrics(ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues), customMetrics)
+          CustomMetrics.updateMetrics(
+            ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues),
+            customMetrics)
         }
 
         // Count is here.
@@ -165,18 +168,21 @@ trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serial
         writeFunc(dataWriter, iter.next())
       }
 
-      CustomMetrics.updateMetrics(ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues), customMetrics)
+      CustomMetrics.updateMetrics(
+        ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues),
+        customMetrics)
 
       val msg = if (useCommitCoordinator) {
         val coordinator = SparkEnv.get.outputCommitCoordinator
         val commitAuthorized = coordinator.canCommit(stageId, stageAttempt, partId, attemptId)
         if (commitAuthorized) {
-          logInfo(s"Commit authorized for partition $partId (task $taskId, attempt $attemptId, " +
-            s"stage $stageId.$stageAttempt)")
+          logInfo(
+            s"Commit authorized for partition $partId (task $taskId, attempt $attemptId, " +
+              s"stage $stageId.$stageAttempt)")
           dataWriter.commit()
         } else {
-          val commitDeniedException = QueryExecutionErrors.commitDeniedError(
-            partId, taskId, attemptId, stageId, stageAttempt)
+          val commitDeniedException =
+            QueryExecutionErrors.commitDeniedError(partId, taskId, attemptId, stageId, stageAttempt)
           logInfo(commitDeniedException.getMessage)
           // throwing CommitDeniedException will trigger the catch block for abort
           throw commitDeniedException
@@ -187,26 +193,31 @@ trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serial
         dataWriter.commit()
       }
 
-      logInfo(s"Committed partition $partId (task $taskId, attempt $attemptId, " +
-        s"stage $stageId.$stageAttempt)")
+      logInfo(
+        s"Committed partition $partId (task $taskId, attempt $attemptId, " +
+          s"stage $stageId.$stageAttempt)")
 
       DataWritingSparkTaskResult(count, msg)
 
-    })(catchBlock = {
-      // If there is an error, abort this writer
-      logError(s"Aborting commit for partition $partId (task $taskId, attempt $attemptId, " +
-        s"stage $stageId.$stageAttempt)")
-      dataWriter.abort()
-      logError(s"Aborted commit for partition $partId (task $taskId, attempt $attemptId, " +
-        s"stage $stageId.$stageAttempt)")
-    }, finallyBlock = {
-      dataWriter.close()
-    })
+    })(
+      catchBlock = {
+        // If there is an error, abort this writer
+        logError(
+          s"Aborting commit for partition $partId (task $taskId, attempt $attemptId, " +
+            s"stage $stageId.$stageAttempt)")
+        dataWriter.abort()
+        logError(
+          s"Aborted commit for partition $partId (task $taskId, attempt $attemptId, " +
+            s"stage $stageId.$stageAttempt)")
+      },
+      finallyBlock = {
+        dataWriter.close()
+      })
   }
 }
 
-case class DeltaWithMetadataWritingSparkTask(
-    projs: WriteDeltaProjections) extends WritingSparkTask[DeltaWriter[InternalRow]] {
+case class DeltaWithMetadataWritingSparkTask(projs: WriteDeltaProjections)
+    extends WritingSparkTask[DeltaWriter[InternalRow]] {
 
   private lazy val rowProjection = projs.rowProjection.orNull
   private lazy val rowIdProjection = projs.rowIdProjection

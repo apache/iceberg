@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import java.util.Locale
@@ -61,7 +60,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (duplicateParamNames.nonEmpty) {
-      throw new AnalysisException(s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}")
+      throw new AnalysisException(
+        s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}")
     }
 
     // optional params should be at the end
@@ -89,7 +89,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (missingParamNames.nonEmpty) {
-      throw new AnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}")
+      throw new AnalysisException(
+        s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}")
     }
 
     val argExprs = new Array[Expression](params.size)
@@ -141,7 +142,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (validationErrors.nonEmpty) {
-      throw new AnalysisException(s"Could not build name to arg map: ${validationErrors.mkString(", ")}")
+      throw new AnalysisException(
+        s"Could not build name to arg map: ${validationErrors.mkString(", ")}")
     }
 
     namedArgs.map(arg => arg.name -> arg).toMap

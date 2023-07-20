@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.SparkException
@@ -36,9 +35,8 @@ import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import scala.collection.JavaConverters._
 
-abstract class DynamicFileFilterExecBase(
-    scanExec: SparkPlan,
-    fileFilterExec: SparkPlan) extends BinaryExecNode {
+abstract class DynamicFileFilterExecBase(scanExec: SparkPlan, fileFilterExec: SparkPlan)
+    extends BinaryExecNode {
 
   override lazy val metrics = Map(
     "candidateFiles" -> SQLMetrics.createMetric(sparkContext, "candidate files"),
@@ -97,7 +95,7 @@ case class DynamicFileFilterExec(
     scanExec: SparkPlan,
     fileFilterExec: SparkPlan,
     @transient filterable: SupportsFileFilter)
-  extends DynamicFileFilterExecBase(scanExec, fileFilterExec) {
+    extends DynamicFileFilterExecBase(scanExec, fileFilterExec) {
 
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
@@ -112,16 +110,16 @@ case class DynamicFileFilterWithCardinalityCheckExec(
     fileFilterExec: SparkPlan,
     @transient filterable: SupportsFileFilter,
     filesAccumulator: SetAccumulator[String])
-  extends DynamicFileFilterExecBase(scanExec, fileFilterExec)  {
+    extends DynamicFileFilterExecBase(scanExec, fileFilterExec) {
 
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
     if (rows.length > 0) {
       throw new SparkException(
         "The ON search condition of the MERGE statement matched a single row from " +
-        "the target table with multiple rows of the source table. This could result " +
-        "in the target row being operated on more than once with an update or delete operation " +
-        "and is not allowed.")
+          "the target table with multiple rows of the source table. This could result " +
+          "in the target row being operated on more than once with an update or delete operation " +
+          "and is not allowed.")
     }
     val matchedFileLocations = filesAccumulator.value
     val metric = filterable.filterFiles(matchedFileLocations)

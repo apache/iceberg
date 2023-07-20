@@ -129,7 +129,9 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     }
   }
 
-  private def extractFilters(cond: Expression, tableAttrs: Seq[AttributeReference]): Seq[Expression] = {
+  private def extractFilters(
+      cond: Expression,
+      tableAttrs: Seq[AttributeReference]): Seq[Expression] = {
     val tableAttrSet = AttributeSet(tableAttrs)
     splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
   }
@@ -147,7 +149,8 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
   protected def toDataSourceFilters(predicates: Seq[Expression]): Array[sources.Filter] = {
     predicates.flatMap { p =>
-      val translatedFilter = DataSourceStrategy.translateFilter(p, supportNestedPredicatePushdown = true)
+      val translatedFilter =
+        DataSourceStrategy.translateFilter(p, supportNestedPredicatePushdown = true)
       if (translatedFilter.isEmpty) {
         logWarning(s"Cannot translate expression to source filter: $p")
       }
@@ -160,7 +163,9 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 
-  private def buildFileFilterPlan(tableAttrs: Seq[AttributeReference], matchingRowsPlan: LogicalPlan): LogicalPlan = {
+  private def buildFileFilterPlan(
+      tableAttrs: Seq[AttributeReference],
+      matchingRowsPlan: LogicalPlan): LogicalPlan = {
     val fileAttr = findOutputAttr(tableAttrs, FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingRowsPlan)
     Project(Seq(findOutputAttr(agg.output, FILE_NAME_COL)), agg)
@@ -171,11 +176,13 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       prunedTargetPlan: LogicalPlan): LogicalPlan = {
     val fileAttr = findOutputAttr(prunedTargetPlan.output, FILE_NAME_COL)
     val rowPosAttr = findOutputAttr(prunedTargetPlan.output, ROW_POS_COL)
-    val accumulatorExpr = Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
+    val accumulatorExpr =
+      Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
     val projectList = Seq(fileAttr, rowPosAttr, accumulatorExpr)
     val projectPlan = Project(projectList, prunedTargetPlan)
     val affectedFilesAttr = findOutputAttr(projectPlan.output, AFFECTED_FILES_ACC_ALIAS_NAME)
-    val aggSumCol = Alias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)()
+    val aggSumCol =
+      Alias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)()
     // Group by the rows by row id while collecting the files that need to be over written via accumulator.
     val aggPlan = Aggregate(Seq(fileAttr, rowPosAttr), Seq(aggSumCol), projectPlan)
     val sumAttr = findOutputAttr(aggPlan.output, SUM_ROW_ID_ALIAS_NAME)
@@ -190,10 +197,12 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     }
   }
 
-  protected def toOutputAttrs(schema: StructType, attrs: Seq[AttributeReference]): Seq[AttributeReference] = {
+  protected def toOutputAttrs(
+      schema: StructType,
+      attrs: Seq[AttributeReference]): Seq[AttributeReference] = {
     val nameToAttr = attrs.map(_.name).zip(attrs).toMap
-    schema.toAttributes.map {
-      a => nameToAttr.get(a.name) match {
+    schema.toAttributes.map { a =>
+      nameToAttr.get(a.name) match {
         case Some(ref) =>
           // keep the attribute id if it was present in the relation
           a.withExprId(ref.exprId)

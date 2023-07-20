@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -50,8 +49,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
-      logInfo(
-        s"""
+      logInfo(s"""
            |Pushing operators to ${relation.name}
            |Pushed filters: ${pushedFilters.mkString(", ")}
            |Filters that were not pushed: ${remainingFilters.mkString(",")}

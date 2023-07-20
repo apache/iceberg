@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.SparkSession
@@ -38,11 +37,13 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 object OptimizeConditionsInRowLevelOperations extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case d @ DeleteFromTable(table, cond)
-        if !SubqueryExpression.hasSubquery(cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
+        if !SubqueryExpression.hasSubquery(
+          cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
       val optimizedCond = optimizeCondition(cond.getOrElse(Literal.TrueLiteral), table)
       d.copy(condition = Some(optimizedCond))
     case u @ UpdateTable(table, _, cond)
-        if !SubqueryExpression.hasSubquery(cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
+        if !SubqueryExpression.hasSubquery(
+          cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
       val optimizedCond = optimizeCondition(cond.getOrElse(Literal.TrueLiteral), table)
       u.copy(condition = Some(optimizedCond))
   }

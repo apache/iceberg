@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -69,8 +68,8 @@ trait AssignmentAlignmentSupport {
 
     val columnUpdates = assignments.map(a => ColumnUpdate(a.key, a.value))
     val outputExprs = applyUpdates(table.output, columnUpdates)
-    outputExprs.zip(table.output).map {
-      case (expr, attr) => Assignment(attr, expr)
+    outputExprs.zip(table.output).map { case (expr, attr) =>
+      Assignment(attr, expr)
     }
   }
 
@@ -104,7 +103,8 @@ trait AssignmentAlignmentSupport {
 
               // recursively apply this method on nested fields
               val newUpdates = updates.map(u => u.copy(ref = u.ref.tail))
-              val updatedFieldExprs = applyUpdates(fieldExprs, newUpdates, resolver, namePrefix :+ col.name)
+              val updatedFieldExprs =
+                applyUpdates(fieldExprs, newUpdates, resolver, namePrefix :+ col.name)
 
               // construct a new struct with updated field expressions
               toNamedStruct(fields, updatedFieldExprs)
@@ -113,8 +113,7 @@ trait AssignmentAlignmentSupport {
               val colName = (namePrefix :+ col.name).mkString(".")
               throw new AnalysisException(
                 "Updating nested fields is only supported for StructType " +
-                s"but $colName is of type $otherType"
-              )
+                  s"but $colName is of type $otherType")
           }
 
         // if there are conflicting updates, throw an exception
@@ -125,7 +124,7 @@ trait AssignmentAlignmentSupport {
           val conflictingCols = updates.map(u => (namePrefix ++ u.ref).mkString("."))
           throw new AnalysisException(
             "Updates are in conflict for these columns: " +
-            conflictingCols.distinct.mkString(", "))
+              conflictingCols.distinct.mkString(", "))
       }
     }
   }
@@ -175,11 +174,17 @@ trait AssignmentAlignmentSupport {
         // e.g. a struct with fields (a, b) is assigned as a struct with fields (a, c) or (b, a)
         val errors = new mutable.ArrayBuffer[String]()
         val canWrite = DataType.canWrite(
-          expr.dataType, tableAttr.dataType, byName = true, resolver, tableAttr.name,
-          storeAssignmentPolicy, err => errors += err)
+          expr.dataType,
+          tableAttr.dataType,
+          byName = true,
+          resolver,
+          tableAttr.name,
+          storeAssignmentPolicy,
+          err => errors += err)
 
         if (!canWrite) {
-          throw new AnalysisException(s"Cannot write incompatible data:\n- ${errors.mkString("\n- ")}")
+          throw new AnalysisException(
+            s"Cannot write incompatible data:\n- ${errors.mkString("\n- ")}")
         }
 
       case _ => // OK

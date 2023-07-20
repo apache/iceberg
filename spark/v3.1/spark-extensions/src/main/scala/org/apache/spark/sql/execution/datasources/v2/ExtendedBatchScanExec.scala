@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.rdd.RDD
@@ -32,9 +31,8 @@ import org.apache.spark.sql.connector.read.Scan
 // Spark calls supportsColumnar during physical planning which, in turn, triggers split planning
 // We must ensure the result is not cached so that we can push down file filters later
 // The only difference compared to BatchScanExec is that we are using def instead of lazy val for splits
-case class ExtendedBatchScanExec(
-    output: Seq[AttributeReference],
-    @transient scan: Scan) extends DataSourceV2ScanExecBase {
+case class ExtendedBatchScanExec(output: Seq[AttributeReference], @transient scan: Scan)
+    extends DataSourceV2ScanExecBase {
 
   @transient private lazy val batch = scan.toBatch
 

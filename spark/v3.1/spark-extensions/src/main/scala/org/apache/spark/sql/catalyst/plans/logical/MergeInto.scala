@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -25,7 +24,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 case class MergeInto(
     mergeIntoProcessor: MergeIntoParams,
     output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode
+    child: LogicalPlan)
+    extends UnaryNode
 
 case class MergeIntoParams(
     isSourceRowPresent: Expression,
@@ -35,4 +35,5 @@ case class MergeIntoParams(
     notMatchedConditions: Seq[Expression],
     notMatchedOutputs: Seq[Option[Seq[Expression]]],
     targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
+    joinedAttributes: Seq[Attribute])
+    extends Serializable

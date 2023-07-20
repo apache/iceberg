@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -31,11 +30,13 @@ import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 // a temp solution until PullupCorrelatedPredicates handles row-level operations in Spark
 object PullupCorrelatedPredicatesInRowLevelOperations extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case d @ DeleteFromTable(table, Some(cond)) if SubqueryExpression.hasSubquery(cond) && isIcebergRelation(table) =>
+    case d @ DeleteFromTable(table, Some(cond))
+        if SubqueryExpression.hasSubquery(cond) && isIcebergRelation(table) =>
       val transformedCond = transformCond(table, cond)
       d.copy(condition = Some(transformedCond))
 
-    case u @ UpdateTable(table, _, Some(cond)) if SubqueryExpression.hasSubquery(cond) && isIcebergRelation(table) =>
+    case u @ UpdateTable(table, _, Some(cond))
+        if SubqueryExpression.hasSubquery(cond) && isIcebergRelation(table) =>
       val transformedCond = transformCond(table, cond)
       u.copy(condition = Some(transformedCond))
   }

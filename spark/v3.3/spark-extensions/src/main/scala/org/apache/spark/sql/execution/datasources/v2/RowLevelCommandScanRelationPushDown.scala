@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.And
@@ -55,9 +54,11 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
     // group-based MERGE operations are rewritten as joins and may be planned in a special way
     // the join condition is the MERGE condition and can be pushed into the source
     // this allows us to remove completely pushed down predicates from the join condition
-    case UnplannedGroupBasedMergeOperation(command, rd: ReplaceIcebergData,
-        join @ Join(_, _, _, Some(joinCond), _), relation: DataSourceV2Relation) =>
-
+    case UnplannedGroupBasedMergeOperation(
+          command,
+          rd: ReplaceIcebergData,
+          join @ Join(_, _, _, Some(joinCond), _),
+          relation: DataSourceV2Relation) =>
       val table = relation.table.asRowLevelOperationTable
       val scanBuilder = table.newScanBuilder(relation.options)
 
@@ -70,8 +71,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
-      logInfo(
-        s"""
+      logInfo(s"""
            |Pushing MERGE operators to ${relation.name}
            |Pushed filters: $pushedFiltersStr
            |Original JOIN condition: $joinCond
@@ -101,8 +101,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
-      logInfo(
-        s"""
+      logInfo(s"""
            |Pushing operators to ${relation.name}
            |Pushed filters: ${pushedFilters.mkString(", ")}
            |Filters that were not pushed: ${remainingFilters.mkString(",")}
@@ -130,7 +129,8 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
     val (_, normalizedFiltersWithoutSubquery) =
       normalizedFilters.partition(SubqueryExpression.hasSubquery)
 
-    val (pushedFilters, _) = PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
+    val (pushedFilters, _) =
+      PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
     (pushedFilters.left.getOrElse(Seq.empty), pushedFilters.right.getOrElse(Seq.empty))
   }
 
@@ -173,8 +173,11 @@ object UnplannedGroupBasedMergeOperation {
         case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val joinsAndRelations = query.collect {
             case j @ Join(
-                NoStatsUnaryNode(ScanOperation(_, filters, r: DataSourceV2Relation)), _, _, _, _)
-                if filters.isEmpty && r.table.eq(table) =>
+                  NoStatsUnaryNode(ScanOperation(_, filters, r: DataSourceV2Relation)),
+                  _,
+                  _,
+                  _,
+                  _) if filters.isEmpty && r.table.eq(table) =>
               j -> r
           }
 

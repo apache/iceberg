@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -37,14 +36,16 @@ object RowLevelOperationsPredicateCheck extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case DeleteFromTable(r, Some(condition)) if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
+      case DeleteFromTable(r, Some(condition))
+          if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
         // this limitation is present since SPARK-25154 fix is not yet available
         // we use Not(EqualsNullSafe(cond, true)) when deciding which records to keep
         // such conditions are rewritten by Spark as an existential join and currently Spark
         // does not handle correctly NOT IN subqueries nested into other expressions
         failAnalysis("Null-aware predicate subqueries are not currently supported in DELETE")
 
-      case UpdateTable(r, _, Some(condition)) if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
+      case UpdateTable(r, _, Some(condition))
+          if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
         // this limitation is present since SPARK-25154 fix is not yet available
         // we use Not(EqualsNullSafe(cond, true)) when processing records that did not match
         // the update condition but were present in files we are overwriting
@@ -75,7 +76,7 @@ object RowLevelOperationsPredicateCheck extends (LogicalPlan => Unit) {
     if (SubqueryExpression.hasSubquery(cond)) {
       throw new AnalysisException(
         s"Subqueries are not supported in conditions of MERGE operations. " +
-        s"Found a subquery in the $condName condition: ${cond.sql}")
+          s"Found a subquery in the $condName condition: ${cond.sql}")
     }
   }
 

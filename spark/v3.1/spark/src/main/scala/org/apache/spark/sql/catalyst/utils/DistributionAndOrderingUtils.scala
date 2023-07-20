@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.utils
 
 import org.apache.spark.sql.AnalysisException
@@ -116,7 +115,11 @@ object DistributionAndOrderingUtils {
     expr match {
       case s: SortOrder =>
         val catalystChild = toCatalyst(s.expression(), query, resolver)
-        catalyst.expressions.SortOrder(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
+        catalyst.expressions.SortOrder(
+          catalystChild,
+          toCatalyst(s.direction),
+          toCatalyst(s.nullOrdering),
+          Seq.empty)
       case it: IdentityTransform =>
         resolve(it.ref.fieldNames)
       case BucketTransform(numBuckets, ref) =>
@@ -155,12 +158,13 @@ object DistributionAndOrderingUtils {
 
   private object BucketTransform {
     def unapply(transform: Transform): Option[(Int, FieldReference)] = transform match {
-      case bt: BucketTransform => bt.columns match {
-        case Seq(nf: NamedReference) =>
-          Some(bt.numBuckets.value(), FieldReference(nf.fieldNames()))
-        case _ =>
-          None
-      }
+      case bt: BucketTransform =>
+        bt.columns match {
+          case Seq(nf: NamedReference) =>
+            Some(bt.numBuckets.value(), FieldReference(nf.fieldNames()))
+          case _ =>
+            None
+        }
       case _ => None
     }
   }
@@ -173,14 +177,15 @@ object DistributionAndOrderingUtils {
 
   private object TruncateTransform {
     def unapply(transform: Transform): Option[(FieldReference, Int)] = transform match {
-      case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate")  => at.args match {
-        case Seq(nf: NamedReference, Lit(value: Int, IntegerType)) =>
-          Some(FieldReference(nf.fieldNames()), value)
-        case Seq(Lit(value: Int, IntegerType), nf: NamedReference) =>
-          Some(FieldReference(nf.fieldNames()), value)
-        case _ =>
-          None
-      }
+      case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate") =>
+        at.args match {
+          case Seq(nf: NamedReference, Lit(value: Int, IntegerType)) =>
+            Some(FieldReference(nf.fieldNames()), value)
+          case Seq(Lit(value: Int, IntegerType), nf: NamedReference) =>
+            Some(FieldReference(nf.fieldNames()), value)
+          case _ =>
+            None
+        }
       case _ => None
     }
   }

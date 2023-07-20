@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -86,9 +85,14 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
   private final val ROW_FROM_TARGET_REF = FieldReference(ROW_FROM_TARGET)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
+    case m @ MergeIntoIcebergTable(
+          aliasedTable,
+          source,
+          cond,
+          matchedActions,
+          notMatchedActions,
+          None)
         if m.resolved && m.aligned && matchedActions.isEmpty && notMatchedActions.size == 1 =>
-
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
           // NOT MATCHED conditions may only refer to columns in source so they can be pushed down
@@ -116,9 +120,13 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
 
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
-        if m.resolved && m.aligned && matchedActions.isEmpty =>
-
+    case m @ MergeIntoIcebergTable(
+          aliasedTable,
+          source,
+          cond,
+          matchedActions,
+          notMatchedActions,
+          None) if m.resolved && m.aligned && matchedActions.isEmpty =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
           // when there are no MATCHED actions, use a left anti join to remove any matching rows
@@ -149,9 +157,13 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
 
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
-        if m.resolved && m.aligned =>
-
+    case m @ MergeIntoIcebergTable(
+          aliasedTable,
+          source,
+          cond,
+          matchedActions,
+          notMatchedActions,
+          None) if m.resolved && m.aligned =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
           val table = buildOperationTable(tbl, MERGE, CaseInsensitiveStringMap.empty())
@@ -208,7 +220,8 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     // disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) LeftOuter else FullOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
-    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
+    val joinPlan =
+      Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
 
     // add an extra matched action to output the original row if none of the actual actions matched
     // this is needed to keep target rows that should be copied over
@@ -223,7 +236,8 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
 
     val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
-      isTargetRowPresent = if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
+      isTargetRowPresent =
+        if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
       matchedConditions = matchedConditions,
       matchedOutputs = matchedOutputs,
       notMatchedConditions = notMatchedConditions,
@@ -281,27 +295,32 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     // also disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) Inner else RightOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
-    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(joinCond), joinHint)
+    val joinPlan =
+      Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(joinCond), joinHint)
 
     val deleteRowValues = buildDeltaDeleteRowValues(rowAttrs, rowIdAttrs)
     val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
 
     val matchedConditions = matchedActions.map(actionCondition)
-    val matchedOutputs = matchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val matchedOutputs =
+      matchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val notMatchedConditions = notMatchedActions.map(actionCondition)
-    val notMatchedOutputs = notMatchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val notMatchedOutputs =
+      notMatchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
     // merged rows must contain values for the operation type and all read attrs
-    val mergeRowsOutput = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, operationTypeAttr +: readAttrs)
+    val mergeRowsOutput =
+      buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, operationTypeAttr +: readAttrs)
 
     val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
-      isTargetRowPresent = if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
+      isTargetRowPresent =
+        if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
       matchedConditions = matchedConditions,
       matchedOutputs = matchedOutputs,
       notMatchedConditions = notMatchedConditions,
@@ -323,9 +342,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     action.condition.getOrElse(TrueLiteral)
   }
 
-  private def actionOutput(
-      clause: MergeAction,
-      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+  private def actionOutput(clause: MergeAction, metadataAttrs: Seq[Attribute]): Seq[Expression] = {
 
     clause match {
       case u: UpdateAction =>

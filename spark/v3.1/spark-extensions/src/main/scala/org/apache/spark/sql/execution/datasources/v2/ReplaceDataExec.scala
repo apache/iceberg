@@ -16,17 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.write.BatchWrite
 import org.apache.spark.sql.execution.SparkPlan
 
-case class ReplaceDataExec(
-    batchWrite: BatchWrite,
-    refreshCache: () => Unit,
-    query: SparkPlan) extends V2TableWriteExec {
+case class ReplaceDataExec(batchWrite: BatchWrite, refreshCache: () => Unit, query: SparkPlan)
+    extends V2TableWriteExec {
 
   override protected def run(): Seq[InternalRow] = {
     // calling prepare() ensures we execute DynamicFileFilter if present

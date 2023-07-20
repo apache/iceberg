@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.Spark3Util
@@ -67,11 +66,19 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
 
-    case ReplacePartitionField(IcebergCatalogAndIdentifier(catalog, ident), transformFrom, transformTo, name) =>
+    case ReplacePartitionField(
+          IcebergCatalogAndIdentifier(catalog, ident),
+          transformFrom,
+          transformTo,
+          name) =>
       ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case CreateOrReplaceBranch(
-    IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
+          IcebergCatalogAndIdentifier(catalog, ident),
+          branch,
+          branchOptions,
+          replace,
+          ifNotExists) =>
       CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
 
     case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
@@ -84,20 +91,29 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       DropIdentifierFieldsExec(catalog, ident, fields) :: Nil
 
     case SetWriteDistributionAndOrdering(
-        IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
+          IcebergCatalogAndIdentifier(catalog, ident),
+          distributionMode,
+          ordering) =>
       SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
     case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
       DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
 
-    case DynamicFileFilterWithCardinalityCheck(scanPlan, fileFilterPlan, filterable, filesAccumulator) =>
+    case DynamicFileFilterWithCardinalityCheck(
+          scanPlan,
+          fileFilterPlan,
+          filterable,
+          filesAccumulator) =>
       DynamicFileFilterWithCardinalityCheckExec(
         planLater(scanPlan),
         planLater(fileFilterPlan),
         filterable,
         filesAccumulator) :: Nil
 
-    case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
+    case PhysicalOperation(
+          project,
+          filters,
+          DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
       // projection and filters were already pushed down in the optimizer.
       // this uses PhysicalOperation to get the projection and ensure that if the batch scan does
       // not support columnar, a projection is added to convert the rows to UnsafeRow.

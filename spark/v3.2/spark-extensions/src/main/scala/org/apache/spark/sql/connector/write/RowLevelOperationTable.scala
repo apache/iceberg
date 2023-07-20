@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.write
 
 import java.util
@@ -37,7 +36,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
  */
 case class RowLevelOperationTable(
     table: Table with SupportsRowLevelOperations,
-    operation: RowLevelOperation) extends Table with SupportsRead with SupportsWrite {
+    operation: RowLevelOperation)
+    extends Table
+    with SupportsRead
+    with SupportsWrite {
 
   override def name: String = table.name
   override def schema: StructType = table.schema

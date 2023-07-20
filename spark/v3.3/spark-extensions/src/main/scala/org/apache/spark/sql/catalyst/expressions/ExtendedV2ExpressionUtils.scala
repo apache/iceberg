@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.expressions
 
 import org.apache.spark.sql.AnalysisException
@@ -68,11 +67,11 @@ object ExtendedV2ExpressionUtils extends SQLConfHelper {
         resolveRef[NamedExpression](ref, query)
       case t: Transform if BucketTransform.unapply(t).isDefined =>
         t match {
-            // sort columns will be empty for bucket.
+          // sort columns will be empty for bucket.
           case BucketTransform(numBuckets, cols, _) =>
             IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](cols.head, query))
           case _ => t.asInstanceOf[Expression]
-            // do nothing
+          // do nothing
         }
       case TruncateTransform(length, ref) =>
         IcebergTruncateTransform(resolveRef[NamedExpression](ref, query), length)

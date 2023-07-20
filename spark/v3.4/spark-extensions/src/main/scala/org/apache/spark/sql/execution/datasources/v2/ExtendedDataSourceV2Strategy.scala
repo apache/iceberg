@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.Spark3Util
@@ -63,10 +62,19 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
 
     case CreateOrReplaceBranch(
-        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
+          IcebergCatalogAndIdentifier(catalog, ident),
+          branch,
+          branchOptions,
+          replace,
+          ifNotExists) =>
       CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
 
-    case CreateOrReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, replace, ifNotExists) =>
+    case CreateOrReplaceTag(
+          IcebergCatalogAndIdentifier(catalog, ident),
+          tag,
+          tagOptions,
+          replace,
+          ifNotExists) =>
       CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, replace, ifNotExists) :: Nil
 
     case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
@@ -78,7 +86,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
 
-    case ReplacePartitionField(IcebergCatalogAndIdentifier(catalog, ident), transformFrom, transformTo, name) =>
+    case ReplacePartitionField(
+          IcebergCatalogAndIdentifier(catalog, ident),
+          transformFrom,
+          transformTo,
+          name) =>
       ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case SetIdentifierFields(IcebergCatalogAndIdentifier(catalog, ident), fields) =>
@@ -88,24 +100,48 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       DropIdentifierFieldsExec(catalog, ident, fields) :: Nil
 
     case SetWriteDistributionAndOrdering(
-        IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
+          IcebergCatalogAndIdentifier(catalog, ident),
+          distributionMode,
+          ordering) =>
       SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
     case ReplaceIcebergData(_: DataSourceV2Relation, query, r: DataSourceV2Relation, Some(write)) =>
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
 
-    case WriteIcebergDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
+    case WriteIcebergDelta(
+          _: DataSourceV2Relation,
+          query,
+          r: DataSourceV2Relation,
+          projs,
+          Some(write)) =>
       // refresh the cache using the original relation
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
-    case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
-        output, child) =>
-
-      MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
-        output, planLater(child)) :: Nil
+    case MergeRows(
+          isSourceRowPresent,
+          isTargetRowPresent,
+          matchedConditions,
+          matchedOutputs,
+          notMatchedConditions,
+          notMatchedOutputs,
+          targetOutput,
+          performCardinalityCheck,
+          emitNotMatchedTargetRows,
+          output,
+          child) =>
+      MergeRowsExec(
+        isSourceRowPresent,
+        isTargetRowPresent,
+        matchedConditions,
+        matchedOutputs,
+        notMatchedConditions,
+        notMatchedOutputs,
+        targetOutput,
+        performCardinalityCheck,
+        emitNotMatchedTargetRows,
+        output,
+        planLater(child)) :: Nil
 
     case UpdateRows(deleteOutput, insertOutput, output, child) =>
       UpdateRowsExec(deleteOutput, insertOutput, output, planLater(child)) :: Nil

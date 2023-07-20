@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -152,9 +151,8 @@ object RewriteUpdateTable extends RewriteRowLevelIcebergCommand {
 
     // build a plan for updated records that match the cond
     val matchedRowsPlan = Filter(cond, readRelation)
-    val updatedRowsPlan = updateRows(
-      matchedRowsPlan, assignments, readAttrs,
-      rowAttrs, rowIdAttrs, metadataReadAttrs)
+    val updatedRowsPlan =
+      updateRows(matchedRowsPlan, assignments, readAttrs, rowAttrs, rowIdAttrs, metadataReadAttrs)
 
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)

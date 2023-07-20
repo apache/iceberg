@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkFilters
@@ -31,24 +30,33 @@ import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 
 object SparkExpressionConverter {
 
-  def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
+  def convertToIcebergExpression(
+      sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
     // Currently, it is a double conversion as we are converting Spark expression to Spark filter
     // and then converting Spark filter to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+    SparkFilters.convert(
+      DataSourceStrategy
+        .translateFilter(sparkExpression, supportNestedPredicatePushdown = true)
+        .get)
   }
 
   @throws[AnalysisException]
-  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
+  def collectResolvedSparkExpression(
+      session: SparkSession,
+      tableName: String,
+      where: String): Expression = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan.collectFirst {
-      case filter: Filter => filter.condition
-      case dummyRelation: DummyRelation => Literal.TrueLiteral
-      case localRelation: LocalRelation => Literal.FalseLiteral
-    }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
+    optimizedLogicalPlan
+      .collectFirst {
+        case filter: Filter => filter.condition
+        case dummyRelation: DummyRelation => Literal.TrueLiteral
+        case localRelation: LocalRelation => Literal.FalseLiteral
+      }
+      .getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode
