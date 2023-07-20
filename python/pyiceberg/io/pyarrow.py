@@ -27,7 +27,7 @@ from __future__ import annotations
 import concurrent.futures
 import os
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor, Future
+from concurrent.futures import Future
 from functools import lru_cache, singledispatch
 from itertools import chain
 from typing import (
@@ -125,6 +125,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.concurrent import executor
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -808,7 +809,7 @@ def _task_to_table(
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
 
-def _read_all_delete_files(fs: FileSystem, executor: Executor, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+def _read_all_delete_files(fs: FileSystem, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
     deletes_per_file: Dict[str, List[ChunkedArray]] = {}
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
@@ -868,9 +869,9 @@ def project_table(
     }.union(extract_field_ids(bound_row_filter))
 
     row_count = 0
-    deletes_per_file = _read_all_delete_files(fs, table.executor, tasks)
+    deletes_per_file = _read_all_delete_files(fs, tasks)
     futures = [
-        table.executor.submit(
+        executor.submit(
             _task_to_table,
             fs,
             task,

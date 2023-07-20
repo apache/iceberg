@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
@@ -70,6 +69,7 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
+from pyiceberg.utils.concurrent import executor
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -380,7 +380,6 @@ class Table:
     metadata_location: str = Field()
     io: FileIO
     catalog: Catalog
-    executor: Executor
 
     def __init__(
         self,
@@ -389,14 +388,12 @@ class Table:
         metadata_location: str,
         io: FileIO,
         catalog: Catalog,
-        executor: Optional[Executor] = None,
     ) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
         self.catalog = catalog
-        self.executor = executor or ThreadPoolExecutor()
 
     def transaction(self) -> Transaction:
         return Transaction(self)
@@ -782,7 +779,7 @@ class DataScan(TableScan):
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
         for manifest_entry in chain(
-            *self.table.executor.map(
+            *executor.map(
                 lambda args: _open_manifest(*args),
                 [
                     (
