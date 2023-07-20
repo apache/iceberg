@@ -164,7 +164,7 @@ public class AesGcmInputStream extends SeekableInputStream {
     if (newPos < 0) {
       throw new IOException("Negative new position " + newPos);
     } else if (newPos > plainStreamSize) {
-      throw new IOException(
+      throw new EOFException(
           "New position " + newPos + " exceeds the max stream size " + plainStreamSize);
     }
 
