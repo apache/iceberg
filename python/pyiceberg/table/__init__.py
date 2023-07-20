@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
@@ -380,15 +380,23 @@ class Table:
     metadata_location: str = Field()
     io: FileIO
     catalog: Catalog
+    executor: Executor
 
     def __init__(
-        self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO, catalog: Catalog
+        self,
+        identifier: Identifier,
+        metadata: TableMetadata,
+        metadata_location: str,
+        io: FileIO,
+        catalog: Catalog,
+        executor: Optional[Executor] = None,
     ) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
         self.catalog = catalog
+        self.executor = executor or ThreadPoolExecutor()
 
     def transaction(self) -> Transaction:
         return Transaction(self)
@@ -773,33 +781,30 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPoolExecutor() as executor:
-            for manifest_entry in chain(
-                *executor.map(
-                    lambda args: _open_manifest(*args),
-                    [
-                        (
-                            io,
-                            manifest,
-                            partition_evaluators[manifest.partition_spec_id],
-                            metrics_evaluator,
-                        )
-                        for manifest in manifests
-                        if self._check_sequence_number(min_data_sequence_number, manifest)
-                    ],
-                )
-            ):
-                data_file = manifest_entry.data_file
-                if data_file.content == DataFileContent.DATA:
-                    data_entries.append(manifest_entry)
-                elif data_file.content == DataFileContent.POSITION_DELETES:
-                    positional_delete_entries.add(manifest_entry)
-                elif data_file.content == DataFileContent.EQUALITY_DELETES:
-                    raise ValueError(
-                        "PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568"
+        for manifest_entry in chain(
+            *self.table.executor.map(
+                lambda args: _open_manifest(*args),
+                [
+                    (
+                        io,
+                        manifest,
+                        partition_evaluators[manifest.partition_spec_id],
+                        metrics_evaluator,
                     )
-                else:
-                    raise ValueError(f"Unknown DataFileContent ({data_file.content}): {manifest_entry}")
+                    for manifest in manifests
+                    if self._check_sequence_number(min_data_sequence_number, manifest)
+                ],
+            )
+        ):
+            data_file = manifest_entry.data_file
+            if data_file.content == DataFileContent.DATA:
+                data_entries.append(manifest_entry)
+            elif data_file.content == DataFileContent.POSITION_DELETES:
+                positional_delete_entries.add(manifest_entry)
+            elif data_file.content == DataFileContent.EQUALITY_DELETES:
+                raise ValueError("PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568")
+            else:
+                raise ValueError(f"Unknown DataFileContent ({data_file.content}): {manifest_entry}")
 
         return [
             FileScanTask(

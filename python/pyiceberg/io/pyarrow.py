@@ -27,7 +27,7 @@ from __future__ import annotations
 import concurrent.futures
 import os
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor, ThreadPoolExecutor
+from concurrent.futures import Executor
 from functools import lru_cache, singledispatch
 from itertools import chain
 from typing import (
@@ -868,11 +868,10 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    executor = ThreadPoolExecutor()
     row_count_log: List[int] = []
-    deletes_per_file = _read_all_delete_files(fs, executor, tasks)
+    deletes_per_file = _read_all_delete_files(fs, table.executor, tasks)
     futures = [
-        executor.submit(
+        table.executor.submit(
             _task_to_table,
             fs,
             task,
@@ -897,25 +896,19 @@ def project_table(
             tables.append((ix, result))
             row_count += len(result)
 
-        # cancel remaining futures if limit satisfied
+        # stop early if limit is satisfied
         if limit and row_count >= limit:
-            pending_futures = (f for f in futures if not f.done())
-            for pf in pending_futures:
-                pf.cancel()
             break
 
-    # by now, we've either gathered enough rows or completed all tasks
-    # when min python version is 3.9, we can cancel pending futures using
-    # `Executor.shutdown` via `cancel_futures=True`
-    executor.shutdown(wait=False)
+    # by now, we've either completed all tasks or satisfied the limit
+    _ = (f.cancel() for f in futures if not f.done())
 
-    # futures can complete in any order, but results should be consistent
-    sorted_tables = [t[1] for t in sorted(tables, key=lambda t: t[0])]
-
-    if len(sorted_tables) > 1:
+    if len(tables) > 1:
+        # futures can complete in any order, but results should be consistent
+        sorted_tables = [t[1] for t in sorted(tables, key=lambda t: t[0])]
         final_table = pa.concat_tables(sorted_tables)
-    elif len(sorted_tables) == 1:
-        final_table = sorted_tables[0]
+    elif len(tables) == 1:
+        final_table = tables[0][1]
     else:
         final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
