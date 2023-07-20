@@ -24,22 +24,25 @@ description = "Apache Iceberg is an open table format for huge analytic datasets
 authors = ["Apache Software Foundation <dev@iceberg.apache.org>"]
 license = "Apache License 2.0"
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11"
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11"
 ]
 packages = [
-  { include = "pyiceberg" },
-  { from = "vendor", include = "fb303" },
-  { from = "vendor", include = "hive_metastore" },
-  { include = "tests", format = "sdist" },
-  { include = "Makefile", format = "sdist" },
-  { include = "NOTICE", format = ["sdist", "wheel"] }
+    { include = "pyiceberg" },
+    { from = "vendor", include = "fb303" },
+    { from = "vendor", include = "hive_metastore" },
+    { include = "tests", format = "sdist" },
+    { include = "Makefile", format = "sdist" },
+    { include = "NOTICE", format = ["sdist", "wheel"] }
 ]
-include = [{ path = "dev", format = "sdist" }]
+include = [
+    { path = "dev", format = "sdist" },
+    { path = "pyiceberg/**/*.so", format = "wheel" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -82,8 +85,12 @@ ignore_missing_imports = true
 pyiceberg = "pyiceberg.cli.console:run"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.0.0", "cython"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.build]
+generate-setup-file = false
+script = "build.py"
 
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
@@ -100,9 +107,9 @@ zstandard = ["zstandard"]
 
 [tool.pytest.ini_options]
 markers = [
-  "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint-url args)",
-  "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)",
-  "integration: marks integration tests against Apache Spark"
+    "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint-url args)",
+    "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)",
+    "integration: marks integration tests against Apache Spark"
 ]
 
 [tool.black]

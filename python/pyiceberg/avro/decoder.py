@@ -21,6 +21,7 @@ from io import SEEK_CUR
 from typing import Dict, List
 from uuid import UUID
 
+import pyiceberg.avro.decoder_fast
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
@@ -289,36 +290,45 @@ class InMemoryBinaryDecoder(BinaryDecoder):
 
         int/long values are written using variable-length, zigzag coding.
         """
-        b = self._contents[self._position]
-        self._position += 1
-        n = b & 0x7F
-        shift = 7
-        while b & 0x80:
-            b = self._contents[self._position]
-            self._position += 1
-            n |= (b & 0x7F) << shift
-            shift += 7
-        return (n >> 1) ^ -(n & 1)
+        result = pyiceberg.avro.decoder_fast.read_int(self._contents, self._position)
+        self._position += result[1]
+        return result[0]
+
+    def read_ints(self, n: int, dest: List[int]) -> None:
+        """Reads a list of integers."""
+        for _ in range(n):
+            result = pyiceberg.avro.decoder_fast.read_int(self._contents, self._position)
+            self._position += result[1]
+            dest.append(result[0])
+
+    def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
+        """Reads a dictionary of integers for keys and values into a destination dictionary."""
+        for _ in range(n):
+            decode_result = pyiceberg.avro.decoder_fast.read_ints(self._contents, self._position)
+            dest[decode_result[0][0]] = decode_result[0][1]
+            self._position += decode_result[1]
 
     def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
         """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
         for _ in range(n):
-            k = self.read_int()
+            decode_result = pyiceberg.avro.decoder_fast.read_ints(self._contents, self._position)
+            self._position += decode_result[1]
 
-            byte_length = self.read_int()
-            if byte_length <= 0:
-                dest[k] = b""
+            if decode_result[0][1] <= 0:
+                dest[decode_result[0][0]] = b""
             else:
-                dest[k] = self._contents[self._position : self._position + byte_length]
-                self._position += byte_length
+                dest[decode_result[0][0]] = self._contents[self._position : self._position + decode_result[0][1]]
+                self._position += decode_result[0][1]
 
     def read_bytes(self) -> bytes:
         """Bytes are encoded as a long followed by that many bytes of data."""
-        num_bytes = self.read_int()
-        if num_bytes <= 0:
+        num_bytes_result = pyiceberg.avro.decoder_fast.read_int(self._contents, self._position)
+        self._position += num_bytes_result[1]
+
+        if num_bytes_result[0] <= 0:
             return b""
-        r = self._contents[self._position : self._position + num_bytes]
-        self._position += num_bytes
+        r = self._contents[self._position : self._position + num_bytes_result[0]]
+        self._position += num_bytes_result[0]
         return r
 
     def skip_int(self) -> None:

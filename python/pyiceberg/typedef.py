@@ -138,7 +138,6 @@ class Record(StructProtocol):
 
     def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:
         if struct is not None:
-            print("Doing it")
             self._position_to_field_name = _get_struct_fields(struct)
         elif named_data:
             # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
