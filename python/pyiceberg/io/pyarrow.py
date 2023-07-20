@@ -27,7 +27,7 @@ from __future__ import annotations
 import concurrent.futures
 import os
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor
+from concurrent.futures import Executor, Future
 from functools import lru_cache, singledispatch
 from itertools import chain
 from typing import (
@@ -62,6 +62,7 @@ from pyarrow.fs import (
     PyFileSystem,
     S3FileSystem,
 )
+from sortedcontainers import SortedList
 
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
@@ -884,13 +885,12 @@ def project_table(
         for task in tasks
     ]
 
-    # for consistent ordering, we need to maintain result order
+    # for consistent ordering, we need to maintain future order
     futures_index = {f: i for i, f in enumerate(futures)}
-    tables: List[Tuple[int, pa.Table]] = []
+    completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
     for future in concurrent.futures.as_completed(futures):
         if result := future.result():
-            ix = futures_index[future]
-            tables.append((ix, result))
+            completed_futures.add(future)
             row_count += len(result)
 
         # stop early if limit is satisfied
@@ -898,14 +898,15 @@ def project_table(
             break
 
     # by now, we've either completed all tasks or satisfied the limit
-    _ = (f.cancel() for f in futures if not f.done())
+    if limit:
+        _ = (f.cancel() for f in futures if not f.done())
+
+    tables = [f.result() for f in completed_futures]
 
     if len(tables) > 1:
-        # futures can complete in any order, but results should be consistent
-        sorted_tables = [t[1] for t in sorted(tables, key=lambda t: t[0])]
-        final_table = pa.concat_tables(sorted_tables)
+        final_table = pa.concat_tables(tables)
     elif len(tables) == 1:
-        final_table = tables[0][1]
+        final_table = tables[0]
     else:
         final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
