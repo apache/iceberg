@@ -874,17 +874,15 @@ def project_table(
     futures = (
         executor.submit(
             _task_to_table,
-            *(
-                fs,
-                task,
-                bound_row_filter,
-                projected_schema,
-                projected_field_ids,
-                deletes_per_file.get(task.file.file_path),
-                case_sensitive,
-                row_count_log,
-                limit,
-            ),
+            fs,
+            task,
+            bound_row_filter,
+            projected_schema,
+            projected_field_ids,
+            deletes_per_file.get(task.file.file_path),
+            case_sensitive,
+            row_count_log,
+            limit,
         )
         for task in tasks
     )
@@ -901,8 +899,8 @@ def project_table(
                     break
 
     # by now, we've either gathered enough rows or completed all tasks
-    # when our min python version is 3.9, we can cancel pending futures using cancel_futures=True
-    # until then, tasks need to know how to short-circuit themselves using `row_count_log`
+    # when min python version is 3.9, we can cancel pending futures using cancel_futures=True
+    # until then, tasks need to know how to short-circuit using `row_count_log`
     executor.shutdown(wait=False)
 
     if len(tables) > 1:
