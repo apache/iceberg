@@ -179,7 +179,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
 
   @Test
   public void testDaysPartitionTransform() throws Exception {
-    createTable("timestamp", "days(partition_col)");
+    createTable("timestamp", "days(`partition_col.type`)");
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
     insertData(i -> Timestamp.valueOf(baseTimestamp.toLocalDateTime().plusDays(i)));
     testDanglingDelete();
@@ -229,12 +229,12 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   private void createTable(String partitionType) {
-    createTable(partitionType, "partition_col");
+    createTable(partitionType, "`partition_col.type`");
   }
 
   private void createTable(String partitionType, String partitionCol) {
     sql(
-        "CREATE TABLE %s (id long, partition_col %s, c1 string, c2 string) "
+        "CREATE TABLE %s (id long, `partition_col.type` %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
             + "TBLPROPERTIES('format-version'='2')",
@@ -250,7 +250,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
       Dataset<Row> df =
           spark
               .range(0, ROWS_PER_DATA_FILE)
-              .withColumn("partition_col", lit(partitionValue.apply(i)))
+              .withColumn("`partition_col.type`", lit(partitionValue.apply(i)))
               .withColumn("c1", expr("CAST(id AS STRING)"))
               .withColumn("c2", expr("CAST(id AS STRING)"));
       appendAsFile(df);
@@ -333,7 +333,12 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
 
   private List<Object[]> records(String table) {
     return rowsToJava(
-        spark.read().format("iceberg").load(table).sort("partition_col", "id").collectAsList());
+        spark
+            .read()
+            .format("iceberg")
+            .load(table)
+            .sort("`partition_col.type`", "id")
+            .collectAsList());
   }
 
   private long size(List<DeleteFile> deleteFiles) {
