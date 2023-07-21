@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A scan task that may include partial input files, multiple input files or both.
@@ -60,4 +62,10 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
   default int filesCount() {
     return tasks().stream().mapToInt(ScanTask::filesCount).sum();
   }
+
+
+  default String[] setIfNeededAndGetPreferredLocations(Supplier<String[]> preferredLocationsEvaluator) {
+    return new String[0];
+  }
+
 }
