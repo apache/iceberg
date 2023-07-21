@@ -82,7 +82,17 @@ public abstract class DeleteFilter<T> {
       Schema tableSchema,
       Schema requestedSchema,
       DeleteCounter counter) {
-    this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
+    this(filePath, deletes, tableSchema, requestedSchema, counter, DEFAULT_SET_FILTER_THRESHOLD);
+  }
+
+  protected DeleteFilter(
+      String filePath,
+      List<DeleteFile> deletes,
+      Schema tableSchema,
+      Schema requestedSchema,
+      DeleteCounter counter,
+      long setFilterThreshold) {
+    this.setFilterThreshold = setFilterThreshold;
     this.filePath = filePath;
     this.counter = counter;
 
