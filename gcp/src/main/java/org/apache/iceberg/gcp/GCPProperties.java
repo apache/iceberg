@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp;
 
 import java.io.Serializable;
+import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,6 +37,9 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
+  public static final String GCS_OAUTH2_TOKEN = "gcs.oauth2.token";
+  public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
+
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
@@ -46,6 +50,9 @@ public class GCPProperties implements Serializable {
 
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
+
+  private String gcsOAuth2Token;
+  private Date gcsOAuth2TokenExpiresAt;
 
   public GCPProperties() {}
 
@@ -64,6 +71,12 @@ public class GCPProperties implements Serializable {
 
     if (properties.containsKey(GCS_CHANNEL_WRITE_CHUNK_SIZE)) {
       gcsChannelWriteChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_WRITE_CHUNK_SIZE));
+    }
+
+    gcsOAuth2Token = properties.get(GCS_OAUTH2_TOKEN);
+    if (properties.containsKey(GCS_OAUTH2_TOKEN_EXPIRES_AT)) {
+      gcsOAuth2TokenExpiresAt =
+          new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
   }
 
@@ -97,5 +110,13 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> userProject() {
     return Optional.ofNullable(gcsUserProject);
+  }
+
+  public Optional<String> oauth2Token() {
+    return Optional.ofNullable(gcsOAuth2Token);
+  }
+
+  public Optional<Date> oauth2TokenExpiresAt() {
+    return Optional.ofNullable(gcsOAuth2TokenExpiresAt);
   }
 }
