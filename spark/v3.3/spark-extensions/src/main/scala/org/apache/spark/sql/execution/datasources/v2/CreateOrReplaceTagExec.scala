@@ -31,6 +31,7 @@ case class CreateOrReplaceTagExec(
     ident: Identifier,
     tag: String,
     tagOptions: TagOptions,
+    create: Boolean,
     replace: Boolean,
     ifNotExists: Boolean) extends LeafV2CommandExec {
 
@@ -50,15 +51,18 @@ case class CreateOrReplaceTagExec(
           "Cannot complete create or replace tag operation on %s, main has no snapshot", ident)
 
         val manageSnapshot = iceberg.table.manageSnapshots()
-        if (!replace) {
-          val ref = iceberg.table().refs().get(tag)
-          if (ref != null && ifNotExists) {
+        val refExists = null != iceberg.table().refs().get(tag)
+
+        if (create && replace && !refExists) {
+          manageSnapshot.createTag(tag, snapshotId)
+        } else if (replace) {
+          manageSnapshot.replaceTag(tag, snapshotId)
+        } else {
+          if (refExists && ifNotExists) {
             return Nil
           }
 
           manageSnapshot.createTag(tag, snapshotId)
-        } else {
-          manageSnapshot.replaceTag(tag, snapshotId)
         }
 
         if (tagOptions.snapshotRefRetain.nonEmpty) {
