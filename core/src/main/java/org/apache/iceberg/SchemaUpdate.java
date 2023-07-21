@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -25,10 +27,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -62,7 +71,9 @@ class SchemaUpdate implements UpdateSchema {
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
+  private boolean onlyValidateLiveData = false;
   private Set<String> identifierFieldNames;
+  private final Set<Integer> idsToValidateNotNull = Sets.newHashSet();
   private boolean caseSensitive = true;
 
   SchemaUpdate(TableOperations ops) {
@@ -94,6 +105,12 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
+  public UpdateSchema validateLiveDataOnly() {
+    this.onlyValidateLiveData = true;
+    return this;
+  }
+
+  @Override
   public UpdateSchema addColumn(String name, Type type, String doc) {
     Preconditions.checkArgument(
         !name.contains("."),
@@ -120,8 +137,6 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema addRequiredColumn(String parent, String name, Type type, String doc) {
-    Preconditions.checkArgument(
-        allowIncompatibleChanges, "Incompatible change: cannot add required column: %s", name);
     internalAddColumn(parent, name, false, type, doc);
     return this;
   }
@@ -181,6 +196,10 @@ class SchemaUpdate implements UpdateSchema {
         parentId,
         Types.NestedField.of(
             newId, isOptional, name, TypeUtil.assignFreshIds(type, this::assignNewColumnId), doc));
+
+    if (!isOptional) {
+      idsToValidateNotNull.add(newId);
+    }
   }
 
   @Override
@@ -249,10 +268,6 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     Preconditions.checkArgument(
-        isOptional || allowIncompatibleChanges,
-        "Cannot change column nullability: %s: optional -> required",
-        name);
-    Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s",
         field.name());
@@ -268,6 +283,10 @@ class SchemaUpdate implements UpdateSchema {
       updates.put(
           fieldId,
           Types.NestedField.of(fieldId, isOptional, field.name(), field.type(), field.doc()));
+    }
+
+    if (!isOptional) {
+      idsToValidateNotNull.add(fieldId);
     }
   }
 
@@ -431,7 +450,19 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public Schema apply() {
     Schema newSchema =
-        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
+        applyChanges(
+            base,
+            ops == null ? null : ops.io(), /* may be null in tests */
+            schema,
+            deletes,
+            updates,
+            adds,
+            moves,
+            identifierFieldNames,
+            idsToValidateNotNull,
+            allowIncompatibleChanges,
+            onlyValidateLiveData,
+            caseSensitive);
 
     return newSchema;
   }
@@ -496,13 +527,19 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private static Schema applyChanges(
+      TableMetadata current,
+      FileIO io,
       Schema schema,
       List<Integer> deletes,
       Map<Integer, Types.NestedField> updates,
       Multimap<Integer, Types.NestedField> adds,
       Multimap<Integer, Move> moves,
       Set<String> identifierFieldNames,
+      Set<Integer> idsToValidateNotNull,
+      boolean allowIncompatibleChanges,
+      boolean onlyValidateLiveData,
       boolean caseSensitive) {
+
     // validate existing identifier fields are not deleted
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
@@ -533,6 +570,12 @@ class SchemaUpdate implements UpdateSchema {
             .asNestedType()
             .asStructType();
 
+    // validate not null constraint for new required columns
+    if (!allowIncompatibleChanges && !idsToValidateNotNull.isEmpty()) {
+      validateNotNullConstraint(
+          current, io, new Schema(struct.fields()), idsToValidateNotNull, onlyValidateLiveData);
+    }
+
     // validate identifier requirements based on the latest schema
     Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
     Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
@@ -549,6 +592,134 @@ class SchemaUpdate implements UpdateSchema {
         id -> Schema.validateIdentifierField(id, idToField, idToParent));
 
     return new Schema(struct.fields(), freshIdentifierFieldIds);
+  }
+
+  @SuppressWarnings("CyclomaticComplexity")
+  private static void validateNotNullConstraint(
+      TableMetadata current,
+      FileIO io,
+      Schema newSchema,
+      Set<Integer> idsToValidateNotNull,
+      boolean onlyValidateLiveData) {
+    if (current.currentSnapshot() == null) {
+      return; // fresh table, any fields are allowed to be changed to required
+    }
+
+    // When constructing evaluators, Binder#bind will simplify the notNull('col') expression to
+    // alwaysTrue() if the field 'col' is resolved to be required. So make the fields that need
+    // to check the not null constraint to optional and then validate.
+    Map<Integer, Types.NestedField> changeToOptional = Maps.newHashMap();
+    for (Integer id : idsToValidateNotNull) {
+      changeToOptional.put(id, newSchema.findField(id).asOptional());
+    }
+
+    Types.StructType structType =
+        TypeUtil.visit(
+                newSchema,
+                new ApplyChanges(
+                    Lists.newArrayList(),
+                    changeToOptional,
+                    Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList),
+                    Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList)))
+            .asNestedType()
+            .asStructType();
+
+    Schema schemaToValidate = new Schema(structType.fields());
+
+    Map<Integer, StrictMetricsEvaluator> columnEvaluators = Maps.newHashMap();
+    boolean noEqFieldsToValidate = true;
+
+    for (Integer fieldId : idsToValidateNotNull) {
+      Types.NestedField field = schemaToValidate.findField(fieldId);
+      StrictMetricsEvaluator evaluator =
+          new StrictMetricsEvaluator(schemaToValidate, Expressions.notNull(field.name()));
+      columnEvaluators.put(fieldId, evaluator);
+
+      // Double type and float type are not allowed to be equality fields
+      noEqFieldsToValidate &=
+          (field.type().typeId() == Type.TypeID.DOUBLE
+              || field.type().typeId() == Type.TypeID.FLOAT);
+    }
+
+    List<Snapshot> snapshots =
+        onlyValidateLiveData ? ImmutableList.of(current.currentSnapshot()) : current.snapshots();
+    List<String> dataProjection =
+        ImmutableList.of(DataFile.NULL_VALUE_COUNTS.name(), DataFile.RECORD_COUNT.name());
+    List<String> deleteProjection =
+        ImmutableList.of(
+            DataFile.NULL_VALUE_COUNTS.name(),
+            DataFile.CONTENT.name(),
+            DataFile.EQUALITY_IDS.name(),
+            DataFile.RECORD_COUNT.name());
+
+    String exceptionMsgFormat =
+        "Cannot set a column to required: %s, as it cannot be determined from "
+            + "existing metadata metrics that it must not contain null values";
+
+    Map<ManifestContent, List<ManifestFile>> groupedManifests =
+        FluentIterable.from(snapshots).transformAndConcat(snapshot -> snapshot.allManifests(io))
+            .stream()
+            .collect(Collectors.groupingBy(ManifestFile::content));
+
+    List<ManifestFile> dataManifests = groupedManifests.get(ManifestContent.DATA);
+    if (dataManifests != null) {
+      ManifestGroup group = new ManifestGroup(io, dataManifests).select(dataProjection);
+      if (onlyValidateLiveData) {
+        group.ignoreDeleted();
+      }
+
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = group.entries()) {
+        for (ManifestEntry<DataFile> manifestEntry : entries) {
+          for (Map.Entry<Integer, StrictMetricsEvaluator> entry : columnEvaluators.entrySet()) {
+            StrictMetricsEvaluator evaluator = entry.getValue();
+            ValidationException.check(
+                evaluator.eval(manifestEntry.file()),
+                exceptionMsgFormat,
+                schemaToValidate.findColumnName(entry.getKey()));
+          }
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    if (noEqFieldsToValidate) {
+      return;
+    }
+
+    List<ManifestFile> deleteManifests = groupedManifests.get(ManifestContent.DELETES);
+    if (deleteManifests != null) {
+      Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders =
+          Iterables.transform(
+              deleteManifests,
+              manifest -> {
+                ManifestReader<DeleteFile> deleteFiles =
+                    ManifestFiles.readDeleteManifest(manifest, io, current.specsById())
+                        .select(deleteProjection);
+                return onlyValidateLiveData ? deleteFiles.liveEntries() : deleteFiles.entries();
+              });
+
+      try (CloseableIterable<ManifestEntry<DeleteFile>> all =
+          CloseableIterable.concat(deleteManifestReaders)) {
+        FluentIterable.from(all)
+            .transform(ManifestEntry::file)
+            .filter(file -> file.content() == FileContent.EQUALITY_DELETES)
+            .forEach(
+                eqDeleteFile -> {
+                  for (Integer eqFieldId : eqDeleteFile.equalityFieldIds()) {
+                    StrictMetricsEvaluator evaluator = columnEvaluators.get(eqFieldId);
+                    if (evaluator != null) {
+                      ValidationException.check(
+                          evaluator.eval(eqDeleteFile),
+                          exceptionMsgFormat,
+                          schemaToValidate.findColumnName(eqFieldId));
+                    }
+                  }
+                });
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {

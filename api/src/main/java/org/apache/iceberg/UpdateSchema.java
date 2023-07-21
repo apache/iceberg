@@ -49,6 +49,26 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema allowIncompatibleChanges();
 
   /**
+   * Validate only live data in compatibility checks.
+   *
+   * <p>All data referenced from all living snapshots will be validated by default when performing
+   * compatibility checks, because deleted data may still be read by schemas in future snapshots.
+   * For example, changelog reads will use the current schema to read deleted data. However, If the
+   * table does not have such a query mode that needs to read deleted data, only liva data in the
+   * current snapshot needs to be validated.
+   *
+   * <p>This option allows validating only live data when performing compatibility checks. This
+   * should be used when the caller determines that it does not need to query deleted data using the
+   * current schema.
+   *
+   * @return this for method chaining
+   */
+  default UpdateSchema validateLiveDataOnly() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + "doesn't implement validateLiveDataOnly");
+  }
+
+  /**
    * Add a new top-level column.
    *
    * <p>Because "." may be interpreted as a column path separator or may be used in field names, it
