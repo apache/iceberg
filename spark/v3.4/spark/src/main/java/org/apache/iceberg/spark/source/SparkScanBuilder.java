@@ -43,6 +43,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -91,6 +92,7 @@ public class SparkScanBuilder
   private final CaseInsensitiveStringMap options;
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
+  private final InMemoryMetricsReporter metricsReporter;
 
   private Schema schema = null;
   private boolean caseSensitive;
@@ -109,6 +111,7 @@ public class SparkScanBuilder
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, branch, options);
     this.caseSensitive = readConf.caseSensitive();
+    this.metricsReporter = new InMemoryMetricsReporter();
   }
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
@@ -430,7 +433,8 @@ public class SparkScanBuilder
             .newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -450,7 +454,14 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkBatchQueryScan(
+        spark,
+        table,
+        scan,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
@@ -470,7 +481,14 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkBatchQueryScan(
+        spark,
+        table,
+        scan,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   public Scan buildChangelogScan() {
@@ -573,7 +591,13 @@ public class SparkScanBuilder
 
     if (snapshot == null) {
       return new SparkBatchQueryScan(
-          spark, table, null, readConf, schemaWithMetadataColumns(), filterExpressions);
+          spark,
+          table,
+          null,
+          readConf,
+          schemaWithMetadataColumns(),
+          filterExpressions,
+          metricsReporter::scanReport);
     }
 
     // remember the current snapshot ID for commit validation
@@ -597,7 +621,13 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkBatchQueryScan(
-        spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions);
+        spark,
+        table,
+        scan,
+        adjustedReadConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   public Scan buildCopyOnWriteScan() {
@@ -605,7 +635,12 @@ public class SparkScanBuilder
 
     if (snapshot == null) {
       return new SparkCopyOnWriteScan(
-          spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
+          spark,
+          table,
+          readConf,
+          schemaWithMetadataColumns(),
+          filterExpressions,
+          metricsReporter::scanReport);
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -622,7 +657,14 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkCopyOnWriteScan(
-        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
+        spark,
+        table,
+        scan,
+        snapshot,
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
   }
 
   private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {
