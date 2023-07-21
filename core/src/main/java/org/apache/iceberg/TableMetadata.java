@@ -244,10 +244,63 @@ public class TableMetadata implements Serializable {
   private final List<StatisticsFile> statisticsFiles;
   private final List<MetadataUpdate> changes;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  private final SerializableSupplier<TableMetadata> metadataSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
+  private volatile TableMetadata fullMetadata;
+
+  TableMetadata(
+      String metadataFileLocation,
+      int formatVersion,
+      String uuid,
+      String location,
+      long lastSequenceNumber,
+      long lastUpdatedMillis,
+      int lastColumnId,
+      int currentSchemaId,
+      List<Schema> schemas,
+      int defaultSpecId,
+      List<PartitionSpec> specs,
+      int lastAssignedPartitionId,
+      int defaultSortOrderId,
+      List<SortOrder> sortOrders,
+      Map<String, String> properties,
+      long currentSnapshotId,
+      List<Snapshot> snapshots,
+      SerializableSupplier<List<Snapshot>> snapshotsSupplier,
+      List<HistoryEntry> snapshotLog,
+      List<MetadataLogEntry> previousFiles,
+      Map<String, SnapshotRef> refs,
+      List<StatisticsFile> statisticsFiles,
+      List<MetadataUpdate> changes) {
+    this(
+        metadataFileLocation,
+        formatVersion,
+        uuid,
+        location,
+        lastSequenceNumber,
+        lastUpdatedMillis,
+        lastColumnId,
+        currentSchemaId,
+        schemas,
+        defaultSpecId,
+        specs,
+        lastAssignedPartitionId,
+        defaultSortOrderId,
+        sortOrders,
+        properties,
+        currentSnapshotId,
+        snapshots,
+        snapshotsSupplier,
+        snapshotLog,
+        previousFiles,
+        refs,
+        statisticsFiles,
+        changes,
+        null);
+  }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -273,7 +326,8 @@ public class TableMetadata implements Serializable {
       List<MetadataLogEntry> previousFiles,
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
-      List<MetadataUpdate> changes) {
+      List<MetadataUpdate> changes,
+      SerializableSupplier<TableMetadata> metadataSupplier) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -313,6 +367,7 @@ public class TableMetadata implements Serializable {
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
+    this.metadataSupplier = metadataSupplier;
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;
@@ -478,7 +533,12 @@ public class TableMetadata implements Serializable {
 
   public Snapshot snapshot(long snapshotId) {
     if (!snapshotsById.containsKey(snapshotId)) {
-      ensureSnapshotsLoaded();
+      // maintain backward comp. when snapshots supplier is set
+      if (null != snapshotsSupplier) {
+        ensureSnapshotsLoaded();
+      } else {
+        return fullMetadata().snapshotsById.get(snapshotId);
+      }
     }
 
     return snapshotsById.get(snapshotId);
@@ -489,9 +549,25 @@ public class TableMetadata implements Serializable {
   }
 
   public List<Snapshot> snapshots() {
-    ensureSnapshotsLoaded();
+    // maintain backward comp. when snapshots supplier is set
+    if (null != snapshotsSupplier) {
+      ensureSnapshotsLoaded();
+      return snapshots;
+    }
 
-    return snapshots;
+    return fullMetadata().snapshots;
+  }
+
+  private synchronized TableMetadata fullMetadata() {
+    if (null != metadataSupplier) {
+      if (null == fullMetadata) {
+        fullMetadata = metadataSupplier.get();
+      }
+
+      return fullMetadata;
+    }
+
+    return this;
   }
 
   private synchronized void ensureSnapshotsLoaded() {
@@ -523,7 +599,7 @@ public class TableMetadata implements Serializable {
   }
 
   public List<HistoryEntry> snapshotLog() {
-    return snapshotLog;
+    return null != metadataSupplier ? metadataSupplier.get().snapshotLog() : snapshotLog;
   }
 
   public List<MetadataLogEntry> previousFiles() {
@@ -861,6 +937,7 @@ public class TableMetadata implements Serializable {
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
     private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+    private SerializableSupplier<TableMetadata> metadataSupplier;
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
 
@@ -1143,8 +1220,18 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    /**
+     * @deprecated will be removed in 1.5.0; use {@link
+     *     TableMetadata.Builder#setMetadataSupplier(SerializableSupplier)} instead.
+     */
+    @Deprecated
     public Builder setSnapshotsSupplier(SerializableSupplier<List<Snapshot>> snapshotsSupplier) {
       this.snapshotsSupplier = snapshotsSupplier;
+      return this;
+    }
+
+    public Builder setMetadataSupplier(SerializableSupplier<TableMetadata> metadataSupplier) {
+      this.metadataSupplier = metadataSupplier;
       return this;
     }
 
@@ -1381,7 +1468,8 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),
           statisticsFiles.values().stream().flatMap(List::stream).collect(Collectors.toList()),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
+          metadataSupplier);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {

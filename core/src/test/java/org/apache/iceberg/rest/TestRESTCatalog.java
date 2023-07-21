@@ -2003,4 +2003,77 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema2.findField("new-column")).isNull();
     assertThat(schema2.columns()).hasSize(1);
   }
+
+  @Test
+  public void lazySnapshotLoadingWithHistory() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "snapshot-loading-mode",
+            "refs"));
+
+    Table table =
+        catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
+
+    int numSnapshots = 5;
+
+    for (int i = 0; i < numSnapshots; i++) {
+      table
+          .newFastAppend()
+          .appendFile(
+              DataFiles.builder(PartitionSpec.unpartitioned())
+                  .withPath(String.format("/path/to/data-%s.parquet", i))
+                  .withFileSizeInBytes(10)
+                  .withRecordCount(2)
+                  .build())
+          .commit();
+    }
+
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
+
+    // Respond with only referenced snapshots
+    Answer<?> refsAnswer =
+        invocation -> {
+          LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
+          TableMetadata fullTableMetadata = originalResponse.tableMetadata();
+
+          Set<Long> referencedSnapshotIds =
+              fullTableMetadata.refs().values().stream()
+                  .map(SnapshotRef::snapshotId)
+                  .collect(Collectors.toSet());
+
+          TableMetadata refsMetadata =
+              fullTableMetadata.removeSnapshotsIf(
+                  s -> !referencedSnapshotIds.contains(s.snapshotId()));
+
+          return LoadTableResponse.builder()
+              .withTableMetadata(refsMetadata)
+              .addAllConfig(originalResponse.config())
+              .build();
+        };
+
+    Mockito.doAnswer(refsAnswer)
+        .when(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.table(TABLE)),
+            eq(ImmutableMap.of("snapshots", "refs")),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table refsTables = catalog.loadTable(TABLE);
+    assertThat(refsTables.currentSnapshot()).isEqualTo(table.currentSnapshot());
+    assertThat(refsTables.snapshots()).hasSize(numSnapshots);
+    assertThat(refsTables.history()).hasSize(numSnapshots);
+  }
 }

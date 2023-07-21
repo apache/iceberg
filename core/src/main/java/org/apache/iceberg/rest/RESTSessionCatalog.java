@@ -344,11 +344,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           TableMetadata.buildFrom(response.tableMetadata())
               .withMetadataLocation(response.metadataLocation())
               .setPreviousFileLocation(null)
-              .setSnapshotsSupplier(
-                  () ->
-                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
-                          .tableMetadata()
-                          .snapshots())
+              .setMetadataSupplier(
+                  () -> loadInternal(context, finalIdentifier, SnapshotMode.ALL).tableMetadata())
               .discardChanges()
               .build();
     } else {
