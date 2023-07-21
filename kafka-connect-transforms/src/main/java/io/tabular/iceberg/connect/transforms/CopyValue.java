@@ -73,9 +73,9 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
 
   @Override
   public R apply(R record) {
-    if (operatingValue(record) == null) {
+    if (record.value() == null) {
       return record;
-    } else if (operatingSchema(record) == null) {
+    } else if (record.valueSchema() == null) {
       return applySchemaless(record);
     } else {
       return applyWithSchema(record);
@@ -83,7 +83,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   }
 
   private R applySchemaless(R record) {
-    final Map<String, Object> value = requireMap(operatingValue(record), "copy value");
+    final Map<String, Object> value = requireMap(record.value(), "copy value");
 
     final Map<String, Object> updatedValue = new HashMap<>(value);
     updatedValue.put(targetField, value.get(sourceField));
@@ -92,7 +92,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   }
 
   private R applyWithSchema(R record) {
-    final Struct value = requireStruct(operatingValue(record), "copy value");
+    final Struct value = requireStruct(record.value(), "copy value");
 
     Schema updatedSchema = schemaUpdateCache.get(value.schema());
     if (updatedSchema == null) {
@@ -129,14 +129,6 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   @Override
   public ConfigDef config() {
     return CONFIG_DEF;
-  }
-
-  protected Schema operatingSchema(R record) {
-    return record.valueSchema();
-  }
-
-  protected Object operatingValue(R record) {
-    return record.value();
   }
 
   protected R newRecord(R record, Schema updatedSchema, Object updatedValue) {
