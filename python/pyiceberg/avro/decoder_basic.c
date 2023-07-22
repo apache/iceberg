@@ -1,12 +1,19 @@
-static inline void decode_int(const char *buffer, unsigned long *result, unsigned int *consumed_bytes) {
+static inline void decode_ints(const char *buffer, unsigned int count, unsigned long *result, unsigned int *consumed_bytes) {
   const char *start = buffer;
-  unsigned int shift = 7;
-  register unsigned long n = *buffer & 0x7F;
-  while(*buffer & 0x80) {
-      buffer += 1;
-      n |= (unsigned long)(*buffer & 0x7F) << shift;
-      shift += 7;
+  unsigned int shift;
+  unsigned int i;
+
+  for (i = 0; i < count; i++) {
+    shift = 7;
+    *result = *buffer & 0x7F;
+    while(*buffer & 0x80) {
+        buffer += 1;
+        *result |= (unsigned long)(*buffer & 0x7F) << shift;
+        shift += 7;
+    }
+    *result = (*result >> 1) ^ -(*result & 1);
+    result += 1;
+    buffer += 1;
   }
-  *result = (n >> 1) ^ -(n & 1);
-  *consumed_bytes = buffer - start + 1;
+  *consumed_bytes = buffer - start;
 }

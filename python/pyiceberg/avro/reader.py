@@ -40,6 +40,8 @@ from typing import (
 )
 from uuid import UUID
 
+from pyparsing import Iterator
+
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
@@ -257,7 +259,7 @@ class OptionReader(Reader):
         # type of the default value must match the first element of the union.
         # This is enforced in the schema conversion, which happens prior
         # to building the reader tree
-        if decoder.read_int() > 0:
+        if decoder.read_boolean() > 0:
             return self.option.read(decoder)
         return None
 
@@ -338,6 +340,34 @@ class StructReader(Reader):
         """Returns a hashed representation of the StructReader class."""
         return self._hash
 
+from collections.abc import Mapping
+import functools
+
+class LazyDictIntInt(Mapping[int, int]):
+    """ Lazily build a dictionary from an array of integers."""
+    __slots__ = ("_contents", "_dict", "_did_build")
+    _dict: Dict[int,int]
+    def __init__(self, contents: Tuple[Tuple[int, int]]):
+        self._contents = contents
+        self._did_build = False
+
+    def _build_dict(self) -> None:
+        if not self._did_build:
+            self._did_build = True
+            self._dict = {}
+            for item in self._contents:
+                self._dict.update(dict(zip(item[::2], item[1::2])))
+
+    def __getitem__(self, key: int, /) -> int:
+        self._build_dict()
+        return self._dict[key]
+
+    def __iter__(self) -> Iterator[int]:
+        self._build_dict()
+        return iter(self._dict)
+
+    def __len__(self) -> int:
+        return int(len(self._contents)/2)
 
 @dataclass(frozen=False, init=False)
 class ListReader(Reader):
@@ -358,7 +388,7 @@ class ListReader(Reader):
                 block_count = -block_count
                 _ = decoder.read_int()
             if self._is_int_list:
-                decoder.read_ints(block_count, read_items)
+                read_items.extend(decoder.read_ints(block_count))
             else:
                 for _ in range(block_count):
                     read_items.append(self.element.read(decoder))
@@ -393,22 +423,36 @@ class MapReader(Reader):
             self._value_reader = self.value.read
         self._hash = hash((self.key, self.value))
 
-    def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
+    def read_int_int(self, decoder: BinaryDecoder) -> Mapping[int, int]:
+        contents_array: List[Tuple[int, ...]] = []
+        block_count = decoder.read_int()
+        while block_count != 0:
+            if block_count < 0:
+                block_count = -block_count
+                # We ignore the block size for now
+                _ = decoder.read_int()
+            contents_array.append(decoder.read_ints(block_count * 2))
+            block_count = decoder.read_int()
+        return LazyDictIntInt(contents_array)
+
+
+    def read(self, decoder: BinaryDecoder) -> Mapping[Any, Any]:
         read_items: dict[Any, Any] = {}
 
-        block_count = decoder.read_int()
         if self._is_int_int or self._is_int_bytes:
+            if self._is_int_int:
+                return self.read_int_int(decoder)
+
+            block_count = decoder.read_int()
             while block_count != 0:
                 if block_count < 0:
                     block_count = -block_count
                     # We ignore the block size for now
                     _ = decoder.read_int()
-                if self._is_int_int:
-                    decoder.read_int_int_dict(block_count, read_items)
-                else:
-                    decoder.read_int_bytes_dict(block_count, read_items)
+                decoder.read_int_bytes_dict(block_count, read_items)
                 block_count = decoder.read_int()
         else:
+            block_count = decoder.read_int()
             while block_count != 0:
                 if block_count < 0:
                     block_count = -block_count
