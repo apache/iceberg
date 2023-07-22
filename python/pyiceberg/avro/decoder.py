@@ -289,6 +289,8 @@ class InMemoryBinaryDecoder(BinaryDecoder):
 
         int/long values are written using variable-length, zigzag coding.
         """
+        if self._position == self._size:
+            raise EOFError("EOF: read 1 byte")
         b = self._contents[self._position]
         self._position += 1
         n = b & 0x7F
