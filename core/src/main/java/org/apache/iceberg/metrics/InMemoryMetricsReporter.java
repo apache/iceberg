@@ -16,24 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.metrics;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
+public class InMemoryMetricsReporter implements MetricsReporter {
 
-case class CreateOrReplaceBranch(
-    table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
-    create: Boolean,
-    replace: Boolean,
-    ifNotExists: Boolean) extends Command {
+  private MetricsReport metricsReport;
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+  @Override
+  public void report(MetricsReport report) {
+    this.metricsReport = report;
+  }
 
-  override lazy val output: Seq[Attribute] = Nil
-
-  override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+  public ScanReport scanReport() {
+    Preconditions.checkArgument(
+        metricsReport == null || metricsReport instanceof ScanReport,
+        "Metrics report is not a scan report");
+    return (ScanReport) metricsReport;
   }
 }

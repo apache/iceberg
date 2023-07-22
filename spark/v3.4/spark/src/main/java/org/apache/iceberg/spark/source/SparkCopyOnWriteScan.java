@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
@@ -30,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -57,8 +59,9 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       Table table,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
-    this(spark, table, null, null, readConf, expectedSchema, filters);
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier) {
+    this(spark, table, null, null, readConf, expectedSchema, filters, scanReportSupplier);
   }
 
   SparkCopyOnWriteScan(
@@ -68,9 +71,9 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       Snapshot snapshot,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
-
-    super(spark, table, scan, readConf, expectedSchema, filters);
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier) {
+    super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
 
     this.snapshot = snapshot;
 

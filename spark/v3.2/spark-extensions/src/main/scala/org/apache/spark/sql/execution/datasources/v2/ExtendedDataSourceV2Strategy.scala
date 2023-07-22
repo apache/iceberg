@@ -72,11 +72,12 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case CreateOrReplaceBranch(
-        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
-      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
+        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, create, replace, ifNotExists) :: Nil
 
-    case CreateOrReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, replace, ifNotExists) =>
-      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, replace, ifNotExists) :: Nil
+    case CreateOrReplaceTag(
+        IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, create, replace, ifNotExists) :: Nil
 
     case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
       DropBranchExec(catalog, ident, branch, ifExists) :: Nil
