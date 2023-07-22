@@ -17,7 +17,9 @@
 
 import os
 import shutil
-from distutils.core import Distribution, Extension
+
+# Python 3.11 deprecates this but older versions still need it
+from distutils.core import Distribution, Extension  # pylint: disable=deprecated-module
 
 from Cython.Build import build_ext, cythonize
 

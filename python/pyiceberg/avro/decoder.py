@@ -18,11 +18,7 @@ import decimal
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from io import SEEK_CUR
-from typing import (
-    Dict,
-    List,
-    Tuple,
-)
+from typing import Dict, List, Tuple
 from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
