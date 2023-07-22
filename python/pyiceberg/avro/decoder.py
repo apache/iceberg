@@ -21,7 +21,6 @@ from io import SEEK_CUR
 from typing import Dict, List, Tuple
 from uuid import UUID
 
-import pyiceberg.avro.decoder_fast
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
@@ -236,92 +235,3 @@ class StreamingBinaryDecoder(BinaryDecoder):
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
-
-
-class InMemoryBinaryDecoder(BinaryDecoder):
-    """Implement a BinaryDecoder that reads from an in-memory buffer.
-
-    This may be more efficient if the entire block is already in memory
-    as it does not need to interact with the I/O subsystem.
-    """
-
-    __slots__ = ["_contents", "_position", "_size"]
-    _contents: bytes
-    _position: int
-    _size: int
-
-    def __init__(self, input_stream: InputStream) -> None:
-        """Reader is a Python object on which we can call read, seek, and tell."""
-        super().__init__(input_stream)
-        self._contents = input_stream.read()
-        self._size = len(self._contents)
-        self._position = 0
-
-    def tell(self) -> int:
-        """Return the current stream position."""
-        return self._position
-
-    def read(self, n: int) -> bytes:
-        """Read n bytes."""
-        if n < 0:
-            raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        if self._position + n > self._size:
-            raise EOFError(f"EOF: read {n} bytes")
-        r = self._contents[self._position : self._position + n]
-        self._position += n
-        return r
-
-    def skip(self, n: int) -> None:
-        self._position += n
-
-    def read_boolean(self) -> bool:
-        """Reads a value from the stream as a boolean.
-
-        A boolean is written as a single byte
-        whose value is either 0 (false) or 1 (true).
-        """
-        r = self._contents[self._position]
-        self._position += 1
-        return r != 0
-
-    def read_int(self) -> int:
-        """Reads a value from the stream as an integer.
-
-        int/long values are written using variable-length, zigzag coding.
-        """
-        result, bytes_used = pyiceberg.avro.decoder_fast.read_int(self._contents, self._position)
-        self._position += bytes_used
-        return result
-
-    def read_ints(self, n: int) -> Tuple[int, ...]:
-        """Reads a list of integers."""
-        result, bytes_consumed = pyiceberg.avro.decoder_fast.read_ints(self._contents, self._position, n)
-        self._position += bytes_consumed
-        return result
-
-    def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
-        """Reads a dictionary of integers for keys and values into a destination dictionary."""
-        self._position += pyiceberg.avro.decoder_fast.read_int_int_dict(self._contents, self._position, n, dest)
-
-    def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
-        """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
-        bytes_used = pyiceberg.avro.decoder_fast.read_int_bytes_dict(self._contents, self._position, n, dest)
-        self._position += bytes_used
-
-    def read_bytes(self) -> bytes:
-        """Bytes are encoded as a long followed by that many bytes of data."""
-        num_bytes_result = pyiceberg.avro.decoder_fast.read_int(self._contents, self._position)
-        self._position += num_bytes_result[1]
-
-        if num_bytes_result[0] <= 0:
-            return b""
-        r = self._contents[self._position : self._position + num_bytes_result[0]]
-        self._position += num_bytes_result[0]
-        return r
-
-    def skip_int(self) -> None:
-        b = self._contents[self._position]
-        self._position += 1
-        while b & 0x80:
-            b = self._contents[self._position]
-            self._position += 1

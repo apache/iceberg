@@ -26,6 +26,7 @@ read schema is different, while respecting the read schema.
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
 from datetime import datetime, time
@@ -259,7 +260,7 @@ class OptionReader(Reader):
         # type of the default value must match the first element of the union.
         # This is enforced in the schema conversion, which happens prior
         # to building the reader tree
-        if decoder.read_boolean() > 0:
+        if decoder.read_int() > 0:
             return self.option.read(decoder)
         return None
 
@@ -311,7 +312,6 @@ class StructReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> StructProtocol:
         struct = self.create_struct(struct=self.struct) if self._create_with_keyword else self.create_struct()
-
         for pos, field_reader in self._field_reader_functions:
             if pos is not None:
                 struct[pos] = field_reader(decoder)  # later: pass reuse in here
@@ -340,16 +340,17 @@ class StructReader(Reader):
         """Returns a hashed representation of the StructReader class."""
         return self._hash
 
-from collections.abc import Mapping
-import functools
 
 class LazyDictIntInt(Mapping[int, int]):
-    """ Lazily build a dictionary from an array of integers."""
-    __slots__ = ("_contents", "_dict", "_did_build")
-    _dict: Dict[int,int]
-    def __init__(self, contents: Tuple[Tuple[int, int]]):
+    """Lazily build a dictionary from an array of integers."""
+
+    __slots__ = ("_contents", "_dict", "_did_build", "_len")
+    _dict: Dict[int, int]
+
+    def __init__(self, contents: Tuple[Tuple[int, ...], ...]):
         self._contents = contents
         self._did_build = False
+        self._len = len(self._contents) // 2
 
     def _build_dict(self) -> None:
         if not self._did_build:
@@ -359,15 +360,19 @@ class LazyDictIntInt(Mapping[int, int]):
                 self._dict.update(dict(zip(item[::2], item[1::2])))
 
     def __getitem__(self, key: int, /) -> int:
+        """Returns the value for the given key."""
         self._build_dict()
         return self._dict[key]
 
     def __iter__(self) -> Iterator[int]:
+        """Returns an iterator over the keys of the dictionary."""
         self._build_dict()
         return iter(self._dict)
 
     def __len__(self) -> int:
-        return int(len(self._contents)/2)
+        """Returns the number of items in the dictionary."""
+        return self._len
+
 
 @dataclass(frozen=False, init=False)
 class ListReader(Reader):
@@ -430,11 +435,10 @@ class MapReader(Reader):
             if block_count < 0:
                 block_count = -block_count
                 # We ignore the block size for now
-                _ = decoder.read_int()
+                decoder.skip_int()
             contents_array.append(decoder.read_ints(block_count * 2))
             block_count = decoder.read_int()
-        return LazyDictIntInt(contents_array)
-
+        return LazyDictIntInt(tuple(contents_array))
 
     def read(self, decoder: BinaryDecoder) -> Mapping[Any, Any]:
         read_items: dict[Any, Any] = {}

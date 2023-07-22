@@ -21,7 +21,8 @@ from typing import Type
 
 import pytest
 
-from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder, StreamingBinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -64,7 +65,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 
-AVAILABLE_DECODERS = [StreamingBinaryDecoder, InMemoryBinaryDecoder]
+AVAILABLE_DECODERS = [StreamingBinaryDecoder, lambda stream: CythonBinaryDecoder(stream.read())]
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:

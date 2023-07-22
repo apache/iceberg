@@ -1,10 +1,10 @@
-from distutils.core import Distribution, Extension
-import shutil
 import os
+import shutil
+from distutils.core import Distribution, Extension
+
 from Cython.Build import build_ext, cythonize
 
-
-compile_args = ["-march=native", "-O3"]
+compile_args = ["-O3"]
 
 
 def build():
@@ -17,7 +17,7 @@ def build():
     ]
     ext_modules = cythonize(
         extensions,
-        compiler_directives={"binding": True, "language_level": 3, "profile": True, "linetrace": True},
+        compiler_directives={"binding": True, "language_level": 3},
     )
 
     dist = Distribution({"ext_modules": ext_modules})
@@ -26,8 +26,8 @@ def build():
     cmd.run()
 
     for output in cmd.get_outputs():
-      relative_extension = os.path.relpath(output, cmd.build_lib)
-      shutil.copyfile(output, relative_extension)
+        relative_extension = os.path.relpath(output, cmd.build_lib)
+        shutil.copyfile(output, relative_extension)
 
     # cmd = build_ext(distribution)
     # cmd.ensure_finalized()

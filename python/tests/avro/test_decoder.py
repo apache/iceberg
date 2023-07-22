@@ -26,12 +26,13 @@ from uuid import UUID
 
 import pytest
 
-from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder, StreamingBinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream
 from pyiceberg.types import DoubleType, FloatType
 
-AVAILABLE_DECODERS = [StreamingBinaryDecoder, InMemoryBinaryDecoder]
+AVAILABLE_DECODERS = [StreamingBinaryDecoder, lambda stream: CythonBinaryDecoder(stream.read())]
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
@@ -71,6 +72,13 @@ def test_read_int(decoder_class: Type[BinaryDecoder]) -> None:
     mis = io.BytesIO(b"\x18")
     decoder = decoder_class(mis)
     assert decoder.read_int() == 12
+
+
+@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
+def test_read_int_longer(decoder_class: Type[BinaryDecoder]) -> None:
+    mis = io.BytesIO(b"\x8e\xd1\x87\x01")
+    decoder = decoder_class(mis)
+    assert decoder.read_int() == 1111111
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
