@@ -337,6 +337,10 @@ public class SnapshotUtil {
    *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    return snapshotIdAsOfTime(table, timestampMillis, false);
+  }
+
+  public static Long snapshotIdAsOfTime(Table table, long timestampMillis, boolean nullable) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : table.history()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
@@ -345,7 +349,7 @@ public class SnapshotUtil {
     }
 
     Preconditions.checkArgument(
-        snapshotId != null,
+        snapshotId != null || nullable,
         "Cannot find a snapshot older than %s",
         DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
