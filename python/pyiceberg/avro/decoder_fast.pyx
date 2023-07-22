@@ -31,10 +31,10 @@ import decimal
 import array
 
 cdef extern from "decoder_basic.c":
-  void decode_ints_with_ptr(const char **buffer, unsigned int count, long *result);
+  void decode_ints_with_ptr(const char **buffer, unsigned int count, unsigned long *result);
   void skip_int(const char **buffer);
 
-long_array_template = cython.declare(array.array, array.array('l', []))
+unsigned_long_array_template = cython.declare(array.array, array.array('L', []))
 
 @cython.final
 cdef class CythonBinaryDecoder:
@@ -95,28 +95,28 @@ cdef class CythonBinaryDecoder:
 
         int/long values are written using variable-length, zigzag coding.
         """
-        cdef long result;
+        cdef unsigned long result;
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_ints_with_ptr(&self._current, 1, <long *>&result)
+        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&result)
         return result
 
     def read_ints(self, count: int) -> Tuple[int, ...]:
         """Reads a list of integers."""
-        newarray = array.clone(long_array_template, count, zero=False)
+        newarray = array.clone(unsigned_long_array_template, count, zero=False)
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_ints_with_ptr(&self._current, count, newarray.data.as_longs)
+        decode_ints_with_ptr(&self._current, count, newarray.data.as_ulongs)
         return newarray
 
     cpdef void read_int_bytes_dict(self, count: int, dest: Dict[int, bytes]):
         """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
-        cdef long result[2];
+        cdef unsigned long result[2];
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
 
         for _ in range(count):
-          decode_ints_with_ptr(&self._current, 2, <long *>&result)
+          decode_ints_with_ptr(&self._current, 2, <unsigned long *>&result)
           if result[1] <= 0:
               dest[result[0]] = b""
           else:
@@ -125,11 +125,11 @@ cdef class CythonBinaryDecoder:
 
     cpdef inline bytes read_bytes(self):
         """Bytes are encoded as a long followed by that many bytes of data."""
-        cdef long length;
+        cdef unsigned long length;
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
 
-        decode_ints_with_ptr(&self._current, 1, <long *>&length)
+        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&length)
 
         if length <= 0:
             return b""
@@ -239,7 +239,7 @@ cdef class CythonBinaryDecoder:
 
     def skip_bytes(self) -> None:
         cdef long result;
-        decode_ints_with_ptr(&self._current, 1, <long *>&result)
+        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&result)
         self._current += result
 
     def skip_utf8(self) -> None:

@@ -25,7 +25,7 @@
   `result` is where the decoded integers are stored.
 
 */
-static inline void decode_ints_with_ptr(const char **buffer, unsigned int count, long *result) {
+static inline void decode_ints_with_ptr(const char **buffer, unsigned int count, unsigned long *result) {
   unsigned int shift;
   unsigned int i;
 
@@ -34,7 +34,7 @@ static inline void decode_ints_with_ptr(const char **buffer, unsigned int count,
     *result = **buffer & 0x7F;
     while(**buffer & 0x80) {
         *buffer += 1;
-        *result |= (long)(**buffer & 0x7F) << shift;
+        *result |= (unsigned long)(**buffer & 0x7F) << shift;
         shift += 7;
     }
     *result = (*result >> 1) ^ -(*result & 1);

@@ -66,7 +66,7 @@ boto3 = { version = ">=1.17.106", optional = true }
 s3fs = { version = ">=2021.08.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
 adlfs = { version = ">=2021.07.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
 psycopg2-binary = { version = ">=2.9.6", optional = true }
-sqlalchemy = { version = "^2.0.18", optional = true }
+sqlalchemy = { version = "^2.0.18" }
 
 [tool.poetry.dev-dependencies]
 pytest = "7.4.0"
@@ -78,6 +78,7 @@ requests-mock = "1.11.0"
 moto = "^4.1.13"
 typing-extensions = "4.7.1"
 pytest-mock = "3.11.1"
+cython = "3.0.0"
 
 [[tool.mypy.overrides]]
 module = "pytest_mock.*"
@@ -87,12 +88,12 @@ ignore_missing_imports = true
 pyiceberg = "pyiceberg.cli.console:run"
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "cython"]
+requires = ["poetry-core>=1.0.0", "wheel", "Cython>=3.0.0", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.build]
 generate-setup-file = false
-script = "build.py"
+script = "build-module.py"
 
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
@@ -267,7 +268,11 @@ module = "sqlalchemy.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "Cython.Build"
+module = "Cython.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "setuptools.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
