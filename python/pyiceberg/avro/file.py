@@ -35,10 +35,9 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.encoder import BinaryEncoder
-from pyiceberg.avro.reader import Reader
+from pyiceberg.avro.reader import ReadableDecoder, Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
 from pyiceberg.avro.writer import Writer
 from pyiceberg.io import InputFile, OutputFile, OutputStream
@@ -106,7 +105,7 @@ D = TypeVar("D", bound=StructProtocol)
 class Block(Generic[D]):
     reader: Reader
     block_records: int
-    block_decoder: BinaryDecoder
+    block_decoder: ReadableDecoder
     position: int = 0
 
     def __iter__(self) -> Block[D]:
@@ -144,7 +143,7 @@ class AvroFile(Generic[D]):
     schema: Schema
     reader: Reader
 
-    decoder: BinaryDecoder
+    decoder: ReadableDecoder
     block: Optional[Block[D]]
 
     def __init__(

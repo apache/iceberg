@@ -26,7 +26,6 @@ read schema is different, while respecting the read schema.
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
 from datetime import datetime, time
@@ -36,20 +35,25 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Tuple,
+    Union,
 )
 from uuid import UUID
 
 from pyparsing import Iterator
 
 from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
+ReadableDecoder = Union[BinaryDecoder, CythonBinaryDecoder]
 
-def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:
+
+def _skip_map_array(decoder: ReadableDecoder, skip_entry: Callable[[], None]) -> None:
     """Skips over an array or map.
 
     Both the array and map are encoded similar, and we can re-use
@@ -87,11 +91,11 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> N
 
 class Reader(Singleton):
     @abstractmethod
-    def read(self, decoder: BinaryDecoder) -> Any:
+    def read(self, decoder: ReadableDecoder) -> Any:
         ...
 
     @abstractmethod
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         ...
 
     def __repr__(self) -> str:
@@ -100,10 +104,10 @@ class Reader(Singleton):
 
 
 class NoneReader(Reader):
-    def read(self, _: BinaryDecoder) -> None:
+    def read(self, _: ReadableDecoder) -> None:
         return None
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         return None
 
 
@@ -114,92 +118,92 @@ class DefaultReader(Reader):
     def __init__(self, default_value: Any) -> None:
         self.default_value = default_value
 
-    def read(self, _: BinaryDecoder) -> Any:
+    def read(self, _: ReadableDecoder) -> Any:
         return self.default_value
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         pass
 
 
 class BooleanReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> bool:
+    def read(self, decoder: ReadableDecoder) -> bool:
         return decoder.read_boolean()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_boolean()
 
 
 class IntegerReader(Reader):
     """Longs and ints are encoded the same way, and there is no long in Python."""
 
-    def read(self, decoder: BinaryDecoder) -> int:
+    def read(self, decoder: ReadableDecoder) -> int:
         return decoder.read_int()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class FloatReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> float:
+    def read(self, decoder: ReadableDecoder) -> float:
         return decoder.read_float()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_float()
 
 
 class DoubleReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> float:
+    def read(self, decoder: ReadableDecoder) -> float:
         return decoder.read_double()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_double()
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> int:
+    def read(self, decoder: ReadableDecoder) -> int:
         return decoder.read_int()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class TimeReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> time:
+    def read(self, decoder: ReadableDecoder) -> time:
         return decoder.read_time_micros()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestampReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> datetime:
+    def read(self, decoder: ReadableDecoder) -> datetime:
         return decoder.read_timestamp_micros()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestamptzReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> datetime:
+    def read(self, decoder: ReadableDecoder) -> datetime:
         return decoder.read_timestamptz_micros()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class StringReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> str:
+    def read(self, decoder: ReadableDecoder) -> str:
         return decoder.read_utf8()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_utf8()
 
 
 class UUIDReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> UUID:
+    def read(self, decoder: ReadableDecoder) -> UUID:
         return decoder.read_uuid_from_fixed()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip(16)
 
 
@@ -207,10 +211,10 @@ class UUIDReader(Reader):
 class FixedReader(Reader):
     _len: int = dataclassfield()
 
-    def read(self, decoder: BinaryDecoder) -> bytes:
+    def read(self, decoder: ReadableDecoder) -> bytes:
         return decoder.read(len(self))
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip(len(self))
 
     def __len__(self) -> int:
@@ -223,10 +227,10 @@ class FixedReader(Reader):
 
 
 class BinaryReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> bytes:
+    def read(self, decoder: ReadableDecoder) -> bytes:
         return decoder.read_bytes()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_bytes()
 
 
@@ -235,10 +239,10 @@ class DecimalReader(Reader):
     precision: int = dataclassfield()
     scale: int = dataclassfield()
 
-    def read(self, decoder: BinaryDecoder) -> Decimal:
+    def read(self, decoder: ReadableDecoder) -> Decimal:
         return decoder.read_decimal_from_bytes(self.precision, self.scale)
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_bytes()
 
     def __repr__(self) -> str:
@@ -250,7 +254,7 @@ class DecimalReader(Reader):
 class OptionReader(Reader):
     option: Reader = dataclassfield()
 
-    def read(self, decoder: BinaryDecoder) -> Optional[Any]:
+    def read(self, decoder: ReadableDecoder) -> Optional[Any]:
         # For the Iceberg spec it is required to set the default value to null
         # From https://iceberg.apache.org/spec/#avro
         # Optional fields must always set the Avro field default value to null.
@@ -264,7 +268,7 @@ class OptionReader(Reader):
             return self.option.read(decoder)
         return None
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         if decoder.read_int() > 0:
             return self.option.skip(decoder)
 
@@ -274,7 +278,7 @@ class StructReader(Reader):
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Callable[..., StructProtocol]
     struct: StructType
-    field_reader_functions = Tuple[Tuple[Optional[str], int, Optional[Callable[[BinaryDecoder], Any]]], ...]
+    field_reader_functions = Tuple[Tuple[Optional[str], int, Optional[Callable[[ReadableDecoder], Any]]], ...]
 
     def __init__(
         self,
@@ -300,7 +304,7 @@ class StructReader(Reader):
         if not isinstance(created_struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
 
-        reading_callbacks: List[Tuple[Optional[int], Callable[[BinaryDecoder], Any]]] = []
+        reading_callbacks: List[Tuple[Optional[int], Callable[[ReadableDecoder], Any]]] = []
         for pos, field in field_readers:
             if pos is not None:
                 reading_callbacks.append((pos, field.read))
@@ -310,7 +314,7 @@ class StructReader(Reader):
         self._field_reader_functions = tuple(reading_callbacks)
         self._hash = hash(self._field_reader_functions)
 
-    def read(self, decoder: BinaryDecoder) -> StructProtocol:
+    def read(self, decoder: ReadableDecoder) -> StructProtocol:
         struct = self.create_struct(struct=self.struct) if self._create_with_keyword else self.create_struct()
         for pos, field_reader in self._field_reader_functions:
             if pos is not None:
@@ -320,7 +324,7 @@ class StructReader(Reader):
 
         return struct
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         for _, field in self.field_readers:
             field.skip(decoder)
 
@@ -385,7 +389,7 @@ class ListReader(Reader):
         self._hash = hash(self.element)
         self._is_int_list = isinstance(self.element, IntegerReader)
 
-    def read(self, decoder: BinaryDecoder) -> List[Any]:
+    def read(self, decoder: ReadableDecoder) -> List[Any]:
         read_items: List[Any] = []
         block_count = decoder.read_int()
         while block_count != 0:
@@ -400,7 +404,7 @@ class ListReader(Reader):
             block_count = decoder.read_int()
         return read_items
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         _skip_map_array(decoder, lambda: self.element.skip(decoder))
 
     def __hash__(self) -> int:
@@ -428,7 +432,7 @@ class MapReader(Reader):
             self._value_reader = self.value.read
         self._hash = hash((self.key, self.value))
 
-    def read_int_int(self, decoder: BinaryDecoder) -> Mapping[int, int]:
+    def read_int_int(self, decoder: ReadableDecoder) -> Mapping[int, int]:
         contents_array: List[Tuple[int, ...]] = []
         block_count = decoder.read_int()
         while block_count != 0:
@@ -440,7 +444,7 @@ class MapReader(Reader):
             block_count = decoder.read_int()
         return LazyDictIntInt(tuple(contents_array))
 
-    def read(self, decoder: BinaryDecoder) -> Mapping[Any, Any]:
+    def read(self, decoder: ReadableDecoder) -> Mapping[Any, Any]:
         read_items: dict[Any, Any] = {}
 
         if self._is_int_int or self._is_int_bytes:
@@ -469,7 +473,7 @@ class MapReader(Reader):
 
         return read_items
 
-    def skip(self, decoder: BinaryDecoder) -> None:
+    def skip(self, decoder: ReadableDecoder) -> None:
         def skip() -> None:
             self.key.skip(decoder)
             self.value.skip(decoder)

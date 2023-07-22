@@ -225,6 +225,9 @@ cdef class CythonBinaryDecoder:
         skip_int(&self._current)
         return
 
+    def skip(self, n: int) -> None:
+        self._current += n
+
     def skip_boolean(self) -> None:
         self._current += 1
 
