@@ -14,49 +14,49 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from datetime import datetime, tzinfo
+from datetime import datetime, timezone, tzinfo
 
 import pytest
-from pytz import timezone
+import pytz
 
 from pyiceberg.utils.datetime import datetime_to_millis
 
 timezones = [
-    timezone("Etc/GMT"),
-    timezone("Etc/GMT+0"),
-    timezone("Etc/GMT+1"),
-    timezone("Etc/GMT+10"),
-    timezone("Etc/GMT+11"),
-    timezone("Etc/GMT+12"),
-    timezone("Etc/GMT+2"),
-    timezone("Etc/GMT+3"),
-    timezone("Etc/GMT+4"),
-    timezone("Etc/GMT+5"),
-    timezone("Etc/GMT+6"),
-    timezone("Etc/GMT+7"),
-    timezone("Etc/GMT+8"),
-    timezone("Etc/GMT+9"),
-    timezone("Etc/GMT-0"),
-    timezone("Etc/GMT-1"),
-    timezone("Etc/GMT-10"),
-    timezone("Etc/GMT-11"),
-    timezone("Etc/GMT-12"),
-    timezone("Etc/GMT-13"),
-    timezone("Etc/GMT-14"),
-    timezone("Etc/GMT-2"),
-    timezone("Etc/GMT-3"),
-    timezone("Etc/GMT-4"),
-    timezone("Etc/GMT-5"),
-    timezone("Etc/GMT-6"),
-    timezone("Etc/GMT-7"),
-    timezone("Etc/GMT-8"),
-    timezone("Etc/GMT-9"),
+    pytz.timezone("Etc/GMT"),
+    pytz.timezone("Etc/GMT+0"),
+    pytz.timezone("Etc/GMT+1"),
+    pytz.timezone("Etc/GMT+10"),
+    pytz.timezone("Etc/GMT+11"),
+    pytz.timezone("Etc/GMT+12"),
+    pytz.timezone("Etc/GMT+2"),
+    pytz.timezone("Etc/GMT+3"),
+    pytz.timezone("Etc/GMT+4"),
+    pytz.timezone("Etc/GMT+5"),
+    pytz.timezone("Etc/GMT+6"),
+    pytz.timezone("Etc/GMT+7"),
+    pytz.timezone("Etc/GMT+8"),
+    pytz.timezone("Etc/GMT+9"),
+    pytz.timezone("Etc/GMT-0"),
+    pytz.timezone("Etc/GMT-1"),
+    pytz.timezone("Etc/GMT-10"),
+    pytz.timezone("Etc/GMT-11"),
+    pytz.timezone("Etc/GMT-12"),
+    pytz.timezone("Etc/GMT-13"),
+    pytz.timezone("Etc/GMT-14"),
+    pytz.timezone("Etc/GMT-2"),
+    pytz.timezone("Etc/GMT-3"),
+    pytz.timezone("Etc/GMT-4"),
+    pytz.timezone("Etc/GMT-5"),
+    pytz.timezone("Etc/GMT-6"),
+    pytz.timezone("Etc/GMT-7"),
+    pytz.timezone("Etc/GMT-8"),
+    pytz.timezone("Etc/GMT-9"),
 ]
 
 
 def test_datetime_to_millis() -> None:
     dt = datetime(2023, 7, 10, 10, 10, 10, 123456)
-    expected = int(dt.timestamp() * 1_000)
+    expected = int(dt.replace(tzinfo=timezone.utc).timestamp() * 1_000)
     datetime_millis = datetime_to_millis(dt)
     assert datetime_millis == expected
 

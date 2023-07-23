@@ -16,24 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.spark.source.metrics;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.TimerResult;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
+public class TaskTotalPlanningDuration implements CustomTaskMetric {
 
-case class CreateOrReplaceBranch(
-    table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
-    create: Boolean,
-    replace: Boolean,
-    ifNotExists: Boolean) extends Command {
+  private final long value;
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+  private TaskTotalPlanningDuration(long value) {
+    this.value = value;
+  }
 
-  override lazy val output: Seq[Attribute] = Nil
+  @Override
+  public String name() {
+    return TotalPlanningDuration.NAME;
+  }
 
-  override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+  @Override
+  public long value() {
+    return value;
+  }
+
+  public static TaskTotalPlanningDuration from(ScanReport scanReport) {
+    TimerResult timerResult = scanReport.scanMetrics().totalPlanningDuration();
+    long value = timerResult != null ? timerResult.totalDuration().toMillis() : -1;
+    return new TaskTotalPlanningDuration(value);
   }
 }

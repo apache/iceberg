@@ -16,24 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.spark.source.metrics;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
+public class TotalFileSize extends CustomSumMetric {
 
-case class CreateOrReplaceBranch(
-    table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
-    create: Boolean,
-    replace: Boolean,
-    ifNotExists: Boolean) extends Command {
+  static final String NAME = "totalFileSize";
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+  @Override
+  public String name() {
+    return NAME;
+  }
 
-  override lazy val output: Seq[Attribute] = Nil
-
-  override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+  @Override
+  public String description() {
+    return "total file size (bytes)";
   }
 }

@@ -16,24 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.spark.source.metrics;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
+public class TaskTotalFileSize implements CustomTaskMetric {
 
-case class CreateOrReplaceBranch(
-    table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
-    create: Boolean,
-    replace: Boolean,
-    ifNotExists: Boolean) extends Command {
+  private final long value;
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+  private TaskTotalFileSize(long value) {
+    this.value = value;
+  }
 
-  override lazy val output: Seq[Attribute] = Nil
+  @Override
+  public String name() {
+    return TotalFileSize.NAME;
+  }
 
-  override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+  @Override
+  public long value() {
+    return value;
+  }
+
+  public static TaskTotalFileSize from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().totalFileSizeInBytes();
+    long value = counter != null ? counter.value() : 0L;
+    return new TaskTotalFileSize(value);
   }
 }

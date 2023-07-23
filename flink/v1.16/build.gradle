@@ -240,6 +240,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   task integrationTest(type: Test) {
     description = "Test Flink Runtime Jar against Flink ${flinkMajorVersion}"
     group = "verification"
+    jvmArgs += project.property('extraJvmArgs')
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
