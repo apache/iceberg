@@ -2137,13 +2137,13 @@ testing = ["argcomplete", "attrs (>=19.2.0)", "hypothesis (>=3.56)", "mock", "no
 
 [[package]]
 name = "pytest-checkdocs"
-version = "2.9.0"
+version = "2.10.0"
 description = "check the README when running tests"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "pytest-checkdocs-2.9.0.tar.gz", hash = "sha256:54b3d1357a289e3f6336d31d4ceb72e99afe0fa4f552990f1b1f015f1925543b"},
-    {file = "pytest_checkdocs-2.9.0-py3-none-any.whl", hash = "sha256:4231e5426915a02385e386b5eb4a70490b143d97cede4c7c77691bb320b5a73f"},
+    {file = "pytest-checkdocs-2.10.0.tar.gz", hash = "sha256:0c1320dc88549a95b7482fba6dae37ef5e9bfb42fd7babcc1f8f1be3ae15994f"},
+    {file = "pytest_checkdocs-2.10.0-py3-none-any.whl", hash = "sha256:93ae72cf71d4a3a8d5860a5f42c31131d639257a88796e769d6a008a081b10b0"},
 ]
 
 [package.dependencies]
@@ -2152,8 +2152,8 @@ docutils = ">=0.15"
 importlib-metadata = {version = ">=4", markers = "python_version < \"3.10\""}
 
 [package.extras]
-docs = ["furo", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "sphinx (>=3.5)"]
-testing = ["flake8 (<5)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)", "types-docutils"]
+docs = ["furo", "jaraco.packaging (>=9.3)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy (>=0.9.1)", "pytest-ruff", "types-docutils"]
 
 [[package]]
 name = "pytest-mock"
@@ -3146,4 +3146,4 @@ zstandard = ["zstandard"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "0ee1dda1b97ba2ae33689fe330836b3c9b03701997a9544b8158a442a4592738"
+content-hash = "9c4885239b9c3394c11d61414fb3e605820900855a215a2dec3eb0f94f07356a"
