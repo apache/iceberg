@@ -40,7 +40,7 @@ def build_cython_extensions() -> None:
         extra_compile_args = [
             "-O3",
         ]
-    # Relative to project root director
+    # Relative to project root directory
     include_dirs = {
         "pyiceberg/",
     }
@@ -65,6 +65,7 @@ def build_cython_extensions() -> None:
     dist = Distribution({"ext_modules": ext_modules})
     cmd = build_ext(dist)
     cmd.ensure_finalized()
+
     cmd.run()
 
     for output in cmd.get_outputs():

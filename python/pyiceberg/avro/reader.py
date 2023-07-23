@@ -33,7 +33,6 @@ from decimal import Decimal
 from typing import (
     Any,
     Callable,
-    Dict,
     List,
     Mapping,
     Optional,
@@ -42,10 +41,9 @@ from typing import (
 )
 from uuid import UUID
 
-from pyparsing import Iterator
-
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
+from pyiceberg.avro.lazydict import LazyDictIntInt
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
@@ -343,39 +341,6 @@ class StructReader(Reader):
     def __hash__(self) -> int:
         """Returns a hashed representation of the StructReader class."""
         return self._hash
-
-
-class LazyDictIntInt(Mapping[int, int]):
-    """Lazily build a dictionary from an array of integers."""
-
-    __slots__ = ("_contents", "_dict", "_did_build", "_len")
-    _dict: Dict[int, int]
-
-    def __init__(self, contents: Tuple[Tuple[int, ...], ...]):
-        self._contents = contents
-        self._did_build = False
-        self._len = len(self._contents) // 2
-
-    def _build_dict(self) -> None:
-        if not self._did_build:
-            self._did_build = True
-            self._dict = {}
-            for item in self._contents:
-                self._dict.update(dict(zip(item[::2], item[1::2])))
-
-    def __getitem__(self, key: int, /) -> int:
-        """Returns the value for the given key."""
-        self._build_dict()
-        return self._dict[key]
-
-    def __iter__(self) -> Iterator[int]:
-        """Returns an iterator over the keys of the dictionary."""
-        self._build_dict()
-        return iter(self._dict)
-
-    def __len__(self) -> int:
-        """Returns the number of items in the dictionary."""
-        return self._len
 
 
 @dataclass(frozen=False, init=False)
