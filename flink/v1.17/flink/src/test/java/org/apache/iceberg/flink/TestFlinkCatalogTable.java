@@ -328,38 +328,71 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         schemaBefore.asStruct());
 
     sql("ALTER TABLE tl ADD (dt STRING)");
-    Schema schemaAfter = table("tl").schema();
+    Schema schemaAfter1 = table("tl").schema();
     Assert.assertEquals(
         new Schema(
                 Types.NestedField.optional(1, "id", Types.LongType.get()),
                 Types.NestedField.optional(2, "dt", Types.StringType.get()))
             .asStruct(),
-        schemaAfter.asStruct());
+        schemaAfter1.asStruct());
 
-    // Try adding an existing field
+    // Add multiple columns
+    sql("ALTER TABLE tl ADD (col1 STRING, col2 BIGINT)");
+    Schema schemaAfter2 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter2.asStruct());
+
+    // Adding a required field should fail
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
+        .isInstanceOf(TableException.class);
+
+    // Adding an existing field should fail
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
         .isInstanceOf(ValidationException.class);
   }
 
   @Test
   public void testAlterTableDropColumn() {
-    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    sql("CREATE TABLE tl(id BIGINT, dt STRING, col1 STRING, col2 BIGINT)");
     Schema schemaBefore = table("tl").schema();
     Assert.assertEquals(
         new Schema(
                 Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
             .asStruct(),
         schemaBefore.asStruct());
 
     sql("ALTER TABLE tl DROP (dt)");
-    Schema schemaAfter = table("tl").schema();
+    Schema schemaAfter1 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter1.asStruct());
+
+    // Drop multiple columns
+    sql("ALTER TABLE tl DROP (col1, col2)");
+    Schema schemaAfter2 = table("tl").schema();
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        schemaAfter.asStruct());
+        schemaAfter2.asStruct());
 
-    // Try adding an existing field
+    // Dropping an non-existing field should fail
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (foo)"))
+        .isInstanceOf(ValidationException.class);
+
+    // Dropping an already-deleted field should fail
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (dt)"))
         .isInstanceOf(ValidationException.class);
   }
 
@@ -395,6 +428,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaBefore.asStruct());
 
+    // Promote type from Integer to Long
     sql("ALTER TABLE tl MODIFY (id BIGINT)");
     Schema schemaAfter = table("tl").schema();
     Assert.assertEquals(
@@ -403,6 +437,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
                 Types.NestedField.optional(2, "dt", Types.StringType.get()))
             .asStruct(),
         schemaAfter.asStruct());
+
+    // Type change that doesn't follow the type-promotion rule should fail
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
+        .isInstanceOf(TableException.class);
   }
 
   @Test
@@ -484,12 +522,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testAlterTableConstraint() {
-    sql("CREATE TABLE tl(id BIGINT NOT NULL, dt STRING NOT NULL)");
+    sql("CREATE TABLE tl(id BIGINT NOT NULL, dt STRING NOT NULL, col1 STRING)");
     Schema schemaBefore = table("tl").schema();
     Assert.assertEquals(
         new Schema(
                 Types.NestedField.required(1, "id", Types.LongType.get()),
-                Types.NestedField.required(2, "dt", Types.StringType.get()))
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
             .asStruct(),
         schemaBefore.asStruct());
     Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
@@ -503,11 +542,35 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(
                 Types.NestedField.required(1, "id", Types.LongType.get()),
-                Types.NestedField.required(2, "dt", Types.StringType.get()))
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
             .asStruct(),
         schemaAfterModify.asStruct());
     Assert.assertEquals(ImmutableSet.of("dt"), schemaAfterModify.identifierFieldNames());
 
+    // Composite primary key
+    sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, dt) NOT ENFORCED)");
+    Schema schemaAfterComposite = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterComposite.asStruct());
+    Assert.assertEquals(ImmutableSet.of("id", "dt"), schemaAfterComposite.identifierFieldNames());
+
+    // Setting an optional field as primary key should fail
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
+        .isInstanceOf(TableException.class);
+
+    // Setting a composite key containing an optional field should fail
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
+        .isInstanceOf(TableException.class);
+
+    // Dropping constraints is not supported yet
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
         .isInstanceOf(TableException.class);
   }

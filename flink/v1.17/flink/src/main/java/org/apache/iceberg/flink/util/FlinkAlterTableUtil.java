@@ -132,7 +132,11 @@ public class FlinkAlterTableUtil {
             "Adding computed columns is not supported yet: %s",
             flinkColumn.getName());
         Type icebergType = FlinkSchemaUtil.convert(flinkColumn.getDataType().getLogicalType());
-        pendingUpdate.addColumn(flinkColumn.getName(), icebergType);
+        if (flinkColumn.getDataType().getLogicalType().isNullable()) {
+          pendingUpdate.addColumn(flinkColumn.getName(), icebergType);
+        } else {
+          pendingUpdate.addRequiredColumn(flinkColumn.getName(), icebergType);
+        }
       } else if (change instanceof TableChange.ModifyColumn) {
         TableChange.ModifyColumn modifyColumn = (TableChange.ModifyColumn) change;
         applyModifyColumn(pendingUpdate, modifyColumn);
