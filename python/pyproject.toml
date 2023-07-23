@@ -67,7 +67,7 @@ sqlalchemy = { version = "^2.0.18", optional = true }
 
 [tool.poetry.dev-dependencies]
 pytest = "7.4.0"
-pytest-checkdocs = "2.9.0"
+pytest-checkdocs = "2.10.0"
 pre-commit = "3.3.3"
 fastavro = "1.8.2"
 coverage = { version = "^7.2.3", extras = ["toml"] }
