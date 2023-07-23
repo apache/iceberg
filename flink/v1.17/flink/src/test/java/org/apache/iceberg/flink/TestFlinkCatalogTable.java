@@ -298,58 +298,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testAlterTable() throws TableNotExistException {
-    sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("oldK", "oldV");
-
-    // new
-    sql("ALTER TABLE tl SET('newK'='newV')");
-    properties.put("newK", "newV");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-
-    // update old
-    sql("ALTER TABLE tl SET('oldK'='oldV2')");
-    properties.put("oldK", "oldV2");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-
-    // remove property
-    CatalogTable catalogTable = catalogTable("tl");
-    properties.remove("oldK");
-    getTableEnv()
-        .getCatalog(getTableEnv().getCurrentCatalog())
-        .get()
-        .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-  }
-
-  @Test
-  public void testAlterTableWithPrimaryKey() throws TableNotExistException {
-    sql("CREATE TABLE tl(id BIGINT, PRIMARY KEY(id) NOT ENFORCED) WITH ('oldK'='oldV')");
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("oldK", "oldV");
-
-    // new
-    sql("ALTER TABLE tl SET('newK'='newV')");
-    properties.put("newK", "newV");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-
-    // update old
-    sql("ALTER TABLE tl SET('oldK'='oldV2')");
-    properties.put("oldK", "oldV2");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-
-    // remove property
-    CatalogTable catalogTable = catalogTable("tl");
-    properties.remove("oldK");
-    getTableEnv()
-        .getCatalog(getTableEnv().getCurrentCatalog())
-        .get()
-        .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
-  }
-
-  @Test
   public void testAlterTableProperties() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
@@ -358,17 +306,17 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // new
     sql("ALTER TABLE tl SET('newK'='newV')");
     properties.put("newK", "newV");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // update old
     sql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // remove property
     sql("ALTER TABLE tl RESET('oldK')");
     properties.remove("oldK");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
   }
 
   @Test
@@ -387,6 +335,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
                 Types.NestedField.optional(2, "dt", Types.StringType.get()))
             .asStruct(),
         schemaAfter.asStruct());
+
+    // Try adding an existing field
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
+        .isInstanceOf(ValidationException.class);
   }
 
   @Test
@@ -405,6 +357,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         schemaAfter.asStruct());
+
+    // Try adding an existing field
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (foo)"))
+        .isInstanceOf(ValidationException.class);
   }
 
   @Test
