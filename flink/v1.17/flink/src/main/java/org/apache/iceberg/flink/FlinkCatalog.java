@@ -61,9 +61,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.Transaction;
-import org.apache.iceberg.UpdateProperties;
-import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -457,6 +454,21 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  /**
+   * This alterTable API only supports altering table properties.
+   *
+   * <p>Support for adding/removing/renaming columns cannot be done by comparing CatalogTable
+   * instances, unless the Flink schema contains Iceberg column IDs.
+   *
+   * <p>To alter columns, use the other alterTable API and provide a list of TableChange's.
+   *
+   * @param tablePath path of the table or view to be modified
+   * @param newTable the new table definition
+   * @param ignoreIfNotExists flag to specify behavior when the table or view does not exist: if set
+   *     to false, throw an exception, if set to true, do nothing.
+   * @throws CatalogException
+   * @throws TableNotExistException
+   */
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
@@ -475,13 +487,6 @@ public class FlinkCatalog extends AbstractCatalog {
 
     CatalogTable table = toCatalogTable(icebergTable);
 
-    // This alterTable API only supports altering table properties.
-
-    // Support for adding/removing/renaming columns cannot be done by
-    // comparing
-    // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
-
-    // To alter columns, use the other alterTable API and provide a list of TableChange's.
     LOG.warn(
         "This alterTable API only supports altering table properties. "
             + "To alter columns, use the other alterTable API and provide a list of TableChange's.");
@@ -522,7 +527,8 @@ public class FlinkCatalog extends AbstractCatalog {
               }
             });
 
-    commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties);
+    FlinkAlterTableUtil.commitChanges(
+        icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties);
   }
 
   @Override
@@ -550,7 +556,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     String setLocation = null;
     String setSnapshotId = null;
-    String pickSnapshotId = null;
+    String cherrypickSnapshotId = null;
 
     List<TableChange> propertyChanges = Lists.newArrayList();
     List<TableChange> schemaChanges = Lists.newArrayList();
@@ -563,7 +569,7 @@ public class FlinkCatalog extends AbstractCatalog {
         } else if ("current-snapshot-id".equalsIgnoreCase(set.getKey())) {
           setSnapshotId = set.getValue();
         } else if ("cherry-pick-snapshot-id".equalsIgnoreCase(set.getKey())) {
-          pickSnapshotId = set.getValue();
+          cherrypickSnapshotId = set.getValue();
         } else {
           propertyChanges.add(change);
         }
@@ -576,8 +582,13 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     }
 
-    commitChanges(
-        icebergTable, setLocation, setSnapshotId, pickSnapshotId, schemaChanges, propertyChanges);
+    FlinkAlterTableUtil.commitChanges(
+        icebergTable,
+        setLocation,
+        setSnapshotId,
+        cherrypickSnapshotId,
+        schemaChanges,
+        propertyChanges);
   }
 
   private static void validateFlinkTable(CatalogBaseTable table) {
@@ -620,86 +631,6 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     }
     return partitionKeysBuilder.build();
-  }
-
-  private static void commitChanges(
-      Table table,
-      String setLocation,
-      String setSnapshotId,
-      String pickSnapshotId,
-      Map<String, String> setProperties) {
-    commitChanges(table, setSnapshotId, pickSnapshotId);
-
-    Transaction transaction = table.newTransaction();
-
-    if (setLocation != null) {
-      transaction.updateLocation().setLocation(setLocation).commit();
-    }
-
-    if (!setProperties.isEmpty()) {
-      UpdateProperties updateProperties = transaction.updateProperties();
-      setProperties.forEach(
-          (k, v) -> {
-            if (v == null) {
-              updateProperties.remove(k);
-            } else {
-              updateProperties.set(k, v);
-            }
-          });
-      updateProperties.commit();
-    }
-
-    transaction.commitTransaction();
-  }
-
-  private static void commitChanges(
-      Table table,
-      String setLocation,
-      String setSnapshotId,
-      String pickSnapshotId,
-      List<TableChange> schemaChanges,
-      List<TableChange> propertyChanges) {
-    commitChanges(table, setSnapshotId, pickSnapshotId);
-
-    Transaction transaction = table.newTransaction();
-
-    if (setLocation != null) {
-      transaction.updateLocation().setLocation(setLocation).commit();
-    }
-
-    if (!schemaChanges.isEmpty()) {
-      UpdateSchema updateSchema = transaction.updateSchema();
-      FlinkAlterTableUtil.applySchemaChanges(updateSchema, schemaChanges);
-      updateSchema.commit();
-    }
-
-    if (!propertyChanges.isEmpty()) {
-      UpdateProperties updateProperties = transaction.updateProperties();
-      FlinkAlterTableUtil.applyPropertyChanges(updateProperties, propertyChanges);
-      updateProperties.commit();
-    }
-
-    transaction.commitTransaction();
-  }
-
-  private static void commitChanges(Table table, String setSnapshotId, String pickSnapshotId) {
-    // don't allow setting the snapshot and picking a commit at the same time because order is
-    // ambiguous and choosing
-    // one order leads to different results
-    Preconditions.checkArgument(
-        setSnapshotId == null || pickSnapshotId == null,
-        "Cannot set the current snapshot ID and cherry-pick snapshot changes");
-
-    if (setSnapshotId != null) {
-      long newSnapshotId = Long.parseLong(setSnapshotId);
-      table.manageSnapshots().setCurrentSnapshot(newSnapshotId).commit();
-    }
-
-    // if updating the table snapshot, perform that update first in case it fails
-    if (pickSnapshotId != null) {
-      long newSnapshotId = Long.parseLong(pickSnapshotId);
-      table.manageSnapshots().cherrypick(newSnapshotId).commit();
-    }
   }
 
   static CatalogTable toCatalogTable(Table table) {
