@@ -123,8 +123,8 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   @Test
   public void testBooleanPartition() throws Exception {
     createTable("boolean");
-    insertData(PARTITION_COL, i -> i % 2 == 0, 2);
-    testDanglingDelete(PARTITION_COL, 2);
+    insertData(i -> i % 2 == 0, 2);
+    testDanglingDelete(2);
   }
 
   @Test
@@ -189,8 +189,8 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   @Test
   public void testNullTransform() throws Exception {
     createTable("int");
-    insertData(PARTITION_COL, i -> i == 0 ? null : 1, 2);
-    testDanglingDelete(PARTITION_COL, 2);
+    insertData(i -> i == 0 ? null : 1, 2);
+    testDanglingDelete(2);
   }
 
   @Test
@@ -202,7 +202,11 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   private void testDanglingDelete() throws Exception {
-    testDanglingDelete(PARTITION_COL, NUM_DATA_FILES);
+    testDanglingDelete(NUM_DATA_FILES);
+  }
+
+  private void testDanglingDelete(int numDataFiles) throws Exception {
+    testDanglingDelete(PARTITION_COL, numDataFiles);
   }
 
   private void testDanglingDelete(String partitionCol, int numDataFiles) throws Exception {
@@ -251,7 +255,12 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   }
 
   private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
-    insertData(PARTITION_COL, partitionValueFunction, NUM_DATA_FILES);
+    insertData(partitionValueFunction, NUM_DATA_FILES);
+  }
+
+  private void insertData(Function<Integer, ?> partitionValueFunction, int numDataFiles)
+      throws Exception {
+    insertData(PARTITION_COL, partitionValueFunction, numDataFiles);
   }
 
   private void insertData(
