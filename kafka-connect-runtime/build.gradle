@@ -11,6 +11,7 @@ configurations {
     resolutionStrategy.force "com.nimbusds:nimbus-jose-jwt:9.31"
     resolutionStrategy.force "org.codehaus.jettison:jettison:1.5.4"
     resolutionStrategy.force "org.xerial.snappy:snappy-java:1.1.10.1"
+    resolutionStrategy.force "org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.1.1-tabular"
   }
 }
 
