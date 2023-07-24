@@ -54,6 +54,9 @@ type typeIFace struct {
 }
 
 func (t *typeIFace) MarshalJSON() ([]byte, error) {
+	if nested, ok := t.Type.(NestedType); ok {
+		return json.Marshal(nested)
+	}
 	return []byte(`"` + t.Type.Type() + `"`), nil
 }
 
@@ -171,12 +174,12 @@ func (n *NestedField) Equals(other NestedField) bool {
 		n.Type.Equals(other.Type)
 }
 
-func (n *NestedField) MarshalJSON() ([]byte, error) {
+func (n NestedField) MarshalJSON() ([]byte, error) {
 	type Alias NestedField
 	return json.Marshal(struct {
 		Type *typeIFace `json:"type"`
 		*Alias
-	}{Type: &typeIFace{n.Type}, Alias: (*Alias)(n)})
+	}{Type: &typeIFace{n.Type}, Alias: (*Alias)(&n)})
 }
 
 func (n *NestedField) UnmarshalJSON(b []byte) error {
@@ -215,10 +218,11 @@ func (s *StructType) Equals(other Type) bool {
 func (s *StructType) Children() []NestedField { return s.Fields }
 
 func (s *StructType) MarshalJSON() ([]byte, error) {
+	type Alias StructType
 	return json.Marshal(struct {
 		Type string `json:"type"`
-		*StructType
-	}{Type: s.Type(), StructType: s})
+		*Alias
+	}{Type: s.Type(), Alias: (*Alias)(s)})
 }
 
 func (*StructType) Type() string { return "struct" }
@@ -240,8 +244,17 @@ func (s *StructType) String() string {
 
 type ListType struct {
 	ElementID       int  `json:"element-id"`
-	Element         Type `json:"element"`
+	Element         Type `json:"-"`
 	ElementRequired bool `json:"element-required"`
+}
+
+func (l *ListType) MarshalJSON() ([]byte, error) {
+	type Alias ListType
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		*Alias
+		Element *typeIFace `json:"element"`
+	}{Type: l.Type(), Alias: (*Alias)(l), Element: &typeIFace{l.Element}})
 }
 
 func (l *ListType) Equals(other Type) bool {
@@ -289,10 +302,22 @@ func (l *ListType) UnmarshalJSON(b []byte) error {
 
 type MapType struct {
 	KeyID         int  `json:"key-id"`
-	KeyType       Type `json:"key"`
+	KeyType       Type `json:"-"`
 	ValueID       int  `json:"value-id"`
-	ValueType     Type `json:"value"`
+	ValueType     Type `json:"-"`
 	ValueRequired bool `json:"value-required"`
+}
+
+func (m *MapType) MarshalJSON() ([]byte, error) {
+	type Alias MapType
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		*Alias
+		KeyType   *typeIFace `json:"key"`
+		ValueType *typeIFace `json:"value"`
+	}{Type: m.Type(), Alias: (*Alias)(m),
+		KeyType:   &typeIFace{m.KeyType},
+		ValueType: &typeIFace{m.ValueType}})
 }
 
 func (m *MapType) Equals(other Type) bool {

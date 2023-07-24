@@ -640,3 +640,156 @@ func TestPruneNilSchema(t *testing.T) {
 	_, err := iceberg.PruneColumns(nil, nil, true)
 	assert.ErrorIs(t, err, iceberg.ErrInvalidArgument)
 }
+
+func TestSchemaRoundTrip(t *testing.T) {
+	data, err := json.Marshal(tableSchemaNested)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+		"type": "struct",
+		"schema-id": 1,
+		"identifier-field-ids": [1],
+		"fields": [
+			{
+				"type": "string",
+				"id": 1,
+				"name": "foo",
+				"required": false
+			},
+			{
+				"type": "int",
+				"id": 2,
+				"name": "bar",
+				"required": true
+			},
+			{
+				"type": "boolean",
+				"id": 3,
+				"name": "baz",
+				"required": false
+			},
+			{
+				"id": 4,
+				"name": "qux",
+				"required": true,
+				"type": {
+					"type": "list",
+					"element-id": 5,
+					"element-required": true,
+					"element": "string"
+				}
+			},
+			{
+				"id": 6,
+				"name": "quux",
+				"required": true,
+				"type": {
+					"type": "map",
+					"key-id": 7,
+					"key": "string",
+					"value-id": 8,
+					"value": {
+						"type": "map",
+						"key-id": 9,
+						"key": "string",
+						"value-id": 10,
+						"value": "int",
+						"value-required": true
+					},
+					"value-required": true
+				}
+			},
+			{
+				"id": 11,
+				"name": "location",
+				"required": true,
+				"type": {
+					"type": "list",
+					"element-id": 12,
+					"element-required": true,
+					"element": {
+						"type": "struct",
+						"fields": [
+							{
+								"id": 13,
+								"name": "latitude",
+								"type": "float",
+								"required": false
+							},
+							{
+								"id": 14,
+								"name": "longitude",
+								"type": "float",
+								"required": false
+							}
+						]
+					}
+				}
+			},
+			{
+				"id": 15,
+				"name": "person",
+				"required": false,
+				"type": {
+					"type": "struct",
+					"fields": [
+						{
+							"id": 16,
+							"name": "name",
+							"type": "string",
+							"required": false
+						},
+						{
+							"id": 17,
+							"name": "age",
+							"type": "int",
+							"required": true
+						}
+					]
+				}
+			}
+		]
+	}`, string(data))
+
+	var sc iceberg.Schema
+	require.NoError(t, json.Unmarshal(data, &sc))
+
+	assert.Truef(t, tableSchemaNested.Equals(&sc), "expected: %s\ngot: %s", tableSchemaNested, &sc)
+}
+
+func TestRemainingTypes(t *testing.T) {
+	tests := []struct {
+		expected string
+		typ      iceberg.Type
+	}{
+		{"long", iceberg.PrimitiveTypes.Int64},
+		{"double", iceberg.PrimitiveTypes.Float64},
+		{"date", iceberg.PrimitiveTypes.Date},
+		{"time", iceberg.PrimitiveTypes.Time},
+		{"timestamp", iceberg.PrimitiveTypes.Timestamp},
+		{"timestamptz", iceberg.PrimitiveTypes.TimestampTz},
+		{"uuid", iceberg.PrimitiveTypes.UUID},
+		{"binary", iceberg.PrimitiveTypes.Binary},
+		{"fixed[5]", iceberg.FixedTypeOf(5)},
+		{"decimal(9, 4)", iceberg.DecimalTypeOf(9, 4)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			var data = `{
+				"id": 1,
+				"name": "test",
+				"type": "` + tt.expected + `",
+				"required": false
+			}`
+
+			var n iceberg.NestedField
+			require.NoError(t, json.Unmarshal([]byte(data), &n))
+			assert.Truef(t, n.Type.Equals(tt.typ), "expected: %s\ngot: %s", tt.typ, n.Type)
+
+			out, err := json.Marshal(n)
+			require.NoError(t, err)
+			assert.JSONEq(t, data, string(out))
+		})
+	}
+}
