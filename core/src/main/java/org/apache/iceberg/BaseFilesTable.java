@@ -31,7 +31,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -82,12 +81,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
 
+    Map<Integer, PartitionSpec> transformedSpecs =
+        BaseFilesTable.transformSpecs(tableSchema, table.specs());
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
             .build(
                 specId -> {
-                  PartitionSpec spec = table.specs().get(specId);
-                  PartitionSpec transformedSpec = BaseFilesTable.transformSpec(tableSchema, spec);
+                  PartitionSpec transformedSpec = transformedSpecs.get(specId);
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
 
@@ -104,7 +104,14 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         filteredManifests,
         manifest ->
             new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+                table,
+                manifest,
+                projectedSchema,
+                schemaString,
+                specString,
+                residuals,
+                transformedSpecs,
+                rowFilter));
   }
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
@@ -150,10 +157,11 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
 
     private final FileIO io;
-    private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
     private final Schema dataTableSchema;
     private final Schema projection;
+    private final Map<Integer, PartitionSpec> transformedSpecs;
+    private final Expression rowFilter;
 
     ManifestReadTask(
         Table table,
@@ -161,13 +169,16 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         Schema projection,
         String schemaString,
         String specString,
-        ResidualEvaluator residuals) {
+        ResidualEvaluator residuals,
+        Map<Integer, PartitionSpec> transformedSpecs,
+        Expression rowFilter) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.io = table.io();
-      this.specsById = Maps.newHashMap(table.specs());
       this.manifest = manifest;
       this.dataTableSchema = table.schema();
       this.projection = projection;
+      this.transformedSpecs = transformedSpecs;
+      this.rowFilter = rowFilter;
     }
 
     @Override
@@ -187,9 +198,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
       switch (manifest.content()) {
         case DATA:
-          return ManifestFiles.read(manifest, io, specsById).project(fileProjection);
+          return ManifestFiles.read(manifest, io, transformedSpecs)
+              .filterRows(rowFilter)
+              .project(fileProjection);
         case DELETES:
-          return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(fileProjection);
+          return ManifestFiles.readDeleteManifest(manifest, io, transformedSpecs)
+              .filterRows(rowFilter)
+              .project(fileProjection);
         default:
           throw new IllegalArgumentException(
               "Unsupported manifest content type:" + manifest.content());

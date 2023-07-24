@@ -131,13 +131,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
     }
-
-    Assert.assertEquals(
-        dataFilesTable.spec(),
-        BaseMetadataTable.transformSpec(dataFilesTable.schema(), table.spec()));
-    Assert.assertEquals(
-        dataFilesTable.specs(),
-        BaseMetadataTable.transformSpecs(dataFilesTable.schema(), table.specs()));
   }
 
   @Test
@@ -229,13 +222,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
     }
-
-    Assert.assertEquals(
-        allDataFilesTable.spec(),
-        BaseMetadataTable.transformSpec(allDataFilesTable.schema(), table.spec()));
-    Assert.assertEquals(
-        allDataFilesTable.specs(),
-        BaseMetadataTable.transformSpecs(allDataFilesTable.schema(), table.specs()));
   }
 
   @Test
@@ -356,6 +342,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
+    Assert.assertEquals(
+        partitionsTable.spec(),
+        BaseMetadataTable.transformSpec(partitionsTable.schema(), table.spec()));
+    Assert.assertEquals(
+        partitionsTable.specs(),
+        BaseMetadataTable.transformSpecs(partitionsTable.schema(), table.specs()));
+
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
     if (formatVersion == 2) {
@@ -552,12 +545,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
             Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get()));
     Assert.assertEquals("Partition type must match", expectedType, actualType);
-    Assert.assertEquals(
-        dataFilesTable.spec(),
-        BaseMetadataTable.transformSpec(dataFilesTable.schema(), table.spec()));
-    Assert.assertEquals(
-        dataFilesTable.specs(),
-        BaseMetadataTable.transformSpecs(dataFilesTable.schema(), table.specs()));
     Accessor<StructLike> accessor = schema.accessorForField(1000);
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -782,6 +769,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 "Column metrics in readable form"));
 
     Assert.assertEquals("Dynamic schema for readable_metrics should match", actual, expected);
+    Assert.assertEquals(
+        entriesTable.spec(), BaseMetadataTable.transformSpec(entriesTable.schema(), table.spec()));
+    Assert.assertEquals(
+        entriesTable.specs(),
+        BaseMetadataTable.transformSpecs(entriesTable.schema(), table.specs()));
   }
 
   @Test
@@ -982,7 +974,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @Test
-  public void testAllDataFilesTableScanWithPlanExecutor() throws IOException {
+  public void testAllDataFilesTableScanWithPlanExecutor() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allDataFilesTable = new AllDataFilesTable(table);
@@ -1005,7 +997,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @Test
-  public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
+  public void testAllEntriesTableScanWithPlanExecutor() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allEntriesTable = new AllEntriesTable(table);

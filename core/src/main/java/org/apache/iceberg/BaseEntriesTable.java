@@ -31,7 +31,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -42,8 +41,13 @@ import org.apache.iceberg.util.StructProjection;
 /** Base class logic for entries metadata tables */
 abstract class BaseEntriesTable extends BaseMetadataTable {
 
+  private final int defaultSpecId;
+  private final Map<Integer, PartitionSpec> specs;
+
   BaseEntriesTable(Table table, String name) {
     super(table, name);
+    this.defaultSpecId = table.spec().specId();
+    this.specs = transformSpecs(schema(), table.specs());
   }
 
   @Override
@@ -59,6 +63,16 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
   }
 
+  @Override
+  public PartitionSpec spec() {
+    return specs.get(defaultSpecId);
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return specs;
+  }
+
   static CloseableIterable<FileScanTask> planFiles(
       Table table,
       CloseableIterable<ManifestFile> manifests,
@@ -69,12 +83,12 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
 
+    Map<Integer, PartitionSpec> transformedSpecs = transformSpecs(tableSchema, table.specs());
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
             .build(
                 specId -> {
-                  PartitionSpec spec = table.specs().get(specId);
-                  PartitionSpec transformedSpec = BaseFilesTable.transformSpec(tableSchema, spec);
+                  PartitionSpec transformedSpec = transformedSpecs.get(specId);
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
 
@@ -91,7 +105,14 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         filteredManifests,
         manifest ->
             new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+                table,
+                manifest,
+                projectedSchema,
+                schemaString,
+                specString,
+                residuals,
+                transformedSpecs,
+                rowFilter));
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
@@ -100,7 +121,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final Schema dataTableSchema;
     private final FileIO io;
     private final ManifestFile manifest;
-    private final Map<Integer, PartitionSpec> specsById;
+    private final Map<Integer, PartitionSpec> transformedSpecs;
+    private final Expression rowFilter;
 
     ManifestReadTask(
         Table table,
@@ -108,13 +130,16 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         Schema projection,
         String schemaString,
         String specString,
-        ResidualEvaluator residuals) {
+        ResidualEvaluator residuals,
+        Map<Integer, PartitionSpec> transformedSpecs,
+        Expression rowFilter) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.projection = projection;
       this.io = table.io();
       this.manifest = manifest;
-      this.specsById = Maps.newHashMap(table.specs());
       this.dataTableSchema = table.schema();
+      this.transformedSpecs = transformedSpecs;
+      this.rowFilter = rowFilter;
 
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
@@ -178,7 +203,10 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
      */
     private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
         Schema fileStructProjection) {
-      return ManifestFiles.open(manifest, io, specsById).project(fileStructProjection).entries();
+      return ManifestFiles.open(manifest, io, transformedSpecs)
+          .filterRows(rowFilter)
+          .project(fileStructProjection)
+          .entries();
     }
 
     /**

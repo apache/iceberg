@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -35,8 +36,9 @@ import org.apache.iceberg.util.StructLikeMap;
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
-
   private final boolean unpartitionedTable;
+  private final int defaultSpecId;
+  private final Map<Integer, PartitionSpec> specs;
 
   PartitionsTable(Table table) {
     this(table, table.name() + ".partitions");
@@ -44,7 +46,6 @@ public class PartitionsTable extends BaseMetadataTable {
 
   PartitionsTable(Table table, String name) {
     super(table, name);
-
     this.schema =
         new Schema(
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
@@ -83,6 +84,8 @@ public class PartitionsTable extends BaseMetadataTable {
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
                 "Id of snapshot that last updated this partition"));
+    this.defaultSpecId = table.spec().specId();
+    this.specs = transformSpecs(this.schema, table.specs());
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -105,6 +108,16 @@ public class PartitionsTable extends BaseMetadataTable {
           "last_updated_snapshot_id");
     }
     return schema;
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return specs.get(defaultSpecId);
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return specs;
   }
 
   @Override
@@ -190,10 +203,13 @@ public class PartitionsTable extends BaseMetadataTable {
   private static CloseableIterable<ManifestEntry<?>> readEntries(
       ManifestFile manifest, StaticTableScan scan) {
     Table table = scan.table();
+    Map<Integer, PartitionSpec> transformedSpecs =
+        transformSpecs(scan.tableSchema(), table.specs());
     return CloseableIterable.transform(
-        ManifestFiles.open(manifest, table.io(), table.specs())
+        ManifestFiles.open(manifest, table.io(), transformedSpecs)
             .caseSensitive(scan.isCaseSensitive())
             .select(scanColumns(manifest.content())) // don't select stats columns
+            .filterRows(scan.filter())
             .entries(),
         t ->
             (ManifestEntry<? extends ContentFile<?>>)
