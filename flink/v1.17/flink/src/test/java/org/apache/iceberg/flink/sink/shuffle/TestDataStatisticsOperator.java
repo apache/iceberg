@@ -108,7 +108,8 @@ public class TestDataStatisticsOperator {
           }
         };
 
-    return new DataStatisticsOperator<>(keySelector, mockGateway, statisticsSerializer);
+    return new DataStatisticsOperator<>(
+        "testOperator", keySelector, mockGateway, statisticsSerializer);
   }
 
   @After
@@ -170,7 +171,7 @@ public class TestDataStatisticsOperator {
       mapDataStatistics.add(GenericRowData.of(StringData.fromString("b")));
       mapDataStatistics.add(GenericRowData.of(StringData.fromString("c")));
       operator.handleOperatorEvent(
-          new DataStatisticsEvent<>(0, mapDataStatistics, statisticsSerializer));
+          DataStatisticsEvent.create(0, mapDataStatistics, statisticsSerializer));
       assertThat(operator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
       assertThat(operator.globalDataStatistics().statistics())
           .containsExactlyInAnyOrderEntriesOf(

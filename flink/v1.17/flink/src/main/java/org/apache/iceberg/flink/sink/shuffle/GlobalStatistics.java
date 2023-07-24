@@ -28,26 +28,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * GlobalStatisticsAggregator is used by {@link DataStatisticsCoordinator} to collect {@link
- * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
- * the merged {@link DataStatistics} result and uses set to keep a record of all reported subtasks.
+ * GlobalStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
+ * from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores the merged {@link
+ * DataStatistics} result and uses set to keep a record of all reported subtasks.
  */
-class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements Serializable {
-  private static final Logger LOG = LoggerFactory.getLogger(GlobalStatisticsAggregator.class);
+class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
+  private static final Logger LOG = LoggerFactory.getLogger(GlobalStatistics.class);
 
   private final long checkpointId;
   private final DataStatistics<D, S> dataStatistics;
   private final Set<Integer> subtaskSet;
 
-  GlobalStatisticsAggregator(
-      long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+  GlobalStatistics(long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpoint;
     this.dataStatistics = statisticsSerializer.createInstance();
     this.subtaskSet = Sets.newHashSet();
   }
 
-  GlobalStatisticsAggregator(
-      long checkpoint, DataStatistics<D, S> dataStatistics, Set<Integer> subtaskSet) {
+  GlobalStatistics(long checkpoint, DataStatistics<D, S> dataStatistics, Set<Integer> subtaskSet) {
     this.checkpointId = checkpoint;
     this.dataStatistics = dataStatistics;
     this.subtaskSet = subtaskSet;
@@ -61,15 +59,18 @@ class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements S
     return dataStatistics;
   }
 
-  void mergeDataStatistic(int subtask, long eventCheckpointId, D eventDataStatistics) {
+  void mergeDataStatistic(
+      String operatorName, int subtask, long eventCheckpointId, D eventDataStatistics) {
     Preconditions.checkArgument(
         checkpointId == eventCheckpointId,
-        "Received unexpected event from checkpoint %s. Expected checkpoint %s",
+        "Received unexpected event from operator %s checkpoint %s. Expected checkpoint %s",
+        operatorName,
         eventCheckpointId,
         checkpointId);
     if (!subtaskSet.add(subtask)) {
       LOG.debug(
-          "Ignore duplicated data statistics from subtask {} for checkpoint {}.",
+          "Ignore duplicated data statistics from operator {} subtask {} for checkpoint {}.",
+          operatorName,
           subtask,
           checkpointId);
       return;

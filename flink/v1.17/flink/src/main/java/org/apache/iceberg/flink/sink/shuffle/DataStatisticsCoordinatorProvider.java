@@ -18,20 +18,14 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.concurrent.ThreadFactory;
-import javax.annotation.Nullable;
-import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
-import org.apache.flink.util.FatalExitExceptionHandler;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * DataStatisticsCoordinatorProvider provides the method to create new {@link
- * DataStatisticsCoordinator} and defines {@link CoordinatorExecutorThreadFactory} to create new
- * thread for {@link DataStatisticsCoordinator} to execute task
+ * DataStatisticsCoordinator}
  */
 public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S>
     extends RecreateOnResetOperatorCoordinator.Provider {
@@ -51,47 +45,5 @@ public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
     return new DataStatisticsCoordinator<>(operatorName, context, statisticsSerializer);
-  }
-
-  static class CoordinatorExecutorThreadFactory
-      implements ThreadFactory, Thread.UncaughtExceptionHandler {
-
-    private final String coordinatorThreadName;
-    private final ClassLoader classLoader;
-    private final Thread.UncaughtExceptionHandler errorHandler;
-
-    @Nullable private Thread thread;
-
-    CoordinatorExecutorThreadFactory(
-        final String coordinatorThreadName, final ClassLoader contextClassLoader) {
-      this(coordinatorThreadName, contextClassLoader, FatalExitExceptionHandler.INSTANCE);
-    }
-
-    @VisibleForTesting
-    CoordinatorExecutorThreadFactory(
-        final String coordinatorThreadName,
-        final ClassLoader contextClassLoader,
-        final Thread.UncaughtExceptionHandler errorHandler) {
-      this.coordinatorThreadName = coordinatorThreadName;
-      this.classLoader = contextClassLoader;
-      this.errorHandler = errorHandler;
-    }
-
-    @Override
-    public synchronized Thread newThread(@NotNull Runnable runnable) {
-      thread = new Thread(runnable, coordinatorThreadName);
-      thread.setContextClassLoader(classLoader);
-      thread.setUncaughtExceptionHandler(this);
-      return thread;
-    }
-
-    @Override
-    public synchronized void uncaughtException(Thread t, Throwable e) {
-      errorHandler.uncaughtException(t, e);
-    }
-
-    boolean isCurrentThreadCoordinatorThread() {
-      return Thread.currentThread() == thread;
-    }
   }
 }

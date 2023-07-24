@@ -24,12 +24,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadFactory;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
@@ -37,6 +38,7 @@ import org.apache.flink.util.function.ThrowingRunnable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,12 +59,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   private final ExecutorService coordinatorExecutor;
   private final OperatorCoordinator.Context operatorCoordinatorContext;
   private final SubtaskGateways subtaskGateways;
-  private final DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory
-      coordinatorThreadFactory;
-  private final GlobalStatisticsAggregatorTracker<D, S> globalStatisticsAggregatorTracker;
-
+  private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
-
+  private final transient GlobalStatisticsTracker<D, S> globalStatisticsTracker;
+  private volatile GlobalStatistics<D, S> completedStatistics;
   private volatile boolean started;
 
   DataStatisticsCoordinator(
@@ -71,44 +71,26 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.operatorName = operatorName;
     this.coordinatorThreadFactory =
-        new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
+        new CoordinatorExecutorThreadFactory(
             "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
     this.operatorCoordinatorContext = context;
-    this.subtaskGateways = new SubtaskGateways(parallelism());
+    this.subtaskGateways = new SubtaskGateways(operatorName, parallelism());
     this.statisticsSerializer = statisticsSerializer;
-    this.globalStatisticsAggregatorTracker =
-        new GlobalStatisticsAggregatorTracker<>(statisticsSerializer, parallelism());
+    this.globalStatisticsTracker =
+        new GlobalStatisticsTracker<>(operatorName, statisticsSerializer, parallelism());
   }
 
   @Override
   public void start() throws Exception {
-    LOG.info("Starting data statistics coordinator for {}.", operatorName);
+    LOG.info("Starting data statistics coordinator: {}.", operatorName);
     started = true;
   }
 
   @Override
   public void close() throws Exception {
-    LOG.info("Closing data statistics coordinator for {}.", operatorName);
     coordinatorExecutor.shutdown();
-    try {
-      if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        LOG.warn(
-            "Fail to shut down data statistics coordinator context gracefully. Shutting down now");
-        coordinatorExecutor.shutdownNow();
-        if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-          LOG.warn("Fail to terminate data statistics coordinator context");
-          return;
-        }
-      }
-      LOG.info("Data statistics coordinator context closed.");
-    } catch (InterruptedException e) {
-      coordinatorExecutor.shutdownNow();
-      Thread.currentThread().interrupt();
-      LOG.error("Errors occurred while closing the data statistics coordinator context", e);
-    }
-
-    LOG.info("Data statistics coordinator for {} closed.", operatorName);
+    LOG.info("Closed data statistics coordinator: {}.", operatorName);
   }
 
   void callInCoordinatorThread(Callable<Void> callable, String errorMessage) {
@@ -121,7 +103,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               try {
                 return callable.call();
               } catch (Throwable t) {
-                LOG.error("Uncaught Exception in DataStatistics Coordinator Executor", t);
+                LOG.error(
+                    "Uncaught Exception in data statistics coordinator: {} executor",
+                    operatorName,
+                    t);
                 ExceptionUtils.rethrowException(t);
                 return null;
               }
@@ -135,7 +120,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
       try {
         callable.call();
       } catch (Throwable t) {
-        LOG.error("Uncaught Exception in DataStatistics coordinator executor", t);
+        LOG.error(
+            "Uncaught Exception in data statistics coordinator: {} executor", operatorName, t);
         throw new FlinkRuntimeException(errorMessage, t);
       }
     }
@@ -158,7 +144,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
           } catch (Throwable t) {
             ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
             LOG.error(
-                "Uncaught exception in the data statistics {} while {}. Triggering job failover.",
+                "Uncaught exception in the data statistics coordinator: {} while {}. Triggering job failover.",
                 operatorName,
                 actionString,
                 t);
@@ -168,7 +154,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   private void ensureStarted() {
-    Preconditions.checkState(started, "The coordinator has not started yet.");
+    Preconditions.checkState(started, "The coordinator of %s has not started yet.", operatorName);
   }
 
   private int parallelism() {
@@ -176,12 +162,13 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
-    if (globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
-        subtask, event)) {
-      GlobalStatisticsAggregator<D, S> lastCompletedAggregator =
-          globalStatisticsAggregatorTracker.lastCompletedAggregator();
+    GlobalStatistics<D, S> globalStatistics =
+        globalStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(subtask, event);
+
+    if (globalStatistics != null) {
+      completedStatistics = globalStatistics;
       sendDataStatisticsToSubtasks(
-          lastCompletedAggregator.checkpointId(), lastCompletedAggregator.dataStatistics());
+          completedStatistics.checkpointId(), completedStatistics.dataStatistics());
     }
   }
 
@@ -190,10 +177,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     callInCoordinatorThread(
         () -> {
           DataStatisticsEvent<D, S> dataStatisticsEvent =
-              new DataStatisticsEvent<>(checkpointId, globalDataStatistics, statisticsSerializer);
+              DataStatisticsEvent.create(checkpointId, globalDataStatistics, statisticsSerializer);
           int parallelism = parallelism();
           for (int i = 0; i < parallelism; ++i) {
-            subtaskGateways.getOnlyGatewayAndCheckReady(i).sendEvent(dataStatisticsEvent);
+            subtaskGateways.getSubtaskGateway(i).sendEvent(dataStatisticsEvent);
           }
           return null;
         },
@@ -228,7 +215,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               operatorName,
               checkpointId);
           resultFuture.complete(
-              globalStatisticsAggregatorTracker.serializeLastCompletedAggregator());
+              DataStatisticsUtil.serializeGlobalStatistics(
+                  completedStatistics, statisticsSerializer));
         },
         String.format("taking checkpoint %d", checkpointId));
   }
@@ -239,10 +227,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   @Override
   public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
       throws Exception {
-    if (started) {
-      throw new IllegalStateException(
-          "The coordinator can only be reset if it was not yet started");
-    }
+    Preconditions.checkState(
+        !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
 
     if (checkpointData == null) {
       return;
@@ -251,7 +237,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
 
-    globalStatisticsAggregatorTracker.deserializeLastCompletedAggregator(checkpointData);
+    completedStatistics =
+        DataStatisticsUtil.deserializeGlobalStatistics(checkpointData, statisticsSerializer);
   }
 
   @Override
@@ -301,14 +288,16 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   @VisibleForTesting
-  GlobalStatisticsAggregatorTracker<D, S> globalStatisticsAggregatorTracker() {
-    return globalStatisticsAggregatorTracker;
+  GlobalStatistics<D, S> completedStatistics() {
+    return completedStatistics;
   }
 
   private static class SubtaskGateways {
+    private final String operatorName;
     private final Map<Integer, SubtaskGateway>[] gateways;
 
-    private SubtaskGateways(int parallelism) {
+    private SubtaskGateways(String operatorName, int parallelism) {
+      this.operatorName = operatorName;
       gateways = new Map[parallelism];
 
       for (int i = 0; i < parallelism; ++i) {
@@ -321,28 +310,80 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways[subtaskIndex].containsKey(attemptNumber),
-          "Already have a subtask gateway for %d (#%d).",
+          "Coordinator of %s already has a subtask gateway for %d (#%d).",
+          operatorName,
           subtaskIndex,
           attemptNumber);
-      LOG.debug("Register gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
+      LOG.debug(
+          "Coordinator of {} registers gateway for subtask {} attempt {}",
+          operatorName,
+          subtaskIndex,
+          attemptNumber);
       gateways[subtaskIndex].put(attemptNumber, gateway);
     }
 
     private void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
-      LOG.debug("Unregister gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
+      LOG.debug(
+          "Coordinator of {} unregisters gateway for subtask {} attempt {}",
+          operatorName,
+          subtaskIndex,
+          attemptNumber);
       gateways[subtaskIndex].remove(attemptNumber);
     }
 
-    private OperatorCoordinator.SubtaskGateway getOnlyGatewayAndCheckReady(int subtaskIndex) {
+    private OperatorCoordinator.SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
           gateways[subtaskIndex].size() > 0,
-          "Subtask %d is not ready yet to receive events.",
+          "Coordinator of %s subtask %d is not ready yet to receive events.",
+          operatorName,
           subtaskIndex);
       return Iterables.getOnlyElement(gateways[subtaskIndex].values());
     }
 
     private void reset(int subtaskIndex) {
       gateways[subtaskIndex].clear();
+    }
+  }
+
+  private static class CoordinatorExecutorThreadFactory
+      implements ThreadFactory, Thread.UncaughtExceptionHandler {
+
+    private final String coordinatorThreadName;
+    private final ClassLoader classLoader;
+    private final Thread.UncaughtExceptionHandler errorHandler;
+
+    @javax.annotation.Nullable private Thread thread;
+
+    CoordinatorExecutorThreadFactory(
+        final String coordinatorThreadName, final ClassLoader contextClassLoader) {
+      this(coordinatorThreadName, contextClassLoader, FatalExitExceptionHandler.INSTANCE);
+    }
+
+    @org.apache.flink.annotation.VisibleForTesting
+    CoordinatorExecutorThreadFactory(
+        final String coordinatorThreadName,
+        final ClassLoader contextClassLoader,
+        final Thread.UncaughtExceptionHandler errorHandler) {
+      this.coordinatorThreadName = coordinatorThreadName;
+      this.classLoader = contextClassLoader;
+      this.errorHandler = errorHandler;
+    }
+
+    @Override
+    public synchronized Thread newThread(@NotNull Runnable runnable) {
+      thread = new Thread(runnable, coordinatorThreadName);
+      thread.setContextClassLoader(classLoader);
+      thread.setUncaughtExceptionHandler(this);
+      return thread;
+    }
+
+    @Override
+    public synchronized void uncaughtException(Thread t, Throwable e) {
+      errorHandler.uncaughtException(t, e);
+    }
+
+    boolean isCurrentThreadCoordinatorThread() {
+      return Thread.currentThread() == thread;
     }
   }
 }

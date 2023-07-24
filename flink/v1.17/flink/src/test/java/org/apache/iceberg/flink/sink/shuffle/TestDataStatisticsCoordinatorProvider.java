@@ -87,18 +87,14 @@ public class TestDataStatisticsCoordinatorProvider {
     checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
+            DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
 
     // Handle events from operators for checkpoint 1
     coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify checkpoint 1 global data statistics
     MapDataStatistics checkpoint1GlobalDataStatistics =
-        (MapDataStatistics)
-            dataStatisticsCoordinator
-                .globalStatisticsAggregatorTracker()
-                .lastCompletedAggregator()
-                .dataStatistics();
+        (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
     Assert.assertEquals(
         checkpoint1Subtask0DataStatistic.statistics(),
         checkpoint1GlobalDataStatistics.statistics());
@@ -110,17 +106,13 @@ public class TestDataStatisticsCoordinatorProvider {
     checkpoint2Subtask0DataStatistic.add(binaryRowDataE);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint2Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
+            DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     // Handle events from operators for checkpoint 2
     coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
     TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify checkpoint 2 global data statistics
     MapDataStatistics checkpoint2GlobalDataStatistics =
-        (MapDataStatistics)
-            dataStatisticsCoordinator
-                .globalStatisticsAggregatorTracker()
-                .lastCompletedAggregator()
-                .dataStatistics();
+        (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
     Assert.assertEquals(
         checkpoint2Subtask0DataStatistic.statistics(),
         checkpoint2GlobalDataStatistics.statistics());
@@ -139,10 +131,7 @@ public class TestDataStatisticsCoordinatorProvider {
     // Verify restored data statistics
     MapDataStatistics restoredAggregateDataStatistics =
         (MapDataStatistics)
-            restoredDataStatisticsCoordinator
-                .globalStatisticsAggregatorTracker()
-                .lastCompletedAggregator()
-                .dataStatistics();
+            restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
     Assert.assertEquals(
         checkpoint1GlobalDataStatistics.statistics(), restoredAggregateDataStatistics.statistics());
   }

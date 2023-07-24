@@ -18,63 +18,40 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.io.IOException;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.core.memory.DataInputDeserializer;
-import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * DataStatisticsEvent is sent between data statistics coordinator and operator to transmit data
- * statistics
+ * statistics in bytes
  */
 @Internal
 class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
   private final long checkpointId;
-  private final byte[] dataStatisticsBytes;
+  private final byte[] statisticsBytes;
 
-  DataStatisticsEvent(
+  private DataStatisticsEvent(long checkpointId, byte[] statisticsBytes) {
+    this.checkpointId = checkpointId;
+    this.statisticsBytes = statisticsBytes;
+  }
+
+  static <D extends DataStatistics<D, S>, S> DataStatisticsEvent<D, S> create(
       long checkpointId,
       DataStatistics<D, S> dataStatistics,
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    this.checkpointId = checkpointId;
-    DataOutputSerializer out = new DataOutputSerializer(64);
-    try {
-      statisticsSerializer.serialize(dataStatistics, out);
-      this.dataStatisticsBytes = out.getCopyOfBuffer();
-    } catch (IOException e) {
-      throw new IllegalStateException("Fail to serialize data statistics", e);
-    }
+    return new DataStatisticsEvent<>(
+        checkpointId,
+        DataStatisticsUtil.serializeDataStatistics(dataStatistics, statisticsSerializer));
   }
 
   long checkpointId() {
     return checkpointId;
   }
 
-  @SuppressWarnings("unchecked")
-  D dataStatistics(TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    DataInputDeserializer input =
-        new DataInputDeserializer(dataStatisticsBytes, 0, dataStatisticsBytes.length);
-    D dataStatistics;
-
-    try {
-      dataStatistics = (D) statisticsSerializer.deserialize(input);
-    } catch (IOException e) {
-      throw new IllegalStateException("Fail to serialize data statistics", e);
-    }
-
-    return dataStatistics;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("checkpointId", checkpointId)
-        .add("dataStatisticsBytes", dataStatisticsBytes)
-        .toString();
+  byte[] statisticsBytes() {
+    return statisticsBytes;
   }
 }

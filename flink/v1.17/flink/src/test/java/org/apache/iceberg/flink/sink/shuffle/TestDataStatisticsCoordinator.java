@@ -80,7 +80,9 @@ public class TestDataStatisticsCoordinator {
         IllegalStateException.class,
         () ->
             dataStatisticsCoordinator.handleEventFromOperator(
-                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics(), statisticsSerializer)));
+                0,
+                0,
+                DataStatisticsEvent.create(0, new MapDataStatistics(), statisticsSerializer)));
     Assert.assertThrows(
         failureMessage,
         IllegalStateException.class,
@@ -111,7 +113,7 @@ public class TestDataStatisticsCoordinator {
     checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
+            DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
     checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
     checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
@@ -119,7 +121,7 @@ public class TestDataStatisticsCoordinator {
     checkpoint1Subtask1DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask1DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
+            DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Handle events from operators for checkpoint 1
     dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1DataStatisticEvent);
@@ -127,11 +129,7 @@ public class TestDataStatisticsCoordinator {
     waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify global data statistics is the aggregation of all subtasks data statistics
     MapDataStatistics globalDataStatistics =
-        (MapDataStatistics)
-            dataStatisticsCoordinator
-                .globalStatisticsAggregatorTracker()
-                .lastCompletedAggregator()
-                .dataStatistics();
+        (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
     assertThat(globalDataStatistics.statistics())
         .containsExactlyInAnyOrderEntriesOf(
             ImmutableMap.of(
