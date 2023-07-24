@@ -82,6 +82,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
           "default-namespace", "default",
           "cache-enabled", "false");
 
+  private static final String PARTITION_COL = "partition_col";
   private static final int NUM_DATA_FILES = 5;
   private static final int ROWS_PER_DATA_FILE = 100;
   private static final int DELETE_FILES_PER_PARTITION = 2;
@@ -122,8 +123,8 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   @Test
   public void testBooleanPartition() throws Exception {
     createTable("boolean");
-    insertData(i -> i % 2 == 0, 2);
-    testDanglingDelete(2);
+    insertData(PARTITION_COL, i -> i % 2 == 0, 2);
+    testDanglingDelete(PARTITION_COL, 2);
   }
 
   @Test
@@ -179,7 +180,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
 
   @Test
   public void testDaysPartitionTransform() throws Exception {
-    createTable("timestamp", "days(`partition_col.type`)");
+    createTable("timestamp", PARTITION_COL, String.format("days(%s)", PARTITION_COL));
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
     insertData(i -> Timestamp.valueOf(baseTimestamp.toLocalDateTime().plusDays(i)));
     testDanglingDelete();
@@ -188,15 +189,23 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   @Test
   public void testNullTransform() throws Exception {
     createTable("int");
-    insertData(i -> i == 0 ? null : 1, 2);
-    testDanglingDelete(2);
+    insertData(PARTITION_COL, i -> i == 0 ? null : 1, 2);
+    testDanglingDelete(PARTITION_COL, 2);
+  }
+
+  @Test
+  public void testPartitionColWithDot() throws Exception {
+    String partitionColWithDot = "`partition.col`";
+    createTable("int", partitionColWithDot, partitionColWithDot);
+    insertData(partitionColWithDot, i -> i, NUM_DATA_FILES);
+    testDanglingDelete(partitionColWithDot, NUM_DATA_FILES);
   }
 
   private void testDanglingDelete() throws Exception {
-    testDanglingDelete(NUM_DATA_FILES);
+    testDanglingDelete(PARTITION_COL, NUM_DATA_FILES);
   }
 
-  private void testDanglingDelete(int numDataFiles) throws Exception {
+  private void testDanglingDelete(String partitionCol, int numDataFiles) throws Exception {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     List<DataFile> dataFiles = dataFiles(table);
@@ -212,7 +221,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     List<DeleteFile> deleteFiles = deleteFiles(table);
     assertThat(deleteFiles).hasSize(numDataFiles * DELETE_FILES_PER_PARTITION);
 
-    List<Object[]> expectedRecords = records(tableName);
+    List<Object[]> expectedRecords = records(tableName, partitionCol);
 
     Result result =
         SparkActions.get(spark)
@@ -224,33 +233,34 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     assertThat(newDeleteFiles).as("Remaining dangling deletes").isEmpty();
     checkResult(result, deleteFiles, Lists.newArrayList(), numDataFiles);
 
-    List<Object[]> actualRecords = records(tableName);
+    List<Object[]> actualRecords = records(tableName, partitionCol);
     assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   private void createTable(String partitionType) {
-    createTable(partitionType, "`partition_col.type`");
+    createTable(partitionType, PARTITION_COL, PARTITION_COL);
   }
 
-  private void createTable(String partitionType, String partitionCol) {
+  private void createTable(String partitionType, String partitionCol, String partitionTransform) {
     sql(
-        "CREATE TABLE %s (id long, `partition_col.type` %s, c1 string, c2 string) "
+        "CREATE TABLE %s (id long, %s %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
             + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionType, partitionCol);
+        tableName, partitionCol, partitionType, partitionTransform);
   }
 
   private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
-    insertData(partitionValueFunction, NUM_DATA_FILES);
+    insertData(PARTITION_COL, partitionValueFunction, NUM_DATA_FILES);
   }
 
-  private void insertData(Function<Integer, ?> partitionValue, int numDataFiles) throws Exception {
+  private void insertData(
+      String partitionCol, Function<Integer, ?> partitionValue, int numDataFiles) throws Exception {
     for (int i = 0; i < numDataFiles; i++) {
       Dataset<Row> df =
           spark
               .range(0, ROWS_PER_DATA_FILE)
-              .withColumn("`partition_col.type`", lit(partitionValue.apply(i)))
+              .withColumn(partitionCol, lit(partitionValue.apply(i)))
               .withColumn("c1", expr("CAST(id AS STRING)"))
               .withColumn("c2", expr("CAST(id AS STRING)"));
       appendAsFile(df);
@@ -331,14 +341,9 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     return FileFormat.fromString(formatString);
   }
 
-  private List<Object[]> records(String table) {
+  private List<Object[]> records(String table, String partitionCol) {
     return rowsToJava(
-        spark
-            .read()
-            .format("iceberg")
-            .load(table)
-            .sort("`partition_col.type`", "id")
-            .collectAsList());
+        spark.read().format("iceberg").load(table).sort(partitionCol, "id").collectAsList());
   }
 
   private long size(List<DeleteFile> deleteFiles) {
