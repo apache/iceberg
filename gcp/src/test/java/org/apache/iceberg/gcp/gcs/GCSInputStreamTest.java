@@ -29,8 +29,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
@@ -104,7 +104,7 @@ public class GCSInputStreamTest {
     byte[] actual = new byte[size];
 
     if (buffered) {
-      IOUtils.readFully(in, actual);
+      IOUtil.readFully(in, actual, 0, actual.length);
     } else {
       int read = 0;
       while (read < size) {
@@ -137,7 +137,7 @@ public class GCSInputStreamTest {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 
-      IOUtils.readFully(in, actual, 0, data.length / 2);
+      IOUtil.readFully(in, actual, 0, data.length / 2);
 
       byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
       assertThat(actual).isEqualTo(expected);
