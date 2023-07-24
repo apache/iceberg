@@ -87,6 +87,15 @@ var (
 	)
 )
 
+func TestSchemaToString(t *testing.T) {
+	assert.Equal(t, 3, tableSchemaSimple.NumFields())
+	assert.Equal(t, `table {
+	1: foo: optional string
+	2: bar: required int
+	3: baz: optional boolean
+}`, tableSchemaSimple.String())
+}
+
 func TestNestedFieldToString(t *testing.T) {
 	tests := []struct {
 		idx      int

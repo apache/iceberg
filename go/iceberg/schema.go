@@ -59,6 +59,17 @@ func NewSchemaWithIdentifiers(id int, identifierIDs []int, fields ...NestedField
 	return &Schema{ID: id, fields: fields, IdentifierFieldIDs: identifierIDs}
 }
 
+func (s *Schema) String() string {
+	var b strings.Builder
+	b.WriteString("table {")
+	for _, f := range s.fields {
+		b.WriteString("\n\t")
+		b.WriteString(f.String())
+	}
+	b.WriteString("\n}")
+	return b.String()
+}
+
 func (s *Schema) lazyNameToID() (map[string]int, error) {
 	index := s.nameToID.Load()
 	if index != nil {
