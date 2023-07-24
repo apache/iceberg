@@ -138,7 +138,7 @@ def _gs(properties: Properties) -> AbstractFileSystem:
         "session_kwargs": json.loads(properties.get("gs.session-kwargs", "{}")),
         "endpoint_url": properties.get("gs.endpoint-url"),
         "default_location": properties.get("gs.default-location"),
-        "version_aware": json.loads(properties.get("gs.version-aware", "false").lower()),
+        "version_aware": properties.get("gs.version-aware", "false").lower() == 'true',
     }
     return GCSFileSystem(**fs_kwargs)
 
