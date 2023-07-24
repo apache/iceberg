@@ -466,8 +466,8 @@ public class FlinkCatalog extends AbstractCatalog {
    * @param newTable the new table definition
    * @param ignoreIfNotExists flag to specify behavior when the table or view does not exist: if set
    *     to false, throw an exception, if set to true, do nothing.
-   * @throws CatalogException
-   * @throws TableNotExistException
+   * @throws CatalogException in case of any runtime exception
+   * @throws TableNotExistException if the table does not exist
    */
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
