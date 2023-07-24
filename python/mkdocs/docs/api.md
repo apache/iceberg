@@ -146,6 +146,29 @@ catalog.create_table(
 )
 ```
 
+### Update table schema
+
+Add new columns through the `Transaction` or `UpdateSchema` API:
+
+Use the Transaction API:
+
+```python
+table.transaction().update_schema().add_column("x", IntegerType(), "doc").commit()
+```
+
+Or, use the UpdateSchema API instead of Transaction:
+
+```python
+with table.update_schema() as update:
+    update.add_column("x", IntegerType(), "doc")
+```
+
+Or, without a context manager:
+
+```python
+table.update_schema().add_column("x", IntegerType(), "doc").commit()
+```
+
 ### Update table properties
 
 Set and remove properties through the `Transaction` API:

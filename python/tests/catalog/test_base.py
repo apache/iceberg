@@ -42,11 +42,17 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
-from pyiceberg.table.metadata import TableMetadataV1
+from pyiceberg.table import (
+    AddSchemaUpdate,
+    CommitTableRequest,
+    CommitTableResponse,
+    Table,
+)
+from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import IdentityTransform
 from pyiceberg.typedef import EMPTY_DICT
+from pyiceberg.types import IntegerType, LongType, NestedField
 
 
 class InMemoryCatalog(Catalog):
@@ -78,29 +84,24 @@ class InMemoryCatalog(Catalog):
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
+            new_location = location or f's3://warehouse/{"/".join(identifier)}/data'
+            metadata = TableMetadataV1(
+                **{
+                    "format-version": 1,
+                    "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+                    "location": new_location,
+                    "last-updated-ms": 1602638573874,
+                    "last-column-id": schema.highest_field_id,
+                    "schema": schema.model_dump(),
+                    "partition-spec": partition_spec.model_dump()["fields"],
+                    "properties": properties,
+                    "current-snapshot-id": -1,
+                    "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
+                }
+            )
             table = Table(
                 identifier=identifier,
-                metadata=TableMetadataV1(
-                    **{
-                        "format-version": 1,
-                        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
-                        "location": "s3://bucket/test/location",
-                        "last-updated-ms": 1602638573874,
-                        "last-column-id": 3,
-                        "schema": {
-                            "type": "struct",
-                            "fields": [
-                                {"id": 1, "name": "x", "required": True, "type": "long"},
-                                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-                                {"id": 3, "name": "z", "required": True, "type": "long"},
-                            ],
-                        },
-                        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-                        "properties": properties,
-                        "current-snapshot-id": -1,
-                        "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
-                    }
-                ),
+                metadata=metadata,
                 metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
                 io=load_file_io(),
                 catalog=self,
@@ -109,7 +110,36 @@ class InMemoryCatalog(Catalog):
             return table
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        raise NotImplementedError
+        new_metadata: Optional[TableMetadata] = None
+        metadata_location = ""
+        for update in table_request.updates:
+            if isinstance(update, AddSchemaUpdate):
+                add_schema_update: AddSchemaUpdate = update
+                identifier = Catalog.identifier_to_tuple(table_request.identifier)
+                table = self.__tables[("com", *identifier)]
+                new_metadata = new_table_metadata(
+                    add_schema_update.schema_,
+                    table.metadata.partition_specs[0],
+                    table.sort_order(),
+                    table.location(),
+                    table.properties,
+                    table.metadata.table_uuid,
+                )
+
+                table = Table(
+                    identifier=identifier,
+                    metadata=new_metadata,
+                    metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
+                    io=load_file_io(),
+                    catalog=self,
+                )
+
+                self.__tables[identifier] = table
+                metadata_location = f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json'
+
+        return CommitTableResponse(
+            metadata=new_metadata.model_dump() if new_metadata else {}, metadata_location=metadata_location if metadata_location else ""
+        )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -223,7 +253,11 @@ def catalog() -> InMemoryCatalog:
 TEST_TABLE_IDENTIFIER = ("com", "organization", "department", "my_table")
 TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
-TEST_TABLE_SCHEMA = Schema(schema_id=1)
+TEST_TABLE_SCHEMA = Schema(
+    NestedField(1, "x", LongType()),
+    NestedField(2, "y", LongType(), doc="comment"),
+    NestedField(3, "z", LongType()),
+)
 TEST_TABLE_LOCATION = "protocol://some/location"
 TEST_TABLE_PARTITION_SPEC = PartitionSpec(PartitionField(name="x", transform=IdentityTransform(), source_id=1, field_id=1000))
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
@@ -239,7 +273,7 @@ def given_catalog_has_a_table(catalog: InMemoryCatalog) -> Table:
         identifier=TEST_TABLE_IDENTIFIER,
         schema=TEST_TABLE_SCHEMA,
         location=TEST_TABLE_LOCATION,
-        partition_spec=UNPARTITIONED_PARTITION_SPEC,
+        partition_spec=TEST_TABLE_PARTITION_SPEC,
         properties=TEST_TABLE_PROPERTIES,
     )
 
@@ -474,3 +508,91 @@ def test_update_namespace_metadata_removals(catalog: InMemoryCatalog) -> None:
 def test_update_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, updates=TEST_TABLE_PROPERTIES)
+
+
+def test_commit_table(catalog: InMemoryCatalog) -> None:
+    # Given
+    given_table = given_catalog_has_a_table(catalog)
+    new_schema = Schema(
+        NestedField(1, "x", LongType()),
+        NestedField(2, "y", LongType(), doc="comment"),
+        NestedField(3, "z", LongType()),
+        NestedField(4, "add", LongType()),
+    )
+
+    # When
+    response = given_table.catalog._commit_table(  # pylint: disable=W0212
+        CommitTableRequest(
+            identifier=given_table.identifier[1:],
+            updates=[AddSchemaUpdate(schema=new_schema)],
+        )
+    )
+
+    # Then
+    assert response.metadata.table_uuid == given_table.metadata.table_uuid
+    assert len(response.metadata.schemas) == 1
+    assert response.metadata.schemas[0] == new_schema
+
+
+def test_add_column(catalog: InMemoryCatalog) -> None:
+    # Given
+    given_table = given_catalog_has_a_table(catalog)
+    field_name1 = "new_column1"
+    field_name2 = "new_column2"
+
+    # When
+    table: Table = (
+        given_table.update_schema()
+        .add_column(name=field_name1, type_var=IntegerType(), doc="doc")
+        .add_column(name=field_name2, type_var=LongType())
+        .commit()
+    )
+
+    # Then
+    assert table.schema().find_field(field_name1).name == field_name1
+    assert table.schema().find_field(field_name1).field_type == IntegerType()
+    assert table.schema().find_field(field_name2).name == field_name2
+    assert table.schema().find_field(field_name2).field_type == LongType()
+
+
+def test_add_column_with(catalog: InMemoryCatalog) -> None:
+    # Given
+    given_table = given_catalog_has_a_table(catalog)
+    field_name1 = "new_column1"
+    field_name2 = "new_column2"
+
+    # When
+    with given_table.update_schema() as update:
+        update.add_column(name=field_name1, type_var=IntegerType(), doc="doc").add_column(name=field_name2, type_var=LongType())
+
+    table: Table = catalog.load_table(TEST_TABLE_IDENTIFIER[1:])
+
+    # Then
+    assert table.schema().find_field(field_name1).name == field_name1
+    assert table.schema().find_field(field_name1).field_type == IntegerType()
+    assert table.schema().find_field(field_name2).name == field_name2
+    assert table.schema().find_field(field_name2).field_type == LongType()
+
+
+def test_add_column_via_transaction(catalog: InMemoryCatalog) -> None:
+    # Given
+    given_table = given_catalog_has_a_table(catalog)
+    field_name1 = "new_column1"
+    field_name2 = "new_column2"
+
+    # When
+    (
+        given_table.transaction()
+        .update_schema()
+        .add_column(name=field_name1, type_var=IntegerType(), doc="doc")
+        .add_column(name=field_name2, type_var=LongType())
+        .commit()
+    )
+
+    table: Table = catalog.load_table(TEST_TABLE_IDENTIFIER[1:])
+
+    # Then
+    assert table.schema().find_field(field_name1).name == field_name1
+    assert table.schema().find_field(field_name1).field_type == IntegerType()
+    assert table.schema().find_field(field_name2).name == field_name2
+    assert table.schema().find_field(field_name2).field_type == LongType()
