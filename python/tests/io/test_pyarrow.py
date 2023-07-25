@@ -62,6 +62,7 @@ from pyiceberg.io.pyarrow import (
     _read_deletes,
     expression_to_pyarrow,
     project_table,
+    pyarrow_to_schema,
     schema_to_pyarrow,
 )
 from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
@@ -374,6 +375,65 @@ person: struct<name: string, age: int32 not null>
   -- field metadata --
   field_id: '15'"""
     assert repr(actual) == expected
+
+
+def test_pyarrow_to_schema(table_schema_simple: Schema, table_schema_nested: Schema) -> None:
+    pa_schema_simple = pa.schema([
+        pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+        pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
+        pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
+    ])
+    projected = pyarrow_to_schema(pa_schema_simple, table_schema_simple)
+    assert projected == table_schema_simple.copy(update=dict(schema_id=0, identifier_field_ids=[]))
+
+
+def test_pyarrow_to_schema_match_with_field_name(table_schema_simple: Schema, table_schema_nested: Schema) -> None:
+    pa_schema_simple = pa.schema([
+        pa.field("foo", pa.string(), nullable=True),
+        pa.field("bar", pa.int32(), nullable=False),
+        pa.field("baz", pa.bool_(), nullable=True),
+    ])
+    projected = pyarrow_to_schema(pa_schema_simple, table_schema_simple)
+    assert repr(projected) == repr(Schema())
+
+    projected = pyarrow_to_schema(pa_schema_simple, table_schema_simple, match_with_field_name=True)
+    assert projected == table_schema_simple.copy(update=dict(schema_id=0, identifier_field_ids=[]))
+
+    pa_schema_nested = pa.schema([
+        pa.field("foo", pa.string(), nullable=True),
+        pa.field("bar", pa.int32(), nullable=False),
+        pa.field("baz", pa.bool_(), nullable=True),
+        pa.field("qux", pa.list_(pa.field("item", pa.string(), nullable=False)), nullable=False),
+        pa.field("quux", pa.map_(pa.field("key", pa.string(), nullable=False), pa.field("value", pa.map_(pa.string(), pa.field("value", pa.int32(), nullable=False)), nullable=False)), nullable=False),
+        pa.field(
+            "location",
+            pa.list_(
+                pa.field(
+                    "item",
+                    pa.struct(
+                        [
+                            pa.field("latitude", pa.float32(), nullable=True),
+                            pa.field("longitude", pa.float32(), nullable=True),
+                        ],
+                    ),
+                    nullable=False,
+                )
+            ),
+            nullable=False,
+        ),
+        pa.field(
+            "person",
+            pa.struct(
+                [
+                    pa.field("name", pa.string(), nullable=True),
+                    pa.field("age", pa.int32(), nullable=False),
+                ],
+            ),
+            nullable=True,
+        ),
+    ])
+    projected = pyarrow_to_schema(pa_schema_nested, table_schema_nested, match_with_field_name=True)
+    assert projected == table_schema_nested.copy(update=dict(schema_id=0, identifier_field_ids=[]))
 
 
 def test_fixed_type_to_pyarrow() -> None:

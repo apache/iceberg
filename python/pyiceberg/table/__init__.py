@@ -860,7 +860,7 @@ class DataScan(TableScan):
             for data_entry in data_entries
         ]
 
-    def to_arrow(self) -> pa.Table:
+    def to_arrow(self, *, match_with_field_name: bool = False, ignore_unprojectable_fields: bool = False) -> pa.Table:
         from pyiceberg.io.pyarrow import project_table
 
         return project_table(
@@ -870,23 +870,25 @@ class DataScan(TableScan):
             self.projection(),
             case_sensitive=self.case_sensitive,
             limit=self.limit,
+            match_with_field_name=match_with_field_name,
+            ignore_unprojectable_fields=ignore_unprojectable_fields,
         )
 
-    def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
-        return self.to_arrow().to_pandas(**kwargs)
+    def to_pandas(self, *, match_with_field_name: bool = False, ignore_unprojectable_fields: bool = False, **kwargs: Any) -> pd.DataFrame:
+        return self.to_arrow(match_with_field_name=match_with_field_name, ignore_unprojectable_fields=ignore_unprojectable_fields).to_pandas(**kwargs)
 
-    def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None) -> DuckDBPyConnection:
+    def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None, *, match_with_field_name: bool = False) -> DuckDBPyConnection:
         import duckdb
 
         con = connection or duckdb.connect(database=":memory:")
-        con.register(table_name, self.to_arrow())
+        con.register(table_name, self.to_arrow(match_with_field_name=match_with_field_name, ignore_unprojectable_fields=ignore_unprojectable_fields))
 
         return con
 
-    def to_ray(self) -> ray.data.dataset.Dataset:
+    def to_ray(self, *, match_with_field_name: bool = False, ignore_unprojectable_fields: bool = False) -> ray.data.dataset.Dataset:
         import ray
 
-        return ray.data.from_arrow(self.to_arrow())
+        return ray.data.from_arrow(self.to_arrow(match_with_field_name=match_with_field_name, ignore_unprojectable_fields=ignore_unprojectable_fields))
 
 
 class UpdateSchema:
