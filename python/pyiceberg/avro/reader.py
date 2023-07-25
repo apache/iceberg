@@ -267,10 +267,11 @@ class OptionReader(Reader):
 
 
 class StructReader(Reader):
-    __slots__ = ("field_readers", "create_struct", "struct")
+    __slots__ = ("field_readers", "create_struct", "struct", "_create_with_keyword", "_field_reader_functions", "_hash")
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Callable[..., StructProtocol]
     struct: StructType
+    field_reader_functions = Tuple[Tuple[Optional[str], int, Optional[Callable[[BinaryDecoder], Any]]], ...]
 
     def __init__(
         self,
@@ -282,24 +283,38 @@ class StructReader(Reader):
         self.create_struct = create_struct
         self.struct = struct
 
-    def read(self, decoder: BinaryDecoder) -> StructProtocol:
         try:
             # Try initializing the struct, first with the struct keyword argument
-            struct = self.create_struct(struct=self.struct)
+            created_struct = self.create_struct(struct=self.struct)
+            self._create_with_keyword = True
         except TypeError as e:
             if "'struct' is an invalid keyword argument for" in str(e):
-                struct = self.create_struct()
+                created_struct = self.create_struct()
+                self._create_with_keyword = False
             else:
                 raise ValueError(f"Unable to initialize struct: {self.create_struct}") from e
 
-        if not isinstance(struct, StructProtocol):
+        if not isinstance(created_struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
 
-        for pos, field in self.field_readers:
+        reading_callbacks: List[Tuple[Optional[int], Callable[[BinaryDecoder], Any]]] = []
+        for pos, field in field_readers:
             if pos is not None:
-                struct[pos] = field.read(decoder)  # later: pass reuse in here
+                reading_callbacks.append((pos, field.read))
             else:
-                field.skip(decoder)
+                reading_callbacks.append((None, field.skip))
+
+        self._field_reader_functions = tuple(reading_callbacks)
+        self._hash = hash(self._field_reader_functions)
+
+    def read(self, decoder: BinaryDecoder) -> StructProtocol:
+        struct = self.create_struct(struct=self.struct) if self._create_with_keyword else self.create_struct()
+
+        for pos, field_reader in self._field_reader_functions:
+            if pos is not None:
+                struct[pos] = field_reader(decoder)  # later: pass reuse in here
+            else:
+                field_reader(decoder)
 
         return struct
 
@@ -321,51 +336,88 @@ class StructReader(Reader):
 
     def __hash__(self) -> int:
         """Returns a hashed representation of the StructReader class."""
-        return hash(self.field_readers)
+        return self._hash
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False, init=False)
 class ListReader(Reader):
-    __slots__ = ("element",)
+    __slots__ = ("element", "_is_int_list", "_hash")
     element: Reader
 
+    def __init__(self, element: Reader) -> None:
+        super().__init__()
+        self.element = element
+        self._hash = hash(self.element)
+        self._is_int_list = isinstance(self.element, IntegerReader)
+
     def read(self, decoder: BinaryDecoder) -> List[Any]:
-        read_items = []
+        read_items: List[Any] = []
         block_count = decoder.read_int()
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
                 _ = decoder.read_int()
-            for _ in range(block_count):
-                read_items.append(self.element.read(decoder))
+            if self._is_int_list:
+                decoder.read_ints(block_count, read_items)
+            else:
+                for _ in range(block_count):
+                    read_items.append(self.element.read(decoder))
             block_count = decoder.read_int()
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
         _skip_map_array(decoder, lambda: self.element.skip(decoder))
 
+    def __hash__(self) -> int:
+        """Returns a hashed representation of the ListReader class."""
+        return self._hash
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=False, init=False)
 class MapReader(Reader):
-    __slots__ = ("key", "value")
+    __slots__ = ("key", "value", "_is_int_int", "_is_int_bytes", "_key_reader", "_value_reader", "_hash")
     key: Reader
     value: Reader
 
-    def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
-        read_items = {}
-        block_count = decoder.read_int()
-        key_reader = self.key.read
-        value_reader = self.value.read
+    def __init__(self, key: Reader, value: Reader) -> None:
+        super().__init__()
+        self.key = key
+        self.value = value
+        if isinstance(self.key, IntegerReader):
+            self._is_int_int = isinstance(self.value, IntegerReader)
+            self._is_int_bytes = isinstance(self.value, BinaryReader)
+        else:
+            self._is_int_int = False
+            self._is_int_bytes = False
+            self._key_reader = self.key.read
+            self._value_reader = self.value.read
+        self._hash = hash((self.key, self.value))
 
-        while block_count != 0:
-            if block_count < 0:
-                block_count = -block_count
-                # We ignore the block size for now
-                _ = decoder.read_int()
-            for _ in range(block_count):
-                key = key_reader(decoder)
-                read_items[key] = value_reader(decoder)
-            block_count = decoder.read_int()
+    def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
+        read_items: dict[Any, Any] = {}
+
+        block_count = decoder.read_int()
+        if self._is_int_int or self._is_int_bytes:
+            while block_count != 0:
+                if block_count < 0:
+                    block_count = -block_count
+                    # We ignore the block size for now
+                    _ = decoder.read_int()
+                if self._is_int_int:
+                    decoder.read_int_int_dict(block_count, read_items)
+                else:
+                    decoder.read_int_bytes_dict(block_count, read_items)
+                block_count = decoder.read_int()
+        else:
+            while block_count != 0:
+                if block_count < 0:
+                    block_count = -block_count
+                    # We ignore the block size for now
+                    _ = decoder.read_int()
+                for _ in range(block_count):
+                    key = self._key_reader(decoder)
+                    read_items[key] = self._value_reader(decoder)
+                block_count = decoder.read_int()
 
         return read_items
 
@@ -375,3 +427,7 @@ class MapReader(Reader):
             self.value.skip(decoder)
 
         _skip_map_array(decoder, skip)
+
+    def __hash__(self) -> int:
+        """Returns a hashed representation of the MapReader class."""
+        return self._hash
