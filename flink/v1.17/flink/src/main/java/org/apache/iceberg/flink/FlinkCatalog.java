@@ -51,6 +51,7 @@ import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -537,7 +538,14 @@ public class FlinkCatalog extends AbstractCatalog {
     return builder.build();
   }
 
-  private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
+  private static List<String> toPartitionKeys(
+      Table table, PartitionSpec spec, Schema icebergSchema) {
+    if (table instanceof BaseMetadataTable) {
+      // Flink catalogManager mandates all partitionKeys to be referenced by physical column in the
+      // schema
+      // which do not work for transformedSpec used in baseMetadataTables
+      return Collections.emptyList();
+    }
     ImmutableList.Builder<String> partitionKeysBuilder = ImmutableList.builder();
     for (PartitionField field : spec.fields()) {
       if (field.transform().isIdentity()) {
@@ -600,7 +608,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   static CatalogTable toCatalogTable(Table table) {
     TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
-    List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
+    List<String> partitionKeys = toPartitionKeys(table, table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer
     // may use

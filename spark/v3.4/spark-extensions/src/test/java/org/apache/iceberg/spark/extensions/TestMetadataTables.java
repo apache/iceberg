@@ -142,6 +142,49 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testPartitionedTablesFilterNonPartitionedColumns() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
+
+    List<SimpleRecord> recordsA =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
+    spark
+        .createDataset(recordsA, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    List<SimpleRecord> recordsB = Lists.newArrayList(new SimpleRecord(1, "b"));
+    spark
+        .createDataset(recordsB, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
+
+    // Check data files table
+    List<Record> expectedDataFiles =
+        expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, "a");
+    Assert.assertEquals("Should have one data file manifest entry", 1, expectedDataFiles.size());
+    Dataset<Row> actualDataFilesDs =
+        spark.sql("SELECT * FROM " + tableName + ".data_files " + "WHERE record_count=2");
+
+    List<Row> actualDataFiles = TestHelpers.selectNonDerived(actualDataFilesDs).collectAsList();
+    Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(actualDataFilesDs),
+        expectedDataFiles.get(0),
+        actualDataFiles.get(0));
+  }
+
+  @Test
   public void testPartitionedTable() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) "
