@@ -37,8 +37,6 @@ Each compute engine stores the metadata of the view in its proprietary format in
 
 View metadata storage mirrors how Iceberg table metadata is stored and retrieved. View metadata is maintained in metadata files. All changes to view state create a new view metadata file and completely replace the old metadata using an atomic swap. Like Iceberg tables, this atomic swap is delegated to the metastore that tracks tables and/or views by name. The view metadata file tracks the view schema, custom properties, current and past versions, as well as other metadata.
 
-When view metadata is replaced, then previously set properties are carried over.
-
 Each metadata file is self-sufficient. It contains the history of the last few versions of the view and can be used to roll back the view to a previous version.
 
 ### Metadata Location
@@ -85,9 +83,7 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `summary`           | A string to string map of [summary metadata](#summary) about the version      |
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
-| _optional_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-
-When writing a new view version, all the information from the previous view version is replaced, meaning that `representations` / `default-catalog` / `default-namespace` / `summary` are not carried over.
+| _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
 
 #### Summary
 
