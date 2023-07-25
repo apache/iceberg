@@ -30,6 +30,7 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
@@ -167,7 +168,9 @@ public class SparkScanBuilder
           pushableFilters.add(filter);
         }
 
-        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+        if (expr == null
+            || unpartitioned()
+            || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanFilters.add(filter);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", filter);
@@ -183,6 +186,10 @@ public class SparkScanBuilder
     this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
     return postScanFilters.toArray(new Filter[0]);
+  }
+
+  private boolean unpartitioned() {
+    return table.specs().values().stream().noneMatch(PartitionSpec::isPartitioned);
   }
 
   @Override
