@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Classes for building the Reader tree.
+Classes for building the Writer tree.
 
-Constructing a reader tree from the schema makes it easy
-to decouple the reader implementation from the schema.
-
-The reader tree can be changed in such a way that the
-read schema is different, while respecting the read schema.
+Constructing a writer tree from the schema makes it easy
+to decouple the writing implementation from the schema.
 """
 from __future__ import annotations
 
@@ -127,7 +124,7 @@ class FixedWriter(Writer):
 
     def __repr__(self) -> str:
         """Returns string representation of this object."""
-        return f"FixedReader({self._len})"
+        return f"FixedWriter({self._len})"
 
 
 class BinaryWriter(Writer):
@@ -147,7 +144,7 @@ class DecimalWriter(Writer):
 
     def __repr__(self) -> str:
         """Returns string representation of this object."""
-        return f"DecimalReader({self.precision}, {self.scale})"
+        return f"DecimalWriter({self.precision}, {self.scale})"
 
 
 @dataclass(frozen=True)

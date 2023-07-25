@@ -29,12 +29,11 @@ import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
@@ -46,6 +45,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.jdbc.JdbcCatalog;
@@ -122,14 +122,14 @@ public class TestS3FileIO {
 
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(expected, os);
+      IOUtil.writeFully(os, ByteBuffer.wrap(expected));
     }
 
     Assertions.assertThat(in.exists()).isTrue();
-    byte[] actual;
+    byte[] actual = new byte[1024 * 1024];
 
     try (InputStream is = in.newStream()) {
-      actual = IOUtils.readFully(is, expected.length);
+      IOUtil.readFully(is, actual, 0, expected.length);
     }
 
     Assertions.assertThat(actual).isEqualTo(expected);
@@ -161,7 +161,7 @@ public class TestS3FileIO {
     Assertions.assertThat(in.exists()).isFalse();
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(new byte[1024 * 1024], os);
+      IOUtil.writeFully(os, ByteBuffer.wrap(new byte[1024 * 1024]));
     }
 
     s3FileIO.deleteFiles(Lists.newArrayList());
@@ -208,7 +208,7 @@ public class TestS3FileIO {
   }
 
   @Test
-  public void testSerializeClient() {
+  public void testSerializeClient() throws IOException, ClassNotFoundException {
     SerializableSupplier<S3Client> pre =
         () ->
             S3Client.builder()
@@ -216,8 +216,8 @@ public class TestS3FileIO {
                 .region(Region.US_EAST_1)
                 .build();
 
-    byte[] data = SerializationUtils.serialize(pre);
-    SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
+    byte[] data = TestHelpers.serialize(pre);
+    SerializableSupplier<S3Client> post = TestHelpers.deserialize(data);
 
     Assertions.assertThat(post.get().serviceName()).isEqualTo("s3");
   }
