@@ -72,9 +72,6 @@ public class TestViewMetadataParser {
                     .build())
             .build();
 
-    ViewHistoryEntry historyEntry1 =
-        ImmutableViewHistoryEntry.builder().timestampMillis(4353L).versionId(1).build();
-
     ViewVersion version2 =
         ImmutableViewVersion.builder()
             .versionId(2)
@@ -90,25 +87,23 @@ public class TestViewMetadataParser {
                     .build())
             .build();
 
-    ViewHistoryEntry historyEntry2 =
-        ImmutableViewHistoryEntry.builder().timestampMillis(5555L).versionId(2).build();
-
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
-        ImmutableViewMetadata.builder()
-            .schemas(ImmutableList.of(TEST_SCHEMA))
-            .versions(ImmutableList.of(version1, version2))
-            .history(ImmutableList.of(historyEntry1, historyEntry2))
-            .location("s3://bucket/test/location")
-            .properties(ImmutableMap.of("some-key", "some-value"))
-            .currentVersionId(2)
-            .formatVersion(1)
+        ViewMetadata.builder()
+            .setSchemas(ImmutableList.of(TEST_SCHEMA))
+            .addVersion(version1)
+            .addVersion(version2)
+            .setLocation("s3://bucket/test/location")
+            .setProperties(ImmutableMap.of("some-key", "some-value"))
+            .setCurrentVersionId(2)
+            .upgradeFormatVersion(1)
             .build();
 
     ViewMetadata actual = ViewMetadataParser.fromJson(json);
     assertThat(actual)
         .usingRecursiveComparison()
         .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
         .isEqualTo(expectedViewMetadata);
     for (Schema schema : expectedViewMetadata.schemas()) {
       assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();
@@ -118,6 +113,7 @@ public class TestViewMetadataParser {
     assertThat(actual)
         .usingRecursiveComparison()
         .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
         .isEqualTo(expectedViewMetadata);
     for (Schema schema : expectedViewMetadata.schemas()) {
       assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();

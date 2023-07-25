@@ -33,6 +33,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -129,15 +130,15 @@ public class ViewMetadataParser {
       historyEntries.add(ViewHistoryEntryParser.fromJson(vLog));
     }
 
-    return ImmutableViewMetadata.builder()
-        .location(location)
-        .currentVersionId(currentVersionId)
-        .properties(properties)
-        .versions(versions)
-        .schemas(schemas)
-        .history(historyEntries)
-        .formatVersion(formatVersion)
-        .build();
+    return ImmutableViewMetadata.of(
+        formatVersion,
+        location,
+        schemas,
+        currentVersionId,
+        versions,
+        historyEntries,
+        properties,
+        ImmutableList.of());
   }
 
   public static void overwrite(ViewMetadata metadata, OutputFile outputFile) {
