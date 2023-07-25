@@ -169,7 +169,7 @@ public class SparkScanBuilder
         }
 
         if (expr == null
-            || unPartitioned()
+            || unpartitioned()
             || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanFilters.add(filter);
         } else {
@@ -188,7 +188,7 @@ public class SparkScanBuilder
     return postScanFilters.toArray(new Filter[0]);
   }
 
-  private boolean unPartitioned() {
+  private boolean unpartitioned() {
     return table.specs().values().stream().noneMatch(PartitionSpec::isPartitioned);
   }
 
