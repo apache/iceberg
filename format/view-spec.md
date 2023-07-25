@@ -85,6 +85,8 @@ Each version in `versions` is a struct with the following fields:
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
 
+When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
+
 #### Summary
 
 Summary is a string to string map of metadata about a view version. Common metadata keys are documented here.
