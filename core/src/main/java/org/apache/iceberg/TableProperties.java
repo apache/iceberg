@@ -142,12 +142,12 @@ public class TableProperties {
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
-  public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  public static final String PARQUET_COMPRESSION_DEFAULT = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
       "write.delete.parquet.compression-level";
-  public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
+  public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null; // For zstd, it is default to "3"
 
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
       "write.parquet.row-group-check-min-record-count";
