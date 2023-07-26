@@ -379,7 +379,6 @@ public class S3FileIOProperties implements Serializable {
   private boolean isAccelerationEnabled;
   private String endpoint;
   private final boolean isRemoteSigningEnabled;
-
   private String writeStorageClass;
   private final Map<String, String> allProperties;
 

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import com.adobe.testing.s3mock.dto.StorageClass;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
@@ -254,6 +255,11 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             String.valueOf(s3FileIOProperties.isRemoteSigningEnabled()));
+
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.WRITE_STORAGE_CLASS,
+            StorageClass.INTELLIGENT_TIERING.toString());
   }
 
   @Test
@@ -399,6 +405,7 @@ public class TestS3FileIOProperties {
         S3FileIOProperties.ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME, S3_TEST_BUCKET_ACCESS_POINT);
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
+    map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, StorageClass.INTELLIGENT_TIERING.toString());
     return map;
   }
 
