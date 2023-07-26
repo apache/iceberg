@@ -774,6 +774,11 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.field.constantValueChanged"
+      old: "field org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT"
+      new: "field org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT"
+      justification: "{Changing the default compression codec from gzip to zstd}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
