@@ -722,7 +722,8 @@ Partition statistics files metadata within `partition-statistics` table metadata
 #### Partition Statistics file
 
 Statistics information for every partition tuple is stored as a row in the **table default format**. 
-These rows are sorted based on the first partition column from `partition`. 
+These rows are sorted (in ascending manner with NULL FIRST) based on the first partition column from `partition` 
+to optimize filtering rows while scanning.
 Each unique partition tuple must have exactly one corresponding row, ensuring all partition tuples are present.
 
 Partition statistics file store the statistics as a struct with the following fields:
@@ -738,15 +739,8 @@ Partition statistics file store the statistics as a struct with the following fi
 | _optional_ | _optional_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
 | _optional_ | _optional_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
 | _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
-| _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
 | _optional_ | _optional_ | **`10 last_updated_at`** | `timestamptz` | Commit time of snapshot that last updated this partition |
-| _optional_ | _optional_ | **`11 last_updated_snapshot_id`** | `long` | Id of snapshot that last updated this partition |
-
-Each snapshot may create a new partition statistics file. The name of the partition statistics file is as follows:       
-`partition-stats-${snapshotId}.${tableDefaultFormat}`
-
-For example, If the table's default format is `parquet` and statistics are written for the snapshot ID `7198265285857416540`,
-the file name should be `partition-stats-7198265285857416540.parquet`
+| _optional_ | _optional_ | **`11 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
 #### Commit Conflict Resolution and Retry
 
