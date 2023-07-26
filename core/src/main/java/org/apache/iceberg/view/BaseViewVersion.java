@@ -19,7 +19,6 @@
 package org.apache.iceberg.view;
 
 import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
 
 /**
@@ -45,10 +44,6 @@ public interface BaseViewVersion extends ViewVersion {
   @Override
   @Nullable
   String defaultCatalog();
-
-  @Override
-  @Nullable
-  Namespace defaultNamespace();
 
   @Override
   @Value.Check
