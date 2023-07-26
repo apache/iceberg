@@ -425,6 +425,10 @@ class S3OutputStream extends PositionOutputStream {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
       }
 
+      if (s3FileIOProperties.writeStorageClass() != null) {
+        requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
+      }
+
       if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
       }
