@@ -75,7 +75,12 @@ public class RewriteDataFilesCommitManager {
       rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }
 
-    rewrite.commit();
+    synchronized (this) {
+      // synchronized to avoid committing conflict by multiple threads when enabled
+      // partial-progress. And it should be cheaper when not enabled partial-progress
+      // because it commits in a single thread
+      rewrite.commit();
+    }
   }
 
   /**
