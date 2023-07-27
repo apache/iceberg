@@ -69,7 +69,7 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
-from pyiceberg.utils.concurrent import executor
+from pyiceberg.utils.concurrent import ExecutorFactory
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -773,6 +773,7 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
+        executor = ExecutorFactory.create()
         for manifest_entry in chain(
             *executor.map(
                 lambda args: _open_manifest(*args),

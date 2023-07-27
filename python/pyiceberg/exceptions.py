@@ -110,3 +110,7 @@ class CommitFailedException(RESTError):
 
 class CommitStateUnknownException(RESTError):
     """Commit failed due to unknown reason."""
+
+
+class InvalidConfigurationError(Exception):
+    pass

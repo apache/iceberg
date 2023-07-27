@@ -125,7 +125,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.concurrent import executor
+from pyiceberg.utils.concurrent import ExecutorFactory
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -813,6 +813,7 @@ def _read_all_delete_files(fs: FileSystem, tasks: Iterable[FileScanTask]) -> Dic
     deletes_per_file: Dict[str, List[ChunkedArray]] = {}
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
+        executor = ExecutorFactory.create()
         deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
             lambda args: _read_deletes(*args), [(fs, delete) for delete in unique_deletes]
         )
@@ -870,6 +871,7 @@ def project_table(
 
     row_count = 0
     deletes_per_file = _read_all_delete_files(fs, tasks)
+    executor = ExecutorFactory.create()
     futures = [
         executor.submit(
             _task_to_table,
