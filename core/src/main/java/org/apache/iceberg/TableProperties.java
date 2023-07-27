@@ -362,8 +362,14 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
-  // Controls whether the set distribution mode has to be followed or not.
+  // This property doesn't need to be transferred to Spark 3.4 because we have already set
+  // "write.distributionStrictlyRequired()" to false.
+  // In Spark 3.3, due to absence of "write.distributionStrictlyRequired()" we add a similar
+  // property in Iceberg with a slight change in behaviour.
+  // If strict distribution mode is disabled, we will use the Spark AQE (Adaptive Query Execution).
+  // By default, strictDistributionMode is enabled.
+  // This ensures that the old behaviour of not using AQE is maintained.
   public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING =
-      "strict.table.distribution-ordering";
+      "write.spark.strict-table-distribution-ordering";
   public static final String STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = "true";
 }
