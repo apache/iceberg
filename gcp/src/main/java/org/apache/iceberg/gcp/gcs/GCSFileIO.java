@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
@@ -27,10 +28,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -48,10 +55,11 @@ import org.slf4j.LoggerFactory;
  * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
  * Overview</a>
  */
-public class GCSFileIO implements FileIO {
+public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final int DELETE_BATCH_SIZE = 50;
 
   private SerializableSupplier<Storage> storageSupplier;
   private GCPProperties gcpProperties;
@@ -173,5 +181,49 @@ public class GCSFileIO implements FileIO {
         storage = null;
       }
     }
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    // Note that BlobId.fromGsUtilUri() will throw an exception if no path is given
+    // after the bucket name, so listing from root isn't supported
+    BlobId blobId = BlobId.fromGsUtilUri(prefix);
+    return () ->
+        client()
+            .list(blobId.getBucket(), Storage.BlobListOption.prefix(blobId.getName()))
+            .streamAll()
+            .map(
+                blob ->
+                    new FileInfo(
+                        String.format("gs://%s/%s", blob.getBucket(), blob.getName()),
+                        blob.getSize(),
+                        getCreateTimeMillis(blob)))
+            .iterator();
+  }
+
+  private long getCreateTimeMillis(Blob blob) {
+    if (blob.getCreateTimeOffsetDateTime() == null) {
+      return 0;
+    }
+    return blob.getCreateTimeOffsetDateTime().toInstant().toEpochMilli();
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    internalDeleteFiles(
+        () ->
+            Streams.stream(listPrefix(prefix))
+                .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location()))
+                .iterator());
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    internalDeleteFiles(() -> Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri).iterator());
+  }
+
+  private void internalDeleteFiles(Iterable<BlobId> blobIdsToDelete) {
+    Streams.stream(Iterables.partition(blobIdsToDelete, DELETE_BATCH_SIZE))
+        .forEach(batch -> client().delete(batch));
   }
 }
