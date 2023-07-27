@@ -52,6 +52,8 @@ public class SparkReadConf {
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
+  private final boolean isLocalityEnabled;
+
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
     this(spark, table, null, readOptions);
   }
@@ -63,15 +65,27 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+    this.isLocalityEnabled = initLocalityEnabled(table, readOptions);
   }
 
   public boolean caseSensitive() {
     return SparkUtil.caseSensitive(spark);
   }
 
+  private static boolean initLocalityEnabled(Table table, Map<String, String> readOptions) {
+    InputFile file = table.io().newInputFile(table.location());
+
+    if (file instanceof HadoopInputFile) {
+      String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
+      boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
+      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
+    }
+
+    return false;
+  }
+
   public boolean localityEnabled() {
-    boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
-    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
+    return this.isLocalityEnabled;
   }
 
   public Long snapshotId() {
