@@ -89,7 +89,6 @@ object ExtendedDistributionAndOrderingUtils {
           // this allows RepartitionByExpression to pick either range or hash partitioning
           RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
         }
-
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {
