@@ -63,4 +63,7 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls read split size for the individual table
+  public static final String TEMPLATED_SPLIT_SIZE = "spark.sql.iceberg.%s.read-split-size";
 }

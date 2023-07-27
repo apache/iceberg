@@ -181,13 +181,22 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(
+            String.format(
+                SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableNameWithoutCatalog(table.name())))
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(
+            String.format(
+                SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableNameWithoutCatalog(table.name())))
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
@@ -266,5 +275,9 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
         .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
+  }
+
+  private static String tableNameWithoutCatalog(String tableName) {
+    return tableName.split("\\.", 2)[1];
   }
 }
