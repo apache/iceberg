@@ -803,7 +803,7 @@ def _task_to_table(
         if len(arrow_table) < 1:
             return None
 
-        if limit and row_count >= limit:
+        if limit is not None and row_count >= limit:
             return None
 
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
