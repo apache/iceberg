@@ -735,10 +735,10 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    row_count: int,
+    row_counts: List[int],
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and row_count >= limit:
+    if limit and sum(row_counts) >= limit:
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -803,7 +803,7 @@ def _task_to_table(
         if len(arrow_table) < 1:
             return None
 
-        if limit is not None and row_count >= limit:
+        if limit is not None and sum(row_counts) >= limit:
             return None
 
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
@@ -869,7 +869,7 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    row_count = 0
+    row_counts: List[int] = []
     deletes_per_file = _read_all_delete_files(fs, tasks)
     executor = ExecutorFactory.create()
     futures = [
@@ -882,7 +882,7 @@ def project_table(
             projected_field_ids,
             deletes_per_file.get(task.file.file_path),
             case_sensitive,
-            row_count,
+            row_counts,
             limit,
         )
         for task in tasks
@@ -894,10 +894,10 @@ def project_table(
     for future in concurrent.futures.as_completed(futures):
         if result := future.result():
             completed_futures.add(future)
-            row_count += len(result)
+            row_counts.append(len(result))
 
         # stop early if limit is satisfied
-        if limit is not None and row_count >= limit:
+        if limit is not None and sum(row_counts) >= limit:
             break
 
     # by now, we've either completed all tasks or satisfied the limit
