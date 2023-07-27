@@ -30,15 +30,22 @@ import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.PeekingIterator;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** FileIO implementation that uses location scheme to choose the correct FileIO implementation. */
-public class ResolvingFileIO implements FileIO, HadoopConfigurable {
+/**
+ * FileIO implementation that uses location scheme to choose the correct FileIO implementation.
+ * Delegate FileIO implementations should support the mixin interfaces {@link
+ * SupportsPrefixOperations} and {@link SupportsBulkOperations}.
+ */
+public class ResolvingFileIO
+    implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
@@ -83,6 +90,38 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   @Override
   public void deleteFile(String location) {
     io(location).deleteFile(location);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    // peek at the first element to determine the type of FileIO
+    PeekingIterator<String> iterator = Iterators.peekingIterator(pathsToDelete.iterator());
+    FileIO fileIO = io(iterator.peek());
+    if (!(fileIO instanceof SupportsPrefixOperations)) {
+      throw new UnsupportedOperationException(
+          "FileIO doesn't support bulk operations: " + fileIO.getClass().getName());
+    }
+    ((SupportsBulkOperations) fileIO).deleteFiles(() -> iterator);
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    FileIO fileIO = io(prefix);
+    if (!(fileIO instanceof SupportsPrefixOperations)) {
+      throw new UnsupportedOperationException(
+          "FileIO doesn't support prefix operations: " + fileIO.getClass().getName());
+    }
+    return ((SupportsPrefixOperations) fileIO).listPrefix(prefix);
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    FileIO fileIO = io(prefix);
+    if (!(fileIO instanceof SupportsPrefixOperations)) {
+      throw new UnsupportedOperationException(
+          "FileIO doesn't support prefix operations: " + fileIO.getClass().getName());
+    }
+    ((SupportsPrefixOperations) fileIO).deletePrefix(prefix);
   }
 
   @Override
