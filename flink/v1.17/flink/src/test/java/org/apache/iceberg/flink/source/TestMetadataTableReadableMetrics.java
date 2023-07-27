@@ -291,7 +291,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
   public void testNestedValues() throws Exception {
     createNestedTable();
 
-    Row leafDoubleCol = Row.of(53L, 3L, 1L, 1L, 0.0D, 0.0D);
+    Row leafDoubleCol = Row.of(46L, 3L, 1L, 1L, 0.0D, 0.0D);
     Row leafLongCol = Row.of(54L, 3L, 1L, null, 0L, 1L);
     Row metrics = Row.of(Row.of(leafDoubleCol, leafLongCol));
 

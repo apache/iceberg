@@ -353,7 +353,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
   public void testNestedValues() throws Exception {
     createNestedTable();
 
-    Object[] leafDoubleCol = row(53L, 3L, 1L, 1L, 0.0D, 0.0D);
+    Object[] leafDoubleCol = row(46L, 3L, 1L, 1L, 0.0D, 0.0D);
     Object[] leafLongCol = row(54L, 3L, 1L, null, 0L, 1L);
     Object[] metrics = row(leafDoubleCol, leafLongCol);
 
