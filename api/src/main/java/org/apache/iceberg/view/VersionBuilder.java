@@ -18,51 +18,40 @@
  */
 package org.apache.iceberg.view;
 
-import java.util.Map;
-import org.apache.iceberg.catalog.ViewCatalog;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
 
-/**
- * A builder used to create or replace a SQL {@link View}.
- *
- * <p>Call {@link ViewCatalog#buildView} to create a new builder.
- */
-public interface ViewBuilder extends VersionBuilder<ViewBuilder> {
-
+public interface VersionBuilder<T> {
   /**
-   * Add key/value properties to the view.
+   * Set the view schema.
    *
-   * @param properties key/value properties
+   * @param schema The schema to use for this view version
    * @return this for method chaining
    */
-  ViewBuilder withProperties(Map<String, String> properties);
+  T withSchema(Schema schema);
 
   /**
-   * Add a key/value property to the view.
+   * Add a view representation for the given dialect and the SQL to the view.
    *
-   * @param key a key
-   * @param value a value
+   * @param dialect The dialect of the view representation
+   * @param sql The SQL of the view representation
    * @return this for method chaining
    */
-  ViewBuilder withProperty(String key, String value);
+  T withQuery(String dialect, String sql);
 
   /**
-   * Create the view.
+   * Set the default catalog to use for the view.
    *
-   * @return the view created
+   * @param catalog The default catalog to use when the SQL does not contain a catalog
+   * @return this for method chaining
    */
-  View create();
+  T withDefaultCatalog(String catalog);
 
   /**
-   * Replace the view.
+   * Set the default namespace to use for the view.
    *
-   * @return the {@link View} replaced
+   * @param namespace The default namespace to use when the SQL does not contain a namespace
+   * @return this for method chaining
    */
-  View replace();
-
-  /**
-   * Create or replace the view.
-   *
-   * @return the {@link View} created or replaced
-   */
-  View createOrReplace();
+  T withDefaultNamespace(Namespace namespace);
 }

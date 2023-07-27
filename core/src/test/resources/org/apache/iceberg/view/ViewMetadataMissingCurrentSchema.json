@@ -36,15 +36,13 @@
       "timestamp-ms": 4353,
       "summary": {"operation":"create"},
       "schema-id": 1,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
       "representations": [
         {
           "type": "sql",
           "sql": "select 'foo' foo",
-          "dialect": "spark-sql",
-          "default-catalog": "some-catalog",
-          "default-namespace": [],
-          "field-aliases": [],
-          "field-comments": []
+          "dialect": "spark-sql"
         }
       ]
     },
@@ -53,15 +51,13 @@
       "timestamp-ms": 5555,
       "summary": {"operation": "replace"},
       "schema-id": 1,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
       "representations": [
         {
           "type": "sql",
           "sql": "select 1 id, 'abc' data",
-          "dialect": "spark-sql",
-          "default-catalog": "some-catalog",
-          "default-namespace": [],
-          "field-aliases": [],
-          "field-comments": []
+          "dialect": "spark-sql"
         }
       ]
     }

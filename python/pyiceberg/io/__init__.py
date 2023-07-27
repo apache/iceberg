@@ -51,6 +51,10 @@ S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
 S3_PROXY_URI = "s3.proxy-uri"
+HDFS_HOST = "hdfs.host"
+HDFS_PORT = "hdfs.port"
+HDFS_USER = "hdfs.user"
+HDFS_KERB_TICKET = "hdfs.kerberos_ticket"
 
 
 @runtime_checkable

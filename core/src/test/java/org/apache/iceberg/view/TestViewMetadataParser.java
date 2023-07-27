@@ -62,11 +62,11 @@ public class TestViewMetadataParser {
             .timestampMillis(4353L)
             .summary(ImmutableMap.of("operation", "create"))
             .schemaId(1)
+            .defaultCatalog("some-catalog")
             .addRepresentations(
                 ImmutableSQLViewRepresentation.builder()
                     .sql("select 'foo' foo")
                     .dialect("spark-sql")
-                    .defaultCatalog("some-catalog")
                     .build())
             .build();
 
@@ -79,10 +79,10 @@ public class TestViewMetadataParser {
             .schemaId(1)
             .timestampMillis(5555L)
             .summary(ImmutableMap.of("operation", "replace"))
+            .defaultCatalog("some-catalog")
             .addRepresentations(
                 ImmutableSQLViewRepresentation.builder()
                     .sql("select 1 id, 'abc' data")
-                    .defaultCatalog("some-catalog")
                     .dialect("spark-sql")
                     .build())
             .build();

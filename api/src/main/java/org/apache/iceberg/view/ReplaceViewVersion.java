@@ -18,16 +18,15 @@
  */
 package org.apache.iceberg.view;
 
-/**
- * View history entry.
- *
- * <p>An entry contains a change to the view state. At the given timestamp, the current version was
- * set to the given version ID.
- */
-public interface ViewHistoryEntry {
-  /** Return the timestamp in milliseconds of the change */
-  long timestampMillis();
+import org.apache.iceberg.PendingUpdate;
 
-  /** Return ID of the new current version */
-  int versionId();
-}
+/**
+ * API for replacing a view's version.
+ *
+ * <p>Apply returns the updated view version for validation.
+ *
+ * <p>When committing, these changes will be applied to the current view metadata. Commit conflicts
+ * will be resolved by applying the pending changes to the new view metadata.
+ */
+public interface ReplaceViewVersion
+    extends PendingUpdate<ViewVersion>, VersionBuilder<ReplaceViewVersion> {}
