@@ -895,7 +895,7 @@ def project_table(
             row_count += len(result)
 
         # stop early if limit is satisfied
-        if limit and row_count >= limit:
+        if limit is not None and row_count >= limit:
             break
 
     # by now, we've either completed all tasks or satisfied the limit
