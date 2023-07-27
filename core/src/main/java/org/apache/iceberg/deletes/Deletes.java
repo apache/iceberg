@@ -120,6 +120,15 @@ public class Deletes {
     }
   }
 
+  public static StructLikeSet toEqualitySet(
+      Iterable<StructLikeSet> eqDeleteSets, Types.StructType eqType) {
+    StructLikeSet mergedDeleteSet = StructLikeSet.create(eqType);
+
+    eqDeleteSets.forEach(mergedDeleteSet::addAll);
+
+    return mergedDeleteSet;
+  }
+
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
