@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.awscore.client.builder.AwsAsyncClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 
 public class HttpClientProperties implements Serializable {
@@ -167,6 +168,90 @@ public class HttpClientProperties implements Serializable {
   public static final String APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
       "http-client.apache.use-idle-connection-reaper-enabled";
 
+  /**
+   * If this is set under {@link #CLIENT_TYPE}, {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient} will be used as the HTTP Client
+   */
+  public static final String HTTP_CLIENT_TYPE_NETTYNIO = "nettynio";
+
+  /**
+   * Used to configure connection maximum idle time {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_CONNECTION_MAX_IDLE_TIME_MS =
+      "http-client.nettynio.connection-max-idle-time-ms";
+  /**
+   * Used to configure connection acquisition timeout {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_ACQUISITION_TIMEOUT_MS =
+      "http-client.nettynio.connection-acquisition-timeout-ms";
+  /**
+   * Used to configure connection timeout {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_CONNECTION_TIMEOUT_MS =
+      "http-client.nettynio.connection-timeout-ms";
+  /**
+   * Used to configure connection time to live {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_CONNECTION_TIME_TO_LIVE_MS =
+      "http-client.nettynio.connection-time-to-live-ms";
+  /**
+   * Used to configure maximum concurrency {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_MAX_CONCURRENCY = "http-client.nettynio.max-concurrency";
+  /**
+   * Used to configure read timeout {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_READ_TIMEOUT = "http-client.nettynio.read-timeout";
+  /**
+   * Used to configure maximum pending connection acquires {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_MAX_PENDING_CONNECTION_ACQUIRES =
+      "http-client.nettynio.max-pending-connection-acquires";
+  /**
+   * Used to configure write timeout {@link
+   * software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder}. This flag only works
+   * when {@link #CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_NETTYNIO}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/nio/netty/NettyNioAsyncHttpClient.Builder.html
+   */
+  public static final String NETTYNIO_WRITE_TIMEOUT = "http-client.nettynio.write-timeout";
+
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
 
@@ -207,6 +292,31 @@ public class HttpClientProperties implements Serializable {
         ApacheHttpClientConfigurations apacheHttpClientConfigurations =
             loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
         apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
+        break;
+      default:
+        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
+    }
+  }
+
+  /**
+   * Configure the httpClient for a client according to the HttpClientType. The supported
+   * HttpClientTypes are nettynio
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyAsyncHttpClientConfigurations)
+   * </pre>
+   */
+  public <T extends AwsAsyncClientBuilder> void applyAsyncHttpClientConfigurations(T builder) {
+    if (Strings.isNullOrEmpty(httpClientType)) {
+      httpClientType = HTTP_CLIENT_TYPE_NETTYNIO;
+    }
+    switch (httpClientType) {
+      case HTTP_CLIENT_TYPE_NETTYNIO:
+        NettyNioAsyncHttpClientConfigurations nettyNioAsyncHttpClientConfigurations =
+            loadHttpClientConfigurations(NettyNioAsyncHttpClientConfigurations.class.getName());
+        nettyNioAsyncHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
