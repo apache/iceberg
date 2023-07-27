@@ -367,6 +367,7 @@ public class SparkWriteConf {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
+        .sessionConf(SparkSQLProperties.SPARK_WRITE_USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .negate()
         .parse();
