@@ -28,12 +28,13 @@ import com.aliyun.oss.model.Bucket;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRootName;
 import java.io.FileInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
@@ -274,6 +275,248 @@ public class AliyunOSSMockLocalController {
 
     public void setMessage(String message) {
       this.message = message;
+    }
+  }
+
+  /**
+   * Reads bytes up to a maximum length, if its count goes above that, it stops.
+   *
+   * <p>This is useful to wrap ServletInputStreams. The ServletInputStream will block if you try to
+   * read content from it that isn't there, because it doesn't know whether the content hasn't
+   * arrived yet or whether the content has finished. So, one of these, initialized with the
+   * Content-length sent in the ServletInputStream's header, will stop it blocking, providing it's
+   * been sent with a correct content length.
+   *
+   * <p>This code is borrowed from `org.apache.commons:commons-io`
+   */
+  public class BoundedInputStream extends FilterInputStream {
+
+    /** The max count of bytes to read. */
+    private final long maxCount;
+
+    /** The count of bytes read. */
+    private long count;
+
+    /** The marked position. */
+    private long mark = -1;
+
+    /** Flag if close should be propagated. */
+    private boolean propagateClose = true;
+
+    /**
+     * Constructs a new {@link BoundedInputStream} that wraps the given input stream and is
+     * unlimited.
+     *
+     * @param in The wrapped input stream.
+     */
+    public BoundedInputStream(final InputStream in) {
+      this(in, -1);
+    }
+
+    /**
+     * Constructs a new {@link BoundedInputStream} that wraps the given input stream and limits it
+     * to a certain size.
+     *
+     * @param inputStream The wrapped input stream.
+     * @param maxLength The maximum number of bytes to return.
+     */
+    public BoundedInputStream(final InputStream inputStream, final long maxLength) {
+      // Some badly designed methods - e.g. the servlet API - overload length
+      // such that "-1" means stream finished
+      super(inputStream);
+      this.maxCount = maxLength;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int available() throws IOException {
+      if (isMaxLength()) {
+        onMaxLength(maxCount, count);
+        return 0;
+      }
+      return in.available();
+    }
+
+    /**
+     * Invokes the delegate's {@code close()} method if {@link #isPropagateClose()} is {@code true}.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public void close() throws IOException {
+      if (propagateClose) {
+        in.close();
+      }
+    }
+
+    /**
+     * Gets the count of bytes read.
+     *
+     * @return The count of bytes read.
+     * @since 2.12.0
+     */
+    public long getCount() {
+      return count;
+    }
+
+    /**
+     * Gets the max count of bytes to read.
+     *
+     * @return The max count of bytes to read.
+     * @since 2.12.0
+     */
+    public long getMaxLength() {
+      return maxCount;
+    }
+
+    private boolean isMaxLength() {
+      return maxCount >= 0 && count >= maxCount;
+    }
+
+    /**
+     * Tests whether the {@link #close()} method should propagate to the underling {@link
+     * InputStream}.
+     *
+     * @return {@code true} if calling {@link #close()} propagates to the {@code close()} method of
+     *     the underlying stream or {@code false} if it does not.
+     */
+    public boolean isPropagateClose() {
+      return propagateClose;
+    }
+
+    /**
+     * Sets whether the {@link #close()} method should propagate to the underling {@link
+     * InputStream}.
+     *
+     * @param propagateClose {@code true} if calling {@link #close()} propagates to the {@code
+     *     close()} method of the underlying stream or {@code false} if it does not.
+     */
+    public void setPropagateClose(final boolean propagateClose) {
+      this.propagateClose = propagateClose;
+    }
+
+    /**
+     * Invokes the delegate's {@code mark(int)} method.
+     *
+     * @param readlimit read ahead limit
+     */
+    @Override
+    public synchronized void mark(final int readlimit) {
+      in.mark(readlimit);
+      mark = count;
+    }
+
+    /**
+     * Invokes the delegate's {@code markSupported()} method.
+     *
+     * @return true if mark is supported, otherwise false
+     */
+    @Override
+    public boolean markSupported() {
+      return in.markSupported();
+    }
+
+    /**
+     * A caller has caused a request that would cross the {@code maxLength} boundary.
+     *
+     * @param maxLength The max count of bytes to read.
+     * @param count The count of bytes read.
+     * @throws IOException Subclasses may throw.
+     * @since 2.12.0
+     */
+    protected void onMaxLength(final long maxLength, final long pCount) throws IOException {
+      // for subclasses
+    }
+
+    /**
+     * Invokes the delegate's {@code read()} method if the current position is less than the limit.
+     *
+     * @return the byte read or -1 if the end of stream or the limit has been reached.
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public int read() throws IOException {
+      if (isMaxLength()) {
+        onMaxLength(maxCount, count);
+        return -1;
+      }
+      final int result = in.read();
+      count++;
+      return result;
+    }
+
+    /**
+     * Invokes the delegate's {@code read(byte[])} method.
+     *
+     * @param b the buffer to read the bytes into
+     * @return the number of bytes read or -1 if the end of stream or the limit has been reached.
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public int read(final byte[] b) throws IOException {
+      return this.read(b, 0, b.length);
+    }
+
+    /**
+     * Invokes the delegate's {@code read(byte[], int, int)} method.
+     *
+     * @param b the buffer to read the bytes into
+     * @param off The start offset
+     * @param len The number of bytes to read
+     * @return the number of bytes read or -1 if the end of stream or the limit has been reached.
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public int read(final byte[] b, final int off, final int len) throws IOException {
+      if (isMaxLength()) {
+        onMaxLength(maxCount, count);
+        return -1;
+      }
+      final long maxRead = maxCount >= 0 ? Math.min(len, maxCount - count) : len;
+      final int bytesRead = in.read(b, off, (int) maxRead);
+
+      if (bytesRead == -1) {
+        return -1;
+      }
+
+      count += bytesRead;
+      return bytesRead;
+    }
+
+    /**
+     * Invokes the delegate's {@code reset()} method.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public synchronized void reset() throws IOException {
+      in.reset();
+      count = mark;
+    }
+
+    /**
+     * Invokes the delegate's {@code skip(long)} method.
+     *
+     * @param n the number of bytes to skip
+     * @return the actual number of bytes skipped
+     * @throws IOException if an I/O error occurs.
+     */
+    @Override
+    public long skip(final long n) throws IOException {
+      final long toSkip = maxCount >= 0 ? Math.min(n, maxCount - count) : n;
+      final long skippedBytes = in.skip(toSkip);
+      count += skippedBytes;
+      return skippedBytes;
+    }
+
+    /**
+     * Invokes the delegate's {@code toString()} method.
+     *
+     * @return the delegate's {@code toString()}
+     */
+    @Override
+    public String toString() {
+      return in.toString();
     }
   }
 }

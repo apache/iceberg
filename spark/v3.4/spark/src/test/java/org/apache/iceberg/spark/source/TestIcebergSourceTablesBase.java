@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.StringJoiner;
@@ -1241,6 +1242,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
             required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
             required(
+                11,
+                "total_data_file_size_in_bytes",
+                Types.LongType.get(),
+                "Total size in bytes of data files"),
+            required(
                 5,
                 "position_delete_record_count",
                 Types.LongType.get(),
@@ -1262,7 +1268,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "Count of equality delete files"),
             optional(
                 9,
-                "last_updated_ms",
+                "last_updated_at",
                 Types.TimestampType.withZone(),
                 "Commit time of snapshot that last updated this partition"),
             optional(
@@ -1282,10 +1288,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
     GenericData.Record expectedRow =
         builder
-            .set("last_updated_ms", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated_at", table.currentSnapshot().timestampMillis() * 1000)
             .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1352,12 +1361,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1365,12 +1377,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 2).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
@@ -1476,18 +1491,23 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
+
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(
         builder
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1495,12 +1515,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 2).build())
             .set("record_count", 2L)
             .set("file_count", 2)
+            .set(
+                "total_data_file_size_in_bytes",
+                dataFiles.get(1).fileSizeInBytes() + dataFiles.get(2).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
@@ -1532,12 +1555,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", null)
+            .set("last_updated_at", null)
             .set("last_updated_snapshot_id", null)
             .build();
     expected.remove(0);
@@ -1613,12 +1637,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1626,12 +1653,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 2).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 1L) // should be incremented now
             .set("position_delete_file_count", 1) // should be incremented now
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_ms", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", posDeleteCommitId)
             .build());
 
@@ -1664,7 +1694,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 1L) // should be incremented now
             .set("equality_delete_file_count", 1) // should be incremented now
-            .set("last_updated_ms", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
     for (int i = 0; i < 2; i += 1) {
@@ -2221,6 +2251,25 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           deleteRowSchema);
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
+    return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
+  }
+
+  private void assertDataFilePartitions(
+      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
+    Assert.assertEquals(
+        "Table should have " + expectedPartitionIds.size() + " data files",
+        expectedPartitionIds.size(),
+        dataFiles.size());
+
+    for (int i = 0; i < dataFiles.size(); ++i) {
+      Assert.assertEquals(
+          "Data file should have partition of id " + expectedPartitionIds.get(i),
+          expectedPartitionIds.get(i).intValue(),
+          dataFiles.get(i).partition().get(0, Integer.class).intValue());
     }
   }
 }

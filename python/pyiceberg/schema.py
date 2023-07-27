@@ -432,7 +432,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive, primitive_partner)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive, primitive_partner)
+            return self.visit_timestamptz(primitive, primitive_partner)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive, primitive_partner)
         elif isinstance(primitive, UUIDType):
@@ -481,7 +481,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod
@@ -610,7 +610,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive)
+            return self.visit_timestamptz(primitive)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive)
         elif isinstance(primitive, UUIDType):
@@ -661,7 +661,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod
@@ -1367,12 +1367,3 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
             raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveError(f"Cannot promote an decimal to {read_type}")
-
-
-@promote.register(FixedType)
-def _(file_type: FixedType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, UUIDType) and len(file_type) == 16:
-        # Since pyarrow reads parquet UUID as fixed 16-byte binary, the promotion is needed to ensure read compatibility
-        return read_type
-    else:
-        raise ResolveError(f"Cannot promote {file_type} to {read_type}")

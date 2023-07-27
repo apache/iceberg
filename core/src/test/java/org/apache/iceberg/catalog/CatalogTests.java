@@ -42,6 +42,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -73,19 +74,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   // Schema passed to create tables
   protected static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(3, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(1, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(2, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema REPLACE_SCHEMA =
       new Schema(
-          required(2, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(3, "data", Types.StringType.get()));
 
   // another schema that is not the same
@@ -2613,6 +2614,91 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
                 catalog().buildTable(TableIdentifier.of("non-existing", "table"), SCHEMA).create())
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Namespace does not exist: non-existing");
+  }
+
+  @Test
+  public void testRegisterTable() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Map<String, String> properties =
+        ImmutableMap.of("user", "someone", "created-at", "2023-01-15T00:00:01");
+    Table originalTable =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withSortOrder(WRITE_ORDER)
+            .withProperties(properties)
+            .create();
+
+    originalTable.newFastAppend().appendFile(FILE_A).commit();
+    originalTable.newFastAppend().appendFile(FILE_B).commit();
+    originalTable.newDelete().deleteFile(FILE_A).commit();
+    originalTable.newFastAppend().appendFile(FILE_C).commit();
+
+    TableOperations ops = ((BaseTable) originalTable).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    catalog.dropTable(TABLE, false /* do not purge */);
+
+    Table registeredTable = catalog.registerTable(TABLE, metadataLocation);
+
+    Assertions.assertThat(registeredTable).isNotNull();
+    Assertions.assertThat(catalog.tableExists(TABLE)).as("Table must exist").isTrue();
+    Assertions.assertThat(registeredTable.properties())
+        .as("Props must match")
+        .containsAllEntriesOf(properties);
+    Assertions.assertThat(registeredTable.schema().asStruct())
+        .as("Schema must match")
+        .isEqualTo(originalTable.schema().asStruct());
+    Assertions.assertThat(registeredTable.specs())
+        .as("Specs must match")
+        .isEqualTo(originalTable.specs());
+    Assertions.assertThat(registeredTable.sortOrders())
+        .as("Sort orders must match")
+        .isEqualTo(originalTable.sortOrders());
+    Assertions.assertThat(registeredTable.currentSnapshot())
+        .as("Current snapshot must match")
+        .isEqualTo(originalTable.currentSnapshot());
+    Assertions.assertThat(registeredTable.snapshots())
+        .as("Snapshots must match")
+        .isEqualTo(originalTable.snapshots());
+    Assertions.assertThat(registeredTable.history())
+        .as("History must match")
+        .isEqualTo(originalTable.history());
+
+    TestHelpers.assertSameSchemaMap(registeredTable.schemas(), originalTable.schemas());
+    assertFiles(registeredTable, FILE_B, FILE_C);
+
+    registeredTable.newFastAppend().appendFile(FILE_A).commit();
+    assertFiles(registeredTable, FILE_B, FILE_C, FILE_A);
+
+    Assertions.assertThat(catalog.loadTable(TABLE)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(TABLE)).isTrue();
+    Assertions.assertThat(catalog.tableExists(TABLE)).isFalse();
+  }
+
+  @Test
+  public void testRegisterExistingTable() {
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog.createTable(identifier, SCHEMA);
+    Table table = catalog.loadTable(identifier);
+    TableOperations ops = ((BaseTable) table).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {

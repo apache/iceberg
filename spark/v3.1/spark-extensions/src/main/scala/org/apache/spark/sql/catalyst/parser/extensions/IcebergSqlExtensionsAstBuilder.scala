@@ -110,6 +110,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val branchRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
     val branchRefAgeMs = branchRetention.map(retain =>
       TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
+    val create = createOrReplaceBranchClause.CREATE() != null
     val replace = ctx.createReplaceBranchClause().REPLACE() != null
     val ifNotExists = createOrReplaceBranchClause.EXISTS() != null
 
@@ -124,6 +125,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       branchName.getText,
       branchOptions,
+      create,
       replace,
       ifNotExists)
   }

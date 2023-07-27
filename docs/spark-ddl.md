@@ -306,11 +306,16 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col
 ```
 
-Nullability can be changed using `SET NOT NULL` and `DROP NOT NULL`:
+Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
 ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL
 ```
+
+{{< hint info >}}
+It is not possible to change a nullable column to a non-nullable column with `SET NOT NULL` because Iceberg doesn't know whether there is existing data with null values.
+{{< /hint >}}
+
 
 {{< hint info >}}
 `ALTER COLUMN` is not used to update `struct` types. Use `ADD COLUMN` and `DROP COLUMN` to add or remove struct fields.

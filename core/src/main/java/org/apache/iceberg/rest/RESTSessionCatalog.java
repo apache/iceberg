@@ -71,6 +71,8 @@ import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -404,7 +406,40 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
-    throw new UnsupportedOperationException("Register table is not supported");
+    checkIdentifierIsValid(ident);
+
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Invalid metadata file location: %s",
+        metadataFileLocation);
+
+    RegisterTableRequest request =
+        ImmutableRegisterTableRequest.builder()
+            .name(ident.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    LoadTableResponse response =
+        client.post(
+            paths.register(ident.namespace()),
+            request,
+            LoadTableResponse.class,
+            headers(context),
+            ErrorHandlers.tableErrorHandler());
+
+    AuthSession session = tableSession(response.config(), session(context));
+    RESTTableOperations ops =
+        new RESTTableOperations(
+            client,
+            paths.table(ident),
+            session::headers,
+            tableFileIO(context, response.config()),
+            response.tableMetadata());
+
+    trackFileIO(ops);
+
+    return new BaseTable(
+        ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
   }
 
   @Override

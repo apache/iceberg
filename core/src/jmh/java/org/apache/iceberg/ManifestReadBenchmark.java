@@ -22,17 +22,20 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.io.FileUtils;
+import java.util.stream.Stream;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -61,7 +64,8 @@ public class ManifestReadBenchmark {
 
   @Setup
   public void before() {
-    baseDir = Files.createTempDir().getAbsolutePath();
+    baseDir =
+        Paths.get(new File(System.getProperty("java.io.tmpdir")).getAbsolutePath()).toString();
     manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
     Random random = new Random(System.currentTimeMillis());
@@ -102,9 +106,11 @@ public class ManifestReadBenchmark {
   }
 
   @TearDown
-  public void after() {
+  public void after() throws IOException {
     if (baseDir != null) {
-      FileUtils.deleteQuietly(new File(baseDir));
+      try (Stream<Path> walk = Files.walk(Paths.get(baseDir))) {
+        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      }
       baseDir = null;
     }
 

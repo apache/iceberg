@@ -164,9 +164,6 @@ subprojects {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
     }
-    tasks.named("revapiAnalyze").configure {
-      dependsOn(":iceberg-common:jar")
-    }
   }
 
   configurations {
@@ -489,7 +486,7 @@ project(':iceberg-aws') {
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation("com.adobe.testing:s3mock-junit4") {
+    testImplementation("com.adobe.testing:s3mock-junit5") {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"
       exclude group: 'junit'
@@ -528,6 +525,9 @@ project(':iceberg-aws') {
 project(':iceberg-delta-lake') {
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
+  test {
+    useJUnitPlatform()
+  }
   configurations {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
@@ -627,6 +627,10 @@ project(':iceberg-gcp') {
 }
 
 project(':iceberg-hive-metastore') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation project(':iceberg-core')
@@ -734,6 +738,9 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -860,7 +867,7 @@ project(':iceberg-nessie') {
 
     compileOnly "org.apache.hadoop:hadoop-common"
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
 
     if (JavaVersion.current().isJava11Compatible()) {
       testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
@@ -875,7 +882,7 @@ project(':iceberg-nessie') {
       testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
       // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
+      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
     }
   }
 }
@@ -911,6 +918,7 @@ project(':iceberg-snowflake') {
 
     runtimeOnly("net.snowflake:snowflake-jdbc")
 
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }

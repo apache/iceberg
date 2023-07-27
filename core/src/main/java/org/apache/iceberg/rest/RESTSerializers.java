@@ -44,7 +44,10 @@ import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
+import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
@@ -93,7 +96,12 @@ public class RESTSerializers {
         .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer())
         .addDeserializer(CommitTransactionRequest.class, new CommitTransactionRequestDeserializer())
         .addSerializer(UpdateTableRequest.class, new UpdateTableRequestSerializer())
-        .addDeserializer(UpdateTableRequest.class, new UpdateTableRequestDeserializer());
+        .addDeserializer(UpdateTableRequest.class, new UpdateTableRequestDeserializer())
+        .addSerializer(RegisterTableRequest.class, new RegisterTableRequestSerializer<>())
+        .addDeserializer(RegisterTableRequest.class, new RegisterTableRequestDeserializer<>())
+        .addSerializer(ImmutableRegisterTableRequest.class, new RegisterTableRequestSerializer<>())
+        .addDeserializer(
+            ImmutableRegisterTableRequest.class, new RegisterTableRequestDeserializer<>());
     mapper.registerModule(module);
   }
 
@@ -351,6 +359,24 @@ public class RESTSerializers {
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return UpdateTableRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class RegisterTableRequestSerializer<T extends RegisterTableRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RegisterTableRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class RegisterTableRequestDeserializer<T extends RegisterTableRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RegisterTableRequestParser.fromJson(jsonNode);
     }
   }
 }
