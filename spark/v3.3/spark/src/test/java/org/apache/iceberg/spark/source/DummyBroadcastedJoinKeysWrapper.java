@@ -46,7 +46,7 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
       int totalJoinKeys,
       boolean is1D) {
     this.keyDataType = keyDataType;
-    this.wrapper = new ArrayWrapper(array, relativeIndex, is1D);
+    this.wrapper = ArrayWrapper.wrapArray(array, is1D, relativeIndex);
     this.id = id;
     this.relativeIndex = relativeIndex;
     this.tupleLength = tupleLength;
@@ -124,6 +124,6 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
     this.relativeIndex = in.readInt();
     this.keyDataType = (DataType) in.readObject();
     boolean isOneD = in.readBoolean();
-    this.wrapper = new ArrayWrapper(in.readObject(), this.relativeIndex, isOneD);
+    this.wrapper = ArrayWrapper.wrapArray(in.readObject(), isOneD, this.relativeIndex);
   }
 }
