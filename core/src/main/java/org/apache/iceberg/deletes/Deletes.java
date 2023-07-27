@@ -288,8 +288,8 @@ public class Deletes {
         public void close() {
           try {
             deletePositions.close();
-          } catch (IOException ignore) {
-            LOG.warn("Error closing delete file", ignore);
+          } catch (IOException e) {
+            LOG.warn("Error closing delete file", e);
           }
           super.close();
         }
@@ -315,9 +315,17 @@ public class Deletes {
 
       return new CloseableIterator<T>() {
         @Override
-        public void close() throws IOException {
-          deletePositions.close();
-          items.close();
+        public void close() {
+          try {
+            deletePositions.close();
+          } catch (IOException e) {
+            LOG.warn("Error closing delete file", e);
+          }
+          try {
+            items.close();
+          } catch (IOException e) {
+            LOG.warn("Error closing data file", e);
+          }
         }
 
         @Override
@@ -327,11 +335,11 @@ public class Deletes {
 
         @Override
         public T next() {
-          T item = items.next();
-          if (isDeleted(item)) {
-            markDeleted.accept(item);
+          T row = items.next();
+          if (isDeleted(row)) {
+            markDeleted.accept(row);
           }
-          return item;
+          return row;
         }
       };
     }

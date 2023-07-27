@@ -19,7 +19,6 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,6 +31,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -89,10 +89,13 @@ public class TestDeleteFilter extends TableTestBase {
         new CheckingClosableIterable<>(
             deletes.stream().map(Pair::second).collect(Collectors.toList()));
 
-    CloseableIterable<Record> resultIterable =
+    CloseableIterable<Record> posDeletesIterable =
         Deletes.streamingFilter(data, row -> row.get(2, Long.class), deletePositions);
 
-    ArrayList<Record> result = Lists.newArrayList(resultIterable.iterator());
+    // end iterator is always wrapped with FilterIterator
+    CloseableIterable<Record> eqDeletesIterable =
+        Deletes.filterDeleted(posDeletesIterable, i -> false, new DeleteCounter());
+    List<Record> result = Lists.newArrayList(eqDeletesIterable.iterator());
 
     // as first two records deleted, expect only last two records
     List<Record> expected = Lists.newArrayList();
@@ -102,6 +105,80 @@ public class TestDeleteFilter extends TableTestBase {
     Assert.assertEquals(result, expected);
     Assert.assertTrue(data.isClosed());
     Assert.assertTrue(deletePositions.isClosed());
+  }
+
+  @Test
+  public void testDeleteMarkerFileClosed() throws Exception {
+    // Add a data file
+    DataFile dataFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    // Add a delete file
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
+    deletes.add(Pair.of(dataFile.path(), 1L));
+    deletes.add(Pair.of(dataFile.path(), 2L));
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+    table
+        .newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    // mock records
+    List<Record> records = Lists.newArrayList();
+    GenericRecord template =
+        GenericRecord.create(
+            TypeUtil.join(
+                table.schema(),
+                new Schema(MetadataColumns.ROW_POSITION, MetadataColumns.IS_DELETED)));
+    records.add(record(template, 29, "a", 1, false));
+    records.add(record(template, 43, "b", 2, false));
+    records.add(record(template, 61, "c", 3, false));
+    records.add(record(template, 89, "d", 4, false));
+
+    CheckingClosableIterable<Record> data = new CheckingClosableIterable<>(records);
+    CheckingClosableIterable<Long> deletePositions =
+        new CheckingClosableIterable<>(
+            deletes.stream().map(Pair::second).collect(Collectors.toList()));
+
+    CloseableIterable<Record> resultIterable =
+        Deletes.streamingMarker(
+            data, row -> row.get(2, Long.class), deletePositions, row -> row.set(3, true));
+
+    // end iterator is always wrapped with FilterIterator
+    CloseableIterable<Record> eqDeletesIterable =
+        Deletes.filterDeleted(resultIterable, i -> false, new DeleteCounter());
+    List<Record> result = Lists.newArrayList(eqDeletesIterable.iterator());
+
+    // expect first two records deleted
+    List<Record> expected = Lists.newArrayList();
+    expected.add(record(template, 29, "a", 1, true));
+    expected.add(record(template, 43, "b", 2, true));
+    expected.add(record(template, 61, "c", 3, false));
+    expected.add(record(template, 89, "d", 4, false));
+
+    Assert.assertEquals(result, expected);
+    Assert.assertTrue(data.isClosed());
+    Assert.assertTrue(deletePositions.isClosed());
+  }
+
+  private GenericRecord record(
+      GenericRecord template, int id, String data, long pos, boolean isDeleted) {
+    GenericRecord copy = template.copy();
+    copy.set(0, id);
+    copy.set(1, data);
+    copy.set(2, pos);
+    copy.set(3, isDeleted);
+    return copy;
   }
 
   private static class CheckingClosableIterable<E> implements CloseableIterable<E> {
