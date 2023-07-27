@@ -902,7 +902,7 @@ def project_table(
 
     # by now, we've either completed all tasks or satisfied the limit
     if limit is not None:
-        _ = (f.cancel() for f in futures if not f.done())
+        _ = [f.cancel() for f in futures if not f.done()]
 
     tables = [f.result() for f in completed_futures]
 
