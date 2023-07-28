@@ -74,10 +74,11 @@ from pyiceberg.io.pyarrow import (
     match_metrics_mode,
     project_table,
     schema_to_pyarrow,
+    PyArrowStatisticsCollector
 )
 from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
-from pyiceberg.schema import Schema, visit
+from pyiceberg.schema import Schema, visit, pre_order_visit
 from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
 from pyiceberg.types import (
@@ -1689,6 +1690,51 @@ def test_offsets() -> None:
     assert datafile.split_offsets is not None
     assert len(datafile.split_offsets) == 1
     assert datafile.split_offsets[0] == 4
+
+
+def test_write_and_read_stats_schema(table_schema_nested: Schema):
+    tbl = pa.Table.from_pydict({
+        "foo": ["a", "b"],
+        "bar": [1, 2],
+        "baz": [False, True],
+        "qux": [["a", "b"], ["c", "d"]],
+        "quux": [[("a", (("aa", 1), ("ab", 2)))], [("b", (("ba", 3), ("bb", 4)))]],
+        "location": [[(52.377956, 4.897070), (4.897070, -122.431297)],
+                     [(43.618881, -116.215019), (41.881832, -87.623177)]],
+        "person": [("Fokko", 33), ("Max", 42)]  # Possible data quality issue
+    },
+        schema=schema_to_pyarrow(table_schema_nested)
+    )
+    stats_columns = pre_order_visit(table_schema_nested, PyArrowStatisticsCollector(table_schema_nested, {}))
+
+    visited_paths = []
+
+    def file_visitor(written_file: Any) -> None:
+        visited_paths.append(written_file)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pq.write_to_dataset(tbl, tmpdir, file_visitor=file_visitor)
+
+    assert visited_paths[0].metadata.num_columns == len(stats_columns)
+
+def test_stats_types(table_schema_nested: Schema):
+    stats_columns = pre_order_visit(table_schema_nested, PyArrowStatisticsCollector(table_schema_nested, {}))
+
+    # the field-ids should be sorted
+    assert all(stats_columns[i].field_id <= stats_columns[i + 1].field_id for i in range(len(stats_columns)-1))
+    assert [col.iceberg_type for col in stats_columns] == [
+        StringType(),
+        IntegerType(),
+        BooleanType(),
+        StringType(),
+        StringType(),
+        StringType(),
+        IntegerType(),
+        FloatType(),
+        FloatType(),
+        StringType(),
+        IntegerType(),
+    ]
 
 
 # This is commented out for now because write_to_dataset drops the partition
