@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from pyparsing import (
     CaselessKeyword,
+    DelimitedList,
     Group,
     ParserElement,
     ParseResults,
@@ -25,7 +26,6 @@ from pyparsing import (
     Word,
     alphanums,
     alphas,
-    delimited_list,
     infix_notation,
     one_of,
     opAssoc,
@@ -76,12 +76,12 @@ NAN = CaselessKeyword("nan")
 LIKE = CaselessKeyword("like")
 
 identifier = Word(alphas, alphanums + "_$").set_results_name("identifier")
-column = delimited_list(identifier, delim=".", combine=True).set_results_name("column")
+column = DelimitedList(identifier, delim=".", combine=False).set_results_name("column")
 
 
 @column.set_parse_action
 def _(result: ParseResults) -> Reference:
-    return Reference(result.column[0])
+    return Reference(result.column[-1])
 
 
 boolean = one_of(["true", "false"], caseless=True).set_results_name("boolean")
@@ -89,7 +89,7 @@ string = sgl_quoted_string.set_results_name("raw_quoted_string")
 decimal = common.real().set_results_name("decimal")
 integer = common.signed_integer().set_results_name("integer")
 literal = Group(string | decimal | integer).set_results_name("literal")
-literal_set = Group(delimited_list(string) | delimited_list(decimal) | delimited_list(integer)).set_results_name("literal_set")
+literal_set = Group(DelimitedList(string) | DelimitedList(decimal) | DelimitedList(integer)).set_results_name("literal_set")
 
 
 @boolean.set_parse_action

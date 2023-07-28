@@ -25,16 +25,18 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
@@ -107,7 +109,9 @@ public class TestNessieTable extends BaseTestIceberg {
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
-      FileUtils.deleteDirectory(new File(tableLocation));
+      try (Stream<Path> walk = Files.walk(Paths.get(tableLocation))) {
+        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      }
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 

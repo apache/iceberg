@@ -231,6 +231,8 @@ MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
 )
 
+MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
+
 
 class ManifestEntry(Record):
     __slots__ = ("status", "snapshot_id", "data_sequence_number", "file_sequence_number", "data_file")
@@ -241,7 +243,7 @@ class ManifestEntry(Record):
     data_file: DataFile
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA_STRUCT, **named_data})
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -280,6 +282,8 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(507, "partitions", ListType(508, PARTITION_FIELD_SUMMARY_TYPE, element_required=True), required=False),
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
+
+MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
 
 POSITIONAL_DELETE_SCHEMA = Schema(
     NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
@@ -321,7 +325,7 @@ class ManifestFile(Record):
     key_metadata: Optional[bytes]
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA_STRUCT, **named_data})
 
     def has_added_files(self) -> bool:
         return self.added_files_count is None or self.added_files_count > 0

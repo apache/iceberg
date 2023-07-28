@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Map;
-import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -114,7 +113,8 @@ public class AliyunOSSMockRule implements AliyunOSSTestRule {
       if (Strings.isNullOrEmpty(rootDir)) {
         File dir =
             new File(
-                FileUtils.getTempDirectory(), "oss-mock-file-store-" + System.currentTimeMillis());
+                System.getProperty("java.io.tmpdir"),
+                "oss-mock-file-store-" + System.currentTimeMillis());
         rootDir = dir.getAbsolutePath();
         props.put(AliyunOSSMockApp.PROP_ROOT_DIR, rootDir);
       }

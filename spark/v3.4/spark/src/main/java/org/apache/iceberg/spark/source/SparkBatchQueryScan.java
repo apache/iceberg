@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
@@ -39,6 +40,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -73,9 +75,9 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
-
-    super(spark, table, scan, readConf, expectedSchema, filters);
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier) {
+    super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
 
     this.snapshotId = readConf.snapshotId();
     this.startSnapshotId = readConf.startSnapshotId();

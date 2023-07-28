@@ -61,25 +61,25 @@ via Spark SQL.
 snapshots will be kept, and the branch reference itself will be retained for 1 week. 
 ```sql
 -- Create a tag for the first end of week snapshot. Retain the snapshot for a week
-ALTER TABLE prod.db.table CREATE TAG 'EOW-01' AS OF VERSION 7 RETAIN 7 DAYS
+ALTER TABLE prod.db.table CREATE TAG `EOW-01` AS OF VERSION 7 RETAIN 7 DAYS
 ```
 
 2. Retain 1 snapshot per month for 6 months. This can be achieved by tagging the monthly snapshot and setting the tag retention to be 6 months.
 ```sql
 -- Create a tag for the first end of month snapshot. Retain the snapshot for 6 months
-ALTER TABLE prod.db.table CREATE TAG 'EOM-01' AS OF VERSION 30 RETAIN 180 DAYS
+ALTER TABLE prod.db.table CREATE TAG `EOM-01` AS OF VERSION 30 RETAIN 180 DAYS
 ```
 
 3. Retain 1 snapshot per year forever. This can be achieved by tagging the annual snapshot. The default retention for branches and tags is forever.
 ```sql
 -- Create a tag for the end of the year and retain it forever.
-ALTER TABLE prod.db.table CREATE TAG 'EOY-2023' AS OF VERSION 365
+ALTER TABLE prod.db.table CREATE TAG `EOY-2023` AS OF VERSION 365
 ```
 
 4. Create a temporary "test-branch" which is retained for 7 days and the latest 2 snapshots on the branch are retained.
 ```sql
 -- Create a branch "test-branch" which will be retained for 7 days along with the  latest 2 snapshots
-ALTER TABLE prod.db.table CREATE BRANCH test-branch RETAIN 7 DAYS WITH RETENTION 2 SNAPSHOTS
+ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH RETENTION 2 SNAPSHOTS
 ```
 
 ### Audit Branch

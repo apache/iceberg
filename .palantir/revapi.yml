@@ -743,6 +743,37 @@ acceptedBreaks:
       new: "method java.util.List<org.apache.iceberg.UpdateRequirement> org.apache.iceberg.rest.requests.UpdateTableRequest::requirements()"
       justification: "Signature changed to an interface, but this is safe because\
         \ of type erasure and the original type is always returned"
+  "1.3.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.view.ImmutableSQLViewRepresentation"
+      justification: "Moving from iceberg-api to iceberg-core"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.view.ImmutableViewHistoryEntry"
+      justification: "Moving from iceberg-api to iceberg-core"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.view.ImmutableViewVersion"
+      justification: "Moving from iceberg-api to iceberg-core"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.view.SQLViewRepresentation"
+      justification: "Moving from iceberg-api to iceberg-core"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQuery(java.lang.String)"
+      new: "method T org.apache.iceberg.view.VersionBuilder<T>::withQuery(java.lang.String,\
+        \ java.lang.String) @ org.apache.iceberg.view.ViewBuilder"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withDialect(java.lang.String)"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withFieldAliases(java.util.List<java.lang.String>)"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withFieldComments(java.util.List<java.lang.String>)"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

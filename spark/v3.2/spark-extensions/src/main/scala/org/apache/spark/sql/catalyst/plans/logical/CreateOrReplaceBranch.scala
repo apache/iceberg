@@ -25,6 +25,7 @@ case class CreateOrReplaceBranch(
     table: Seq[String],
     branch: String,
     branchOptions: BranchOptions,
+    create: Boolean,
     replace: Boolean,
     ifNotExists: Boolean) extends LeafCommand {
 
