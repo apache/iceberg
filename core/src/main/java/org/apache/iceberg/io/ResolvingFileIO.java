@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -95,12 +96,18 @@ public class ResolvingFileIO
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     // peek at the first element to determine the type of FileIO
-    PeekingIterator<String> iterator = Iterators.peekingIterator(pathsToDelete.iterator());
+    Iterator<String> originalIterator = pathsToDelete.iterator();
+    if (!originalIterator.hasNext()) {
+      return;
+    }
+
+    PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
     FileIO fileIO = io(iterator.peek());
     if (!(fileIO instanceof SupportsPrefixOperations)) {
       throw new UnsupportedOperationException(
           "FileIO doesn't support bulk operations: " + fileIO.getClass().getName());
     }
+
     ((SupportsBulkOperations) fileIO).deleteFiles(() -> iterator);
   }
 
