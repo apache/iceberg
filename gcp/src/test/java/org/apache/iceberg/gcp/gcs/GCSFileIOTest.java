@@ -59,9 +59,9 @@ public class GCSFileIOTest {
     // LocalStorageHelper doesn't support batch operations, so mock that here
     doAnswer(
             invoke -> {
-              Iterable<BlobId> i = invoke.getArgument(0);
+              Iterable<BlobId> iter = invoke.getArgument(0);
               List<Boolean> answer = Lists.newArrayList();
-              i.forEach(
+              iter.forEach(
                   blobId -> {
                     answer.add(storage.delete(blobId));
                   });
