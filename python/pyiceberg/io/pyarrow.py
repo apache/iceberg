@@ -63,6 +63,7 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
+    HadoopFileSystem,
     LocalFileSystem,
     PyFileSystem,
     S3FileSystem,
@@ -84,6 +85,10 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    HDFS_HOST,
+    HDFS_KERB_TICKET,
+    HDFS_PORT,
+    HDFS_USER,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
     S3_PROXY_URI,
@@ -312,6 +317,14 @@ class PyArrowFileIO(FileIO):
                 client_kwargs["proxy_options"] = proxy_uri
 
             return S3FileSystem(**client_kwargs)
+        elif scheme == "hdfs":
+            client_kwargs = {
+                "host": self.properties.get(HDFS_HOST),
+                "port": self.properties.get(HDFS_PORT),
+                "user": self.properties.get(HDFS_USER),
+                "kerb_ticket": self.properties.get(HDFS_KERB_TICKET),
+            }
+            return HadoopFileSystem(**client_kwargs)
         elif scheme == "file":
             return LocalFileSystem()
         else:

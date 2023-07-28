@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,7 +69,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -82,6 +82,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
           "default-namespace", "default",
           "cache-enabled", "false");
 
+  private static final String PARTITION_COL = "partition_col";
   private static final int NUM_DATA_FILES = 5;
   private static final int ROWS_PER_DATA_FILE = 100;
   private static final int DELETE_FILES_PER_PARTITION = 2;
@@ -179,7 +180,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
 
   @Test
   public void testDaysPartitionTransform() throws Exception {
-    createTable("timestamp", "days(partition_col)");
+    createTable("timestamp", PARTITION_COL, String.format("days(%s)", PARTITION_COL));
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
     insertData(i -> Timestamp.valueOf(baseTimestamp.toLocalDateTime().plusDays(i)));
     testDanglingDelete();
@@ -192,15 +193,27 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete(2);
   }
 
-  private <T> void testDanglingDelete() throws Exception {
+  @Test
+  public void testPartitionColWithDot() throws Exception {
+    String partitionColWithDot = "`partition.col`";
+    createTable("int", partitionColWithDot, partitionColWithDot);
+    insertData(partitionColWithDot, i -> i, NUM_DATA_FILES);
+    testDanglingDelete(partitionColWithDot, NUM_DATA_FILES);
+  }
+
+  private void testDanglingDelete() throws Exception {
     testDanglingDelete(NUM_DATA_FILES);
   }
 
-  private <T> void testDanglingDelete(int numDataFiles) throws Exception {
+  private void testDanglingDelete(int numDataFiles) throws Exception {
+    testDanglingDelete(PARTITION_COL, numDataFiles);
+  }
+
+  private void testDanglingDelete(String partitionCol, int numDataFiles) throws Exception {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     List<DataFile> dataFiles = dataFiles(table);
-    Assert.assertEquals(numDataFiles, dataFiles.size());
+    assertThat(dataFiles).hasSize(numDataFiles);
 
     SparkActions.get(spark)
         .rewriteDataFiles(table)
@@ -210,9 +223,9 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     // write dangling delete files for 'old data files'
     writePosDeletesForFiles(table, dataFiles);
     List<DeleteFile> deleteFiles = deleteFiles(table);
-    Assert.assertEquals(numDataFiles * DELETE_FILES_PER_PARTITION, deleteFiles.size());
+    assertThat(deleteFiles).hasSize(numDataFiles * DELETE_FILES_PER_PARTITION);
 
-    List<Object[]> expectedRecords = records(tableName);
+    List<Object[]> expectedRecords = records(tableName, partitionCol);
 
     Result result =
         SparkActions.get(spark)
@@ -221,37 +234,42 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    Assert.assertEquals("Should have removed all dangling delete files", 0, newDeleteFiles.size());
+    assertThat(newDeleteFiles).as("Remaining dangling deletes").isEmpty();
     checkResult(result, deleteFiles, Lists.newArrayList(), numDataFiles);
 
-    List<Object[]> actualRecords = records(tableName);
+    List<Object[]> actualRecords = records(tableName, partitionCol);
     assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   private void createTable(String partitionType) {
-    createTable(partitionType, "partition_col");
+    createTable(partitionType, PARTITION_COL, PARTITION_COL);
   }
 
-  private void createTable(String partitionType, String partitionCol) {
+  private void createTable(String partitionType, String partitionCol, String partitionTransform) {
     sql(
-        "CREATE TABLE %s (id long, partition_col %s, c1 string, c2 string) "
+        "CREATE TABLE %s (id long, %s %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
             + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionType, partitionCol);
+        tableName, partitionCol, partitionType, partitionTransform);
   }
 
-  private <T> void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
+  private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
     insertData(partitionValueFunction, NUM_DATA_FILES);
   }
 
-  private <T> void insertData(Function<Integer, ?> partitionValue, int numDataFiles)
+  private void insertData(Function<Integer, ?> partitionValueFunction, int numDataFiles)
       throws Exception {
+    insertData(PARTITION_COL, partitionValueFunction, numDataFiles);
+  }
+
+  private void insertData(
+      String partitionCol, Function<Integer, ?> partitionValue, int numDataFiles) throws Exception {
     for (int i = 0; i < numDataFiles; i++) {
       Dataset<Row> df =
           spark
               .range(0, ROWS_PER_DATA_FILE)
-              .withColumn("partition_col", lit(partitionValue.apply(i)))
+              .withColumn(partitionCol, lit(partitionValue.apply(i)))
               .withColumn("c1", expr("CAST(id AS STRING)"))
               .withColumn("c2", expr("CAST(id AS STRING)"));
       appendAsFile(df);
@@ -278,11 +296,9 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
       List<DataFile> partitionFiles = filesByPartitionEntry.getValue();
 
       int deletesForPartition = partitionFiles.size() * DELETE_FILE_SIZE;
-      Assert.assertEquals(
-          "Number of delete files per partition should be "
-              + "evenly divisible by requested deletes per data file times number of data files in this partition",
-          0,
-          deletesForPartition % DELETE_FILE_SIZE);
+      assertThat(deletesForPartition % DELETE_FILE_SIZE)
+          .as("Number of delete files per partition modulo number of data files in this partition")
+          .isEqualTo(0);
       int deleteFileSize = deletesForPartition / DELETE_FILES_PER_PARTITION;
 
       int counter = 0;
@@ -334,9 +350,9 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     return FileFormat.fromString(formatString);
   }
 
-  private List<Object[]> records(String table) {
+  private List<Object[]> records(String table, String partitionCol) {
     return rowsToJava(
-        spark.read().format("iceberg").load(table).sort("partition_col", "id").collectAsList());
+        spark.read().format("iceberg").load(table).sort(partitionCol, "id").collectAsList());
   }
 
   private long size(List<DeleteFile> deleteFiles) {
@@ -361,48 +377,41 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
       List<DeleteFile> rewrittenDeletes,
       List<DeleteFile> newDeletes,
       int expectedGroups) {
-    Assert.assertEquals(
-        "Expected rewritten delete file count does not match",
-        rewrittenDeletes.size(),
-        result.rewrittenDeleteFilesCount());
-    Assert.assertEquals(
-        "Expected new delete file count does not match",
-        newDeletes.size(),
-        result.addedDeleteFilesCount());
-    Assert.assertEquals(
-        "Expected rewritten delete byte count does not match",
-        size(rewrittenDeletes),
-        result.rewrittenBytesCount());
-    Assert.assertEquals(
-        "Expected new delete byte count does not match",
-        size(newDeletes),
-        result.addedBytesCount());
+    assertThat(result.rewrittenDeleteFilesCount())
+        .as("Rewritten delete files")
+        .isEqualTo(rewrittenDeletes.size());
+    assertThat(result.addedDeleteFilesCount())
+        .as("Added delete files")
+        .isEqualTo(newDeletes.size());
+    assertThat(result.rewrittenBytesCount())
+        .as("Rewritten delete bytes")
+        .isEqualTo(size(rewrittenDeletes));
+    assertThat(result.addedBytesCount()).as("New Delete byte count").isEqualTo(size(newDeletes));
 
-    Assert.assertEquals(
-        "Expected rewrite group count does not match",
-        expectedGroups,
-        result.rewriteResults().size());
-    Assert.assertEquals(
-        "Expected rewritten delete file count in all groups to match",
-        rewrittenDeletes.size(),
-        result.rewriteResults().stream()
-            .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
-            .sum());
-    Assert.assertEquals(
-        "Expected added delete file count in all groups to match",
-        newDeletes.size(),
-        result.rewriteResults().stream()
-            .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
-            .sum());
-    Assert.assertEquals(
-        "Expected rewritten delete bytes in all groups to match",
-        size(rewrittenDeletes),
-        result.rewriteResults().stream()
-            .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
-            .sum());
-    Assert.assertEquals(
-        "Expected added delete bytes in all groups to match",
-        size(newDeletes),
-        result.rewriteResults().stream().mapToLong(FileGroupRewriteResult::addedBytesCount).sum());
+    assertThat(result.rewriteResults()).as("Rewritten group count").hasSize(expectedGroups);
+    assertThat(
+            result.rewriteResults().stream()
+                .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
+                .sum())
+        .as("Rewritten delete file count in all groups")
+        .isEqualTo(rewrittenDeletes.size());
+    assertThat(
+            result.rewriteResults().stream()
+                .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
+                .sum())
+        .as("Added delete file count in all groups")
+        .isEqualTo(newDeletes.size());
+    assertThat(
+            result.rewriteResults().stream()
+                .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
+                .sum())
+        .as("Rewritten delete bytes in all groups")
+        .isEqualTo(size(rewrittenDeletes));
+    assertThat(
+            result.rewriteResults().stream()
+                .mapToLong(FileGroupRewriteResult::addedBytesCount)
+                .sum())
+        .as("Added delete bytes in all groups")
+        .isEqualTo(size(newDeletes));
   }
 }
