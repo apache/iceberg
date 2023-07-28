@@ -26,11 +26,11 @@ import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
+import static org.apache.iceberg.spark.SparkSQLProperties.STRICT_TABLE_DISTRIBUTION;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -107,6 +107,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   @Test
   public void testCoalesceUpdate() {
     createAndInitTable("id INT, dep STRING");
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {
@@ -124,9 +125,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             UPDATE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.HASH.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -173,6 +172,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public void testSkewUpdate() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {
@@ -190,9 +190,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             UPDATE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.HASH.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();

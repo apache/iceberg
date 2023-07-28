@@ -26,8 +26,8 @@ import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.spark.SparkSQLProperties.STRICT_TABLE_DISTRIBUTION;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -101,6 +101,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   @Test
   public void testCoalesceMerge() {
     createAndInitTable("id INT, salary INT, dep STRING");
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {
@@ -118,9 +119,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             MERGE_DISTRIBUTION_MODE,
-            DistributionMode.NONE.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.NONE.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -173,9 +172,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testSkewMerge() {
     createAndInitTable("id INT, salary INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')",
-        tableName, STRICT_TABLE_DISTRIBUTION_AND_ORDERING);
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {
@@ -193,9 +190,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             MERGE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.HASH.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
     createBranchIfNeeded();
     spark.range(0, 100).createOrReplaceTempView("source");

@@ -19,7 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.iceberg.TableProperties
+import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.expressions.SortOrder
@@ -32,7 +32,6 @@ import org.apache.spark.sql.connector.distributions.ClusteredDistribution
 import org.apache.spark.sql.connector.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering
-import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.connector.write.Write
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
@@ -41,8 +40,6 @@ import scala.collection.compat.immutable.ArraySeq
 /**
  * A rule that is inspired by DistributionAndOrderingUtils in Spark but supports Iceberg transforms.
  *
- * Note that similarly to the original rule in Spark, it does not let AQE pick the number of shuffle
- * partitions. See SPARK-34230 for context.
  */
 object ExtendedDistributionAndOrderingUtils {
 
@@ -62,24 +59,18 @@ object ExtendedDistributionAndOrderingUtils {
           conf.numShufflePartitions
         }
 
-        val tableProperties = table match {
-          case d : RowLevelOperationTable => d.table.properties()
-          case _ : Table => table.properties()
-        }
-
         val isHashDistributionMode = write.requiredDistribution match {
           case _ : ClusteredDistribution => true
           case _ => false
         }
 
-        val strictDistributionMode = tableProperties
-          .getOrDefault(TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+        val strictDistributionMode = conf.getConfString(SparkSQLProperties.STRICT_TABLE_DISTRIBUTION,
+          SparkSQLProperties.STRICT_TABLE_DISTRIBUTION_DEFAULT)
 
         if (strictDistributionMode.equals("false") && isHashDistributionMode) {
           // if strict distribution mode is not enabled, then we fallback to spark AQE
-          // to determine the number of partitions by colaesceing and un-skewing partitions
-          // Also to note, Rebalance is only supported for hash distribution mode till spark 3.3
+          // to determine the number of partitions by coalescing and un-skewing partitions
+          // Also to note, Rebalance is only supported for hash distribution mode in spark 3.3
           // By default the strictDistributionMode is set to true, to not disrupt regular
           // plan of RepartitionByExpression
           RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)

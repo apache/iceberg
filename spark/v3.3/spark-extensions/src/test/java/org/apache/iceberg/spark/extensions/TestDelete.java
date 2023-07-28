@@ -26,7 +26,7 @@ import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.STRICT_TABLE_DISTRIBUTION_AND_ORDERING;
+import static org.apache.iceberg.spark.SparkSQLProperties.STRICT_TABLE_DISTRIBUTION;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -113,6 +113,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testCoalesceDelete() throws Exception {
     createAndInitUnpartitionedTable();
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
 
     Employee[] employees = new Employee[100];
     for (int index = 0; index < 100; index++) {
@@ -130,9 +131,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             DELETE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.HASH.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -176,6 +175,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testSkewDelete() throws Exception {
     createAndInitPartitionedTable();
+    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
     Employee[] employees = new Employee[100];
     for (int index = 0; index < 100; index++) {
       employees[index] = new Employee(index, "hr");
@@ -191,9 +191,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             DELETE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName(),
-            STRICT_TABLE_DISTRIBUTION_AND_ORDERING,
-            "false");
+            DistributionMode.HASH.modeName());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
     createBranchIfNeeded();
     // enable AQE and set the advisory partition size small enough to trigger a split
