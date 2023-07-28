@@ -134,10 +134,20 @@ public class SparkV2Filters {
           return Expressions.alwaysFalse();
 
         case IS_NULL:
-          return canConvertToTerm(child(predicate)) ? isNull(toTerm(child(predicate))) : null;
+          if (canConvertToTerm(child(predicate))) {
+            UnboundTerm<Object> term = toTerm(child(predicate));
+            return term != null ? isNull(term) : null;
+          }
+
+          return null;
 
         case NOT_NULL:
-          return canConvertToTerm(child(predicate)) ? notNull(toTerm(child(predicate))) : null;
+          if (canConvertToTerm(child(predicate))) {
+            UnboundTerm<Object> term = toTerm(child(predicate));
+            return term != null ? notNull(term) : null;
+          }
+
+          return null;
 
         case LT:
           if (canConvertToTerm(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
@@ -301,13 +311,11 @@ public class SparkV2Filters {
   private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {
     if (canConvertToTerm(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
       UnboundTerm<Object> term = toTerm(leftChild(predicate));
-      Object value = convertLiteral(rightChild(predicate));
-      return Pair.of(term, value);
+      return term != null ? Pair.of(term, convertLiteral(rightChild(predicate))) : null;
 
     } else if (canConvertToTerm(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
       UnboundTerm<Object> term = toTerm(rightChild(predicate));
-      Object value = convertLiteral(leftChild(predicate));
-      return Pair.of(term, value);
+      return term != null ? Pair.of(term, convertLiteral(leftChild(predicate))) : null;
 
     } else {
       return null;
@@ -428,8 +436,10 @@ public class SparkV2Filters {
   private static <T> UnboundTerm<Object> toTerm(T input) {
     if (input instanceof NamedReference) {
       return Expressions.ref(SparkUtil.toColumnName((NamedReference) input));
-    } else {
+    } else if (input instanceof UserDefinedScalarFunc) {
       return udfToTerm((UserDefinedScalarFunc) input);
+    } else {
+      return null;
     }
   }
 
