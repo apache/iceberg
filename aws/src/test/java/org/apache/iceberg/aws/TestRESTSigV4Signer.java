@@ -24,7 +24,7 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -42,7 +42,7 @@ import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 
 public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;
-  private static HTTPClient client;
+  private static RESTClient client;
 
   @BeforeAll
   public static void beforeClass() {
@@ -60,7 +60,7 @@ public class TestRESTSigV4Signer {
             AwsProperties.REST_SECRET_ACCESS_KEY,
             "secret");
     client =
-        HTTPClient.builder(properties)
+        RESTClient.buildFrom(properties)
             .uri("http://localhost:" + mockServer.getLocalPort())
             .withHeader(HttpHeaders.AUTHORIZATION, "Bearer existing_token")
             .build();

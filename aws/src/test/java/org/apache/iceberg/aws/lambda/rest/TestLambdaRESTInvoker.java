@@ -16,69 +16,69 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest;
+package org.apache.iceberg.aws.lambda.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockserver.integration.ClientAndServer.startClientAndServer;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import org.apache.hc.core5.http.EntityDetails;
-import org.apache.hc.core5.http.HttpException;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.ErrorHandler;
+import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTClientProperties;
+import org.apache.iceberg.rest.RESTObjectMapper;
+import org.apache.iceberg.rest.RESTRequest;
+import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.mockserver.integration.ClientAndServer;
-import org.mockserver.model.HttpRequest;
-import org.mockserver.model.HttpResponse;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.lambda.LambdaClient;
+import software.amazon.awssdk.services.lambda.model.InvokeRequest;
+import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 
-/**
- * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
- * HttpRESTClient code.
- */
-public class TestHTTPClient {
+public class TestLambdaRESTInvoker {
 
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
+  private static final String FUNCTION_ARN = "some-arn";
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
-  private static String icebergBuildGitCommitShort;
-  private static String icebergBuildFullVersion;
-  private static ClientAndServer mockServer;
+  private static Map<String, String> baseHeaders;
+  private static LambdaClient lambda;
   private static RESTClient restClient;
 
   @BeforeAll
   public static void beforeClass() {
-    mockServer = startClientAndServer(PORT);
-    restClient = RESTClient.buildFrom(ImmutableMap.of()).uri(URI).build();
-    icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
-    icebergBuildFullVersion = IcebergBuild.fullVersion();
-  }
-
-  @AfterAll
-  public static void stopServer() throws IOException {
-    mockServer.stop();
-    restClient.close();
+    lambda = mock(LambdaClient.class);
+    String icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
+    String icebergBuildFullVersion = IcebergBuild.fullVersion();
+    baseHeaders =
+        ImmutableMap.of(
+            "Authorization",
+            "Bearer " + BEARER_AUTH_TOKEN,
+            RESTClientProperties.CLIENT_VERSION_HEADER,
+            icebergBuildFullVersion,
+            RESTClientProperties.CLIENT_GIT_COMMIT_SHORT_HEADER,
+            icebergBuildGitCommitShort);
+    restClient = new LambdaRESTInvoker(URI, MAPPER, baseHeaders, lambda, FUNCTION_ARN);
   }
 
   @Test
@@ -119,18 +119,6 @@ public class TestHTTPClient {
   @Test
   public void testHeadFailure() throws JsonProcessingException {
     testHttpMethodOnFailure(HttpMethod.HEAD);
-  }
-
-  @Test
-  public void testDynamicHttpRequestInterceptorLoading() {
-    Map<String, String> properties = ImmutableMap.of("key", "val");
-
-    HttpRequestInterceptor interceptor =
-        HTTPClient.loadInterceptorDynamically(
-            TestHttpRequestInterceptor.class.getName(), properties);
-
-    assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
-    assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
@@ -193,33 +181,60 @@ public class TestHTTPClient {
 
     // Build the expected request
     String asJson = body != null ? MAPPER.writeValueAsString(body) : null;
-    HttpRequest mockRequest =
-        request("/" + path)
-            .withMethod(method.name().toUpperCase(Locale.ROOT))
-            .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
-            .withHeader(RESTClientProperties.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
-            .withHeader(
-                RESTClientProperties.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
+    ImmutableMap.Builder<String, String> headersBuilder =
+        ImmutableMap.<String, String>builder()
+            .putAll(baseHeaders)
+            .put(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
+
+    if (body != null) {
+      headersBuilder.put(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+    }
+
+    ImmutableLambdaRESTRequest.Builder mockRequestBuilder =
+        ImmutableLambdaRESTRequest.builder()
+            .uri(java.net.URI.create(URI + "/" + path))
+            .method(method.name().toUpperCase(Locale.ROOT))
+            .headers(headersBuilder.build());
 
     if (method.usesRequestBody()) {
-      mockRequest = mockRequest.withBody(asJson);
+      mockRequestBuilder.entity(asJson);
     }
 
     // Build the expected response
-    HttpResponse mockResponse = response().withStatusCode(statusCode);
+    ImmutableLambdaRESTResponse.Builder mockResponseBuilder =
+        ImmutableLambdaRESTResponse.builder()
+            .code(statusCode)
+            .headers(
+                ImmutableMap.of(
+                    HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType()));
 
     if (method.usesResponseBody()) {
       if (isSuccess) {
         // Simply return the passed in item in the success case.
-        mockResponse = mockResponse.withBody(asJson);
+        mockResponseBuilder.entity(asJson);
       } else {
         ErrorResponse response =
             ErrorResponse.builder().responseCode(statusCode).withMessage("Not found").build();
-        mockResponse = mockResponse.withBody(ErrorResponseParser.toJson(response));
+        mockResponseBuilder.entity(ErrorResponseParser.toJson(response));
       }
     }
 
-    mockServer.when(mockRequest).respond(mockResponse);
+    InvokeRequest mockRequest =
+        InvokeRequest.builder()
+            .functionName(FUNCTION_ARN)
+            .payload(
+                SdkBytes.fromInputStream(
+                    LambdaRESTRequestParser.toJsonStream(mockRequestBuilder.build())))
+            .build();
+
+    InvokeResponse mockResponse =
+        InvokeResponse.builder()
+            .payload(
+                SdkBytes.fromInputStream(
+                    LambdaRESTResponseParser.toJsonStream(mockResponseBuilder.build())))
+            .build();
+
+    doReturn(mockResponse).when(lambda).invoke(mockRequest);
 
     return path;
   }
@@ -278,18 +293,5 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
-  }
-
-  public static class TestHttpRequestInterceptor implements HttpRequestInterceptor {
-    private Map<String, String> properties;
-
-    public void initialize(Map<String, String> props) {
-      this.properties = props;
-    }
-
-    @Override
-    public void process(
-        org.apache.hc.core5.http.HttpRequest request, EntityDetails entity, HttpContext context)
-        throws HttpException, IOException {}
   }
 }

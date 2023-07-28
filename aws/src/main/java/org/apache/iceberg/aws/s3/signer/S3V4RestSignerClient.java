@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
-import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -78,7 +77,7 @@ public abstract class S3V4RestSignerClient
   private static volatile ScheduledExecutorService tokenRefreshExecutor;
 
   @SuppressWarnings("immutables:incompat")
-  private static volatile RESTClient httpClient;
+  private static volatile RESTClient restClient;
 
   @SuppressWarnings("immutables:incompat")
   private static volatile Cache<String, AuthSession> authSessionCache;
@@ -167,12 +166,12 @@ public abstract class S3V4RestSignerClient
     return authSessionCache;
   }
 
-  private RESTClient httpClient() {
-    if (null == httpClient) {
+  private RESTClient restClient() {
+    if (null == restClient) {
       synchronized (S3V4RestSignerClient.class) {
-        if (null == httpClient) {
-          httpClient =
-              HTTPClient.builder(properties())
+        if (null == restClient) {
+          restClient =
+              RESTClient.buildFrom(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
                   .build();
@@ -180,7 +179,7 @@ public abstract class S3V4RestSignerClient
       }
     }
 
-    return httpClient;
+    return restClient;
   }
 
   private AuthSession authSession() {
@@ -191,7 +190,7 @@ public abstract class S3V4RestSignerClient
               token,
               id ->
                   AuthSession.fromAccessToken(
-                      httpClient(),
+                      restClient(),
                       tokenRefreshExecutor(),
                       token,
                       expiresAtMillis(properties()),
@@ -207,9 +206,9 @@ public abstract class S3V4RestSignerClient
                     new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE);
                 long startTimeMillis = System.currentTimeMillis();
                 OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
+                    OAuth2Util.fetchToken(restClient(), session.headers(), credential(), SCOPE);
                 return AuthSession.fromTokenResponse(
-                    httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
+                    restClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });
     }
 
@@ -298,7 +297,7 @@ public abstract class S3V4RestSignerClient
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
-          httpClient()
+          restClient()
               .post(
                   endpoint(),
                   remoteSigningRequest,
