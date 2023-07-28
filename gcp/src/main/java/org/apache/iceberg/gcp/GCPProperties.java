@@ -65,7 +65,9 @@ public class GCPProperties implements Serializable {
 
   private int gcsDeleteBatchSize;
 
-  public GCPProperties() {}
+  public GCPProperties() {
+    gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
+  }
 
   public GCPProperties(Map<String, String> properties) {
     projectId = properties.get(GCS_PROJECT_ID);
