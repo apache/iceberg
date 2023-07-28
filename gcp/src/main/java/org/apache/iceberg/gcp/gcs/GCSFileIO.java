@@ -59,7 +59,6 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
-  private static final int DELETE_BATCH_SIZE = 50;
 
   private SerializableSupplier<Storage> storageSupplier;
   private GCPProperties gcpProperties;
@@ -223,7 +222,7 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
   }
 
   private void internalDeleteFiles(Iterable<BlobId> blobIdsToDelete) {
-    Streams.stream(Iterables.partition(blobIdsToDelete, DELETE_BATCH_SIZE))
+    Streams.stream(Iterables.partition(blobIdsToDelete, gcpProperties.deleteBatchSize()))
         .forEach(batch -> client().delete(batch));
   }
 }
