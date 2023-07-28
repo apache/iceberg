@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Supplier;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -31,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class RollingManifestWriter<F extends ContentFile<F>> implements Closeable {
   private static final int ROWS_DIVISOR = 250;
 
-  private final FileIO fileIO;
   private final Supplier<ManifestWriter<F>> manifestWriterSupplier;
   private final long targetFileSizeInBytes;
   private final List<ManifestFile> manifestFiles;
@@ -42,10 +40,7 @@ public class RollingManifestWriter<F extends ContentFile<F>> implements Closeabl
   private boolean closed = false;
 
   public RollingManifestWriter(
-      FileIO fileIO,
-      Supplier<ManifestWriter<F>> manifestWriterSupplier,
-      long targetFileSizeInBytes) {
-    this.fileIO = fileIO;
+      Supplier<ManifestWriter<F>> manifestWriterSupplier, long targetFileSizeInBytes) {
     this.manifestWriterSupplier = manifestWriterSupplier;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.manifestFiles = Lists.newArrayList();
@@ -128,27 +123,15 @@ public class RollingManifestWriter<F extends ContentFile<F>> implements Closeabl
 
   private void closeCurrentWriter() {
     if (currentWriter != null) {
-      ManifestFile currentFile;
       try {
         currentWriter.close();
-        currentFile = currentWriter.toManifestFile();
+        ManifestFile currentFile = currentWriter.toManifestFile();
+        manifestFiles.add(currentFile);
+        this.currentWriter = null;
+        this.currentFileRows = 0;
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close current writer", e);
       }
-
-      if (currentFileRows == 0L) {
-        try {
-          fileIO.deleteFile(currentFile.path());
-        } catch (UncheckedIOException e) {
-          // the file may not have been created, and it isn't worth failing the job to clean up,
-          // skip deleting
-        }
-      } else {
-        manifestFiles.add(currentFile);
-      }
-
-      this.currentFileRows = 0;
-      this.currentWriter = null;
     }
   }
 

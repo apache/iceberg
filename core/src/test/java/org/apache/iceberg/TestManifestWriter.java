@@ -412,7 +412,6 @@ public class TestManifestWriter extends TableTestBase {
 
   private RollingManifestWriter<DataFile> newRollingWriteManifest(long targetFileSize) {
     return new RollingManifestWriter<>(
-        table.io(),
         () -> {
           OutputFile newManifestFile = newManifestFile();
           return ManifestFiles.write(formatVersion, SPEC, newManifestFile, null);
@@ -422,7 +421,6 @@ public class TestManifestWriter extends TableTestBase {
 
   private RollingManifestWriter<DeleteFile> newRollingWriteDeleteManifest(long targetFileSize) {
     return new RollingManifestWriter<>(
-        table.io(),
         () -> {
           OutputFile newManifestFile = newManifestFile();
           return ManifestFiles.writeDeleteManifest(formatVersion, SPEC, newManifestFile, null);

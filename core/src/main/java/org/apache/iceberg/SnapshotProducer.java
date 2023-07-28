@@ -501,13 +501,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
-    return new RollingManifestWriter<>(
-        ops.io(), () -> newManifestWriter(spec), targetManifestSizeBytes);
+    return new RollingManifestWriter<>(() -> newManifestWriter(spec), targetManifestSizeBytes);
   }
 
   protected RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter(PartitionSpec spec) {
     return new RollingManifestWriter<>(
-        ops.io(), () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
+        () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
