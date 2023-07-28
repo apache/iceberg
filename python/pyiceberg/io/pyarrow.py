@@ -1188,6 +1188,11 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         if col_mode:
             metrics_mode = match_metrics_mode(col_mode)
 
+        
+        if not (isinstance(primitive, StringType) or isinstance(primitive, BinaryType)) and metrics_mode.type == MetricModeTypes.TRUNCATE:
+            metrics_mode = MetricsMode(MetricModeTypes.FULL)
+            
+
         return [StatisticsCollector(field_id=self._field_id, iceberg_type=primitive, mode=metrics_mode, column_name=column_name)]
 
 

@@ -1637,17 +1637,17 @@ def test_metrics_mode_non_default_trunc() -> None:
 
     assert len(datafile.lower_bounds) == 5
     assert datafile.lower_bounds[1].decode() == "aa"
-    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)[:2]
-    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)[:2]
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)[:2]
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)[:2]
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
+    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
     assert len(datafile.upper_bounds) == 5
     assert datafile.upper_bounds[1].decode() == "zz"
-    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)[:2]
-    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)[:2]
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)[:2]
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)[:2]
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
+    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
 def test_column_metrics_mode() -> None:
@@ -1669,16 +1669,16 @@ def test_column_metrics_mode() -> None:
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 3
-    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)[:2]
+    assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
     assert 5 not in datafile.lower_bounds
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)[:2]
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)[:2]
+    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
     assert len(datafile.upper_bounds) == 3
-    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)[:2]
+    assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
     assert 5 not in datafile.upper_bounds
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)[:2]
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)[:2]
+    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
 def test_offsets() -> None:
