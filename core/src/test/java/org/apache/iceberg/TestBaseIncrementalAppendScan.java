@@ -52,13 +52,27 @@ public class TestBaseIncrementalAppendScan
   }
 
   @Test
-  public void testFromSnapshotInclusiveWithRef() {
+  public void fromSnapshotInclusiveWithNonExistingRef() {
+    Assertions.assertThatThrownBy(() -> newScan().fromSnapshotInclusive("nonExistingRef"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref: nonExistingRef");
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Assertions.assertThatThrownBy(
+            () ->
+                newScan()
+                    .fromSnapshotInclusive(table.currentSnapshot().snapshotId())
+                    .toSnapshot("nonExistingRef"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref: nonExistingRef");
+  }
+
+  @Test
+  public void fromSnapshotInclusiveWithTag() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
 
-    String branchName = "b1";
     String tagSnapshotAName = "t1";
-    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
 
     String tagSnapshotBName = "t2";
@@ -66,32 +80,58 @@ public class TestBaseIncrementalAppendScan
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagSnapshotBName, snapshotBId).commit();
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
 
+    /*
+              files:FILE_A         files:FILE_B FILE_B       files:FILE_C FILE_C
+     ---- snapshotAId(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
+    */
     IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagSnapshotAName);
     Assertions.assertThat(scan.planFiles()).hasSize(5);
 
-    IncrementalAppendScan scan3 =
+    IncrementalAppendScan scanWithToSnapshot =
         newScan().fromSnapshotInclusive(tagSnapshotAName).toSnapshot(tagSnapshotBName);
-    Assertions.assertThat(scan3.planFiles()).hasSize(3);
+    Assertions.assertThat(scanWithToSnapshot.planFiles()).hasSize(3);
+  }
 
+  @Test
+  public void fromSnapshotInclusiveWithBranchShouldFail() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     Assertions.assertThatThrownBy(() -> newScan().fromSnapshotInclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("Ref %s is not a tag", branchName));
 
-    Assertions.assertThatThrownBy(() -> newScan().fromSnapshotInclusive("notExistTag"))
+    Assertions.assertThatThrownBy(
+            () -> newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find ref");
+        .hasMessage(String.format("Ref %s is not a tag", branchName));
   }
 
   @Test
-  public void testFromSnapshotExclusiveWithRef() {
+  public void fromSnapshotExclusiveWithNonExistingRef() {
+    Assertions.assertThatThrownBy(() -> newScan().fromSnapshotExclusive("nonExistingRef"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref: nonExistingRef");
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Assertions.assertThatThrownBy(
+            () ->
+                newScan()
+                    .fromSnapshotExclusive(table.currentSnapshot().snapshotId())
+                    .toSnapshot("nonExistingRef"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref: nonExistingRef");
+  }
+
+  @Test
+  public void testFromSnapshotExclusiveWithTag() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
 
-    String branchName = "b1";
     String tagSnapshotAName = "t1";
-    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
 
     String tagSnapshotBName = "t2";
@@ -99,22 +139,34 @@ public class TestBaseIncrementalAppendScan
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagSnapshotBName, snapshotBId).commit();
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
 
-    IncrementalAppendScan scan2 = newScan().fromSnapshotExclusive(tagSnapshotAName);
-    Assertions.assertThat(scan2.planFiles()).hasSize(4);
+    /*
+              files:FILE_A         files:FILE_B FILE_B       files:FILE_C FILE_C
+     ---- snapshotAId(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
+    */
+    IncrementalAppendScan scan = newScan().fromSnapshotExclusive(tagSnapshotAName);
+    Assertions.assertThat(scan.planFiles()).hasSize(4);
 
-    IncrementalAppendScan scan3 =
+    IncrementalAppendScan scanWithToSnapshot =
         newScan().fromSnapshotExclusive(tagSnapshotAName).toSnapshot(tagSnapshotBName);
-    Assertions.assertThat(scan3.planFiles()).hasSize(2);
+    Assertions.assertThat(scanWithToSnapshot.planFiles()).hasSize(2);
+  }
 
+  @Test
+  public void fromSnapshotExclusiveWithBranchShouldFail() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     Assertions.assertThatThrownBy(() -> newScan().fromSnapshotExclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("Ref %s is not a tag", branchName));
 
-    Assertions.assertThatThrownBy(() -> newScan().fromSnapshotExclusive("notExistTag"))
+    Assertions.assertThatThrownBy(
+            () -> newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find ref");
+        .hasMessage(String.format("Ref %s is not a tag", branchName));
   }
 
   @Test
@@ -140,6 +192,19 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
     long snapshotBranchCId = table.snapshot(branchName).snapshotId();
 
+    /*
+
+            files:FILE_A         files:FILE_B FILE_B       files:FILE_B FILE_B
+     ---- snapshotA(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
+                        \
+                         \
+                          \files:FILE_C
+                          snapshotBranchB
+                            \
+                             \
+                              \files:FILE_C
+                          snapshotBranchC(branch:b1)
+    */
     IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagSnapshotAName);
     Assertions.assertThat(scan.planFiles()).hasSize(5);
 
@@ -159,21 +224,58 @@ public class TestBaseIncrementalAppendScan
             .toSnapshot(snapshotBranchBId)
             .useBranch(branchName);
     Assertions.assertThat(scan5.planFiles()).hasSize(1);
+  }
 
+  @Test
+  public void testUseBranchWithTagShouldFail() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+    String tagSnapshotAName = "t1";
+    table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
+
+    Assertions.assertThatThrownBy(
+            () -> newScan().fromSnapshotInclusive(snapshotAId).useBranch(tagSnapshotAName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format("Ref %s is not a branch", tagSnapshotAName));
+  }
+
+  @Test
+  public void testUseBranchWithInvalidEndSnapshotShouldFail() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    String tagSnapshotAName = "t1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
+    table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
+
+    String tagName2 = "t2";
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    long snapshotMainBId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(tagName2, snapshotMainBId).commit();
+
+    table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
+
+    /*
+
+          files:FILE_A            files:FILE_B FILE_B       files:FILE_B FILE_B
+     ---- snapshotA(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
+                        \
+                         \
+                          \files:FILE_C
+                          snapshotBranchB(branch:b1)
+    */
     Assertions.assertThatThrownBy(
             () -> newScan().toSnapshot(snapshotMainBId).useBranch(branchName).planFiles())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("End snapshot is not a valid snapshot on the current branch");
+  }
 
-    Assertions.assertThatThrownBy(
-            () -> newScan().fromSnapshotInclusive(snapshotBranchBId).useBranch("notExistBranch"))
+  @Test
+  public void testUseBranchWithNonExistingRef() {
+    Assertions.assertThatThrownBy(() -> newScan().useBranch("notExistBranch"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find ref");
-
-    Assertions.assertThatThrownBy(
-            () -> newScan().fromSnapshotInclusive(snapshotBranchBId).useBranch(tagSnapshotAName))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a branch", tagSnapshotAName));
   }
 
   @Test
@@ -249,14 +351,27 @@ public class TestBaseIncrementalAppendScan
 
     IncrementalAppendScan scan2 = newScan().toSnapshot(tagSnapshotBranchBName);
     Assertions.assertThat(scan2.planFiles()).hasSize(3);
+  }
+
+  @Test
+  public void testToSnapshotWithNonExistingRef() {
+    Assertions.assertThatThrownBy(() -> newScan().toSnapshot("notExistTag"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find ref");
+  }
+
+  @Test
+  public void testToSnapshotWithBranchShouldFail() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
 
     Assertions.assertThatThrownBy(() -> newScan().toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("Ref %s is not a tag", branchName));
-
-    Assertions.assertThatThrownBy(() -> newScan().toSnapshot("notExistTag"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find ref");
   }
 
   @Test
