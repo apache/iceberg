@@ -22,7 +22,7 @@ import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.assertj.core.api.Assertions;
@@ -94,7 +94,7 @@ public class TestS3InputStream {
     byte[] actual = new byte[size];
 
     if (buffered) {
-      IOUtils.readFully(in, actual);
+      IOUtil.readFully(in, actual, 0, size);
     } else {
       int read = 0;
       while (read < size) {
@@ -168,7 +168,8 @@ public class TestS3InputStream {
 
     try (SeekableInputStream in = new S3InputStream(s3, uri)) {
       in.seek(expected.length / 2);
-      byte[] actual = IOUtils.readFully(in, expected.length / 2);
+      byte[] actual = new byte[expected.length / 2];
+      IOUtil.readFully(in, actual, 0, expected.length / 2);
       Assertions.assertThat(actual)
           .isEqualTo(Arrays.copyOfRange(expected, expected.length / 2, expected.length));
     }

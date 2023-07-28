@@ -148,7 +148,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: Optional[int] = Field(alias="last-partition-id")
+    last_partition_id: Optional[int] = Field(alias="last-partition-id", default=None)
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""

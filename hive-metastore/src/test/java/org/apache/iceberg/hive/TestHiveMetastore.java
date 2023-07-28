@@ -112,7 +112,7 @@ public class TestHiveMetastore {
                     FileSystem fs = Util.getFs(localDirPath, new Configuration());
                     String errMsg = "Failed to delete " + localDirPath;
                     try {
-                      assertThat(fs.delete(localDirPath, true)).isEqualTo(errMsg);
+                      assertThat(fs.delete(localDirPath, true)).as(errMsg).isTrue();
                     } catch (IOException e) {
                       throw new RuntimeException(errMsg, e);
                     }

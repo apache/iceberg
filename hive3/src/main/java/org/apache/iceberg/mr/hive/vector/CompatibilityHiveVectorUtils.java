@@ -21,7 +21,6 @@ package org.apache.iceberg.mr.hive.vector;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.common.type.HiveIntervalDayTime;
 import org.apache.hadoop.hive.common.type.HiveIntervalYearMonth;
@@ -67,7 +66,7 @@ public class CompatibilityHiveVectorUtils {
       LOG.debug("Initializing for input {}", inputName);
     }
     String prefixes = job.get(DagUtils.TEZ_MERGE_WORK_FILE_PREFIXES);
-    if (prefixes != null && !StringUtils.isBlank(prefixes)) {
+    if (prefixes != null && !prefixes.trim().isEmpty()) {
       // Currently SMB is broken, so we cannot check if it's  compatible with IO elevator.
       // So, we don't use the below code that would get the correct MapWork. See HIVE-16985.
       return null;
