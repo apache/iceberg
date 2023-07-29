@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -49,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -74,6 +76,8 @@ class DeleteFileIndex {
   private final Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition;
   private final boolean isEmpty;
 
+  /** @deprecated since 1.4.0, will be removed in 1.5.0. */
+  @Deprecated
   DeleteFileIndex(
       Map<Integer, PartitionSpec> specs,
       long[] globalSeqs,
@@ -366,9 +370,14 @@ class DeleteFileIndex {
     return new Builder(io, Sets.newHashSet(deleteManifests));
   }
 
+  static Builder builderFor(Iterable<DeleteFile> deleteFiles) {
+    return new Builder(deleteFiles);
+  }
+
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
+    private final Iterable<DeleteFile> deleteFiles;
     private long minSequenceNumber = 0L;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
@@ -381,6 +390,13 @@ class DeleteFileIndex {
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
+      this.deleteFiles = null;
+    }
+
+    Builder(Iterable<DeleteFile> deleteFiles) {
+      this.io = null;
+      this.deleteManifests = null;
+      this.deleteFiles = deleteFiles;
     }
 
     Builder afterSequenceNumber(long seq) {
@@ -394,16 +410,22 @@ class DeleteFileIndex {
     }
 
     Builder filterData(Expression newDataFilter) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support data filters");
       this.dataFilter = Expressions.and(dataFilter, newDataFilter);
       return this;
     }
 
     Builder filterPartitions(Expression newPartitionFilter) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support partition filters");
       this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
       return this;
     }
 
     Builder filterPartitions(PartitionSet newPartitionSet) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support partition filters");
       this.partitionSet = newPartitionSet;
       return this;
     }
@@ -423,7 +445,13 @@ class DeleteFileIndex {
       return this;
     }
 
-    DeleteFileIndex build() {
+    private Collection<DeleteFile> filterDeleteFiles() {
+      return Streams.stream(deleteFiles)
+          .filter(file -> file.dataSequenceNumber() > minSequenceNumber)
+          .collect(Collectors.toList());
+    }
+
+    private Collection<DeleteFile> loadDeleteFiles() {
       // read all of the matching delete manifests in parallel and accumulate the matching files in
       // a queue
       Queue<DeleteFile> files = new ConcurrentLinkedQueue<>();
@@ -444,6 +472,11 @@ class DeleteFileIndex {
                   throw new RuntimeIOException(e, "Failed to close");
                 }
               });
+      return files;
+    }
+
+    DeleteFileIndex build() {
+      Collection<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
       // build a map from (specId, partition) to delete file entries
       Map<Integer, StructLikeWrapper> wrappersBySpecId = Maps.newHashMap();
