@@ -27,7 +27,6 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.RebalancePartitions
 import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.Sort
-import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.distributions.ClusteredDistribution
 import org.apache.spark.sql.connector.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution
