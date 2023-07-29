@@ -172,7 +172,7 @@ public class TestBaseIncrementalAppendScan
   }
 
   @Test
-  public void testUseBranchWithInvalidEndSnapshotShouldFail() {
+  public void testUseBranchWithInvalidSnapshotShouldFail() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
 
@@ -187,6 +187,7 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createTag(tagName2, snapshotMainBId).commit();
 
     table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
+    long snapshotBranchBId = table.snapshot(branchName).snapshotId();
 
     /*
 
@@ -201,13 +202,22 @@ public class TestBaseIncrementalAppendScan
             () -> newScan().toSnapshot(snapshotMainBId).useBranch(branchName).planFiles())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("End snapshot is not a valid snapshot on the current branch");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                newScan().fromSnapshotInclusive(snapshotMainBId).useBranch(branchName).planFiles())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Starting snapshot (inclusive) %s is not an ancestor of end snapshot %s",
+                snapshotMainBId, snapshotBranchBId));
   }
 
   @Test
   public void testUseBranchWithNonExistingRef() {
-    Assertions.assertThatThrownBy(() -> newScan().useBranch("notExistBranch"))
+    Assertions.assertThatThrownBy(() -> newScan().useBranch("nonExistingRef"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find ref");
+        .hasMessage("Cannot find ref: nonExistingRef");
   }
 
   @Test
@@ -342,9 +352,9 @@ public class TestBaseIncrementalAppendScan
 
   @Test
   public void testToSnapshotWithNonExistingRef() {
-    Assertions.assertThatThrownBy(() -> newScan().toSnapshot("notExistTag"))
+    Assertions.assertThatThrownBy(() -> newScan().toSnapshot("nonExistingRef"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find ref");
+        .hasMessage("Cannot find ref: nonExistingRef");
   }
 
   @Test
