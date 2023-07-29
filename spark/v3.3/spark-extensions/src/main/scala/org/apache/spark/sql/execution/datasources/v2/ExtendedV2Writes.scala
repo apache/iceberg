@@ -81,7 +81,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
           throw QueryExecutionErrors.overwriteTableByUnsupportedExpressionError(table)
       }
 
-      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf, r.table)
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       o.copy(write = Some(write), query = newQuery)
 
     case o @ OverwritePartitionsDynamic(r: DataSourceV2Relation, query, options, _, None)
@@ -94,14 +94,14 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
         case _ =>
           throw QueryExecutionErrors.dynamicPartitionOverwriteUnsupportedByTableError(table)
       }
-      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf, r.table)
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       o.copy(write = Some(write), query = newQuery)
 
     case rd @ ReplaceIcebergData(r: DataSourceV2Relation, query, _, None) =>
       val rowSchema = StructType.fromAttributes(rd.dataInput)
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
       val write = writeBuilder.build()
-      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf, r.table)
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
 
     case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
@@ -112,7 +112,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       writeBuilder match {
         case builder: DeltaWriteBuilder =>
           val deltaWrite = builder.build()
-          val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf, r.table)
+          val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
           wd.copy(write = Some(deltaWrite), query = newQuery)
         case other =>
           throw new AnalysisException(s"$other is not DeltaWriteBuilder")

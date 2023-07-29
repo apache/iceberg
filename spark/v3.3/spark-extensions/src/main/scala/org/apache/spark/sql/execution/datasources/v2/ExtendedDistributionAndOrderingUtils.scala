@@ -43,7 +43,7 @@ import scala.collection.compat.immutable.ArraySeq
  */
 object ExtendedDistributionAndOrderingUtils {
 
-  def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf, table: Table): LogicalPlan = write match {
+  def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf): LogicalPlan = write match {
     case write: RequiresDistributionAndOrdering =>
       val numPartitions = write.requiredNumPartitions()
       val distribution = write.requiredDistribution match {
