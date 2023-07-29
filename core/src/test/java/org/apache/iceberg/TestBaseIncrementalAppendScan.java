@@ -176,23 +176,18 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
 
-    String branchName = "b1";
-    String tagSnapshotAName = "t1";
-    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
-    table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
-
-    String tagName2 = "t2";
     table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
     long snapshotMainBId = table.currentSnapshot().snapshotId();
-    table.manageSnapshots().createTag(tagName2, snapshotMainBId).commit();
 
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
     long snapshotBranchBId = table.snapshot(branchName).snapshotId();
 
     /*
 
           files:FILE_A            files:FILE_B FILE_B
-     ---- snapshotA(tag:t1) ---- snapshotMainB(tag:t2)
+          ---- snapshotA  ------ snapshotMainB
                         \
                          \
                           \files:FILE_C
