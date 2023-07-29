@@ -56,7 +56,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
     case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
       val writeBuilder = newWriteBuilder(r.table, query.schema, options)
       val write = writeBuilder.build()
-      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf, r.table)
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       a.copy(write = Some(write), query = newQuery)
 
     case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None)
