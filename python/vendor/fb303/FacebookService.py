@@ -47,21 +47,21 @@ class Iface:
 
     def getName(self):
         """
-        Returns a descriptive name of the service
+        Return a descriptive name of the service
 
         """
         pass
 
     def getVersion(self):
         """
-        Returns the version of the service
+        Return the version of the service
 
         """
         pass
 
     def getStatus(self):
         """
-        Gets the status of this service
+        Get the status of this service
 
         """
         pass
@@ -76,14 +76,14 @@ class Iface:
 
     def getCounters(self):
         """
-        Gets the counters for this service
+        Get the counters for this service
 
         """
         pass
 
     def getCounter(self, key):
         """
-        Gets the value of a single counter
+        Get the value of a single counter
 
         Parameters:
          - key
@@ -93,7 +93,7 @@ class Iface:
 
     def setOption(self, key, value):
         """
-        Sets an option
+        Set an option
 
         Parameters:
          - key
@@ -114,14 +114,14 @@ class Iface:
 
     def getOptions(self):
         """
-        Gets all options
+        Get all options
 
         """
         pass
 
     def getCpuProfile(self, profileDurationInSec):
         """
-        Returns a CPU profile over the given time interval (client and server
+        Return a CPU profile over the given time interval (client and server
         must agree on the profile format).
 
         Parameters:
@@ -132,7 +132,7 @@ class Iface:
 
     def aliveSince(self):
         """
-        Returns the unix time that the server has been running since
+        Return the unix time that the server has been running since
 
         """
         pass
@@ -166,7 +166,7 @@ class Client(Iface):
 
     def getName(self):
         """
-        Returns a descriptive name of the service
+        Return a descriptive name of the service
 
         """
         self.send_getName()
@@ -226,7 +226,7 @@ class Client(Iface):
 
     def getStatus(self):
         """
-        Gets the status of this service
+        Get the status of this service
 
         """
         self.send_getStatus()
@@ -287,7 +287,7 @@ class Client(Iface):
 
     def getCounters(self):
         """
-        Gets the counters for this service
+        Get the counters for this service
 
         """
         self.send_getCounters()
@@ -317,7 +317,7 @@ class Client(Iface):
 
     def getCounter(self, key):
         """
-        Gets the value of a single counter
+        Get the value of a single counter
 
         Parameters:
          - key
@@ -351,7 +351,7 @@ class Client(Iface):
 
     def setOption(self, key, value):
         """
-        Sets an option
+        Set an option
 
         Parameters:
          - key
@@ -385,7 +385,7 @@ class Client(Iface):
 
     def getOption(self, key):
         """
-        Gets an option
+        Get an option
 
         Parameters:
          - key
@@ -419,7 +419,7 @@ class Client(Iface):
 
     def getOptions(self):
         """
-        Gets all options
+        Get all options
 
         """
         self.send_getOptions()
@@ -449,7 +449,7 @@ class Client(Iface):
 
     def getCpuProfile(self, profileDurationInSec):
         """
-        Returns a CPU profile over the given time interval (client and server
+        Return a CPU profile over the given time interval (client and server
         must agree on the profile format).
 
         Parameters:
@@ -484,7 +484,7 @@ class Client(Iface):
 
     def aliveSince(self):
         """
-        Returns the unix time that the server has been running since
+        Return the unix time that the server has been running since
 
         """
         self.send_aliveSince()

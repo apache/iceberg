@@ -35,7 +35,7 @@ class Compressor(ABC):
 
     @abstractmethod
     def stream_decompressor(self, inp: InputStream) -> InputStream:
-        """Returns a stream decompressor.
+        """Return a stream decompressor.
 
         Args:
             inp: The input stream that needs decompressing.
@@ -46,7 +46,7 @@ class Compressor(ABC):
 
     @abstractmethod
     def bytes_compressor(self) -> Callable[[bytes], bytes]:
-        """Returns a function to compress bytes.
+        """Return a function to compress bytes.
 
         Returns:
             A function that can be used to compress bytes.

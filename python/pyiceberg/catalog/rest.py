@@ -200,10 +200,10 @@ class RestCatalog(Catalog):
         self._session = self._create_session()
 
     def _create_session(self) -> Session:
-        """Creates a request session with provided catalog configuration."""
+        """Create a request session with provided catalog configuration."""
         session = Session()
 
-        # Sets the client side and server side SSL cert verification, if provided as properties.
+        # Set the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
             if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
                 session.verify = ssl_ca_bundle
@@ -233,14 +233,14 @@ class RestCatalog(Catalog):
         return session
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
-        """The identifier should have at least one element."""
+        """Ensure the identifier have at least one element."""
         identifier_tuple = Catalog.identifier_to_tuple(identifier)
         if len(identifier_tuple) < 1:
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
-        """Constructs the endpoint.
+        """Construct the endpoint.
 
         Args:
             endpoint: Resource identifier that points to the REST catalog.
@@ -494,7 +494,7 @@ class RestCatalog(Catalog):
         return self.load_table(to_identifier)
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.

@@ -70,7 +70,7 @@ class Output(ABC):
 
 
 class ConsoleOutput(Output):
-    """Writes to the console."""
+    """Write to the console."""
 
     verbose: bool
 
@@ -169,7 +169,7 @@ class ConsoleOutput(Output):
 
 
 class JsonOutput(Output):
-    """Writes json to stdout."""
+    """Write json to stdout."""
 
     verbose: bool
 

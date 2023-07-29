@@ -57,7 +57,7 @@ DEFAULT_SCHEMA_ID = 0
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the current-schema-id is actually present in schemas."""
+    """Check if the current-schema-id is actually present in schemas."""
     current_schema_id = values[CURRENT_SCHEMA_ID]
 
     for schema in values[SCHEMAS]:
@@ -68,7 +68,7 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the default-spec-id is present in partition-specs."""
+    """Check if the default-spec-id is present in partition-specs."""
     default_spec_id = values["default_spec_id"]
 
     partition_specs: List[PartitionSpec] = values[PARTITION_SPECS]
@@ -80,7 +80,7 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the default_sort_order_id is present in sort-orders."""
+    """Check if the default_sort_order_id is present in sort-orders."""
     default_sort_order_id: int = values["default_sort_order_id"]
 
     if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
@@ -216,7 +216,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sets default values to be compatible with the format v2.
+        """Set default values to be compatible with the format v2.
 
         Args:
             data: The raw arguments when initializing a V1 TableMetadata.
@@ -232,7 +232,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts the schema into schemas.
+        """Convert the schema into schemas.
 
         For V1 schemas is optional, and if they aren't set, we'll set them
         in this validator. This was we can always use the schemas when reading
@@ -253,7 +253,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def construct_partition_specs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts the partition_spec into partition_specs.
+        """Convert the partition_spec into partition_specs.
 
         For V1 partition_specs is optional, and if they aren't set, we'll set them
         in this validator. This was we can always use the partition_specs when reading
@@ -281,7 +281,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def set_sort_orders(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sets the sort_orders if not provided.
+        """Set the sort_orders if not provided.
 
         For V1 sort_orders is optional, and if they aren't set, we'll set them
         in this validator.

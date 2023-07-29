@@ -116,7 +116,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
 
     @classmethod
     def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
-        """Called to validate the input of the Transform class."""
+        """Validate the input of the Transform class."""
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
@@ -178,11 +178,11 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         return self.__str__()
 
     def __str__(self) -> str:
-        """Returns the string representation of the Transform class."""
+        """Return the string representation of the Transform class."""
         return self.__root__
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Transform class."""
+        """Return the equality of two instances of the Transform class."""
         if isinstance(other, Transform):
             return self.__root__ == other.__root__
         return False
@@ -285,7 +285,7 @@ class BucketTransform(Transform[S, int]):
         return hash_func
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BucketTransform class."""
+        """Return the string representation of the BucketTransform class."""
         return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
@@ -338,7 +338,7 @@ class TimeTransform(Transform[S, int], Singleton):
 
 
 class YearTransform(TimeTransform[S]):
-    """Transforms a datetime value into a year value.
+    """Transform a datetime value into a year value.
 
     Example:
         >>> transform = YearTransform()
@@ -380,12 +380,12 @@ class YearTransform(TimeTransform[S]):
         return datetime.to_human_year(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the YearTransform class."""
+        """Return the string representation of the YearTransform class."""
         return "YearTransform()"
 
 
 class MonthTransform(TimeTransform[S]):
-    """Transforms a datetime value into a month value.
+    """Transform a datetime value into a month value.
 
     Example:
         >>> transform = MonthTransform()
@@ -427,12 +427,12 @@ class MonthTransform(TimeTransform[S]):
         return datetime.to_human_month(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the MonthTransform class."""
+        """Return the string representation of the MonthTransform class."""
         return "MonthTransform()"
 
 
 class DayTransform(TimeTransform[S]):
-    """Transforms a datetime value into a day value.
+    """Transform a datetime value into a day value.
 
     Example:
         >>> transform = MonthTransform()
@@ -477,12 +477,12 @@ class DayTransform(TimeTransform[S]):
         return datetime.to_human_day(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the DayTransform class."""
+        """Return the string representation of the DayTransform class."""
         return "DayTransform()"
 
 
 class HourTransform(TimeTransform[S]):
-    """Transforms a datetime value into a hour value.
+    """Transform a datetime value into a hour value.
 
     Example:
         >>> transform = HourTransform()
@@ -517,17 +517,17 @@ class HourTransform(TimeTransform[S]):
         return datetime.to_human_hour(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the HourTransform class."""
+        """Return the string representation of the HourTransform class."""
         return "HourTransform()"
 
 
 def _base64encode(buffer: bytes) -> str:
-    """Converts bytes to base64 string."""
+    """Convert bytes to base64 string."""
     return base64.b64encode(buffer).decode("ISO-8859-1")
 
 
 class IdentityTransform(Transform[S, S]):
-    """Transforms a value into itself.
+    """Transform a value into itself.
 
     Example:
         >>> transform = IdentityTransform()
@@ -570,11 +570,11 @@ class IdentityTransform(Transform[S, S]):
         return _human_string(value, source_type) if value is not None else "null"
 
     def __str__(self) -> str:
-        """Returns the string representation of the IdentityTransform class."""
+        """Return the string representation of the IdentityTransform class."""
         return "identity"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the IdentityTransform class."""
+        """Return the string representation of the IdentityTransform class."""
         return "IdentityTransform()"
 
 
@@ -674,7 +674,7 @@ class TruncateTransform(Transform[S, S]):
             return str(value)
 
     def __repr__(self) -> str:
-        """Returns the string representation of the TruncateTransform class."""
+        """Return the string representation of the TruncateTransform class."""
         return f"TruncateTransform(width={self._width})"
 
 
@@ -748,7 +748,7 @@ class UnknownTransform(Transform[S, T]):
         return None
 
     def __repr__(self) -> str:
-        """Returns the string representation of the UnknownTransform class."""
+        """Return the string representation of the UnknownTransform class."""
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
@@ -773,7 +773,7 @@ class VoidTransform(Transform[S, None], Singleton):
         return "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the VoidTransform class."""
+        """Return the string representation of the VoidTransform class."""
         return "VoidTransform()"
 
 

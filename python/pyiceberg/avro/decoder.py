@@ -47,7 +47,7 @@ class BinaryDecoder(ABC):
         """Skip n bytes."""
 
     def read_boolean(self) -> bool:
-        """Reads a value from the stream as a boolean.
+        """Read a value from the stream as a boolean.
 
         A boolean is written as a single byte
         whose value is either 0 (false) or 1 (true).
@@ -55,7 +55,7 @@ class BinaryDecoder(ABC):
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
-        """Reads an int/long value.
+        """Read an int/long value.
 
         int/long values are written using variable-length, zigzag coding.
         """
@@ -70,26 +70,26 @@ class BinaryDecoder(ABC):
         return datum
 
     def read_ints(self, n: int, dest: List[int]) -> None:
-        """Reads a list of integers."""
+        """Read a list of integers."""
         for _ in range(n):
             dest.append(self.read_int())
 
     def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
-        """Reads a dictionary of integers for keys and values into a destination dictionary."""
+        """Read a dictionary of integers for keys and values into a destination dictionary."""
         for _ in range(n):
             k = self.read_int()
             v = self.read_int()
             dest[k] = v
 
     def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
-        """Reads a dictionary of integers for keys and bytes for values into a destination dictionary."""
+        """Read a dictionary of integers for keys and bytes for values into a destination dictionary."""
         for _ in range(n):
             k = self.read_int()
             v = self.read_bytes()
             dest[k] = v
 
     def read_float(self) -> float:
-        """Reads a value from the stream as a float.
+        """Read a value from the stream as a float.
 
         A float is written as 4 bytes.
         The float is converted into a 32-bit integer using a method equivalent to
@@ -98,7 +98,7 @@ class BinaryDecoder(ABC):
         return float(STRUCT_FLOAT.unpack(self.read(4))[0])
 
     def read_double(self) -> float:
-        """Reads a value from the stream as a double.
+        """Read a value from the stream as a double.
 
         A double is written as 8 bytes.
         The double is converted into a 64-bit integer using a method equivalent to
@@ -107,7 +107,7 @@ class BinaryDecoder(ABC):
         return float(STRUCT_DOUBLE.unpack(self.read(8))[0])
 
     def read_decimal_from_bytes(self, precision: int, scale: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
+        """Read a value from the stream as a decimal.
 
         Decimal bytes are decoded as signed short, int or long depending on the
         size of bytes.
@@ -116,7 +116,7 @@ class BinaryDecoder(ABC):
         return self.read_decimal_from_fixed(precision, scale, size)
 
     def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
+        """Read a value from the stream as a decimal.
 
         Decimal is encoded as fixed. Fixed instances are encoded using the
         number of bytes declared in the schema.
@@ -131,7 +131,7 @@ class BinaryDecoder(ABC):
         return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
-        """Reads a utf-8 encoded string from the stream.
+        """Read a utf-8 encoded string from the stream.
 
         A string is encoded as a long followed by
         that many bytes of UTF-8 encoded character data.
@@ -139,11 +139,11 @@ class BinaryDecoder(ABC):
         return self.read_bytes().decode("utf-8")
 
     def read_uuid_from_fixed(self) -> UUID:
-        """Reads a UUID as a fixed[16]."""
+        """Read a UUID as a fixed[16]."""
         return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
-        """Reads a milliseconds granularity time from the stream.
+        """Read a milliseconds granularity time from the stream.
 
         Int is decoded as python time object which represents
         the number of milliseconds after midnight, 00:00:00.000.
@@ -152,7 +152,7 @@ class BinaryDecoder(ABC):
         return micros_to_time(millis * 1000)
 
     def read_time_micros(self) -> time:
-        """Reads a microseconds granularity time from the stream.
+        """Read a microseconds granularity time from the stream.
 
         Long is decoded as python time object which represents
         the number of microseconds after midnight, 00:00:00.000000.
@@ -160,7 +160,7 @@ class BinaryDecoder(ABC):
         return micros_to_time(self.read_int())
 
     def read_timestamp_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamp from the stream.
+        """Read a microsecond granularity timestamp from the stream.
 
         Long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
@@ -168,7 +168,7 @@ class BinaryDecoder(ABC):
         return micros_to_timestamp(self.read_int())
 
     def read_timestamptz_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamptz from the stream.
+        """Read a microsecond granularity timestamptz from the stream.
 
         Long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
@@ -275,7 +275,7 @@ class InMemoryBinaryDecoder(BinaryDecoder):
         self._position += n
 
     def read_boolean(self) -> bool:
-        """Reads a value from the stream as a boolean.
+        """Read a value from the stream as a boolean.
 
         A boolean is written as a single byte
         whose value is either 0 (false) or 1 (true).
@@ -285,7 +285,7 @@ class InMemoryBinaryDecoder(BinaryDecoder):
         return r != 0
 
     def read_int(self) -> int:
-        """Reads a value from the stream as an integer.
+        """Read a value from the stream as an integer.
 
         int/long values are written using variable-length, zigzag coding.
         """
@@ -303,7 +303,7 @@ class InMemoryBinaryDecoder(BinaryDecoder):
         return (n >> 1) ^ -(n & 1)
 
     def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
-        """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
+        """Read a dictionary of integers for keys and bytes for values into a destination dict."""
         for _ in range(n):
             k = self.read_int()
 

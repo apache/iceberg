@@ -38,12 +38,12 @@ class Synchronized(Generic[T], AbstractContextManager):  # type: ignore
         self.lock = lock
 
     def __enter__(self) -> T:
-        """Acquires a lock, allowing access to the wrapped value."""
+        """Acquire a lock, allowing access to the wrapped value."""
         self.lock.acquire()
         return self.value
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        """Releases the lock, allowing other threads to access the value."""
+        """Release the lock, allowing other threads to access the value."""
         self.lock.release()
 
 
@@ -58,7 +58,7 @@ class ManagedThreadPoolExecutor(ThreadPoolExecutor, ManagedExecutor):
     """A thread pool executor that provides synchronization."""
 
     def __enter__(self) -> Self:
-        """Returns the executor itself as a context manager."""
+        """Return the executor itself as a context manager."""
         super().__enter__()
         return self
 
