@@ -27,8 +27,8 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 /**
  * This class implements a codec factory that is used when reading from Parquet. It adds a
- * workaround to cache codecs by name and level, not just by name. This can be removed
- * when this change is made to Parquet.
+ * workaround to cache codecs by name and level, not just by name. This can be removed when this
+ * change is made to Parquet.
  */
 public class ParquetCodecFactory extends CodecFactory {
 
