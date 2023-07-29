@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.SortOrderVisitor;
@@ -38,12 +39,23 @@ public class SortOrderUtil {
   private SortOrderUtil() {}
 
   public static SortOrder buildSortOrder(Table table) {
-    return buildSortOrder(table.schema(), table.spec(), table.sortOrder());
+    return buildSortOrder(
+        table.schema(),
+        table.spec(),
+        table.sortOrder(),
+        PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+            TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT));
   }
 
   // builds a sort order using both the table partition spec and the user supplied sort order
   public static SortOrder buildSortOrder(Table table, SortOrder sortOrder) {
     return buildSortOrder(table.schema(), table.spec(), sortOrder);
+  }
+
+  public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
+    return buildSortOrder(schema, spec, sortOrder, TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
   }
 
   /**
@@ -56,11 +68,13 @@ public class SortOrderUtil {
    * @param schema a schema
    * @param spec a partition spec
    * @param sortOrder a sort order
+   * @param fanout whether write fanout is enabled
    * @return the sort order with additional sort fields to satisfy the clustering required by the
    *     spec
    */
-  public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
-    if (sortOrder.isUnsorted() && spec.isUnpartitioned()) {
+  public static SortOrder buildSortOrder(
+      Schema schema, PartitionSpec spec, SortOrder sortOrder, boolean fanout) {
+    if ((fanout && sortOrder.isUnsorted()) || (sortOrder.isUnsorted() && spec.isUnpartitioned())) {
       return SortOrder.unsorted();
     }
 

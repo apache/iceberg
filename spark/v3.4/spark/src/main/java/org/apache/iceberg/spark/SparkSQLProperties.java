@@ -56,11 +56,6 @@ public class SparkSQLProperties {
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
-  // Controls whether to take into account the table distribution and sort order during a write
-  // operation
-  public static final String SPARK_WRITE_USE_TABLE_DISTRIBUTION_AND_ORDERING =
-      "spark.sql.write.use-table-distribution-and-ordering";
-
   // Controls the WAP ID used for write-audit-publish workflow.
   // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";

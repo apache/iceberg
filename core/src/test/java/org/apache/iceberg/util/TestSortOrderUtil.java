@@ -287,4 +287,20 @@ public class TestSortOrderUtil {
         .as("Should add spec fields as prefix")
         .isEqualTo(expected);
   }
+
+  @Test
+  public void testSortOrderClusteringWithFanoutEnabled() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").build();
+    SortOrder order = SortOrder.unsorted();
+    SortOrder expected = SortOrder.unsorted();
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order, true))
+        .as("Should not include any sort order")
+        .isEqualTo(expected);
+
+    order = SortOrder.builderFor(SCHEMA).asc("id").build();
+    expected = SortOrder.builderFor(SCHEMA).asc(Expressions.day("ts")).asc("id").build();
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order, true))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
+  }
 }
