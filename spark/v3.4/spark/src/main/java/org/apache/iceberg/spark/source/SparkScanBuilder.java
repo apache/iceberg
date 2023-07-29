@@ -98,7 +98,7 @@ public class SparkScanBuilder
   private Schema schema = null;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
-  private Predicate[] pushedPredicated = NO_PREDICATES;
+  private Predicate[] pushedPredicates = NO_PREDICATES;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -183,7 +183,7 @@ public class SparkScanBuilder
     }
 
     this.filterExpressions = expressions;
-    this.pushedPredicated = pushableFilters.toArray(new Predicate[0]);
+    this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
     return postScanFilters.toArray(new Predicate[0]);
   }
@@ -194,7 +194,7 @@ public class SparkScanBuilder
 
   @Override
   public Predicate[] pushedPredicates() {
-    return pushedPredicated;
+    return pushedPredicates;
   }
 
   @Override
