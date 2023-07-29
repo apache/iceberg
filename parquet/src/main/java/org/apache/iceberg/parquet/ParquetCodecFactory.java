@@ -87,6 +87,6 @@ public class ParquetCodecFactory extends CodecFactory {
         // compression level is not supported; ignore it
     }
     String codecClass = codecName.getHadoopCompressionCodecClassName();
-    return level == null ? codecClass : codecClass + "-" + level;
+    return level == null ? codecClass : codecClass + ":" + level;
   }
 }
