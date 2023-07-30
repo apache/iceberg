@@ -77,10 +77,10 @@ public class ParquetCodecFactory extends CodecFactory {
         level = configuration.get("compression.brotli.quality");
         break;
       case ZSTD:
-        // keep "io.compression.codec.zstd.level" for backwards compatibility
-        level = configuration.get("io.compression.codec.zstd.level");
+        level = configuration.get("parquet.compression.codec.zstd.level");
         if (level == null) {
-          level = configuration.get("parquet.compression.codec.zstd.level");
+          // keep "io.compression.codec.zstd.level" for backwards compatibility
+          level = configuration.get("io.compression.codec.zstd.level");
         }
         break;
       default:
