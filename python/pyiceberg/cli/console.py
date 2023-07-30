@@ -175,7 +175,7 @@ def spec(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def uuid(ctx: Context, identifier: str) -> None:
-    """Returns the UUID of the table."""
+    """Return the UUID of the table."""
     catalog, output = _catalog_and_output(ctx)
     metadata = catalog.load_table(identifier).metadata
     output.uuid(metadata.table_uuid)
@@ -202,7 +202,7 @@ def drop() -> None:
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str) -> None:  # noqa: F811
-    """Drops a table."""
+    """Drop a table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_table(identifier)

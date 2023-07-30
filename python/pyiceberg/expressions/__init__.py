@@ -162,11 +162,11 @@ class Reference(UnboundTerm[Any]):
         self.name = name
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Reference class."""
+        """Return the string representation of the Reference class."""
         return f"Reference(name={repr(self.name)})"
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Reference class."""
+        """Return the equality of two instances of the Reference class."""
         return self.name == other.name if isinstance(other, Reference) else False
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[L]:
@@ -594,7 +594,7 @@ class BoundIn(BoundSetPredicate[L]):
         return BoundNotIn(self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundIn class."""
+        """Return the equality of two instances of the BoundIn class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundIn) else False
 
     @property
@@ -665,7 +665,7 @@ class NotIn(SetPredicate[L], ABC):
         return In[L](self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the NotIn class."""
+        """Return the equality of two instances of the NotIn class."""
         if isinstance(other, NotIn):
             return self.term == other.term and self.literals == other.literals
         return False
@@ -700,13 +700,13 @@ class LiteralPredicate(UnboundPredicate[L], ABC):
         return self.as_bound(bound_term, lit)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the LiteralPredicate class."""
+        """Return the equality of two instances of the LiteralPredicate class."""
         if isinstance(other, LiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the LiteralPredicate class."""
+        """Return the string representation of the LiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property
@@ -724,13 +724,13 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
         self.literal = literal  # pylint: disable=W0621
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundLiteralPredicate class."""
+        """Return the equality of two instances of the BoundLiteralPredicate class."""
         if isinstance(other, BoundLiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BoundLiteralPredicate class."""
+        """Return the string representation of the BoundLiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property

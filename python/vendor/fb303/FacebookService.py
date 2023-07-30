@@ -104,7 +104,7 @@ class Iface:
 
     def getOption(self, key):
         """
-        Gets an option
+        Get an option
 
         Parameters:
          - key
@@ -196,7 +196,7 @@ class Client(Iface):
 
     def getVersion(self):
         """
-        Returns the version of the service
+        Return the version of the service
 
         """
         self.send_getVersion()
