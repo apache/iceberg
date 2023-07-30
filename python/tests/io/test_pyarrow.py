@@ -19,6 +19,14 @@
 import math
 import os
 import tempfile
+import uuid
+from datetime import (
+    date,
+    datetime,
+    time,
+    timedelta,
+    timezone,
+)
 from typing import (
     Any,
     Dict,
@@ -32,7 +40,13 @@ import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType, LocalFileSystem
 
-from pyiceberg.avro import STRUCT_FLOAT, STRUCT_INT64
+from pyiceberg.avro import (
+    STRUCT_BOOL,
+    STRUCT_DOUBLE,
+    STRUCT_FLOAT,
+    STRUCT_INT32,
+    STRUCT_INT64,
+)
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
@@ -67,6 +81,7 @@ from pyiceberg.io.pyarrow import (
     MetricsMode,
     PyArrowFile,
     PyArrowFileIO,
+    PyArrowStatisticsCollector,
     _ConvertToArrowSchema,
     _read_deletes,
     expression_to_pyarrow,
@@ -74,11 +89,10 @@ from pyiceberg.io.pyarrow import (
     match_metrics_mode,
     project_table,
     schema_to_pyarrow,
-    PyArrowStatisticsCollector
 )
 from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
-from pyiceberg.schema import Schema, visit, pre_order_visit
+from pyiceberg.schema import Schema, pre_order_visit, visit
 from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
 from pyiceberg.types import (
@@ -100,6 +114,7 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 
 
 def test_pyarrow_input_file() -> None:
@@ -1681,6 +1696,129 @@ def test_column_metrics_mode() -> None:
     assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
+def construct_test_table_primitive_types() -> pa.Buffer:
+    table_metadata = {
+        "format-version": 2,
+        "location": "s3://bucket/test/location",
+        "last-column-id": 7,
+        "current-schema-id": 0,
+        "schemas": [
+            {
+                "type": "struct",
+                "schema-id": 0,
+                "fields": [
+                    {"id": 1, "name": "booleans", "required": False, "type": "boolean"},
+                    {"id": 2, "name": "ints", "required": False, "type": "int"},
+                    {"id": 3, "name": "longs", "required": False, "type": "long"},
+                    {"id": 4, "name": "floats", "required": False, "type": "float"},
+                    {"id": 5, "name": "doubles", "required": False, "type": "double"},
+                    {"id": 6, "name": "dates", "required": False, "type": "date"},
+                    {"id": 7, "name": "times", "required": False, "type": "time"},
+                    {"id": 8, "name": "timestamps", "required": False, "type": "timestamp"},
+                    {"id": 9, "name": "timestamptzs", "required": False, "type": "timestamptz"},
+                    {"id": 10, "name": "strings", "required": False, "type": "string"},
+                    {"id": 11, "name": "uuids", "required": False, "type": "uuid"},
+                    {"id": 12, "name": "binaries", "required": False, "type": "binary"},
+                ],
+            },
+        ],
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": []}],
+        "properties": {},
+    }
+
+    table_metadata = TableMetadataUtil.parse_obj(table_metadata)
+    arrow_schema = schema_to_pyarrow(table_metadata.schemas[0])
+    tz = timezone(timedelta(seconds=19800))
+
+    booleans = [True, False]
+    ints = [23, 89]
+    longs = [54, 2]
+    floats = [454.1223, 24342.29]
+    doubles = [8542.12, -43.9]
+    dates = [date(2022, 1, 2), date(2023, 2, 4)]
+    times = [time(17, 30, 34), time(13, 21, 4)]
+    timestamps = [datetime(2022, 1, 2, 17, 30, 34, 399), datetime(2023, 2, 4, 13, 21, 4, 354)]
+    timestamptzs = [datetime(2022, 1, 2, 17, 30, 34, 399, tz), datetime(2023, 2, 4, 13, 21, 4, 354, tz)]
+    strings = ["hello", "world"]
+    uuids = [uuid.uuid3(uuid.NAMESPACE_DNS, "foo").bytes, uuid.uuid3(uuid.NAMESPACE_DNS, "bar").bytes]
+    binaries = [b"hello", b"world"]
+
+    table = pa.Table.from_pydict(
+        {
+            "booleans": booleans,
+            "ints": ints,
+            "longs": longs,
+            "floats": floats,
+            "doubles": doubles,
+            "dates": dates,
+            "times": times,
+            "timestamps": timestamps,
+            "timestamptzs": timestamptzs,
+            "strings": strings,
+            "uuids": uuids,
+            "binaries": binaries,
+        },
+        schema=arrow_schema,
+    )
+    f = pa.BufferOutputStream()
+
+    metadata_collector: List[Any] = []
+    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
+
+    writer.write_table(table)
+    writer.close()
+
+    return f.getvalue(), metadata_collector[0], table_metadata
+
+
+def test_metrics_primitive_types() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table_primitive_types()
+
+    datafile = DataFile()
+    table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 12
+    assert len(datafile.null_value_counts) == 12
+    assert len(datafile.nan_value_counts) == 0
+
+    tz = timezone(timedelta(seconds=19800))
+
+    assert len(datafile.lower_bounds) == 12
+    assert datafile.lower_bounds[1] == STRUCT_BOOL.pack(False)
+    assert datafile.lower_bounds[2] == STRUCT_INT32.pack(23)
+    assert datafile.lower_bounds[3] == STRUCT_INT64.pack(2)
+    assert datafile.lower_bounds[4] == STRUCT_FLOAT.pack(454.1223)
+    assert datafile.lower_bounds[5] == STRUCT_DOUBLE.pack(-43.9)
+    assert datafile.lower_bounds[6] == STRUCT_INT32.pack(date_to_days(date(2022, 1, 2)))
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(time_object_to_micros(time(13, 21, 4)))
+    assert datafile.lower_bounds[8] == STRUCT_INT64.pack(datetime_to_micros(datetime(2022, 1, 2, 17, 30, 34, 399)))
+    assert datafile.lower_bounds[9] == STRUCT_INT64.pack(datetime_to_micros(datetime(2022, 1, 2, 17, 30, 34, 399, tz)))
+    assert datafile.lower_bounds[10] == b"he"
+    assert datafile.lower_bounds[11] == uuid.uuid3(uuid.NAMESPACE_DNS, "foo").bytes
+    assert datafile.lower_bounds[12] == b"he"
+
+    assert len(datafile.upper_bounds) == 12
+    assert datafile.upper_bounds[1] == STRUCT_BOOL.pack(True)
+    assert datafile.upper_bounds[2] == STRUCT_INT32.pack(89)
+    assert datafile.upper_bounds[3] == STRUCT_INT64.pack(54)
+    assert datafile.upper_bounds[4] == STRUCT_FLOAT.pack(24342.29)
+    assert datafile.upper_bounds[5] == STRUCT_DOUBLE.pack(8542.12)
+    assert datafile.upper_bounds[6] == STRUCT_INT32.pack(date_to_days(date(2023, 2, 4)))
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(time_object_to_micros(time(17, 30, 34)))
+    assert datafile.upper_bounds[8] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354)))
+    assert datafile.upper_bounds[9] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354, tz)))
+    assert datafile.upper_bounds[10] == b"wo"
+    assert datafile.upper_bounds[11] == uuid.uuid3(uuid.NAMESPACE_DNS, "bar").bytes
+    assert datafile.upper_bounds[12] == b"wo"
+
+
 def test_offsets() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
@@ -1692,18 +1830,18 @@ def test_offsets() -> None:
     assert datafile.split_offsets[0] == 4
 
 
-def test_write_and_read_stats_schema(table_schema_nested: Schema):
-    tbl = pa.Table.from_pydict({
-        "foo": ["a", "b"],
-        "bar": [1, 2],
-        "baz": [False, True],
-        "qux": [["a", "b"], ["c", "d"]],
-        "quux": [[("a", (("aa", 1), ("ab", 2)))], [("b", (("ba", 3), ("bb", 4)))]],
-        "location": [[(52.377956, 4.897070), (4.897070, -122.431297)],
-                     [(43.618881, -116.215019), (41.881832, -87.623177)]],
-        "person": [("Fokko", 33), ("Max", 42)]  # Possible data quality issue
-    },
-        schema=schema_to_pyarrow(table_schema_nested)
+def test_write_and_read_stats_schema(table_schema_nested: Schema) -> None:
+    tbl = pa.Table.from_pydict(
+        {
+            "foo": ["a", "b"],
+            "bar": [1, 2],
+            "baz": [False, True],
+            "qux": [["a", "b"], ["c", "d"]],
+            "quux": [[("a", (("aa", 1), ("ab", 2)))], [("b", (("ba", 3), ("bb", 4)))]],
+            "location": [[(52.377956, 4.897070), (4.897070, -122.431297)], [(43.618881, -116.215019), (41.881832, -87.623177)]],
+            "person": [("Fokko", 33), ("Max", 42)],  # Possible data quality issue
+        },
+        schema=schema_to_pyarrow(table_schema_nested),
     )
     stats_columns = pre_order_visit(table_schema_nested, PyArrowStatisticsCollector(table_schema_nested, {}))
 
@@ -1717,11 +1855,12 @@ def test_write_and_read_stats_schema(table_schema_nested: Schema):
 
     assert visited_paths[0].metadata.num_columns == len(stats_columns)
 
-def test_stats_types(table_schema_nested: Schema):
+
+def test_stats_types(table_schema_nested: Schema) -> None:
     stats_columns = pre_order_visit(table_schema_nested, PyArrowStatisticsCollector(table_schema_nested, {}))
 
     # the field-ids should be sorted
-    assert all(stats_columns[i].field_id <= stats_columns[i + 1].field_id for i in range(len(stats_columns)-1))
+    assert all(stats_columns[i].field_id <= stats_columns[i + 1].field_id for i in range(len(stats_columns) - 1))
     assert [col.iceberg_type for col in stats_columns] == [
         StringType(),
         IntegerType(),

@@ -27,9 +27,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Executor
 from dataclasses import dataclass
+from datetime import date, datetime, time
 from enum import Enum
 from functools import lru_cache, singledispatch
 from itertools import chain
@@ -139,6 +141,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -1039,35 +1042,49 @@ class ArrowAccessor(PartnerAccessor[pa.Array]):
         return partner_map.items if isinstance(partner_map, pa.MapArray) else None
 
 
+_PRIMITIVE_TO_PHYSICAL = {
+    BooleanType(): "BOOLEAN",
+    IntegerType(): "INT32",
+    LongType(): "INT64",
+    FloatType(): "FLOAT",
+    DoubleType(): "DOUBLE",
+    DateType(): "INT32",
+    TimeType(): "INT64",
+    TimestampType(): "INT64",
+    TimestamptzType(): "INT64",
+    StringType(): "BYTE_ARRAY",
+    UUIDType(): "FIXED_LEN_BYTE_ARRAY",
+    BinaryType(): "BYTE_ARRAY",
+}
+_PHISICAL_TYPES = ["BOOLEAN", "INT32", "INT64", "INT96", "FLOAT", "DOUBLE", "BYTE_ARRAY", "FIXED_LEN_BYTE_ARRAY"]
+
+
 class StatsAggregator:
-    def __init__(self, type_string: str, trunc_length: Optional[int] = None) -> None:
+    def __init__(self, iceberg_type: PrimitiveType, physical_type_string: str, trunc_length: Optional[int] = None) -> None:
         self.current_min: Any = None
         self.current_max: Any = None
         self.trunc_length = trunc_length
-        self.primitive_type: Optional[PrimitiveType] = None
 
-        if type_string == "BOOLEAN":
-            self.primitive_type = BooleanType()
-        elif type_string == "INT32":
-            self.primitive_type = IntegerType()
-        elif type_string == "INT64":
-            self.primitive_type = LongType()
-        elif type_string == "INT96":
+        assert physical_type_string in _PHISICAL_TYPES, f"Unknown physical type {physical_type_string}"
+        if physical_type_string == "INT96":
             raise NotImplementedError("Statistics not implemented for INT96 physical type")
-        elif type_string == "FLOAT":
-            self.primitive_type = FloatType()
-        elif type_string == "DOUBLE":
-            self.primitive_type = DoubleType()
-        elif type_string == "BYTE_ARRAY":
-            self.primitive_type = BinaryType()
-        elif type_string == "FIXED_LEN_BYTE_ARRAY":
-            self.primitive_type = BinaryType()
-        else:
-            raise AssertionError(f"Unknown physical type {type_string}")
+        assert (
+            _PRIMITIVE_TO_PHYSICAL[iceberg_type] == physical_type_string
+        ), f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {_PRIMITIVE_TO_PHYSICAL[iceberg_type]}"
+
+        self.primitive_type = iceberg_type
 
     def serialize(self, value: Any) -> bytes:
-        if type(value) == str:
-            value = value.encode()
+        if type(value) == date:
+            value = date_to_days(value)
+        elif type(value) == time:
+            value = time_object_to_micros(value)
+        elif type(value) == datetime:
+            value = datetime_to_micros(value)
+
+        if self.primitive_type == UUIDType():
+            value = uuid.UUID(bytes=value)
+
         assert self.primitive_type is not None  # appease mypy
         return to_bytes(self.primitive_type, value)
 
@@ -1188,10 +1205,11 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         if col_mode:
             metrics_mode = match_metrics_mode(col_mode)
 
-        
-        if not (isinstance(primitive, StringType) or isinstance(primitive, BinaryType)) and metrics_mode.type == MetricModeTypes.TRUNCATE:
+        if (
+            not (isinstance(primitive, StringType) or isinstance(primitive, BinaryType))
+            and metrics_mode.type == MetricModeTypes.TRUNCATE
+        ):
             metrics_mode = MetricsMode(MetricModeTypes.FULL)
-            
 
         return [StatisticsCollector(field_id=self._field_id, iceberg_type=primitive, mode=metrics_mode, column_name=column_name)]
 
@@ -1279,7 +1297,9 @@ def fill_parquet_file_metadata(
                         continue
 
                     if field_id not in col_aggs:
-                        col_aggs[field_id] = StatsAggregator(statistics.physical_type, stats_col.mode.length)
+                        col_aggs[field_id] = StatsAggregator(
+                            stats_col.iceberg_type, statistics.physical_type, stats_col.mode.length
+                        )
 
                     col_aggs[field_id].add_min(statistics.min)
                     col_aggs[field_id].add_max(statistics.max)
