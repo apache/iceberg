@@ -907,8 +907,7 @@ def project_table(
     futures_index = {f: i for i, f in enumerate(futures)}
     completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
     for future in concurrent.futures.as_completed(futures):
-        if future.result():
-            completed_futures.add(future)
+        completed_futures.add(future)
 
         # stop early if limit is satisfied
         if limit is not None and sum(row_counts) >= limit:
@@ -918,14 +917,14 @@ def project_table(
     if limit is not None:
         _ = [f.cancel() for f in futures if not f.done()]
 
-    tables = [f.result() for f in completed_futures]
+    tables = [f.result() for f in completed_futures if f.result()]
 
-    if len(tables) > 0:
-        final_table = pa.concat_tables(tables)
-    else:
-        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+    if len(tables) < 1:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
-    return final_table.slice(0, limit)
+    result = pa.concat_tables(tables)
+
+    return result.slice(0, limit)
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
