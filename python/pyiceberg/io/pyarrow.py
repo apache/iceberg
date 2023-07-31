@@ -1101,10 +1101,45 @@ class StatsAggregator:
             self.current_max = max(self.current_max, val)
 
     def get_min(self) -> bytes:
-        return self.serialize(self.current_min)[: self.trunc_length]
+        if self.primitive_type == StringType():
+            assert type(self.current_min) == str
+            return self.serialize(self.current_min[: self.trunc_length])
+        else:
+            return self.serialize(self.current_min)[: self.trunc_length]
 
-    def get_max(self) -> bytes:
-        return self.serialize(self.current_max)[: self.trunc_length]
+    def get_max(self) -> Optional[bytes]:
+        if self.primitive_type == StringType():
+            assert type(self.current_max) == str
+
+            s_result = self.current_max[: self.trunc_length]
+            if s_result != self.current_max:
+                chars = [*s_result]
+
+                for i in range(-1, -len(s_result) - 1, -1):
+                    try:
+                        to_inc = ord(chars[i])
+                        # will raise exception if the highest unicode code is reached
+                        _next = chr(to_inc + 1)
+                        chars[i] = _next
+                        return self.serialize("".join(chars))
+                    except ValueError:
+                        pass
+                return None  # didn't find a valid upper bound
+            return self.serialize(s_result)
+        elif self.primitive_type == BinaryType():
+            assert type(self.current_max) == bytes
+            b_result = self.current_max[: self.trunc_length]
+            if b_result != self.current_max:
+                _bytes = [*b_result]
+                for i in range(-1, -len(b_result) - 1, -1):
+                    if _bytes[i] < 255:
+                        _bytes[i] += 1
+                        return b"".join([i.to_bytes(1, byteorder="little") for i in _bytes])
+                return None
+
+            return self.serialize(b_result)
+        else:
+            return self.serialize(self.current_max)[: self.trunc_length]
 
 
 DEFAULT_TRUNCATION_LENGHT = 16
@@ -1316,7 +1351,9 @@ def fill_parquet_file_metadata(
 
     for k, agg in col_aggs.items():
         lower_bounds[k] = agg.get_min()
-        upper_bounds[k] = agg.get_max()
+        _max = agg.get_max()
+        if _max is not None:
+            upper_bounds[k] = _max
 
     df.file_format = FileFormat.PARQUET
     df.record_count = parquet_metadata.num_rows

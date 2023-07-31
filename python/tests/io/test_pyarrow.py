@@ -1532,7 +1532,7 @@ def test_bounds() -> None:
     assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
     assert len(datafile.upper_bounds) == 5
-    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"[:DEFAULT_TRUNCATION_LENGHT]
+    assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzz{"
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
     assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
     assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
@@ -1658,7 +1658,7 @@ def test_metrics_mode_non_default_trunc() -> None:
     assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
     assert len(datafile.upper_bounds) == 5
-    assert datafile.upper_bounds[1].decode() == "zz"
+    assert datafile.upper_bounds[1].decode() == "z{"
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
     assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
     assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
@@ -1814,9 +1814,88 @@ def test_metrics_primitive_types() -> None:
     assert datafile.upper_bounds[7] == STRUCT_INT64.pack(time_object_to_micros(time(17, 30, 34)))
     assert datafile.upper_bounds[8] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354)))
     assert datafile.upper_bounds[9] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354, tz)))
-    assert datafile.upper_bounds[10] == b"wo"
+    assert datafile.upper_bounds[10] == b"wp"
     assert datafile.upper_bounds[11] == uuid.uuid3(uuid.NAMESPACE_DNS, "bar").bytes
-    assert datafile.upper_bounds[12] == b"wo"
+    assert datafile.upper_bounds[12] == b"wp"
+
+
+def construct_test_table_invalid_upper_bound() -> pa.Buffer:
+    table_metadata = {
+        "format-version": 2,
+        "location": "s3://bucket/test/location",
+        "last-column-id": 7,
+        "current-schema-id": 0,
+        "schemas": [
+            {
+                "type": "struct",
+                "schema-id": 0,
+                "fields": [
+                    {"id": 1, "name": "valid_upper_binary", "required": False, "type": "binary"},
+                    {"id": 2, "name": "invalid_upper_binary", "required": False, "type": "binary"},
+                    {"id": 3, "name": "valid_upper_string", "required": False, "type": "string"},
+                    {"id": 4, "name": "invalid_upper_string", "required": False, "type": "string"},
+                ],
+            },
+        ],
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": []}],
+        "properties": {},
+    }
+
+    table_metadata = TableMetadataUtil.parse_obj(table_metadata)
+    arrow_schema = schema_to_pyarrow(table_metadata.schemas[0])
+
+    valid_binaries = [b"\x00\x00\x00", b"\xff\xfe\x00"]
+    invalid_binaries = [b"\x00\x00\x00", b"\xff\xff\x00"]
+
+    valid_strings = ["\x00\x00\x00", "".join([chr(0x10FFFF), chr(0x10FFFE), chr(0x0)])]
+    invalid_strings = ["\x00\x00\x00", "".join([chr(0x10FFFF), chr(0x10FFFF), chr(0x0)])]
+
+    table = pa.Table.from_pydict(
+        {
+            "valid_upper_binary": valid_binaries,
+            "invalid_upper_binary": invalid_binaries,
+            "valid_upper_string": valid_strings,
+            "invalid_upper_string": invalid_strings,
+        },
+        schema=arrow_schema,
+    )
+    f = pa.BufferOutputStream()
+
+    metadata_collector: List[Any] = []
+    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
+
+    writer.write_table(table)
+    writer.close()
+
+    return f.getvalue(), metadata_collector[0], table_metadata
+
+
+def test_metrics_invalid_upper_bound() -> None:
+    (file_bytes, metadata, table_metadata) = construct_test_table_invalid_upper_bound()
+
+    datafile = DataFile()
+    table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
+    fill_parquet_file_metadata(
+        datafile,
+        metadata,
+        len(file_bytes),
+        table_metadata,
+    )
+
+    assert len(datafile.value_counts) == 4
+    assert len(datafile.null_value_counts) == 4
+    assert len(datafile.nan_value_counts) == 0
+
+    assert len(datafile.lower_bounds) == 4
+    assert datafile.lower_bounds[1] == b"\x00\x00"
+    assert datafile.lower_bounds[2] == b"\x00\x00"
+    assert datafile.lower_bounds[3] == b"\x00\x00"
+    assert datafile.lower_bounds[4] == b"\x00\x00"
+
+    assert len(datafile.upper_bounds) == 2
+    assert datafile.upper_bounds[1] == b"\xff\xff"
+    assert datafile.upper_bounds[3] == "".join([chr(0x10FFFF), chr(0x10FFFF)]).encode()
 
 
 def test_offsets() -> None:
