@@ -57,9 +57,9 @@ public class TestGcmStreams {
   @Test
   public void testRandomWriteRead() throws IOException {
     Random random = new Random();
-    int smallerThanBlock = (int) (AesGcmOutputStream.plainBlockSize * 0.5);
-    int largerThanBlock = (int) (AesGcmOutputStream.plainBlockSize * 1.5);
-    int alignedWithBlock = AesGcmOutputStream.plainBlockSize;
+    int smallerThanBlock = (int) (Ciphers.PLAIN_BLOCK_SIZE * 0.5);
+    int largerThanBlock = (int) (Ciphers.PLAIN_BLOCK_SIZE * 1.5);
+    int alignedWithBlock = Ciphers.PLAIN_BLOCK_SIZE;
     int[] testFileSizes = {
       smallerThanBlock,
       largerThanBlock,
@@ -162,9 +162,9 @@ public class TestGcmStreams {
   public void testAlignedWriteRead() throws IOException {
     Random random = new Random();
     int[] testFileSizes = {
-      AesGcmOutputStream.plainBlockSize,
-      AesGcmOutputStream.plainBlockSize + 1,
-      AesGcmOutputStream.plainBlockSize - 1
+      Ciphers.PLAIN_BLOCK_SIZE,
+      Ciphers.PLAIN_BLOCK_SIZE + 1,
+      Ciphers.PLAIN_BLOCK_SIZE - 1
     };
 
     for (int testFileSize : testFileSizes) {
@@ -181,7 +181,7 @@ public class TestGcmStreams {
       PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
 
       int offset = 0;
-      int chunkLen = AesGcmOutputStream.plainBlockSize;
+      int chunkLen = Ciphers.PLAIN_BLOCK_SIZE;
       int left = testFileSize;
 
       while (left > 0) {
@@ -204,7 +204,7 @@ public class TestGcmStreams {
       Assert.assertEquals("File size", testFileSize, decryptedFile.getLength());
 
       offset = 0;
-      chunkLen = AesGcmOutputStream.plainBlockSize;
+      chunkLen = Ciphers.PLAIN_BLOCK_SIZE;
       byte[] chunk = new byte[chunkLen];
       left = testFileSize;
 

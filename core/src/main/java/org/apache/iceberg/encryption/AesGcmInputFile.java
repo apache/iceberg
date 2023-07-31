@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AesGcmInputFile implements InputFile {
   private final InputFile sourceFile;
@@ -40,10 +39,7 @@ public class AesGcmInputFile implements InputFile {
   public long getLength() {
     if (plaintextLength == -1) {
       // Presumes all streams use hard-coded plaintext block size.
-      // Actual plaintext block size is checked upon stream creation (exception if different).
-      plaintextLength =
-          AesGcmInputStream.calculatePlaintextLength(
-              sourceFile.getLength(), AesGcmOutputStream.plainBlockSize);
+      plaintextLength = AesGcmInputStream.calculatePlaintextLength(sourceFile.getLength());
     }
 
     return plaintextLength;
@@ -51,18 +47,12 @@ public class AesGcmInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    getLength();
-    AesGcmInputStream result;
-
-    try {
-      result =
-          new AesGcmInputStream(
-              sourceFile.newStream(), sourceFile.getLength(), dataKey, fileAADPrefix);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-
-    return result;
+    long ciphertextLength = sourceFile.getLength();
+    Preconditions.checkState(
+        ciphertextLength >= Ciphers.GCM_STREAM_HEADER_LENGTH,
+        "Invalid encrypted stream: %d is shorter than the GCM stream header length",
+        ciphertextLength);
+    return new AesGcmInputStream(sourceFile.newStream(), ciphertextLength, dataKey, fileAADPrefix);
   }
 
   @Override

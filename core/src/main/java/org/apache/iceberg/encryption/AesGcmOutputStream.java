@@ -24,7 +24,6 @@ import java.nio.ByteOrder;
 import org.apache.iceberg.io.PositionOutputStream;
 
 public class AesGcmOutputStream extends PositionOutputStream {
-  public static final int plainBlockSize = 1024 * 1024;
 
   private final Ciphers.AesGcmEncryptor gcmEncryptor;
   private final PositionOutputStream targetStream;
@@ -39,7 +38,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
       throws IOException {
     this.targetStream = targetStream;
     this.gcmEncryptor = new Ciphers.AesGcmEncryptor(aesKey);
-    this.plainBlockBuffer = new byte[plainBlockSize];
+    this.plainBlockBuffer = new byte[Ciphers.PLAIN_BLOCK_SIZE];
     this.positionInBuffer = 0;
     this.streamPosition = 0;
     this.currentBlockIndex = 0;
@@ -49,7 +48,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
         ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
             .order(ByteOrder.LITTLE_ENDIAN)
             .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
-            .putInt(plainBlockSize)
+            .putInt(Ciphers.PLAIN_BLOCK_SIZE)
             .array();
     targetStream.write(headerBytes);
   }
@@ -69,12 +68,12 @@ public class AesGcmOutputStream extends PositionOutputStream {
     int offset = off;
 
     while (remaining > 0) {
-      int freeBlockBytes = plainBlockSize - positionInBuffer;
+      int freeBlockBytes = Ciphers.PLAIN_BLOCK_SIZE - positionInBuffer;
       int toWrite = freeBlockBytes <= remaining ? freeBlockBytes : remaining;
 
       System.arraycopy(b, offset, plainBlockBuffer, positionInBuffer, toWrite);
       positionInBuffer += toWrite;
-      if (positionInBuffer == plainBlockSize) {
+      if (positionInBuffer == Ciphers.PLAIN_BLOCK_SIZE) {
         encryptAndWriteBlock();
         positionInBuffer = 0;
       }
