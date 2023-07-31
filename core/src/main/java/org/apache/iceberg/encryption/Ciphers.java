@@ -33,13 +33,13 @@ public class Ciphers {
   public static final int PLAIN_BLOCK_SIZE = 1024 * 1024;
   public static final int NONCE_LENGTH = 12;
   public static final int GCM_TAG_LENGTH = 16;
-  public static final int CIPHER_BLOCK_SIZE =
-      PLAIN_BLOCK_SIZE + NONCE_LENGTH + GCM_TAG_LENGTH;
+  public static final int CIPHER_BLOCK_SIZE = PLAIN_BLOCK_SIZE + NONCE_LENGTH + GCM_TAG_LENGTH;
   public static final String GCM_STREAM_MAGIC_STRING = "AGS1";
 
   static final byte[] GCM_STREAM_MAGIC_ARRAY =
       GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8);
-  static final ByteBuffer GCM_STREAM_MAGIC = ByteBuffer.wrap(GCM_STREAM_MAGIC_ARRAY).asReadOnlyBuffer();
+  static final ByteBuffer GCM_STREAM_MAGIC =
+      ByteBuffer.wrap(GCM_STREAM_MAGIC_ARRAY).asReadOnlyBuffer();
   static final int GCM_STREAM_HEADER_LENGTH =
       GCM_STREAM_MAGIC_ARRAY.length + 4; // magic_len + block_size_len
 

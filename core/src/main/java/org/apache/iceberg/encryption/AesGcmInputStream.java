@@ -58,10 +58,13 @@ public class AesGcmInputStream extends SeekableInputStream {
     int cipherBytesInLastBlock = Math.toIntExact(streamLength - cipherFullBlockLength);
     boolean fullBlocksOnly = (0 == cipherBytesInLastBlock);
     this.numBlocks = fullBlocksOnly ? numFullBlocks : numFullBlocks + 1;
-    this.lastCipherBlockSize = fullBlocksOnly ? Ciphers.CIPHER_BLOCK_SIZE : cipherBytesInLastBlock; // never 0
+    this.lastCipherBlockSize =
+        fullBlocksOnly ? Ciphers.CIPHER_BLOCK_SIZE : cipherBytesInLastBlock; // never 0
 
-    long lastPlainBlockSize = lastCipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
-    this.plainStreamSize = numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE + (fullBlocksOnly ? 0 : lastPlainBlockSize);
+    long lastPlainBlockSize =
+        (long) lastCipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
+    this.plainStreamSize =
+        numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE + (fullBlocksOnly ? 0 : lastPlainBlockSize);
   }
 
   private void validateHeader() throws IOException {

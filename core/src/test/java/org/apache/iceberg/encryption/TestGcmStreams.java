@@ -162,9 +162,7 @@ public class TestGcmStreams {
   public void testAlignedWriteRead() throws IOException {
     Random random = new Random();
     int[] testFileSizes = {
-      Ciphers.PLAIN_BLOCK_SIZE,
-      Ciphers.PLAIN_BLOCK_SIZE + 1,
-      Ciphers.PLAIN_BLOCK_SIZE - 1
+      Ciphers.PLAIN_BLOCK_SIZE, Ciphers.PLAIN_BLOCK_SIZE + 1, Ciphers.PLAIN_BLOCK_SIZE - 1
     };
 
     for (int testFileSize : testFileSizes) {
