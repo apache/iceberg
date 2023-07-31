@@ -20,6 +20,7 @@ package org.apache.iceberg.hadoop;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -200,6 +202,31 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+  }
+
+  @Test
+  public void testCreateTableWithUniqueLocation() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "unique");
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true");
+
+    HadoopCatalog catalog = hadoopCatalog(catalogProps);
+    String location = catalog.defaultWarehouseLocation(tableIdent);
+    FileSystem fs = Util.getFs(new Path(location), catalog.getConf());
+    Assertions.assertThat(fs.mkdirs(new Path(location))).isTrue();
+
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create())
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table location already in use");
+
+    Table recreated =
+        catalog
+            .buildTable(tableIdent, SCHEMA)
+            .withProperty(TableProperties.UNIQUE_LOCATION, "false")
+            .create();
+    assertThat(recreated.location()).isEqualTo(location);
+    catalog.dropTable(tableIdent);
   }
 
   @Test

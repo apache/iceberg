@@ -49,6 +49,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
@@ -283,6 +284,50 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .hasMessage("Table already exists: db.ns1.ns2.tbl");
 
     catalog.dropTable(testTable);
+  }
+
+  @Test
+  public void testCreateTableWithUniqueLocation() throws IOException {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(
+            "unique_jdbc_catalog",
+            ImmutableMap.of(
+                String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true"))) {
+      Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+      jdbcCatalog.createNamespace(testNamespace, Maps.newHashMap());
+      TableIdentifier tableIdent = TableIdentifier.of(testNamespace, "unique");
+      TableIdentifier tableRenamed = TableIdentifier.of(testNamespace, "renamed");
+
+      Table table = jdbcCatalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
+      String currentLocation = table.location();
+
+      FileSystem fs = Util.getFs(new Path(currentLocation), conf);
+      assertThat(fs.isDirectory(new Path(currentLocation))).isTrue();
+      jdbcCatalog.renameTable(tableIdent, tableRenamed);
+
+      Assertions.assertThatThrownBy(
+              () ->
+                  jdbcCatalog.createTable(
+                      tableIdent,
+                      SCHEMA,
+                      PartitionSpec.unpartitioned(),
+                      currentLocation,
+                      ImmutableMap.of()))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table location already in use");
+
+      Table recreated =
+          jdbcCatalog.createTable(
+              tableIdent,
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              currentLocation,
+              ImmutableMap.of(TableProperties.UNIQUE_LOCATION, "false"));
+      assertThat(recreated.location()).isEqualTo(currentLocation);
+
+      jdbcCatalog.dropTable(tableRenamed);
+      jdbcCatalog.dropTable(tableIdent);
+    }
   }
 
   @Test

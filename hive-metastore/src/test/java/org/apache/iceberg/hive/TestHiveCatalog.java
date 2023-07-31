@@ -1163,6 +1163,43 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
+  public void testCreateTableWithUniqueLocation() {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "unique");
+    TableIdentifier tableRenamed = TableIdentifier.of(DB_NAME, "renamed");
+
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true");
+    Catalog hiveCatalog =
+        CatalogUtil.loadCatalog(
+            HiveCatalog.class.getName(),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+            catalogProps,
+            hiveConf);
+
+    try {
+      Table table = hiveCatalog.buildTable(tableIdent, schema).create();
+      String currentLocation = table.location();
+
+      catalog.renameTable(tableIdent, tableRenamed);
+
+      assertThatThrownBy(() -> hiveCatalog.buildTable(tableIdent, schema).create())
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table location already in use");
+
+      Table recreated =
+          hiveCatalog
+              .buildTable(tableIdent, schema)
+              .withProperty(TableProperties.UNIQUE_LOCATION, "false")
+              .create();
+      assertThat(recreated.location()).isEqualTo(currentLocation);
+    } finally {
+      hiveCatalog.dropTable(tableRenamed, true);
+      hiveCatalog.dropTable(tableIdent, true);
+    }
+  }
+
+  @Test
   public void testRegisterTable() {
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
     catalog.createTable(identifier, getTestSchema());

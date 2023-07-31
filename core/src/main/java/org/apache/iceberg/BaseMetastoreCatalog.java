@@ -192,6 +192,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
+
+      if (Boolean.parseBoolean(tableProperties.get(TableProperties.UNIQUE_LOCATION))) {
+        boolean alreadyExists = ops.io().newInputFile(baseLocation).exists();
+        if (alreadyExists) {
+          throw new AlreadyExistsException("Table location already in use: %s", baseLocation);
+        }
+      }
+
       TableMetadata metadata =
           TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
 
