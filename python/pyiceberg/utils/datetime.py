@@ -68,7 +68,7 @@ def time_str_to_micros(time_str: str) -> int:
 
 def time_to_micros(t: time) -> int:
     """Converts a datetime.time object to microseconds from midnight."""
-    return int(t.hour * 60 * 60 * 1e6 + t.minute * 60 * 1e6 + t.second * 1e6 + t.microsecond)
+    return int((((t.hour * 60 * 60) + (t.minute * 60) + t.second) * 1e6) + t.microsecond)
 
 
 def datetime_to_micros(dt: datetime) -> int:
@@ -96,7 +96,7 @@ def datetime_to_millis(dt: datetime) -> int:
         delta = dt - EPOCH_TIMESTAMPTZ
     else:
         delta = dt - EPOCH_TIMESTAMP
-    return int((delta.total_seconds() * 1_000) + (delta.microseconds // 1_000))
+    return int(delta.total_seconds() * 1_000)
 
 
 def timestamptz_to_micros(timestamptz_str: str) -> int:

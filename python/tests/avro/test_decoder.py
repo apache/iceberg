@@ -22,7 +22,6 @@ from decimal import Decimal
 from io import SEEK_SET
 from types import TracebackType
 from typing import Optional, Type
-from uuid import UUID
 
 import pytest
 
@@ -178,13 +177,6 @@ def test_skip_double(decoder_class: Type[BinaryDecoder]) -> None:
     assert decoder.tell() == 0
     decoder.skip_double()
     assert decoder.tell() == 8
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_uuid_from_fixed(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\x12\x34\x56\x78" * 4)
-    decoder = decoder_class(mis)
-    assert decoder.read_uuid() == UUID("{12345678-1234-5678-1234-567812345678}")
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)

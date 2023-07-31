@@ -195,10 +195,10 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
-        return decoder.read_uuid()
+        return UUID(bytes=decoder.read(16))
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_utf8()
+        decoder.skip(16)
 
 
 @dataclass(frozen=True)

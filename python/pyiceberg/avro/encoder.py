@@ -86,7 +86,7 @@ class BinaryEncoder:
         self.write_bytes(s.encode("utf-8"))
 
     def write_uuid(self, uuid: UUID) -> None:
-        """Write UUID as a string.
+        """Write UUID as a fixed[16].
 
         The uuid logical type represents a random generated universally unique identifier (UUID).
         An uuid logical type annotates an Avro string. The string has to conform with RFC-4122.

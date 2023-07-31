@@ -19,7 +19,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime, time
 from io import SEEK_CUR
 from typing import Dict, List
-from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
@@ -137,10 +136,6 @@ class BinaryDecoder(ABC):
         that many bytes of UTF-8 encoded character data.
         """
         return self.read_bytes().decode("utf-8")
-
-    def read_uuid(self) -> UUID:
-        """Reads a UUID as a fixed[16]."""
-        return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
         """Reads a milliseconds granularity time from the stream.
