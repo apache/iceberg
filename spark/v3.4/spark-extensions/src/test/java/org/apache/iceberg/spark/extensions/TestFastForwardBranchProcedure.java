@@ -18,26 +18,17 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
-import static org.apache.iceberg.spark.SparkSQLProperties.WAP_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Files;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
@@ -58,36 +49,50 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
   public void testFastForwardBranchUsingPositionalArgs() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
-    spark.conf().set(WAP_ID, "111122223333");
-
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
-    assertEquals(
-        "Should not see rows from staged snapshot",
-        ImmutableList.of(row(1, "a")),
-        sql("SELECT * FROM %s", tableName));
-
     Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot wapSnapshot = Iterables.getLast(table.snapshots());
+    table.refresh();
 
-    String newBranch = "new-branch-at-staged-snapshot";
-    table.manageSnapshots().createBranch(newBranch, wapSnapshot.snapshotId()).commit();
+    Snapshot currSnapshot = table.currentSnapshot();
+    long sourceRef = currSnapshot.snapshotId();
+
+    String newBranch = "testBranch";
+    String tableNameWithBranch = String.format("%s.branch_%s", tableName, newBranch);
+
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, newBranch);
+    sql("INSERT INTO TABLE %s VALUES(3,'c')", tableNameWithBranch);
+
+    table.refresh();
+    long updatedRef = table.snapshot(newBranch).snapshotId();
+
+    assertEquals(
+        "Main branch should not have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b")),
+        sql("SELECT * FROM %s order by id", tableName));
+
+    assertEquals(
+        "Test branch should have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b"), row(3, "c")),
+        sql("SELECT * FROM %s order by id", tableNameWithBranch));
 
     List<Object[]> output =
         sql(
             "CALL %s.system.fast_forward('%s', '%s', '%s')",
             catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch);
 
-    table.refresh();
+    assertThat(Arrays.stream(output.get(0)).collect(Collectors.toList()).get(0))
+        .isEqualTo(SnapshotRef.MAIN_BRANCH);
+
+    assertThat(Arrays.stream(output.get(0)).collect(Collectors.toList()).get(1))
+        .isEqualTo(sourceRef);
+
+    assertThat(Arrays.stream(output.get(0)).collect(Collectors.toList()).get(2))
+        .isEqualTo(updatedRef);
 
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(wapSnapshot.snapshotId())), output);
-
-    assertEquals(
-        "Fast-Forward must be successful",
-        ImmutableList.of(row(1, "a"), row(2, "b")),
+        "Main branch should have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b"), row(3, "c")),
         sql("SELECT * FROM %s order by id", tableName));
   }
 
@@ -95,36 +100,32 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
   public void testFastForwardBranchUsingNamedArgs() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
-    spark.conf().set(WAP_ID, "111122223333");
-
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
+    String newBranch = "testBranch";
+    String tableNameWithBranch = String.format("%s.branch_%s", tableName, newBranch);
+
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, newBranch);
+    sql("INSERT INTO TABLE %s VALUES(3,'c')", tableNameWithBranch);
+
     assertEquals(
-        "Should not see rows from staged snapshot",
-        ImmutableList.of(row(1, "a")),
-        sql("SELECT * FROM %s", tableName));
+        "Main branch should not have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b")),
+        sql("SELECT * FROM %s order by id", tableName));
 
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot wapSnapshot = Iterables.getLast(table.snapshots());
-
-    String newBranch = "new-branch-at-staged-snapshot";
-    table.manageSnapshots().createBranch(newBranch, wapSnapshot.snapshotId()).commit();
+    assertEquals(
+        "Test branch should have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b"), row(3, "c")),
+        sql("SELECT * FROM %s order by id", tableNameWithBranch));
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.fast_forward(table => '%s', source => '%s', target => '%s')",
+            "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
             catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch);
 
-    table.refresh();
-
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(wapSnapshot.snapshotId())), output);
-
-    assertEquals(
-        "Fast-Forward must be successful",
-        ImmutableList.of(row(1, "a"), row(2, "b")),
+        "Main branch should now have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b"), row(3, "c")),
         sql("SELECT * FROM %s order by id", tableName));
   }
 
@@ -132,35 +133,31 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
   public void testFastForwardWhenTargetIsNotAncestorFails() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
-    spark.conf().set(WAP_ID, "111122223333");
-
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
+    String newBranch = "testBranch";
+    String tableNameWithBranch = String.format("%s.branch_%s", tableName, newBranch);
+
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, newBranch);
+    sql("INSERT INTO TABLE %s VALUES(3,'c')", tableNameWithBranch);
+
     assertEquals(
-        "Should not see rows from staged snapshot",
-        ImmutableList.of(row(1, "a")),
-        sql("SELECT * FROM %s", tableName));
+        "Main branch should not have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b")),
+        sql("SELECT * FROM %s order by id", tableName));
 
-    Table table = validationCatalog.loadTable(tableIdent);
-    long wapSnapshotId = Iterables.getLast(table.snapshots()).snapshotId();
-
-    GenericRecord record = GenericRecord.create(table.schema());
-    record.set(0, 3);
-    record.set(1, "c");
+    assertEquals(
+        "Test branch should have the newly inserted record.",
+        ImmutableList.of(row(1, "a"), row(2, "b"), row(3, "c")),
+        sql("SELECT * FROM %s order by id", tableNameWithBranch));
 
     // Commit a snapshot on main to deviate the branches
-    DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-    table.newAppend().appendFile(dataFile).commit();
-
-    String newBranch = "testBranch";
-    table.manageSnapshots().createBranch(newBranch, wapSnapshotId).commit();
+    sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
 
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward(table => '%s', source => '%s', target => '%s')",
+                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
                     catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, newBranch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot fast-forward: main is not an ancestor of testBranch");
@@ -168,11 +165,10 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidFastForwardBranchCases() {
-
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('test_table', source => 'main', target => 'newBranch')",
+                    "CALL %s.system.fast_forward('test_table', branch => 'main', to => 'newBranch')",
                     catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
@@ -185,37 +181,11 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [target]");
+        .hasMessage("Missing required parameters: [to]");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.fast_forward('', 'main', 'newBranch')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
-  }
-
-  private DataFile writeDataFile(Table table, List<GenericRecord> records) {
-    try {
-      OutputFile file = Files.localOutput(temp.newFile());
-
-      DataWriter<GenericRecord> dataWriter =
-          Parquet.writeData(file)
-              .forTable(table)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .overwrite()
-              .build();
-
-      try {
-        for (GenericRecord record : records) {
-          dataWriter.write(record);
-        }
-      } finally {
-        dataWriter.close();
-      }
-
-      return dataWriter.toDataFile();
-
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }

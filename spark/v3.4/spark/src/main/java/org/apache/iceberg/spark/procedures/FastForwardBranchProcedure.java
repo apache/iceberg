@@ -26,19 +26,22 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 
 public class FastForwardBranchProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("source", DataTypes.StringType),
-        ProcedureParameter.required("target", DataTypes.StringType)
+        ProcedureParameter.required("branch", DataTypes.StringType),
+        ProcedureParameter.required("to", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
+            new StructField("branch_updated", DataTypes.StringType, false, Metadata.empty()),
+            new StructField("previous_ref", DataTypes.LongType, true, Metadata.empty()),
             new StructField("updated_ref", DataTypes.LongType, false, Metadata.empty())
           });
 
@@ -74,11 +77,12 @@ public class FastForwardBranchProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
+          long currentRef = table.currentSnapshot().snapshotId();
           table.manageSnapshots().fastForwardBranch(source, target).commit();
+          long updatedRef = table.currentSnapshot().snapshotId();
 
-          Long updatedRef = table.currentSnapshot().snapshotId();
-
-          InternalRow outputRow = newInternalRow(updatedRef);
+          InternalRow outputRow =
+              newInternalRow(UTF8String.fromString(source), currentRef, updatedRef);
           return new InternalRow[] {outputRow};
         });
   }
