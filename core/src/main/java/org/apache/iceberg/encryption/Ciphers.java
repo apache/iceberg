@@ -76,6 +76,7 @@ public class Ciphers {
     }
 
     public byte[] encrypt(byte[] plaintext, int plaintextOffset, int plaintextLength, byte[] aad) {
+      Preconditions.checkArgument(plaintextLength > 0, "Wrong plaintextLength " + plaintextLength);
       byte[] nonce = new byte[NONCE_LENGTH];
       randomGenerator.nextBytes(nonce);
       int cipherTextLength = NONCE_LENGTH + plaintextLength + GCM_TAG_LENGTH;
@@ -87,7 +88,17 @@ public class Ciphers {
         if (null != aad) {
           cipher.updateAAD(aad);
         }
-        cipher.doFinal(plaintext, plaintextOffset, plaintextLength, cipherText, NONCE_LENGTH);
+        int enciphered =
+            cipher.doFinal(plaintext, plaintextOffset, plaintextLength, cipherText, NONCE_LENGTH);
+
+        if (enciphered != plaintextLength + GCM_TAG_LENGTH) {
+          throw new RuntimeException(
+              "Wrong number of enciphered bytes: "
+                  + enciphered
+                  + ". Must be "
+                  + plaintextLength
+                  + GCM_TAG_LENGTH);
+        }
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to encrypt", e);
       }
@@ -133,22 +144,20 @@ public class Ciphers {
               + " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted"
               + " with AES GCM cipher");
 
-      // Get the nonce from ciphertext
-      byte[] nonce = new byte[NONCE_LENGTH];
-      System.arraycopy(ciphertext, ciphertextOffset, nonce, 0, NONCE_LENGTH);
-
-      int inputLength = ciphertextLength - NONCE_LENGTH;
       try {
-        GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
+        GCMParameterSpec spec =
+            new GCMParameterSpec(GCM_TAG_LENGTH_BITS, ciphertext, ciphertextOffset, NONCE_LENGTH);
         cipher.init(Cipher.DECRYPT_MODE, aesKey, spec);
         if (null != aad) {
           cipher.updateAAD(aad);
         }
-        return cipher.doFinal(ciphertext, ciphertextOffset + NONCE_LENGTH, inputLength);
+        // For java Cipher, the nonce is not part of ciphertext
+        return cipher.doFinal(
+            ciphertext, ciphertextOffset + NONCE_LENGTH, ciphertextLength - NONCE_LENGTH);
       } catch (AEADBadTagException e) {
         throw new RuntimeException(
             "GCM tag check failed. Possible reasons: wrong decryption key; or corrupt/tampered"
-                + "data. AES GCM doesn't differentiate between these two.",
+                + " data. AES GCM doesn't differentiate between these two.",
             e);
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to decrypt", e);

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCiphers {
@@ -51,6 +52,21 @@ public class TestCiphers {
       Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(key);
       byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
       assertThat(decryptedText).as("Key length " + keyLength).isEqualTo(plaintext);
+
+      // Test bad aad
+      final byte[] badAad = (aad == null) ? new byte[1] : aad;
+      badAad[0]++;
+
+      Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, badAad))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("GCM tag check failed");
+
+      // Test content corruption
+      ciphertext[ciphertext.length / 2]++;
+
+      Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, aad))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("GCM tag check failed");
     }
   }
 }

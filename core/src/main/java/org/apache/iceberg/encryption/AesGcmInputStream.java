@@ -39,6 +39,7 @@ public class AesGcmInputStream extends SeekableInputStream {
   private long currentPlainBlockIndex;
   private byte[] currentPlainBlock;
   private int currentPlainBlockSize;
+  private byte[] singleByte;
 
   AesGcmInputStream(
       SeekableInputStream sourceStream, long sourceLength, byte[] aesKey, byte[] fileAADPrefix) {
@@ -65,6 +66,7 @@ public class AesGcmInputStream extends SeekableInputStream {
         (long) lastCipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
     this.plainStreamSize =
         numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE + (fullBlocksOnly ? 0 : lastPlainBlockSize);
+    this.singleByte = new byte[1];
   }
 
   private void validateHeader() throws IOException {
@@ -190,7 +192,12 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
-    throw new UnsupportedOperationException();
+    int read = read(singleByte);
+    if (read == -1) {
+      return -1;
+    }
+
+    return singleByte[0];
   }
 
   @Override
