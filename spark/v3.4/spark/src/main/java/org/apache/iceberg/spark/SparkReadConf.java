@@ -267,4 +267,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
   }
+
+  public boolean adaptiveSplitSizeEnabled() {
+    return confParser
+        .booleanConf()
+        .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
+        .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
+        .parse();
+  }
 }

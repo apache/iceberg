@@ -217,6 +217,8 @@ def resolve(
 class EnumReader(Reader):
     """An Enum reader to wrap primitive values into an Enum."""
 
+    __slots__ = ("enum", "reader")
+
     enum: Callable[..., Enum]
     reader: Reader
 
@@ -232,6 +234,7 @@ class EnumReader(Reader):
 
 
 class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
+    __slots__ = ("read_types", "read_enums", "context")
     read_types: Dict[int, Callable[..., StructProtocol]]
     read_enums: Dict[int, Callable[..., Enum]]
     context: List[int]

@@ -311,15 +311,15 @@ To show a table's current partitions:
 SELECT * FROM prod.db.table.partitions;
 ```
 
-| partition | record_count | file_count | spec_id |
-| -- | -- | -- | -- |
-|  {20211001, 11}|           1|         1|         0|
-|  {20211002, 11}|           1|         1|         0|
-|  {20211001, 10}|           1|         1|         0|
-|  {20211002, 10}|           1|         1|         0|
+| partition      | spec_id | record_count  | file_count | total_data_file_size_in_bytes | position_delete_record_count | position_delete_file_count | equality_delete_record_count | equality_delete_file_count | last_updated_at(μs) | last_updated_snapshot_id |
+| -------------- |---------|---------------|------------|--------------------------|------------------------------|----------------------------|------------------------------|----------------------------|---------------------|--------------------------|
+| {20211001, 11} | 0       | 1             | 1          | 100                      | 2                            | 1                          | 0                            | 0                          | 1633086034192000    | 9205185327307503337      |
+| {20211002, 11} | 0       | 4             | 3          | 500                      | 1                            | 1                          | 0                            | 0                          | 1633172537358000    | 867027598972211003       |
+| {20211001, 10} | 0       | 7             | 4          | 700                      | 0                            | 0                          | 0                            | 0                          | 1633082598716000    | 3280122546965981531      |
+| {20211002, 10} | 0       | 3             | 2          | 400                      | 0                            | 0                          | 1                            | 1                          | 1633169159489000    | 6941468797545315876      |
 
 Note:
-1. For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+1. For unpartitioned tables, the partitions table will not contain the partition and spec_id fields.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
 

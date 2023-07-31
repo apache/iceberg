@@ -31,9 +31,9 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.13.4"
-        force 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2'
-        force 'com.fasterxml.jackson.core:jackson-core:2.13.4'
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.14.2"
+        force 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
+        force 'com.fasterxml.jackson.core:jackson-core:2.14.2'
       }
     }
   }
@@ -231,6 +231,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    integrationImplementation 'org.assertj:assertj-core'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')

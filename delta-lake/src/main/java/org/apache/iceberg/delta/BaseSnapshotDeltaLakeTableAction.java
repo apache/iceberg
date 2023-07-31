@@ -25,14 +25,15 @@ import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.codec.DecoderException;
-import org.apache.commons.codec.net.URLCodec;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -451,13 +452,13 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     try {
-      String decodedPath = new URLCodec().decode(path);
+      String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8.name());
       if (dataFileUri.isAbsolute()) {
         return decodedPath;
       } else {
         return tableRoot + File.separator + decodedPath;
       }
-    } catch (DecoderException e) {
+    } catch (UnsupportedEncodingException e) {
       throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
     }
   }

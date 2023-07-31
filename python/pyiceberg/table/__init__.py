@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from itertools import chain
-from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -220,53 +220,53 @@ class TableUpdate(IcebergBaseModel):
 
 
 class UpgradeFormatVersionUpdate(TableUpdate):
-    action = TableUpdateAction.upgrade_format_version
+    action: TableUpdateAction = TableUpdateAction.upgrade_format_version
     format_version: int = Field(alias="format-version")
 
 
 class AddSchemaUpdate(TableUpdate):
-    action = TableUpdateAction.add_schema
+    action: TableUpdateAction = TableUpdateAction.add_schema
     schema_: Schema = Field(alias="schema")
 
 
 class SetCurrentSchemaUpdate(TableUpdate):
-    action = TableUpdateAction.set_current_schema
+    action: TableUpdateAction = TableUpdateAction.set_current_schema
     schema_id: int = Field(
         alias="schema-id", description="Schema ID to set as current, or -1 to set last added schema", default=-1
     )
 
 
 class AddPartitionSpecUpdate(TableUpdate):
-    action = TableUpdateAction.add_spec
+    action: TableUpdateAction = TableUpdateAction.add_spec
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(TableUpdate):
-    action = TableUpdateAction.set_default_spec
+    action: TableUpdateAction = TableUpdateAction.set_default_spec
     spec_id: int = Field(
         alias="spec-id", description="Partition spec ID to set as the default, or -1 to set last added spec", default=-1
     )
 
 
 class AddSortOrderUpdate(TableUpdate):
-    action = TableUpdateAction.add_sort_order
+    action: TableUpdateAction = TableUpdateAction.add_sort_order
     sort_order: SortOrder = Field(alias="sort-order")
 
 
 class SetDefaultSortOrderUpdate(TableUpdate):
-    action = TableUpdateAction.set_default_sort_order
+    action: TableUpdateAction = TableUpdateAction.set_default_sort_order
     sort_order_id: int = Field(
         alias="sort-order-id", description="Sort order ID to set as the default, or -1 to set last added sort order", default=-1
     )
 
 
 class AddSnapshotUpdate(TableUpdate):
-    action = TableUpdateAction.add_snapshot
+    action: TableUpdateAction = TableUpdateAction.add_snapshot
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(TableUpdate):
-    action = TableUpdateAction.set_snapshot_ref
+    action: TableUpdateAction = TableUpdateAction.set_snapshot_ref
     ref_name: str = Field(alias="ref-name")
     type: Literal["tag", "branch"]
     snapshot_id: int = Field(alias="snapshot-id")
@@ -276,27 +276,27 @@ class SetSnapshotRefUpdate(TableUpdate):
 
 
 class RemoveSnapshotsUpdate(TableUpdate):
-    action = TableUpdateAction.remove_snapshots
+    action: TableUpdateAction = TableUpdateAction.remove_snapshots
     snapshot_ids: List[int] = Field(alias="snapshot-ids")
 
 
 class RemoveSnapshotRefUpdate(TableUpdate):
-    action = TableUpdateAction.remove_snapshot_ref
+    action: TableUpdateAction = TableUpdateAction.remove_snapshot_ref
     ref_name: str = Field(alias="ref-name")
 
 
 class SetLocationUpdate(TableUpdate):
-    action = TableUpdateAction.set_location
+    action: TableUpdateAction = TableUpdateAction.set_location
     location: str
 
 
 class SetPropertiesUpdate(TableUpdate):
-    action = TableUpdateAction.set_properties
+    action: TableUpdateAction = TableUpdateAction.set_properties
     updates: Dict[str, str]
 
 
 class RemovePropertiesUpdate(TableUpdate):
-    action = TableUpdateAction.remove_properties
+    action: TableUpdateAction = TableUpdateAction.remove_properties
     removals: List[str]
 
 
@@ -773,11 +773,11 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPool() as pool:
+        with ThreadPoolExecutor() as executor:
             for manifest_entry in chain(
-                *pool.starmap(
-                    func=_open_manifest,
-                    iterable=[
+                *executor.map(
+                    lambda args: _open_manifest(*args),
+                    [
                         (
                             io,
                             manifest,

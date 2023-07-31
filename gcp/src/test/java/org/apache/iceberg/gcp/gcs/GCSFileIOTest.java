@@ -27,12 +27,13 @@ import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.stream.StreamSupport;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -62,14 +63,14 @@ public class GCSFileIOTest {
 
     OutputFile out = io.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(expected, os);
+      IOUtil.writeFully(os, ByteBuffer.wrap(expected));
     }
 
     assertThat(in.exists()).isTrue();
     byte[] actual = new byte[1024 * 1024];
 
     try (InputStream is = in.newStream()) {
-      IOUtils.readFully(is, actual);
+      IOUtil.readFully(is, actual, 0, actual.length);
     }
 
     assertThat(expected).isEqualTo(actual);

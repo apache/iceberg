@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray
+	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray -E sql-postgres
 
 check-license:
 	./dev/check-license

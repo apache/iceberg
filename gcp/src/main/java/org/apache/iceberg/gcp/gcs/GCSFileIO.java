@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
@@ -132,6 +134,15 @@ public class GCSFileIO implements FileIO {
           gcpProperties.projectId().ifPresent(builder::setProjectId);
           gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
           gcpProperties.serviceHost().ifPresent(builder::setHost);
+
+          gcpProperties
+              .oauth2Token()
+              .ifPresent(
+                  token -> {
+                    AccessToken accessToken =
+                        new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
+                    builder.setCredentials(OAuth2Credentials.create(accessToken));
+                  });
 
           // Report Hadoop metrics if Hadoop is available
           try {
