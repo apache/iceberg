@@ -682,6 +682,7 @@ class TableMetadata(BaseModel):
     snapshots: Optional[List[Snapshot]] = None
     refs: Optional[SnapshotReferences] = None
     current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
+    last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
 
