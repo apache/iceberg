@@ -210,7 +210,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](../../tables/branching)
+For more information on branches please refer to [branches](../tables/branching)
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
