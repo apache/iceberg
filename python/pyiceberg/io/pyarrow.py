@@ -819,6 +819,8 @@ def _task_to_table(
         if limit is not None and sum(row_counts) >= limit:
             return None
 
+        row_counts.append(len(arrow_table))
+
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
 
@@ -905,9 +907,8 @@ def project_table(
     futures_index = {f: i for i, f in enumerate(futures)}
     completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
     for future in concurrent.futures.as_completed(futures):
-        if result := future.result():
+        if future.result():
             completed_futures.add(future)
-            row_counts.append(len(result))
 
         # stop early if limit is satisfied
         if limit is not None and sum(row_counts) >= limit:
@@ -919,10 +920,8 @@ def project_table(
 
     tables = [f.result() for f in completed_futures]
 
-    if len(tables) > 1:
+    if len(tables) > 0:
         final_table = pa.concat_tables(tables)
-    elif len(tables) == 1:
-        final_table = tables[0]
     else:
         final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 

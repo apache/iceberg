@@ -23,16 +23,16 @@ from pyiceberg.utils.config import Config
 
 
 class ExecutorFactory:
-    __instance: Optional[Executor] = None
+    _instance: Optional[Executor] = None
 
     @staticmethod
     def create() -> Executor:
         """Returns the same executor in each call."""
-        if ExecutorFactory.__instance is None:
+        if ExecutorFactory._instance is None:
             max_workers = ExecutorFactory.max_workers()
-            ExecutorFactory.__instance = ThreadPoolExecutor(max_workers=max_workers)
+            ExecutorFactory._instance = ThreadPoolExecutor(max_workers=max_workers)
 
-        return ExecutorFactory.__instance
+        return ExecutorFactory._instance
 
     @staticmethod
     def max_workers() -> Optional[int]:
