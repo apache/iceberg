@@ -103,6 +103,34 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @Test
+  public void deleteAndAddBackUnpartitioned() {
+    createUnpartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    String deleteData = "DELETE FROM %s";
+    sql(deleteData, tableName);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+    Assert.assertEquals(2L, result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
   @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataUnpartitionedOrc() {
     createUnpartitionedFileTable("orc");
@@ -395,6 +423,34 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void deleteAndAddBackPartitioned() {
+    createPartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    String deleteData = "DELETE FROM %s where id = 1";
+    sql(deleteData, tableName);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+    Assert.assertEquals(2L, result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test

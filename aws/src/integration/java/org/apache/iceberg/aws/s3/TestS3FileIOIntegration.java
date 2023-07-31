@@ -33,7 +33,7 @@ import java.util.Random;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
@@ -354,8 +354,8 @@ public class TestS3FileIOIntegration {
   public void testClientFactorySerialization() throws Exception {
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     write(fileIO);
-    byte[] data = SerializationUtils.serialize(fileIO);
-    S3FileIO fileIO2 = SerializationUtils.deserialize(data);
+    byte[] data = TestHelpers.serialize(fileIO);
+    S3FileIO fileIO2 = TestHelpers.deserialize(data);
     validateRead(fileIO2);
   }
 

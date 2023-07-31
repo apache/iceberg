@@ -164,6 +164,25 @@ DATA_FILE_TYPE = StructType(
 
 
 class DataFile(Record):
+    __slots__ = (
+        "content",
+        "file_path",
+        "file_format",
+        "partition",
+        "record_count",
+        "file_size_in_bytes",
+        "column_sizes",
+        "value_counts",
+        "null_value_counts",
+        "nan_value_counts",
+        "lower_bounds",
+        "upper_bounds",
+        "key_metadata",
+        "split_offsets",
+        "equality_ids",
+        "sort_order_id",
+        "spec_id",
+    )
     content: DataFileContent
     file_path: str
     file_format: FileFormat
@@ -212,8 +231,11 @@ MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
 )
 
+MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
+
 
 class ManifestEntry(Record):
+    __slots__ = ("status", "snapshot_id", "data_sequence_number", "file_sequence_number", "data_file")
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
     data_sequence_number: Optional[int]
@@ -221,7 +243,7 @@ class ManifestEntry(Record):
     data_file: DataFile
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA_STRUCT, **named_data})
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -233,6 +255,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 
 
 class PartitionFieldSummary(Record):
+    __slots__ = ("contains_null", "contains_nan", "lower_bound", "upper_bound")
     contains_null: bool
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
@@ -260,12 +283,31 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
+
 POSITIONAL_DELETE_SCHEMA = Schema(
     NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
 )
 
 
 class ManifestFile(Record):
+    __slots__ = (
+        "manifest_path",
+        "manifest_length",
+        "partition_spec_id",
+        "content",
+        "sequence_number",
+        "min_sequence_number",
+        "added_snapshot_id",
+        "added_files_count",
+        "existing_files_count",
+        "deleted_files_count",
+        "added_rows_count",
+        "existing_rows_count",
+        "deleted_rows_count",
+        "partitions",
+        "key_metadata",
+    )
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
@@ -283,7 +325,7 @@ class ManifestFile(Record):
     key_metadata: Optional[bytes]
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA_STRUCT, **named_data})
 
     def has_added_files(self) -> bool:
         return self.added_files_count is None or self.added_files_count > 0

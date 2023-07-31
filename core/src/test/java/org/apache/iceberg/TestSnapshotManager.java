@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -115,11 +116,10 @@ public class TestSnapshotManager extends TableTestBase {
     long lastSnapshotId = table.currentSnapshot().snapshotId();
 
     // pick the snapshot into the current state
-    AssertHelpers.assertThrows(
-        "Should reject partition replacement when a partition has been modified",
-        ValidationException.class,
-        "Cannot cherry-pick replace partitions with changed partition",
-        () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot cherry-pick replace partitions with changed partition");
 
     Assert.assertEquals(
         "Failed cherry-pick should not change the table state",
@@ -147,11 +147,10 @@ public class TestSnapshotManager extends TableTestBase {
     long lastSnapshotId = table.currentSnapshot().snapshotId();
 
     // pick the snapshot into the current state
-    AssertHelpers.assertThrows(
-        "Should reject partition replacement when a partition has been modified",
-        ValidationException.class,
-        "Missing required files to delete",
-        () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Missing required files to delete");
 
     Assert.assertEquals(
         "Failed cherry-pick should not change the table state",
@@ -178,11 +177,11 @@ public class TestSnapshotManager extends TableTestBase {
     long lastSnapshotId = table.currentSnapshot().snapshotId();
 
     // pick the snapshot into the current state
-    AssertHelpers.assertThrows(
-        "Should reject partition replacement when a partition has been modified",
-        ValidationException.class,
-        "Cannot cherry-pick overwrite not based on an ancestor of the current state",
-        () -> table.manageSnapshots().cherrypick(replaceSnapshotId).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().cherrypick(replaceSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Cannot cherry-pick overwrite not based on an ancestor of the current state");
 
     Assert.assertEquals(
         "Failed cherry-pick should not change the table state",
@@ -207,11 +206,10 @@ public class TestSnapshotManager extends TableTestBase {
     long lastSnapshotId = table.currentSnapshot().snapshotId();
 
     // pick the snapshot into the current state
-    AssertHelpers.assertThrows(
-        "Should reject partition replacement when a partition has been modified",
-        ValidationException.class,
-        "not append, dynamic overwrite, or fast-forward",
-        () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageEndingWith("not append, dynamic overwrite, or fast-forward");
 
     Assert.assertEquals(
         "Failed cherry-pick should not change the table state",
@@ -238,23 +236,21 @@ public class TestSnapshotManager extends TableTestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("branch1", snapshotId).commit();
     // Trying to create a branch with an existing name should fail
-    AssertHelpers.assertThrows(
-        "Creating branch which already exists should fail",
-        IllegalArgumentException.class,
-        "Ref branch1 already exists",
-        () -> table.manageSnapshots().createBranch("branch1", snapshotId).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().createBranch("branch1", snapshotId).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref branch1 already exists");
 
     // Trying to create another branch within the same chain
-    AssertHelpers.assertThrows(
-        "Creating branch which already exists should fail",
-        IllegalArgumentException.class,
-        "Ref branch2 already exists",
-        () ->
-            table
-                .manageSnapshots()
-                .createBranch("branch2", snapshotId)
-                .createBranch("branch2", snapshotId)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createBranch("branch2", snapshotId)
+                    .createBranch("branch2", snapshotId)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref branch2 already exists");
   }
 
   @Test
@@ -276,23 +272,21 @@ public class TestSnapshotManager extends TableTestBase {
     table.manageSnapshots().createTag("tag1", snapshotId).commit();
 
     // Trying to create a tag with an existing name should fail
-    AssertHelpers.assertThrows(
-        "Creating tag which already exists should fail",
-        IllegalArgumentException.class,
-        "Ref tag1 already exists",
-        () -> table.manageSnapshots().createTag("tag1", snapshotId).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().createTag("tag1", snapshotId).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref tag1 already exists");
 
     // Trying to create another tag within the same chain
-    AssertHelpers.assertThrows(
-        "Creating branch which already exists should fail",
-        IllegalArgumentException.class,
-        "Ref tag2 already exists",
-        () ->
-            table
-                .manageSnapshots()
-                .createTag("tag2", snapshotId)
-                .createTag("tag2", snapshotId)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag("tag2", snapshotId)
+                    .createTag("tag2", snapshotId)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref tag2 already exists");
   }
 
   @Test
@@ -315,20 +309,18 @@ public class TestSnapshotManager extends TableTestBase {
 
   @Test
   public void testRemovingNonExistingBranchFails() {
-    AssertHelpers.assertThrows(
-        "Trying to remove non-existent branch should fail",
-        IllegalArgumentException.class,
-        "Branch does not exist: non-existing",
-        () -> table.manageSnapshots().removeBranch("non-existing").commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().removeBranch("non-existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: non-existing");
   }
 
   @Test
   public void testRemovingMainBranchFails() {
-    AssertHelpers.assertThrows(
-        "Removing main should fail",
-        IllegalArgumentException.class,
-        "Cannot remove main branch",
-        () -> table.manageSnapshots().removeBranch(SnapshotRef.MAIN_BRANCH).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().removeBranch(SnapshotRef.MAIN_BRANCH).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot remove main branch");
   }
 
   @Test
@@ -350,11 +342,9 @@ public class TestSnapshotManager extends TableTestBase {
 
   @Test
   public void testRemovingNonExistingTagFails() {
-    AssertHelpers.assertThrows(
-        "Removing a non-existing tag should fail",
-        IllegalArgumentException.class,
-        "Tag does not exist: non-existing",
-        () -> table.manageSnapshots().removeTag("non-existing").commit());
+    Assertions.assertThatThrownBy(() -> table.manageSnapshots().removeTag("non-existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tag does not exist: non-existing");
   }
 
   @Test
@@ -372,11 +362,10 @@ public class TestSnapshotManager extends TableTestBase {
 
   @Test
   public void testReplaceBranchNonExistingTargetBranchFails() {
-    AssertHelpers.assertThrows(
-        "Replacing a non-existing branch should fail",
-        IllegalArgumentException.class,
-        "Target branch does not exist: non-existing",
-        () -> table.manageSnapshots().replaceBranch("non-existing", "other-branch").commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().replaceBranch("non-existing", "other-branch").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Target branch does not exist: non-existing");
   }
 
   @Test
@@ -384,11 +373,10 @@ public class TestSnapshotManager extends TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("branch1", snapshotId).commit();
-    AssertHelpers.assertThrows(
-        "Replacing where the source ref does not exist should fail",
-        IllegalArgumentException.class,
-        "Ref does not exist: non-existing",
-        () -> table.manageSnapshots().replaceBranch("branch1", "non-existing").commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().replaceBranch("branch1", "non-existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref does not exist: non-existing");
   }
 
   @Test
@@ -422,12 +410,15 @@ public class TestSnapshotManager extends TableTestBase {
     final String newBranch = "new-branch-at-staged-snapshot";
     table.manageSnapshots().createBranch(newBranch, snapshot).commit();
 
-    AssertHelpers.assertThrows(
-        "Fast-forward should fail if target is not an ancestor of the source",
-        IllegalArgumentException.class,
-        "Cannot fast-forward: main is not an ancestor of new-branch-at-staged-snapshot",
-        () ->
-            table.manageSnapshots().fastForwardBranch(SnapshotRef.MAIN_BRANCH, newBranch).commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .fastForwardBranch(SnapshotRef.MAIN_BRANCH, newBranch)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot fast-forward: main is not an ancestor of new-branch-at-staged-snapshot");
   }
 
   @Test
@@ -473,26 +464,25 @@ public class TestSnapshotManager extends TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Setting minSnapshotsToKeep should fail for tags",
-        IllegalArgumentException.class,
-        "Tags do not support setting minSnapshotsToKeep",
-        () ->
-            table
-                .manageSnapshots()
-                .createTag("tag1", snapshotId)
-                .setMinSnapshotsToKeep("tag1", 10)
-                .commit());
-    AssertHelpers.assertThrows(
-        "Setting maxSnapshotAgeMs should fail for tags",
-        IllegalArgumentException.class,
-        "Tags do not support setting maxSnapshotAgeMs",
-        () ->
-            table
-                .manageSnapshots()
-                .createTag("tag1", snapshotId)
-                .setMaxSnapshotAgeMs("tag1", 10)
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag("tag1", snapshotId)
+                    .setMinSnapshotsToKeep("tag1", 10)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tags do not support setting minSnapshotsToKeep");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag("tag1", snapshotId)
+                    .setMaxSnapshotAgeMs("tag1", 10)
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tags do not support setting maxSnapshotAgeMs");
   }
 
   @Test
@@ -558,21 +548,23 @@ public class TestSnapshotManager extends TableTestBase {
 
   @Test
   public void testFailRenamingMainBranch() {
-    AssertHelpers.assertThrows(
-        "Renaming main branch should fail",
-        IllegalArgumentException.class,
-        "Cannot rename main branch",
-        () ->
-            table.manageSnapshots().renameBranch(SnapshotRef.MAIN_BRANCH, "some-branch").commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .renameBranch(SnapshotRef.MAIN_BRANCH, "some-branch")
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rename main branch");
   }
 
   @Test
   public void testRenamingNonExistingBranchFails() {
-    AssertHelpers.assertThrows(
-        "Renaming non-existent branch should fail",
-        IllegalArgumentException.class,
-        "Branch does not exist: some-missing-branch",
-        () -> table.manageSnapshots().renameBranch("some-missing-branch", "some-branch").commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table.manageSnapshots().renameBranch("some-missing-branch", "some-branch").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: some-missing-branch");
   }
 
   @Test

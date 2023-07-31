@@ -14,6 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+import inspect
 from datetime import date, datetime, time
 from enum import Enum
 from tempfile import TemporaryDirectory
@@ -110,7 +111,7 @@ def todict(obj: Any) -> Any:
     elif hasattr(obj, "__iter__") and not isinstance(obj, str) and not isinstance(obj, bytes):
         return [todict(v) for v in obj]
     elif hasattr(obj, "__dict__"):
-        return {key: todict(value) for key, value in obj.__dict__.items() if not callable(value) and not key.startswith("_")}
+        return {key: todict(value) for key, value in inspect.getmembers(obj) if not callable(value) and not key.startswith("_")}
     else:
         return obj
 

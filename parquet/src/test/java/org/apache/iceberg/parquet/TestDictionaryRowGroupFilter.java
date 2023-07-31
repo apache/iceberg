@@ -40,6 +40,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_2_0;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,7 +78,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
@@ -171,7 +171,7 @@ public class TestDictionaryRowGroupFilter {
   @Before
   public void createInputFile() throws IOException {
     File parquetFile = temp.newFile();
-    Assert.assertTrue(parquetFile.delete());
+    assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
@@ -216,7 +216,7 @@ public class TestDictionaryRowGroupFilter {
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
-    Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
+    assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
     rowGroupMetadata = reader.getRowGroups().get(0);
     parquetSchema = reader.getFileMetaData().getSchema();
     dictionaryStore = reader.getNextDictionaryReader();
@@ -272,22 +272,22 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("all_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("some_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("no_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("struct_not_null"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
   }
 
   @Test
@@ -295,22 +295,22 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("all_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("some_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("no_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("struct_not_null"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
   }
 
   @Test
@@ -318,12 +318,12 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("required"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should read: required columns are always non-null").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("required"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should skip: required columns are always non-null").isFalse();
   }
 
   @Test
@@ -331,17 +331,17 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("all_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: all_nans column will contain NaN", shouldRead);
+    assertThat(shouldRead).as("Should read: all_nans column will contain NaN").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("some_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: some_nans column will contain NaN", shouldRead);
+    assertThat(shouldRead).as("Should read: some_nans column will contain NaN").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("no_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no_nans column will not contain NaN", shouldRead);
+    assertThat(shouldRead).as("Should skip: no_nans column will not contain NaN").isFalse();
   }
 
   @Test
@@ -349,17 +349,17 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("all_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: all_nans column will not contain non-NaN", shouldRead);
+    assertThat(shouldRead).as("Should skip: all_nans column will not contain non-NaN").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("some_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: some_nans column will contain non-NaN", shouldRead);
+    assertThat(shouldRead).as("Should read: some_nans column will contain non-NaN").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("no_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: no_nans column will contain non-NaN", shouldRead);
+    assertThat(shouldRead).as("Should read: no_nans column will contain non-NaN").isTrue();
   }
 
   @Test
@@ -367,26 +367,30 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("_nans_and_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: _nans_and_nulls column will contain null values", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: _nans_and_nulls column will contain null values")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("_nans_and_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: _nans_and_nulls column will contain NaN values which are not null",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: _nans_and_nulls column will contain NaN values which are not null")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("_nans_and_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: _nans_and_nulls column will contain NaN values", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: _nans_and_nulls column will contain NaN values")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("_nans_and_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: _nans_and_nulls column will contain null values which are not NaN",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: _nans_and_nulls column will contain null values which are not NaN")
+        .isTrue();
   }
 
   @Test
@@ -394,43 +398,43 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("non_dict", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: no dictionary", shouldRead);
+    assertThat(shouldRead).as("Should read: no dictionary").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "req"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("some_nulls", "so"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, startsWith("no_stats", UUID.randomUUID().toString()))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no stats but dictionary is present", shouldRead);
+    assertThat(shouldRead).as("Should skip: no stats but dictionary is present").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "reqs"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("some_nulls", "somex"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
   }
 
   @Test
@@ -438,48 +442,48 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("non_dict", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: no dictionary", shouldRead);
+    assertThat(shouldRead).as("Should read: no dictionary").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("required", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("required", "req"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "s!"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notStartsWith("no_stats", UUID.randomUUID().toString()))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: no stats but dictionary is present", shouldRead);
+    assertThat(shouldRead).as("Should read: no stats but dictionary is present").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("required", "reqs"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "somex"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
   }
 
   @Test
@@ -507,7 +511,7 @@ public class TestDictionaryRowGroupFilter {
       boolean shouldRead =
           new ParquetDictionaryRowGroupFilter(SCHEMA, expr)
               .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-      Assert.assertTrue("Should read: dictionary cannot be found: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should read: dictionary cannot be found: " + expr).isTrue();
     }
   }
 
@@ -524,7 +528,7 @@ public class TestDictionaryRowGroupFilter {
       boolean shouldRead =
           new ParquetDictionaryRowGroupFilter(SCHEMA, expr)
               .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-      Assert.assertTrue("Should read: dictionary cannot be found: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should read: dictionary cannot be found: " + expr).isTrue();
     }
   }
 
@@ -533,7 +537,7 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("no_stats", "a"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: stats are missing but dictionary is present", shouldRead);
+    assertThat(shouldRead).as("Should skip: stats are missing but dictionary is present").isFalse();
   }
 
   @Test
@@ -542,12 +546,12 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(lessThan("id", INT_MIN_VALUE - 25)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: not(false)", shouldRead);
+    assertThat(shouldRead).as("Should read: not(false)").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(greaterThan("id", INT_MIN_VALUE - 25)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: not(true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: not(true)").isFalse();
   }
 
   @Test
@@ -560,7 +564,7 @@ public class TestDictionaryRowGroupFilter {
                     lessThan("id", INT_MIN_VALUE - 25),
                     greaterThanOrEqual("id", INT_MIN_VALUE - 30)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: and(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -569,14 +573,14 @@ public class TestDictionaryRowGroupFilter {
                     lessThan("id", INT_MIN_VALUE - 25),
                     greaterThanOrEqual("id", INT_MAX_VALUE + 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: and(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, false)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA,
                 and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: and(true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true)").isTrue();
   }
 
   @Test
@@ -587,7 +591,7 @@ public class TestDictionaryRowGroupFilter {
                 SCHEMA,
                 or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: or(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: or(false, false)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -596,7 +600,7 @@ public class TestDictionaryRowGroupFilter {
                     lessThan("id", INT_MIN_VALUE - 25),
                     greaterThanOrEqual("id", INT_MAX_VALUE - 19)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: or(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: or(false, true)").isTrue();
   }
 
   @Test
@@ -604,22 +608,24 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range below lower bound (30 is not < 30)")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -627,22 +633,22 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (29 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: many possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -650,22 +656,24 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range above upper bound (79 is not > 79)")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -673,22 +681,22 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (80 > 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -696,37 +704,37 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
   @Test
@@ -734,37 +742,37 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
   @Test
@@ -772,37 +780,37 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE - 25)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE - 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE - 4)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE + 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE + 6)))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
   @Test
@@ -810,12 +818,12 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: contains null != 'some'", shouldRead);
+    assertThat(shouldRead).as("Should read: contains null != 'some'").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("no_nulls", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: contains only ''", shouldRead);
+    assertThat(shouldRead).as("Should skip: contains only ''").isFalse();
   }
 
   @Test
@@ -824,25 +832,27 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThan("struct_not_null.int_field", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThan("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range below lower bound (30 is not < 30)")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThan("struct_not_null.int_field", INT_MIN_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThan("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -851,25 +861,25 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (29 < 30)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: many possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -878,25 +888,27 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThan("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThan("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range above upper bound (79 is not > 79)")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -905,25 +917,25 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (80 > 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
   @Test
@@ -932,43 +944,43 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
   @Test
@@ -977,42 +989,42 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MIN_VALUE - 25))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
   @Test
@@ -1020,7 +1032,7 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("no_Nulls", ""), false)
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should skip: contains only ''", shouldRead);
+    assertThat(shouldRead).as("Should skip: contains only ''").isFalse();
   }
 
   @Test
@@ -1040,43 +1052,43 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, in("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: id below lower bound (5 < 30, 6 < 30). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id below lower bound (5 < 30, 6 < 30). The two sets are disjoint.")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: id below lower bound (28 < 30, 29 < 30). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id below lower bound (28 < 30, 29 < 30). The two sets are disjoint.")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound (30 == 30)").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: in set is a subset of the dictionary", shouldRead);
+    assertThat(shouldRead).as("Should read: in set is a subset of the dictionary").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound (79 == 79)").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound (80 > 79, 81 > 79)").isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: id above upper bound (85 > 79, 86 > 79). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id above upper bound (85 > 79, 86 > 79). The two sets are disjoint.")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1087,7 +1099,7 @@ public class TestDictionaryRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: the dictionary is a subset of the in set", shouldRead);
+    assertThat(shouldRead).as("Should read: the dictionary is a subset of the in set").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1098,34 +1110,40 @@ public class TestDictionaryRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: the dictionary is equal to the in set", shouldRead);
+    assertThat(shouldRead).as("Should read: the dictionary is equal to the in set").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("all_nulls", 1, 2))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: in on all nulls column (isFallback to be true) ", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: in on all nulls column (isFallback to be true) ")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("some_nulls", "aaa", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: in on some nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: in on some nulls column").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("some_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: some_nulls values are not within the set", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: some_nulls values are not within the set")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("no_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: in on no nulls column (empty string is not within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: in on no nulls column (empty string is not within the set)")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, in("no_nulls", "aaa", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: in on no nulls column (empty string is within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: in on no nulls column (empty string is within the set)")
+        .isTrue();
   }
 
   @Test
@@ -1134,49 +1152,49 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: id below lower bound (5 < 30, 6 < 30). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id below lower bound (5 < 30, 6 < 30). The two sets are disjoint.")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notIn("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: id below lower bound (28 < 30, 29 < 30). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id below lower bound (28 < 30, 29 < 30). The two sets are disjoint.")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound (30 == 30)").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: the notIn set is a subset of the dictionary", shouldRead);
+    assertThat(shouldRead).as("Should read: the notIn set is a subset of the dictionary").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound (79 == 79)").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: id above upper bound (80 > 79, 81 > 79). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id above upper bound (80 > 79, 81 > 79). The two sets are disjoint.")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, notIn("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: id above upper bound (85 > 79, 86 > 79). The two sets are disjoint.",
-        shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id above upper bound (85 > 79, 86 > 79). The two sets are disjoint.")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1187,7 +1205,9 @@ public class TestDictionaryRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: the dictionary is a subset of the notIn set", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: the dictionary is a subset of the notIn set")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1198,30 +1218,35 @@ public class TestDictionaryRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: the dictionary is equal to the notIn set", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: the dictionary is equal to the notIn set")
+        .isFalse();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("all_nulls", 1, 2))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: notIn on all nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: notIn on all nulls column").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("some_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: notIn on some nulls column (any null matches the notIn)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: notIn on some nulls column (any null matches the notIn)")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("no_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: notIn on no nulls column (empty string is not within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: notIn on no nulls column (empty string is not within the set)")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("no_nulls", "aaa", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: notIn on no nulls column (empty string is within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: notIn on no nulls column (empty string is within the set)")
+        .isFalse();
   }
 
   @Test
@@ -1230,7 +1255,7 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+    assertThat(shouldRead).as("Should succeed with promoted schema").isTrue();
   }
 
   @Test
@@ -1249,14 +1274,16 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue(
-        "Should read: Half of the decimal_fixed values are greater than 0", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: Half of the decimal_fixed values are greater than 0")
+        .isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("decimal_fixed", DECIMAL_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse(
-        "Should not read: No decimal_fixed values less than -1234567890.0987654321", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: No decimal_fixed values less than -1234567890.0987654321")
+        .isFalse();
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {

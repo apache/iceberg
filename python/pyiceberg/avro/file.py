@@ -35,18 +35,12 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.reader import Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
 from pyiceberg.avro.writer import Writer
-from pyiceberg.io import (
-    InputFile,
-    InputStream,
-    OutputFile,
-    OutputStream,
-)
-from pyiceberg.io.memory import MemoryInputStream
+from pyiceberg.io import InputFile, OutputFile, OutputStream
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
@@ -78,6 +72,7 @@ _SCHEMA_KEY = "avro.schema"
 
 
 class AvroFileHeader(Record):
+    __slots__ = ("magic", "meta", "sync")
     magic: bytes
     meta: Dict[str, str]
     sync: bytes
@@ -129,17 +124,27 @@ class Block(Generic[D]):
 
 
 class AvroFile(Generic[D]):
+    __slots__ = (
+        "input_file",
+        "read_schema",
+        "read_types",
+        "read_enums",
+        "header",
+        "schema",
+        "reader",
+        "decoder",
+        "block",
+    )
     input_file: InputFile
     read_schema: Optional[Schema]
     read_types: Dict[int, Callable[..., StructProtocol]]
     read_enums: Dict[int, Callable[..., Enum]]
-    input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
     reader: Reader
 
     decoder: BinaryDecoder
-    block: Optional[Block[D]] = None
+    block: Optional[Block[D]]
 
     def __init__(
         self,
@@ -152,6 +157,7 @@ class AvroFile(Generic[D]):
         self.read_schema = read_schema
         self.read_types = read_types
         self.read_enums = read_enums
+        self.block = None
 
     def __enter__(self) -> AvroFile[D]:
         """Generates a reader tree for the payload within an avro file.
@@ -159,8 +165,8 @@ class AvroFile(Generic[D]):
         Returns:
             A generator returning the AvroStructs.
         """
-        self.input_stream = self.input_file.open(seekable=False)
-        self.decoder = BinaryDecoder(self.input_stream)
+        with self.input_file.open() as f:
+            self.decoder = InMemoryBinaryDecoder(io.BytesIO(f.read()))
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
@@ -174,7 +180,6 @@ class AvroFile(Generic[D]):
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
         """Performs cleanup when exiting the scope of a 'with' statement."""
-        self.input_stream.close()
 
     def __iter__(self) -> AvroFile[D]:
         """Returns an iterator for the AvroFile class."""
@@ -194,7 +199,7 @@ class AvroFile(Generic[D]):
             block_bytes = codec.decompress(block_bytes)
 
         self.block = Block(
-            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(MemoryInputStream(block_bytes))
+            reader=self.reader, block_records=block_records, block_decoder=InMemoryBinaryDecoder(io.BytesIO(block_bytes))
         )
         return block_records
 
