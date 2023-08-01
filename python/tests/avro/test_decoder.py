@@ -17,8 +17,6 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime, timezone
-from decimal import Decimal
 from io import SEEK_SET
 from types import TracebackType
 from typing import Optional, Type
@@ -31,15 +29,6 @@ from pyiceberg.io import InputStream
 from pyiceberg.types import DoubleType, FloatType
 
 AVAILABLE_DECODERS = [StreamingBinaryDecoder, InMemoryBinaryDecoder]
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_decimal_from_fixed(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
-    decoder = decoder_class(mis)
-    actual = decoder.read_decimal_from_fixed(28, 15, 12)
-    expected = Decimal("99892.123400000000000")
-    assert actual == expected
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
@@ -79,24 +68,6 @@ def test_skip_int(decoder_class: Type[BinaryDecoder]) -> None:
     assert decoder.tell() == 0
     decoder.skip_int()
     assert decoder.tell() == 1
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_decimal(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\x18\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
-    decoder = decoder_class(mis)
-    actual = decoder.read_decimal_from_bytes(28, 15)
-    expected = Decimal("99892.123400000000000")
-    assert actual == expected
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_decimal_from_fixed_big(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\x0E\xC2\x02\xE9\x06\x16\x33\x49\x77\x67\xA8\x00")
-    decoder = decoder_class(mis)
-    actual = decoder.read_decimal_from_fixed(28, 15, 12)
-    expected = Decimal("4567335489766.998340000000000")
-    assert actual == expected
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
@@ -177,34 +148,6 @@ def test_skip_double(decoder_class: Type[BinaryDecoder]) -> None:
     assert decoder.tell() == 0
     decoder.skip_double()
     assert decoder.tell() == 8
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_time_millis(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\xBC\x7D")
-    decoder = decoder_class(mis)
-    assert decoder.read_time_millis().microsecond == 30000
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_time_micros(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\xBC\x7D")
-    decoder = decoder_class(mis)
-    assert decoder.read_time_micros().microsecond == 8030
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_timestamp_micros(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\xBC\x7D")
-    decoder = decoder_class(mis)
-    assert decoder.read_timestamp_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030)
-
-
-@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_timestamptz_micros(decoder_class: Type[BinaryDecoder]) -> None:
-    mis = io.BytesIO(b"\xBC\x7D")
-    decoder = decoder_class(mis)
-    assert decoder.read_timestamptz_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030, tzinfo=timezone.utc)
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)

@@ -16,7 +16,6 @@
 # under the License.
 from __future__ import annotations
 
-import datetime
 import io
 import struct
 import uuid
@@ -146,17 +145,6 @@ def test_write_utf8() -> None:
     encoder.write_utf8(_input)
 
     assert output.getbuffer() == b"".join([b"\x7a", bin_input])
-
-
-def test_write_time_micros_long() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.time(1, 2, 3, 456000)
-
-    encoder.write_time_micros(_input)
-
-    assert output.getbuffer() == b"\x80\xb8\xfb\xde\x1b"
 
 
 def test_write_uuid() -> None:

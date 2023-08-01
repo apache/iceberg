@@ -15,17 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import decimal
-from datetime import time
 from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import OutputStream
-from pyiceberg.utils.datetime import time_to_micros
 from pyiceberg.utils.decimal import decimal_to_unscaled
 
 
 class BinaryEncoder:
-    """Write leaf values."""
+    """Encodes Python physical types into bytes."""
 
     _output_stream: OutputStream
 
@@ -94,11 +92,3 @@ class BinaryEncoder:
         if len(uuid.bytes) != 16:
             raise ValueError(f"Expected UUID to have 16 bytes, got: len({uuid.bytes!r})")
         return self.write(uuid.bytes)
-
-    def write_time_micros(self, dt: time) -> None:
-        """
-        Encode python time object as long.
-
-        It stores the number of microseconds from midnight, 00:00:00.000000
-        """
-        self.write_int(time_to_micros(dt))

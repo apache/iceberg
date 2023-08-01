@@ -43,7 +43,7 @@ from uuid import UUID
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
-from pyiceberg.utils.datetime import days_to_date
+from pyiceberg.utils.decimal import unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -154,32 +154,56 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> date:
-        return days_to_date(decoder.read_int())
+    """Reads a day granularity date from the stream.
+
+    The number of days from 1 January 1970.
+    """
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
 
 
 class TimeReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> time:
-        return decoder.read_time_micros()
+    """Reads a microsecond granularity timestamp from the stream.
+
+    Long is decoded as an integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+    """
+
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestampReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> datetime:
-        return decoder.read_timestamp_micros()
+    """Reads a microsecond granularity timestamp from the stream.
+
+    Long is decoded as python integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+    """
+
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestamptzReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> datetime:
-        return decoder.read_timestamptz_micros()
+    """Reads a microsecond granularity timestamptz from the stream.
+
+    Long is decoded as python integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+
+    Adjusted to UTC.
+    """
+
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
@@ -221,6 +245,12 @@ class FixedReader(Reader):
 
 
 class BinaryReader(Reader):
+    """Read a binary value.
+
+    First reads an integer, to get the length of the binary value,
+    then reads the binary field itself.
+    """
+
     def read(self, decoder: BinaryDecoder) -> bytes:
         return decoder.read_bytes()
 
@@ -230,11 +260,19 @@ class BinaryReader(Reader):
 
 @dataclass(frozen=True)
 class DecimalReader(Reader):
+    """Reads a value as a decimal.
+
+    Decimal bytes are decoded as signed short, int or long depending on the
+    size of bytes.
+    """
+
     precision: int = dataclassfield()
     scale: int = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> Decimal:
-        return decoder.read_decimal_from_bytes(self.precision, self.scale)
+        data = decoder.read(decoder.read_int())
+        unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
+        return unscaled_to_decimal(unscaled_datum, self.scale)
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()

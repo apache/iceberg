@@ -260,10 +260,10 @@ def test_all_primitive_types(is_required: bool) -> None:
         429496729622,
         123.22000122070312,
         429496729622.314,
-        date(2022, 3, 1),
-        time(19, 25, 22),
-        datetime.fromisoformat("2023-03-01T00:19:25.000000"),
-        datetime.fromisoformat("2023-03-01T00:19:25.000000+00:00"),
+        19052,
+        69922000000,
+        1677629965000000,
+        1677629965000000,
         "this is a sentence",
         UUID("12345678-1234-5678-1234-567812345678"),
     )
@@ -285,4 +285,5 @@ def test_all_primitive_types(is_required: bool) -> None:
             it = iter(avro_reader)
             avro_entry = next(it)
 
-        assert record == avro_entry
+    for idx, field in enumerate(all_primitives_schema.as_struct()):
+        assert record[idx] == avro_entry[idx], f"Invalid {field}"

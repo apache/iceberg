@@ -25,18 +25,18 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import datetime, time
+from datetime import datetime, time, date
 from typing import (
     Any,
     Dict,
     List,
-    Tuple,
+    Tuple, Union,
 )
 from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.types import StructType
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -78,26 +78,23 @@ class DoubleWriter(Writer):
 
 
 class DateWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: Any) -> None:
-        encoder.write_int(date_to_days(val))
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimeWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: time) -> None:
-        encoder.write_time_micros(val)
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimestampWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        if val.tzinfo is not None:
-            raise ValueError(f"Timestamp should not have a timezone, but has: {val.tzinfo}")
-
-        encoder.write_int(datetime_to_micros(val))
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimestamptzWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        encoder.write_int(datetime_to_micros(val))
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class StringWriter(Writer):
@@ -107,8 +104,6 @@ class StringWriter(Writer):
 
 class UUIDWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: UUID) -> None:
-        if len(val.bytes) != 16:
-            raise ValueError(f"Expected UUID to be 16 bytes, got: {len(val.bytes)}")
         encoder.write(val.bytes)
 
 
