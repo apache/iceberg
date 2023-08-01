@@ -75,6 +75,8 @@ public class SnapshotManager implements ManageSnapshots {
       return createBranch(name, currentSnapshot.snapshotId());
     }
 
+    SnapshotRef existingRef = transaction.currentMetadata().ref(name);
+    Preconditions.checkArgument(existingRef == null, "Ref %s already exists", name);
     // Create an empty snapshot for the branch
     transaction.newFastAppend().toBranch(name).commit();
     return this;

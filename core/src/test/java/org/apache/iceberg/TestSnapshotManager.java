@@ -263,6 +263,22 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
+  public void testCreateBranchOnEmptyTableFailsWhenRefAlreadyExists() {
+    table.manageSnapshots().createBranch("branch1").commit();
+
+    // Trying to create a branch with an existing name should fail
+    Assertions.assertThatThrownBy(() -> table.manageSnapshots().createBranch("branch1").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref branch1 already exists");
+
+    // Trying to create another branch within the same chain
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().createBranch("branch2").createBranch("branch2").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref branch2 already exists");
+  }
+
+  @Test
   public void testCreateBranchFailsWhenRefAlreadyExists() {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
