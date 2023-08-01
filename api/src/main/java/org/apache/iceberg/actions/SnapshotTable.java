@@ -19,10 +19,8 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
-import org.immutables.value.Value;
 
 /** An action that creates an independent snapshot of an existing table. */
-@Value.Enclosing
 public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Result> {
   /**
    * Sets the table identifier for the newly created Iceberg table.
@@ -60,7 +58,6 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   SnapshotTable tableProperty(String key, String value);
 
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     /** Returns the number of imported data files. */
     long importedDataFilesCount();

@@ -23,6 +23,7 @@ lint:
 
 generate:
 	datamodel-codegen \
+                --enum-field-as-literal all \
 	        --target-python-version 3.8 \
 	        --use-schema-description \
 	        --field-constraints \
