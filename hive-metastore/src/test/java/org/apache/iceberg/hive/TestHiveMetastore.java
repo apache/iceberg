@@ -21,6 +21,7 @@ package org.apache.iceberg.hive;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,7 +53,6 @@ import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportFactory;
-import org.junit.Assert;
 
 public class TestHiveMetastore {
 
@@ -112,7 +112,7 @@ public class TestHiveMetastore {
                     FileSystem fs = Util.getFs(localDirPath, new Configuration());
                     String errMsg = "Failed to delete " + localDirPath;
                     try {
-                      Assert.assertTrue(errMsg, fs.delete(localDirPath, true));
+                      assertThat(fs.delete(localDirPath, true)).as(errMsg).isTrue();
                     } catch (IOException e) {
                       throw new RuntimeException(errMsg, e);
                     }

@@ -21,8 +21,7 @@ package org.apache.iceberg.rest.responses;
 import java.util.Arrays;
 import java.util.List;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCatalogErrorResponseParser {
 
@@ -36,10 +35,9 @@ public class TestCatalogErrorResponseParser {
     String json = "{\"error\":" + errorModelJson + "}";
     ErrorResponse response =
         ErrorResponse.builder().withMessage(message).withType(type).responseCode(code).build();
-    Assert.assertEquals(
-        "Should be able to serialize an error response as json",
-        ErrorResponseParser.toJson(response),
-        json);
+    Assertions.assertThat(ErrorResponseParser.toJson(response))
+        .as("Should be able to serialize an error response as json")
+        .isEqualTo(json);
   }
 
   @Test
@@ -60,10 +58,9 @@ public class TestCatalogErrorResponseParser {
             .responseCode(code)
             .withStackTrace(stack)
             .build();
-    Assert.assertEquals(
-        "Should be able to serialize an error response as json",
-        json,
-        ErrorResponseParser.toJson(response));
+    Assertions.assertThat(ErrorResponseParser.toJson(response))
+        .as("Should be able to serialize an error response as json")
+        .isEqualTo(json);
   }
 
   @Test

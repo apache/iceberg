@@ -18,35 +18,34 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestLocationUtil {
 
   @Test
   public void testStripTrailingSlash() {
     String pathWithoutTrailingSlash = "s3://bucket/db/tbl";
-    Assert.assertEquals(
-        "Should have no trailing slashes",
-        pathWithoutTrailingSlash,
-        LocationUtil.stripTrailingSlash(pathWithoutTrailingSlash));
+    assertThat(LocationUtil.stripTrailingSlash(pathWithoutTrailingSlash))
+        .as("Should have no trailing slashes")
+        .isEqualTo(pathWithoutTrailingSlash);
 
     String pathWithSingleTrailingSlash = pathWithoutTrailingSlash + "/";
-    Assert.assertEquals(
-        "Should have no trailing slashes",
-        pathWithoutTrailingSlash,
-        LocationUtil.stripTrailingSlash(pathWithSingleTrailingSlash));
+    assertThat(LocationUtil.stripTrailingSlash(pathWithSingleTrailingSlash))
+        .as("Should have no trailing slashes")
+        .isEqualTo(pathWithoutTrailingSlash);
 
     String pathWithMultipleTrailingSlash = pathWithoutTrailingSlash + "////";
-    Assert.assertEquals(
-        "Should have no trailing slashes",
-        pathWithoutTrailingSlash,
-        LocationUtil.stripTrailingSlash(pathWithMultipleTrailingSlash));
+    assertThat(LocationUtil.stripTrailingSlash(pathWithMultipleTrailingSlash))
+        .as("Should have no trailing slashes")
+        .isEqualTo(pathWithoutTrailingSlash);
 
     String pathWithOnlySlash = "////";
-    Assert.assertEquals(
-        "Should have no trailing slashes", "", LocationUtil.stripTrailingSlash(pathWithOnlySlash));
+    assertThat(LocationUtil.stripTrailingSlash(pathWithOnlySlash))
+        .as("Should have no trailing slashes")
+        .isEmpty();
   }
 
   @Test

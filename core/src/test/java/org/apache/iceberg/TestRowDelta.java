@@ -38,6 +38,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -115,19 +116,18 @@ public class TestRowDelta extends V2TableTestBase {
 
     long deleteSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -174,19 +174,18 @@ public class TestRowDelta extends V2TableTestBase {
 
     long deleteSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -211,19 +210,18 @@ public class TestRowDelta extends V2TableTestBase {
 
     long deleteSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -310,19 +308,18 @@ public class TestRowDelta extends V2TableTestBase {
 
     long deleteSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -347,20 +344,19 @@ public class TestRowDelta extends V2TableTestBase {
 
     long deleteSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateDeletedFiles()
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateDeletedFiles()
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -385,20 +381,20 @@ public class TestRowDelta extends V2TableTestBase {
 
     long appendSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Should fail to add FILE_A_DELETES because FILE_A2 was added",
-        ValidationException.class,
-        "Found conflicting files",
-        () ->
-            commit(
-                table,
-                table
-                    .newRowDelta()
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(validateFromSnapshotId)
-                    .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
-                    .validateNoConflictingDataFiles(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRowDelta()
+                        .addDeletes(FILE_A_DELETES)
+                        .validateFromSnapshot(validateFromSnapshotId)
+                        .conflictDetectionFilter(
+                            Expressions.equal("data", "u")) // bucket16("u") -> 0
+                        .validateNoConflictingDataFiles(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files");
 
     Assert.assertEquals(
         "Table state should not be modified by failed RowDelta operation",
@@ -885,11 +881,9 @@ public class TestRowDelta extends V2TableTestBase {
     // concurrently delete the file for partition A
     commit(table, table.newDelete().deleteFile(dataFile1), branch);
 
-    AssertHelpers.assertThrows(
-        "Should fail to add deletes because data file is missing",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () -> commit(table, rowDelta, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
   }
 
   @Test
@@ -1133,11 +1127,9 @@ public class TestRowDelta extends V2TableTestBase {
     // perform a conflicting concurrent operation
     commit(table, table.newDelete().deleteFile(firstSnapshotDataFile), branch);
 
-    AssertHelpers.assertThrows(
-        "Should fail to commit row delta",
-        ValidationException.class,
-        "Cannot commit, missing data files",
-        () -> commit(table, rowDelta, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, missing data files");
 
     // we should clean up 1 manifest list and 2 delete manifests
     Assert.assertEquals("Should delete 3 files", 3, deletedFiles.size());
@@ -1172,11 +1164,9 @@ public class TestRowDelta extends V2TableTestBase {
         .validateNoConflictingDataFiles()
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found new conflicting delete files",
-        () -> commit(table, rowDelta, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
   }
 
   @Test
@@ -1205,11 +1195,9 @@ public class TestRowDelta extends V2TableTestBase {
         .validateNoConflictingDataFiles()
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        ValidationException.class,
-        "Found new conflicting delete files",
-        () -> commit(table, rowDelta, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
   }
 
   @Test
@@ -1445,11 +1433,9 @@ public class TestRowDelta extends V2TableTestBase {
 
     commit(table, rowDelta, branch);
 
-    AssertHelpers.assertThrows(
-        "Should not allow any new position delete associated with the data file",
-        ValidationException.class,
-        "Cannot commit, found new position delete for replaced data file",
-        () -> commit(table, rewriteFiles, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, rewriteFiles, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new position delete for replaced data file");
   }
 
   @Test
@@ -1462,55 +1448,52 @@ public class TestRowDelta extends V2TableTestBase {
 
     Expression conflictDetectionFilter = Expressions.equal(Expressions.bucket("dAtA", 16), 0);
 
-    AssertHelpers.assertThrows(
-        "Should use case sensitive binding by default",
-        ValidationException.class,
-        "Cannot find field 'dAtA'",
-        () ->
-            table
-                .newRowDelta()
-                .toBranch(branch)
-                .addRows(FILE_B)
-                .addDeletes(FILE_A2_DELETES)
-                .validateFromSnapshot(firstSnapshot.snapshotId())
-                .conflictDetectionFilter(conflictDetectionFilter)
-                .validateNoConflictingDataFiles()
-                .validateNoConflictingDeleteFiles()
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newRowDelta()
+                    .toBranch(branch)
+                    .addRows(FILE_B)
+                    .addDeletes(FILE_A2_DELETES)
+                    .validateFromSnapshot(firstSnapshot.snapshotId())
+                    .conflictDetectionFilter(conflictDetectionFilter)
+                    .validateNoConflictingDataFiles()
+                    .validateNoConflictingDeleteFiles()
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'dAtA'");
 
-    AssertHelpers.assertThrows(
-        "Should fail with case sensitive binding",
-        ValidationException.class,
-        "Cannot find field 'dAtA'",
-        () ->
-            table
-                .newRowDelta()
-                .toBranch(branch)
-                .caseSensitive(true)
-                .addRows(FILE_B)
-                .addDeletes(FILE_A2_DELETES)
-                .validateFromSnapshot(firstSnapshot.snapshotId())
-                .conflictDetectionFilter(conflictDetectionFilter)
-                .validateNoConflictingDataFiles()
-                .validateNoConflictingDeleteFiles()
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newRowDelta()
+                    .toBranch(branch)
+                    .caseSensitive(true)
+                    .addRows(FILE_B)
+                    .addDeletes(FILE_A2_DELETES)
+                    .validateFromSnapshot(firstSnapshot.snapshotId())
+                    .conflictDetectionFilter(conflictDetectionFilter)
+                    .validateNoConflictingDataFiles()
+                    .validateNoConflictingDeleteFiles()
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'dAtA'");
 
     // binding should succeed and trigger the validation
-    AssertHelpers.assertThrows(
-        "Should reject case sensitive binding",
-        ValidationException.class,
-        "Found new conflicting delete files",
-        () ->
-            table
-                .newRowDelta()
-                .toBranch(branch)
-                .caseSensitive(false)
-                .addRows(FILE_B)
-                .addDeletes(FILE_A2_DELETES)
-                .validateFromSnapshot(firstSnapshot.snapshotId())
-                .conflictDetectionFilter(conflictDetectionFilter)
-                .validateNoConflictingDataFiles()
-                .validateNoConflictingDeleteFiles()
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newRowDelta()
+                    .toBranch(branch)
+                    .caseSensitive(false)
+                    .addRows(FILE_B)
+                    .addDeletes(FILE_A2_DELETES)
+                    .validateFromSnapshot(firstSnapshot.snapshotId())
+                    .conflictDetectionFilter(conflictDetectionFilter)
+                    .validateNoConflictingDataFiles()
+                    .validateNoConflictingDeleteFiles()
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
   }
 }

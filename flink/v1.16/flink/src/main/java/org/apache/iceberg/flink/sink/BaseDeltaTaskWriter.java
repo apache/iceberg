@@ -63,7 +63,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     this.keyWrapper =
         new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
-    this.keyProjection = RowDataProjection.create(schema, deleteSchema);
+    this.keyProjection =
+        RowDataProjection.create(flinkSchema, schema.asStruct(), deleteSchema.asStruct());
     this.upsert = upsert;
   }
 

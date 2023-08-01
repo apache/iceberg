@@ -68,6 +68,7 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
+    expression_evaluator,
     expression_to_plain_format,
     rewrite_not,
     rewrite_to_dnf,
@@ -76,6 +77,7 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     FloatType,
@@ -1608,3 +1610,22 @@ def test_dnf_to_dask(table_schema_simple: Schema) -> None:
         ),
     )
     assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
+
+
+def test_expression_evaluator_null() -> None:
+    struct = Record(a=None)
+    schema = Schema(NestedField(1, "a", IntegerType(), required=False), schema_id=1)
+    assert expression_evaluator(schema, In("a", {1, 2, 3}), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, NotIn("a", {1, 2, 3}), case_sensitive=True)(struct) is True
+    assert expression_evaluator(schema, IsNaN("a"), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, NotNaN("a"), case_sensitive=True)(struct) is True
+    assert expression_evaluator(schema, IsNull("a"), case_sensitive=True)(struct) is True
+    assert expression_evaluator(schema, NotNull("a"), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, EqualTo("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, NotEqualTo("a", 1), case_sensitive=True)(struct) is True
+    assert expression_evaluator(schema, GreaterThanOrEqual("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, GreaterThan("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, LessThanOrEqual("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, LessThan("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, StartsWith("a", 1), case_sensitive=True)(struct) is False
+    assert expression_evaluator(schema, NotStartsWith("a", 1), case_sensitive=True)(struct) is True

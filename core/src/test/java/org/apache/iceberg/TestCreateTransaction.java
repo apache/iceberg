@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -300,11 +301,9 @@ public class TestCreateTransaction extends TableTestBase {
 
     txn.updateProperties().set("test-property", "test-value"); // not committed
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot create new DeleteFiles: last operation has not committed",
-        txn::newDelete);
+    Assertions.assertThatThrownBy(txn::newDelete)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
   }
 
   @Test
@@ -323,11 +322,9 @@ public class TestCreateTransaction extends TableTestBase {
 
     txn.updateProperties().set("test-property", "test-value"); // not committed
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot commit transaction: last operation has not committed",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot commit transaction: last operation has not committed");
   }
 
   @Test
@@ -360,11 +357,9 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertFalse(
         "Table should not have any snapshots", conflict.snapshots().iterator().hasNext());
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail",
-        CommitFailedException.class,
-        "Commit failed: table was updated",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Commit failed: table was updated");
 
     Assert.assertEquals(
         "Should clean up metadata",

@@ -20,13 +20,11 @@ package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestUpdateNamespacePropertiesResponse
     extends RequestResponseTestBase<UpdateNamespacePropertiesResponse> {
@@ -145,30 +143,27 @@ public class TestUpdateNamespacePropertiesResponse
     // Invalid top-level types
     String jsonInvalidTypeOnRemovedField =
         "{\"removed\":{\"foo\":true},\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid type for one of the fields should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnRemovedField));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovedField))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<java.lang.String>`");
 
     String jsonInvalidTypeOnUpdatedField = "{\"updated\":\"owner\",\"missing\":[\"bar\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid type for one of the fields should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnUpdatedField));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatedField))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot construct instance of `java.util.ArrayList`");
 
     // Valid top-level (array) types, but at least one entry in the list is not the expected type
     String jsonInvalidValueOfTypeIntNestedInRemovedList =
         "{\"removed\":[\"foo\", \"bar\", 123456], ,\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid type inside one of the list fields should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Unexpected character (',' (code 44))");
 
     // Exception comes from Jackson
-    AssertHelpers.assertThrows(
-        "A null JSON response body should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null));
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
@@ -176,61 +171,58 @@ public class TestUpdateNamespacePropertiesResponse
     List<String> listContainingNull = Lists.newArrayList("a", null, null);
 
     // updated
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a property that was updated",
-        NullPointerException.class,
-        "Invalid updated property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid updated property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of properties that were removed",
-        NullPointerException.class,
-        "Invalid updated property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid updated property list: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a list of properties that were removed with a null element",
-        IllegalArgumentException.class,
-        "Invalid updated property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid updated property: null");
 
     // removed
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a property that was removed",
-        NullPointerException.class,
-        "Invalid removed property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid removed property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of properties that were removed",
-        NullPointerException.class,
-        "Invalid removed property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid removed property list: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a list of properties that were removed with a null element",
-        IllegalArgumentException.class,
-        "Invalid removed property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid removed property: null");
 
     // missing
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a property that was missing",
-        NullPointerException.class,
-        "Invalid missing property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid missing property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of properties that were missing",
-        NullPointerException.class,
-        "Invalid missing property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid missing property list: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a list of properties that were missing with a null element",
-        IllegalArgumentException.class,
-        "Invalid missing property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid missing property: null");
   }
 
   @Override
@@ -250,18 +242,15 @@ public class TestUpdateNamespacePropertiesResponse
   @Override
   public void assertEquals(
       UpdateNamespacePropertiesResponse actual, UpdateNamespacePropertiesResponse expected) {
-    Assert.assertEquals(
-        "Properties updated should be equal",
-        Sets.newHashSet(actual.updated()),
-        Sets.newHashSet(expected.updated()));
-    Assert.assertEquals(
-        "Properties removed should be equal",
-        Sets.newHashSet(actual.removed()),
-        Sets.newHashSet(expected.removed()));
-    Assert.assertEquals(
-        "Properties missing should be equal",
-        Sets.newHashSet(actual.missing()),
-        Sets.newHashSet(expected.missing()));
+    Assertions.assertThat(actual.updated())
+        .as("Properties updated should be equal")
+        .containsExactlyInAnyOrderElementsOf(expected.updated());
+    Assertions.assertThat(actual.removed())
+        .as("Properties removed should be equal")
+        .containsExactlyInAnyOrderElementsOf(expected.removed());
+    Assertions.assertThat(actual.missing())
+        .as("Properties missing should be equal")
+        .containsExactlyInAnyOrderElementsOf(expected.missing());
   }
 
   @Override

@@ -43,30 +43,27 @@ import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
-import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
-import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
-import org.projectnessie.versioned.persist.tests.extension.DatabaseAdapterExtension;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapter;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapterName;
-import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabase;
+import org.projectnessie.versioned.storage.common.persist.Persist;
+import org.projectnessie.versioned.storage.inmemory.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.testextension.NessieBackend;
+import org.projectnessie.versioned.storage.testextension.NessiePersist;
+import org.projectnessie.versioned.storage.testextension.PersistExtension;
 
-@ExtendWith(DatabaseAdapterExtension.class)
-@NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
-@NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@ExtendWith(PersistExtension.class)
+@NessieBackend(InmemoryBackendTestFactory.class)
+@NessieApiVersions // test all versions
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
-  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
+  @NessiePersist static Persist persist;
 
   @RegisterExtension
-  static NessieJaxRsExtension server =
-      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
+  static NessieJaxRsExtension server = NessieJaxRsExtension.jaxRsExtension(() -> persist);
 
   @TempDir public Path temp;
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
+  private NessieApiVersion apiVersion;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
@@ -75,6 +72,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws NessieNotFoundException {
     api = clientFactory.make();
+    apiVersion = clientFactory.apiVersion();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
@@ -115,17 +113,17 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private NessieCatalog initNessieCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(
-        "nessie",
+    ImmutableMap<String, String> options =
         ImmutableMap.of(
             "ref",
             ref,
             CatalogProperties.URI,
             uri,
-            "auth-type",
-            "NONE",
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString()));
+            temp.toUri().toString(),
+            "client-api-version",
+            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+    newCatalog.initialize("nessie", options);
     return newCatalog;
   }
 

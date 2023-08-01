@@ -24,7 +24,7 @@ hide:
 
 # Catalogs
 
-PyIceberg currently has native support for REST, Hive and Glue.
+PyIceberg currently has native support for REST, SQL, Hive, Glue and DynamoDB.
 
 There are three ways to pass in configuration:
 
@@ -60,13 +60,23 @@ For the FileIO there are several configuration options available:
 
 ### S3
 
-| Key                  | Example             | Description                                                                                                                                                                                                                                               |
-| -------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| s3.endpoint          | https://10.0.19.25/ | Configure an alternative endpoint of the S3 service for the FileIO to access. This could be used to use S3FileIO with any s3-compatible object storage service that has a different endpoint, or access a private S3 endpoint in a virtual private cloud. |
-| s3.access-key-id     | admin               | Configure the static secret access key used to access the FileIO.                                                                                                                                                                                         |
-| s3.secret-access-key | password            | Configure the static session token used to access the FileIO.                                                                                                                                                                                             |
-| s3.signer            | bearer              | Configure the signature version of the FileIO.                                                                                                                                                                                                            |
-| s3.region            | us-west-2           | Sets the region of the bucket                                                                                                                                                                                                                             |
+| Key                  | Example                  | Description                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| s3.endpoint          | https://10.0.19.25/      | Configure an alternative endpoint of the S3 service for the FileIO to access. This could be used to use S3FileIO with any s3-compatible object storage service that has a different endpoint, or access a private S3 endpoint in a virtual private cloud. |
+| s3.access-key-id     | admin                    | Configure the static secret access key used to access the FileIO.                                                                                                                                                                                         |
+| s3.secret-access-key | password                 | Configure the static session token used to access the FileIO.                                                                                                                                                                                             |
+| s3.signer            | bearer                   | Configure the signature version of the FileIO.                                                                                                                                                                                                            |
+| s3.region            | us-west-2                | Sets the region of the bucket                                                                                                                                                                                                                             |
+| s3.proxy-uri         | http://my.proxy.com:8080 | Configure the proxy server to be used by the FileIO.                                                                                                                                                                                                      |
+
+### HDFS
+
+| Key                  | Example             | Description                                      |
+| -------------------- | ------------------- | ------------------------------------------------ |
+| hdfs.host            | https://10.0.19.25/ | Configure the HDFS host to connect to            |
+| hdfs.port            | 9000                | Configure the HDFS port to connect to.           |
+| hdfs.user            | user                | Configure the HDFS username used for connection. |
+| hdfs.kerberos_ticket | kerberos_ticket     | Configure the path to the Kerberos ticket cache. |
 
 ### Azure Data lake
 
@@ -106,6 +116,18 @@ catalog:
 | rest.signing-region | us-east-1               | The region to use when SigV4 signing a request                             |
 | rest.signing-name   | execute-api             | The service signing name to use when SigV4 signing a request               |
 
+## SQL Catalog
+
+The SQL catalog requires a database for its backend. As of now, pyiceberg only supports PostgreSQL through psycopg2.
+The database connection has to be configured using the `uri` property (see SQLAlchemy's [documentation for URL format](https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls)):
+
+```yaml
+catalog:
+  default:
+    type: sql
+    uri: postgresql+psycopg2://username:password@localhost/mydatabase
+```
+
 ## Hive Catalog
 
 ```yaml
@@ -119,13 +141,27 @@ catalog:
 
 ## Glue Catalog
 
-If you want to use AWS Glue as the catalog, you can use the last two ways to configure the pyiceberg and refer
+Your AWS credentials can be passed directly through the Python API.
+Otherwise, please refer to
 [How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set your AWS account credentials locally.
+If you did not set up a default AWS profile, you can configure the `profile_name`.
 
 ```yaml
 catalog:
   default:
     type: glue
+    aws_access_key_id: <ACCESS_KEY_ID>
+    aws_secret_access_key: <SECRET_ACCESS_KEY>
+    aws_session_token: <SESSION_TOKEN>
+    region_name: <REGION_NAME>
+```
+
+```yaml
+catalog:
+  default:
+    type: glue
+    profile_name: <PROFILE_NAME>
+    region_name: <REGION_NAME>
 ```
 
 ## DynamoDB Catalog

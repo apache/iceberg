@@ -42,7 +42,7 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import IdentityTransform
@@ -96,16 +96,20 @@ class InMemoryCatalog(Catalog):
                             ],
                         },
                         "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-                        "properties": {},
+                        "properties": properties,
                         "current-snapshot-id": -1,
                         "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
                     }
                 ),
                 metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
                 io=load_file_io(),
+                catalog=self,
             )
             self.__tables[identifier] = table
             return table
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -141,6 +145,7 @@ class InMemoryCatalog(Catalog):
             metadata=table.metadata,
             metadata_location=table.metadata_location,
             io=load_file_io(),
+            catalog=self,
         )
         return self.__tables[to_identifier]
 
@@ -170,6 +175,10 @@ class InMemoryCatalog(Catalog):
         return list_tables
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        # Hierarchical namespace is not supported. Return an empty list
+        if namespace:
+            return []
+
         return list(self.__namespaces.keys())
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:

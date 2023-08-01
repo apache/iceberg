@@ -109,7 +109,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   }
 
   private EncryptedOutputFile newFile() {
-    if (partition == null) {
+    if (spec.isUnpartitioned() || partition == null) {
       return fileFactory.newOutputFile();
     } else {
       return fileFactory.newOutputFile(spec, partition);

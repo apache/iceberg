@@ -40,7 +40,7 @@ public class TestIcebergEnumeratorStateSerializer {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private final IcebergEnumeratorStateSerializer serializer =
-      IcebergEnumeratorStateSerializer.INSTANCE;
+      new IcebergEnumeratorStateSerializer(true);
 
   protected final int version;
 

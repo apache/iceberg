@@ -28,7 +28,7 @@ import org.apache.flink.connector.testutils.source.reader.TestingSplitEnumerator
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
-import org.apache.iceberg.flink.source.assigner.SimpleSplitAssigner;
+import org.apache.iceberg.flink.source.assigner.DefaultSplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
@@ -342,7 +342,7 @@ public class TestContinuousIcebergEnumerator {
     ContinuousIcebergEnumerator enumerator =
         new ContinuousIcebergEnumerator(
             context,
-            new SimpleSplitAssigner(Collections.emptyList()),
+            new DefaultSplitAssigner(null, Collections.emptyList()),
             scanContext,
             splitPlanner,
             null);

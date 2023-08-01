@@ -36,6 +36,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce;
+import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalescer;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.distributions.OrderedDistribution;
@@ -59,7 +61,24 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   public static final double COMPRESSION_FACTOR_DEFAULT = 1.0;
 
+  /**
+   * The number of shuffle partitions to use for each output file. By default, this file rewriter
+   * assumes each shuffle partition would become a separate output file. Attempting to generate
+   * large output files of 512 MB or higher may strain the memory resources of the cluster as such
+   * rewrites would require lots of Spark memory. This parameter can be used to further divide up
+   * the data which will end up in a single file. For example, if the target file size is 2 GB, but
+   * the cluster can only handle shuffles of 512 MB, this parameter could be set to 4. Iceberg will
+   * use a custom coalesce operation to stitch these sorted partitions back together into a single
+   * sorted file.
+   *
+   * <p>Note using this parameter requires enabling Iceberg Spark session extensions.
+   */
+  public static final String SHUFFLE_PARTITIONS_PER_FILE = "shuffle-partitions-per-file";
+
+  public static final int SHUFFLE_PARTITIONS_PER_FILE_DEFAULT = 1;
+
   private double compressionFactor;
+  private int numShufflePartitionsPerFile;
 
   protected SparkShufflingDataRewriter(SparkSession spark, Table table) {
     super(spark, table);
@@ -75,6 +94,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
         .add(COMPRESSION_FACTOR)
+        .add(SHUFFLE_PARTITIONS_PER_FILE)
         .build();
   }
 
@@ -82,6 +102,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   public void init(Map<String, String> options) {
     super.init(options);
     this.compressionFactor = compressionFactor(options);
+    this.numShufflePartitionsPerFile = numShufflePartitionsPerFile(options);
   }
 
   @Override
@@ -114,7 +135,16 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   private LogicalPlan sortPlan(LogicalPlan plan, SortOrder[] ordering, int numShufflePartitions) {
     SparkFunctionCatalog catalog = SparkFunctionCatalog.get();
     OrderedWrite write = new OrderedWrite(ordering, numShufflePartitions);
-    return DistributionAndOrderingUtils$.MODULE$.prepareQuery(write, plan, Option.apply(catalog));
+    LogicalPlan sortPlan =
+        DistributionAndOrderingUtils$.MODULE$.prepareQuery(write, plan, Option.apply(catalog));
+
+    if (numShufflePartitionsPerFile == 1) {
+      return sortPlan;
+    } else {
+      OrderAwareCoalescer coalescer = new OrderAwareCoalescer(numShufflePartitionsPerFile);
+      int numOutputPartitions = numShufflePartitions / numShufflePartitionsPerFile;
+      return new OrderAwareCoalesce(numOutputPartitions, coalescer, sortPlan);
+    }
   }
 
   private Dataset<Row> transformPlan(Dataset<Row> df, Function<LogicalPlan, LogicalPlan> func) {
@@ -134,7 +164,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   private int numShufflePartitions(List<FileScanTask> group) {
     int numOutputFiles = (int) numOutputFiles((long) (inputSize(group) * compressionFactor));
-    return Math.max(1, numOutputFiles);
+    return Math.max(1, numOutputFiles * numShufflePartitionsPerFile);
   }
 
   private double compressionFactor(Map<String, String> options) {
@@ -142,6 +172,19 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
         PropertyUtil.propertyAsDouble(options, COMPRESSION_FACTOR, COMPRESSION_FACTOR_DEFAULT);
     Preconditions.checkArgument(
         value > 0, "'%s' is set to %s but must be > 0", COMPRESSION_FACTOR, value);
+    return value;
+  }
+
+  private int numShufflePartitionsPerFile(Map<String, String> options) {
+    int value =
+        PropertyUtil.propertyAsInt(
+            options, SHUFFLE_PARTITIONS_PER_FILE, SHUFFLE_PARTITIONS_PER_FILE_DEFAULT);
+    Preconditions.checkArgument(
+        value > 0, "'%s' is set to %s but must be > 0", SHUFFLE_PARTITIONS_PER_FILE, value);
+    Preconditions.checkArgument(
+        value == 1 || Spark3Util.extensionsEnabled(spark()),
+        "Using '%s' requires enabling Iceberg Spark session extensions",
+        SHUFFLE_PARTITIONS_PER_FILE);
     return value;
   }
 

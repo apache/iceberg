@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -145,11 +144,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table);
+    List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table);
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
+    List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 

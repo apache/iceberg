@@ -216,6 +216,9 @@ public class TableProperties {
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
+  public static final String ADAPTIVE_SPLIT_SIZE_ENABLED = "read.split.adaptive-size.enabled";
+  public static final boolean ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT = true;
+
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
   public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;
 
