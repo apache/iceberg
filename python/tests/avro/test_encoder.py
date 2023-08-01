@@ -151,7 +151,7 @@ def test_write_uuid() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    _input = uuid.UUID("{12345678-1234-5678-1234-567812345678}")
+    _input = uuid.UUID("12345678-1234-5678-1234-567812345678")
     encoder.write_uuid(_input)
 
     buf = output.getbuffer()
