@@ -27,6 +27,19 @@ public final class StandardBlobTypes {
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
 
+  /**
+   * A serialized form of <a
+   * href="https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/stats/StatsUtils.java#L854C17">
+   * HIVE_COLUMN_STATS_OBJ</a>
+   */
+  public static final String HIVE_COLUMN_STATS_OBJ = "column-statistics-obj";
+
+  /**
+   * A serialized form of KLL sketch produced by the <a
+   * href="https://datasketches.apache.org/">Apache DataSketches</a> library
+   */
+  public static final String APACHE_DATASKETCHES_KLL_SKETCH = "apache_datasketches_kll_sketch";
+
   /** A serialized deletion vector according to the Iceberg spec */
   public static final String DV_V1 = "deletion-vector-v1";
 }
