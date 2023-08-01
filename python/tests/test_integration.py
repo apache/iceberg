@@ -305,8 +305,8 @@ def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> No
 def test_partitioned_tables(catalog: Catalog) -> None:
     for table_name, predicate in [
         ("test_partitioned_by_identity", "ts >= '2023-03-05T00:00:00+00:00'"),
-        ('test_partitioned_by_years', "dt >= '2023-03-05'"),
-        ('test_partitioned_by_months', "dt >= '2023-03-05'"),
+        ("test_partitioned_by_years", "dt >= '2023-03-05'"),
+        ("test_partitioned_by_months", "dt >= '2023-03-05'"),
         ("test_partitioned_by_days", "ts >= '2023-03-05T00:00:00+00:00'"),
         ("test_partitioned_by_hours", "ts >= '2023-03-05T00:00:00+00:00'"),
         ("test_partitioned_by_truncate", "letter >= 'e'"),

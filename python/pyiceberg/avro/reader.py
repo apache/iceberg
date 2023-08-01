@@ -28,7 +28,6 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import date, datetime, time
 from decimal import Decimal
 from typing import (
     Any,
@@ -158,6 +157,7 @@ class DateReader(Reader):
 
     The number of days from 1 January 1970.
     """
+
     def read(self, decoder: BinaryDecoder) -> int:
         return decoder.read_int()
 

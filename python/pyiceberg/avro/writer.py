@@ -25,18 +25,16 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import datetime, time, date
 from typing import (
     Any,
     Dict,
     List,
-    Tuple, Union,
+    Tuple,
 )
 from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.types import StructType
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.singleton import Singleton
 
 
