@@ -371,7 +371,7 @@ public class Spark3Util {
         case "year":
         case "years":
           return org.apache.iceberg.expressions.Expressions.year(colName);
-        case "month"
+        case "month":
         case "months":
           return org.apache.iceberg.expressions.Expressions.month(colName);
         case "date":
