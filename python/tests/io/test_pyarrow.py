@@ -1547,7 +1547,7 @@ def test_metrics_mode_parsing() -> None:
     assert match_metrics_mode("full") == MetricsMode(MetricModeTypes.FULL)
     assert match_metrics_mode("FuLl") == MetricsMode(MetricModeTypes.FULL)
 
-    with pytest.raises(AssertionError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         match_metrics_mode(" Full")
     assert "Unsupported metrics mode  Full" in str(exc_info.value)
 
@@ -1556,11 +1556,11 @@ def test_metrics_mode_parsing() -> None:
     assert match_metrics_mode("trUncatE(7)") == MetricsMode(MetricModeTypes.TRUNCATE, 7)
     assert match_metrics_mode("trUncatE(07)") == MetricsMode(MetricModeTypes.TRUNCATE, 7)
 
-    with pytest.raises(AssertionError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         match_metrics_mode("trUncatE(-7)")
     assert "Unsupported metrics mode trUncatE(-7)" in str(exc_info.value)
 
-    with pytest.raises(AssertionError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         match_metrics_mode("trUncatE(0)")
     assert "Truncation length must be larger than 0" in str(exc_info.value)
 

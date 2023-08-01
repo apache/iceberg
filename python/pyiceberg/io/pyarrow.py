@@ -1056,7 +1056,7 @@ _PRIMITIVE_TO_PHYSICAL = {
     UUIDType(): "FIXED_LEN_BYTE_ARRAY",
     BinaryType(): "BYTE_ARRAY",
 }
-_PHISICAL_TYPES = ["BOOLEAN", "INT32", "INT64", "INT96", "FLOAT", "DOUBLE", "BYTE_ARRAY", "FIXED_LEN_BYTE_ARRAY"]
+_PHYSICAL_TYPES = ["BOOLEAN", "INT32", "INT64", "INT96", "FLOAT", "DOUBLE", "BYTE_ARRAY", "FIXED_LEN_BYTE_ARRAY"]
 
 
 class StatsAggregator:
@@ -1065,12 +1065,16 @@ class StatsAggregator:
         self.current_max: Any = None
         self.trunc_length = trunc_length
 
-        assert physical_type_string in _PHISICAL_TYPES, f"Unknown physical type {physical_type_string}"
+        if physical_type_string not in _PHYSICAL_TYPES:
+            raise ValueError(f"Unknown physical type {physical_type_string}")
+
         if physical_type_string == "INT96":
             raise NotImplementedError("Statistics not implemented for INT96 physical type")
-        assert (
-            _PRIMITIVE_TO_PHYSICAL[iceberg_type] == physical_type_string
-        ), f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {_PRIMITIVE_TO_PHYSICAL[iceberg_type]}"
+
+        if _PRIMITIVE_TO_PHYSICAL[iceberg_type] != physical_type_string:
+            raise ValueError(
+                f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {_PRIMITIVE_TO_PHYSICAL[iceberg_type]}"
+            )
 
         self.primitive_type = iceberg_type
 
@@ -1085,7 +1089,6 @@ class StatsAggregator:
         if self.primitive_type == UUIDType():
             value = uuid.UUID(bytes=value)
 
-        assert self.primitive_type is not None  # appease mypy
         return to_bytes(self.primitive_type, value)
 
     def add_min(self, val: Any) -> None:
@@ -1102,14 +1105,16 @@ class StatsAggregator:
 
     def get_min(self) -> bytes:
         if self.primitive_type == StringType():
-            assert type(self.current_min) == str
+            if type(self.current_min) != str:
+                raise ValueError("Expected the current_min to be a string")
             return self.serialize(self.current_min[: self.trunc_length])
         else:
             return self.serialize(self.current_min)[: self.trunc_length]
 
     def get_max(self) -> Optional[bytes]:
         if self.primitive_type == StringType():
-            assert type(self.current_max) == str
+            if type(self.current_max) != str:
+                raise ValueError("Expected the current_max to be a string")
 
             s_result = self.current_max[: self.trunc_length]
             if s_result != self.current_max:
@@ -1127,7 +1132,8 @@ class StatsAggregator:
                 return None  # didn't find a valid upper bound
             return self.serialize(s_result)
         elif self.primitive_type == BinaryType():
-            assert type(self.current_max) == bytes
+            if type(self.current_max) != bytes:
+                raise ValueError("Expected the current_max to be bytes")
             b_result = self.current_max[: self.trunc_length]
             if b_result != self.current_max:
                 _bytes = [*b_result]
@@ -1168,7 +1174,7 @@ def match_metrics_mode(mode: str) -> MetricsMode:
     if m:
         length = int(m[1])
         if length < 1:
-            raise AssertionError("Truncation length must be larger than 0")
+            raise ValueError("Truncation length must be larger than 0")
         return MetricsMode(MetricModeTypes.TRUNCATE, int(m[1]))
     elif re.match("^none$", mode, re.IGNORECASE):
         return MetricsMode(MetricModeTypes.NONE)
@@ -1177,7 +1183,7 @@ def match_metrics_mode(mode: str) -> MetricsMode:
     elif re.match("^full$", mode, re.IGNORECASE):
         return MetricsMode(MetricModeTypes.FULL)
     else:
-        raise AssertionError(f"Unsupported metrics mode {mode}")
+        raise ValueError(f"Unsupported metrics mode {mode}")
 
 
 @dataclass(frozen=True)
@@ -1228,7 +1234,8 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
 
     def primitive(self, primitive: PrimitiveType) -> List[StatisticsCollector]:
         column_name = self._schema.find_column_name(self._field_id)
-        assert column_name is not None, f"Column for field {self._field_id} not found"
+        if column_name is None:
+            raise ValueError(f"Column for field {self._field_id} not found")
 
         metrics_mode = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGHT)
 
@@ -1282,9 +1289,11 @@ def fill_parquet_file_metadata(
     schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
 
     stats_columns = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
-    assert parquet_metadata.num_columns == len(
-        stats_columns
-    ), f"Number of columns in metadata ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+
+    if parquet_metadata.num_columns != len(stats_columns):
+        raise ValueError(
+            f"Number of columns in metadata ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+        )
 
     column_sizes: Dict[int, int] = {}
     value_counts: Dict[int, int] = {}
