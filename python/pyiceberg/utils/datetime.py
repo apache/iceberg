@@ -96,7 +96,7 @@ def datetime_to_millis(dt: datetime) -> int:
         delta = dt - EPOCH_TIMESTAMPTZ
     else:
         delta = dt - EPOCH_TIMESTAMP
-    return int(delta.total_seconds() * 1_000)
+    return (delta.days * 86400 + delta.seconds) * 1_000 + delta.microseconds // 1_000
 
 
 def timestamptz_to_micros(timestamptz_str: str) -> int:
