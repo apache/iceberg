@@ -73,15 +73,8 @@ public class SparkReadConf {
   }
 
   private static boolean initLocalityEnabled(Table table, Map<String, String> readOptions) {
-    InputFile file = table.io().newInputFile(table.location());
-
-    if (file instanceof HadoopInputFile) {
-      String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
-      boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
-      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
-    }
-
-    return false;
+    boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
+    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
   }
 
   public boolean localityEnabled() {
