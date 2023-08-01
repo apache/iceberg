@@ -263,7 +263,7 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
-  public void testCreateBranchFailsOnEmptyTableWhenRefAlreadyExists() {
+  public void testCreateBranchOnEmptyTableFailsWhenRefAlreadyExists() {
     table.manageSnapshots().createBranch("branch1").commit();
 
     // Trying to create a branch with an existing name should fail
