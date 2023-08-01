@@ -231,6 +231,38 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
+  public void testCreateBranchWithoutSnapshotId() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    // Test a basic case of creating a branch
+    table.manageSnapshots().createBranch("branch1").commit();
+    SnapshotRef actualBranch = table.ops().refresh().ref("branch1");
+    Assertions.assertThat(actualBranch).isNotNull();
+    Assertions.assertThat(actualBranch).isEqualTo(SnapshotRef.branchBuilder(snapshotId).build());
+  }
+
+  @Test
+  public void testCreateBranchOnEmptyTable() {
+    table.manageSnapshots().createBranch("branch1").commit();
+
+    SnapshotRef mainSnapshotRef = table.ops().refresh().ref(SnapshotRef.MAIN_BRANCH);
+    Assertions.assertThat(mainSnapshotRef).isNull();
+
+    SnapshotRef branch1SnapshotRef = table.ops().refresh().ref("branch1");
+    Assertions.assertThat(branch1SnapshotRef).isNotNull();
+    Assertions.assertThat(branch1SnapshotRef.minSnapshotsToKeep()).isNull();
+    Assertions.assertThat(branch1SnapshotRef.maxSnapshotAgeMs()).isNull();
+    Assertions.assertThat(branch1SnapshotRef.maxRefAgeMs()).isNull();
+
+    Snapshot snapshot = table.snapshot(branch1SnapshotRef.snapshotId());
+    Assertions.assertThat(snapshot.parentId()).isNull();
+    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+  }
+
+  @Test
   public void testCreateBranchFailsWhenRefAlreadyExists() {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();

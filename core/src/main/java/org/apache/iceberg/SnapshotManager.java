@@ -69,6 +69,18 @@ public class SnapshotManager implements ManageSnapshots {
   }
 
   @Override
+  public ManageSnapshots createBranch(String name) {
+    Snapshot currentSnapshot = transaction.currentMetadata().currentSnapshot();
+    if (currentSnapshot != null) {
+      return createBranch(name, currentSnapshot.snapshotId());
+    }
+
+    // Create an empty snapshot for the branch
+    transaction.newFastAppend().toBranch(name).commit();
+    return this;
+  }
+
+  @Override
   public ManageSnapshots createBranch(String name, long snapshotId) {
     updateSnapshotReferencesOperation().createBranch(name, snapshotId);
     return this;
