@@ -138,18 +138,16 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     // Use schema identifier field IDs as equality field id list by default
     Assert.assertEquals(
         table.schema().identifierFieldIds(),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds(ImmutableList.of())));
 
     // Use user-provided equality field column as equality field id list
-    builder.equalityFieldColumns(Lists.newArrayList("id"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("id").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds(Lists.newArrayList("id"))));
 
-    builder.equalityFieldColumns(Lists.newArrayList("type"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("type").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds(Lists.newArrayList("type"))));
   }
 
   @Test

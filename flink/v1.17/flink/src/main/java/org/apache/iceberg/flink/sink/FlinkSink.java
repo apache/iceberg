@@ -275,7 +275,8 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder equalityFieldColumns(List<String> columns) {
-      this.equalityFieldColumns = columns;
+      writeOptions.put(
+          FlinkWriteOptions.EQUALITY_COLUMNS.key(), FlinkWriteConf.COMMA_JOINER.join(columns));
       return this;
     }
 
@@ -346,8 +347,9 @@ public class FlinkSink {
 
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
+      this.equalityFieldColumns = flinkWriteConf.equalityColumns();
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
+      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds(equalityFieldColumns);
 
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
@@ -384,12 +386,11 @@ public class FlinkSink {
     }
 
     @VisibleForTesting
-    List<Integer> checkAndGetEqualityFieldIds() {
+    List<Integer> checkAndGetEqualityFieldIds(List<String> equalityColumns) {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
-        Set<Integer> equalityFieldSet =
-            Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-        for (String column : equalityFieldColumns) {
+      if (equalityColumns != null && !equalityColumns.isEmpty()) {
+        Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityColumns.size());
+        for (String column : equalityColumns) {
           org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
           Preconditions.checkNotNull(
               field,

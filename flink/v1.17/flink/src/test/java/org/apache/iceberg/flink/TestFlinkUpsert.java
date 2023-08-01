@@ -343,4 +343,48 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
+
+  @Test
+  public void testEqualityColumnsOptions() {
+    String tableName = "test_equality_columns_options";
+    LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
+    LocalDate dt20220302 = LocalDate.of(2022, 3, 2);
+
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, name STRING NOT NULL, dt DATE) "
+            + "PARTITIONED BY (dt) WITH %s",
+        tableName, toWithClause(tableUpsertProps));
+
+    try {
+      sql(
+          "INSERT INTO %s /*+ OPTIONS('equality-columns'='id,dt') */ VALUES "
+              + "(1, 'Bill', DATE '2022-03-01'),"
+              + "(1, 'Jane', DATE '2022-03-01'),"
+              + "(2, 'Jane', DATE '2022-03-01')",
+          tableName);
+
+      sql(
+          "INSERT INTO %s /*+ OPTIONS('equality-columns'='id,dt') */ VALUES "
+              + "(2, 'Bill', DATE '2022-03-01'),"
+              + "(1, 'Jane', DATE '2022-03-02'),"
+              + "(2, 'Jane', DATE '2022-03-02')",
+          tableName);
+
+      List<Row> rowsOn20220301 =
+          Lists.newArrayList(Row.of(1, "Jane", dt20220301), Row.of(2, "Bill", dt20220301));
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s WHERE dt < '2022-03-02'", tableName), rowsOn20220301);
+
+      List<Row> rowsOn20220302 =
+          Lists.newArrayList(Row.of(1, "Jane", dt20220302), Row.of(2, "Jane", dt20220302));
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s WHERE dt = '2022-03-02'", tableName), rowsOn20220302);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Iterables.concat(rowsOn20220301, rowsOn20220302)));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
 }

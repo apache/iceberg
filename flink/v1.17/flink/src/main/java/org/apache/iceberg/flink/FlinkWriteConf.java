@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ReadableConfig;
@@ -26,6 +27,9 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -48,6 +52,8 @@ import org.apache.iceberg.TableProperties;
 public class FlinkWriteConf {
 
   private final FlinkConfParser confParser;
+  public static final Splitter COMMA_SPLITTER = Splitter.on(",");
+  public static final Joiner COMMA_JOINER = Joiner.on(",");
 
   public FlinkWriteConf(
       Table table, Map<String, String> writeOptions, ReadableConfig readableConfig) {
@@ -201,5 +207,15 @@ public class FlinkWriteConf {
         .option(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key())
         .flinkConfig(FlinkWriteOptions.TABLE_REFRESH_INTERVAL)
         .parseOptional();
+  }
+
+  public List<String> equalityColumns() {
+    String cols =
+        confParser.stringConf().option(FlinkWriteOptions.EQUALITY_COLUMNS.key()).parseOptional();
+    if (cols == null || cols.isEmpty()) {
+      return ImmutableList.of();
+    } else {
+      return COMMA_SPLITTER.splitToList(cols);
+    }
   }
 }

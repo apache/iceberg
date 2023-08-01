@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
@@ -35,7 +36,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
   private final TableLoader tableLoader;
@@ -70,21 +70,22 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
-    List<String> equalityColumns =
-        tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
+    Optional<List<String>> equalityColumns =
+        tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns);
 
     return new DataStreamSinkProvider() {
       @Override
       public DataStreamSink<?> consumeDataStream(
           ProviderContext providerContext, DataStream<RowData> dataStream) {
-        return FlinkSink.forRowData(dataStream)
-            .tableLoader(tableLoader)
-            .tableSchema(tableSchema)
-            .equalityFieldColumns(equalityColumns)
-            .overwrite(overwrite)
-            .setAll(writeProps)
-            .flinkConf(readableConfig)
-            .append();
+        FlinkSink.Builder builder =
+            FlinkSink.forRowData(dataStream)
+                .tableLoader(tableLoader)
+                .tableSchema(tableSchema)
+                .overwrite(overwrite)
+                .setAll(writeProps)
+                .flinkConf(readableConfig);
+        equalityColumns.ifPresent(builder::equalityFieldColumns);
+        return builder.append();
       }
     };
   }

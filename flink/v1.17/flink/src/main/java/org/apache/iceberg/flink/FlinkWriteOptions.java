@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import java.time.Duration;
+import java.util.List;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -70,4 +71,7 @@ public class FlinkWriteOptions {
   @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =
       ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();
+
+  public static final ConfigOption<List<String>> EQUALITY_COLUMNS =
+      ConfigOptions.key("equality-columns").stringType().asList().defaultValues();
 }
