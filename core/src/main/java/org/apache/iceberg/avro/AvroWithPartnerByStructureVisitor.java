@@ -108,7 +108,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
           types.stream().filter(t -> t.getType() != Schema.Type.NULL).collect(Collectors.toList());
       for (int i = 0; i < nonNullTypes.size(); i++) {
         // In the case of complex union, the corresponding "type" is a struct. Non-null type i in
-        // the union maps to struct filed i + 1 because the first struct field is the "tag".
+        // the union maps to struct field i + 1 because the first struct field is the "tag".
         options.add(
             visit(visitor.fieldNameAndType(type, i + 1).second(), nonNullTypes.get(i), visitor));
       }

@@ -61,8 +61,8 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
       int index = 0;
       // Avro spec for union types states that unions may not contain more than one schema with the
       // same type, except for the named types record, fixed and enum. For example, unions
-      // containing two array types or two map types are not permitted, but two types with different
-      // names are permitted.
+      // containing two array types or two map types are not permitted, but two named types with
+      // different names are permitted.
       // Therefore, for non-named types, use the Avro type toString() as the field mapping key. For
       // named types, use the record name of the Avro type as the field mapping key.
       for (Schema option : union.getTypes()) {
@@ -82,13 +82,12 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
             fields.add(
                 MappedField.of(
                     struct.fields().get(index).fieldId(),
-                    option.toString(),
+                    option.getType().getName(),
                     optionResults.get(index)));
           }
 
           // Both iStruct and optionResults do not contain an entry for the NULL type, so we need to
-          // increment i only
-          // when we encounter a non-NULL type.
+          // increment i only when we encounter a non-NULL type.
           index++;
         }
       }

@@ -64,7 +64,7 @@ public class TestNameMappingWithAvroSchema {
                           Schema.createRecord(
                               "innerRecord1",
                               null,
-                              null,
+                              "namespace1",
                               false,
                               Lists.newArrayList(
                                   new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
@@ -72,7 +72,7 @@ public class TestNameMappingWithAvroSchema {
                           Schema.createRecord(
                               "innerRecord2",
                               null,
-                              null,
+                              "namespace2",
                               false,
                               Lists.newArrayList(
                                   new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
@@ -80,7 +80,7 @@ public class TestNameMappingWithAvroSchema {
                           Schema.createRecord(
                               "innerRecord3",
                               null,
-                              null,
+                              "namespace3",
                               false,
                               Lists.newArrayList(
                                   new Schema.Field(
@@ -112,7 +112,7 @@ public class TestNameMappingWithAvroSchema {
                 5,
                 "complexUnion",
                 MappedFields.of(
-                    MappedField.of(17, "\"string\""),
+                    MappedField.of(17, "string"),
                     MappedField.of(
                         18,
                         "innerRecord1",
@@ -129,8 +129,7 @@ public class TestNameMappingWithAvroSchema {
                                 16,
                                 "innerUnion",
                                 MappedFields.of(
-                                    MappedField.of(13, "\"string\""),
-                                    MappedField.of(14, "\"int\""))))),
+                                    MappedField.of(13, "string"), MappedField.of(14, "int"))))),
                     MappedField.of(21, "timezone"),
                     MappedField.of(22, "bitmap"))));
     Assert.assertEquals(
