@@ -84,7 +84,7 @@ Start the Flink SQL client. There is a separate `flink-runtime` module in the Ic
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`   
 
 # Below works for 1.15 or less
-./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar shell
+./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-{{% icebergVersion %}}.jar shell
 
 # 1.16 or above has a regression in loading external jar via -j option. See FLINK-30035 for details.
 put iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar in flink/lib dir
