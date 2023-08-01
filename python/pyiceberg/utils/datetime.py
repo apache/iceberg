@@ -68,7 +68,7 @@ def time_str_to_micros(time_str: str) -> int:
 
 def time_to_micros(t: time) -> int:
     """Converts a datetime.time object to microseconds from midnight."""
-    return int((((t.hour * 60 * 60) + (t.minute * 60) + t.second) * 1e6) + t.microsecond)
+    return (((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond
 
 
 def datetime_to_micros(dt: datetime) -> int:
