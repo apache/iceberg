@@ -184,12 +184,10 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    // Note that BlobId.fromGsUtilUri() will throw an exception if no path is given
-    // after the bucket name, so listing from root isn't supported
-    BlobId blobId = BlobId.fromGsUtilUri(prefix);
+    GCSLocation location = new GCSLocation(prefix);
     return () ->
         client()
-            .list(blobId.getBucket(), Storage.BlobListOption.prefix(blobId.getName()))
+            .list(location.bucket(), Storage.BlobListOption.prefix(location.prefix()))
             .streamAll()
             .map(
                 blob ->
