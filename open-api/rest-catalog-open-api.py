@@ -17,8 +17,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Extra, Field
 
@@ -85,18 +84,6 @@ class PrimitiveType(BaseModel):
     __root__: str = Field(..., example=['long', 'string', 'fixed[16]', 'decimal(10,2)'])
 
 
-class Type1(Enum):
-    struct = 'struct'
-
-
-class Type2(Enum):
-    list = 'list'
-
-
-class Type3(Enum):
-    map = 'map'
-
-
 class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
@@ -126,10 +113,6 @@ class Reference(BaseModel):
     __root__: str = Field(..., example=['column-name'])
 
 
-class Type4(Enum):
-    transform = 'transform'
-
-
 class Transform(BaseModel):
     __root__: str = Field(
         ...,
@@ -157,14 +140,12 @@ class PartitionSpec(BaseModel):
     fields: List[PartitionField]
 
 
-class SortDirection(Enum):
-    asc = 'asc'
-    desc = 'desc'
+class SortDirection(BaseModel):
+    __root__: Literal['asc', 'desc']
 
 
-class NullOrder(Enum):
-    nulls_first = 'nulls-first'
-    nulls_last = 'nulls-last'
+class NullOrder(BaseModel):
+    __root__: Literal['nulls-first', 'nulls-last']
 
 
 class SortField(BaseModel):
@@ -179,15 +160,8 @@ class SortOrder(BaseModel):
     fields: List[SortField]
 
 
-class Operation(Enum):
-    append = 'append'
-    replace = 'replace'
-    overwrite = 'overwrite'
-    delete = 'delete'
-
-
 class Summary(BaseModel):
-    operation: Operation
+    operation: Literal['append', 'replace', 'overwrite', 'delete']
     additionalProperties: Optional[str] = None
 
 
@@ -205,13 +179,8 @@ class Snapshot(BaseModel):
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
 
-class Type5(Enum):
-    tag = 'tag'
-    branch = 'branch'
-
-
 class SnapshotReference(BaseModel):
-    type: Type5
+    type: Literal['tag', 'branch']
     snapshot_id: int = Field(..., alias='snapshot-id')
     max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
     max_snapshot_age_ms: Optional[int] = Field(None, alias='max-snapshot-age-ms')
@@ -240,25 +209,23 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
-class Action(Enum):
-    upgrade_format_version = 'upgrade-format-version'
-    add_schema = 'add-schema'
-    set_current_schema = 'set-current-schema'
-    add_spec = 'add-spec'
-    set_default_spec = 'set-default-spec'
-    add_sort_order = 'add-sort-order'
-    set_default_sort_order = 'set-default-sort-order'
-    add_snapshot = 'add-snapshot'
-    set_snapshot_ref = 'set-snapshot-ref'
-    remove_snapshots = 'remove-snapshots'
-    remove_snapshot_ref = 'remove-snapshot-ref'
-    set_location = 'set-location'
-    set_properties = 'set-properties'
-    remove_properties = 'remove-properties'
-
-
 class BaseUpdate(BaseModel):
-    action: Action
+    action: Literal[
+        'upgrade-format-version',
+        'add-schema',
+        'set-current-schema',
+        'add-spec',
+        'set-default-spec',
+        'add-sort-order',
+        'set-default-sort-order',
+        'add-snapshot',
+        'set-snapshot-ref',
+        'remove-snapshots',
+        'remove-snapshot-ref',
+        'set-location',
+        'set-properties',
+        'remove-properties',
+    ]
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
@@ -325,17 +292,6 @@ class RemovePropertiesUpdate(BaseUpdate):
     removals: List[str]
 
 
-class Type6(Enum):
-    assert_create = 'assert-create'
-    assert_table_uuid = 'assert-table-uuid'
-    assert_ref_snapshot_id = 'assert-ref-snapshot-id'
-    assert_last_assigned_field_id = 'assert-last-assigned-field-id'
-    assert_current_schema_id = 'assert-current-schema-id'
-    assert_last_assigned_partition_id = 'assert-last-assigned-partition-id'
-    assert_default_spec_id = 'assert-default-spec-id'
-    assert_default_sort_order_id = 'assert-default-sort-order-id'
-
-
 class TableRequirement(BaseModel):
     """
     Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
@@ -349,7 +305,16 @@ class TableRequirement(BaseModel):
     - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Type6
+    type: Literal[
+        'assert-create',
+        'assert-table-uuid',
+        'assert-ref-snapshot-id',
+        'assert-last-assigned-field-id',
+        'assert-current-schema-id',
+        'assert-last-assigned-partition-id',
+        'assert-default-spec-id',
+        'assert-default-sort-order-id',
+    ]
     ref: Optional[str] = None
     uuid: Optional[str] = None
     snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
@@ -367,29 +332,18 @@ class RegisterTableRequest(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
 
 
-class TokenType(Enum):
-    """
-    Token type identifier, from RFC 8693 Section 3
-
-    See https://datatracker.ietf.org/doc/html/rfc8693#section-3
-    """
-
-    urn_ietf_params_oauth_token_type_access_token = (
-        'urn:ietf:params:oauth:token-type:access_token'
+class TokenType(BaseModel):
+    __root__: Literal[
+        'urn:ietf:params:oauth:token-type:access_token',
+        'urn:ietf:params:oauth:token-type:refresh_token',
+        'urn:ietf:params:oauth:token-type:id_token',
+        'urn:ietf:params:oauth:token-type:saml1',
+        'urn:ietf:params:oauth:token-type:saml2',
+        'urn:ietf:params:oauth:token-type:jwt',
+    ] = Field(
+        ...,
+        description='Token type identifier, from RFC 8693 Section 3\n\nSee https://datatracker.ietf.org/doc/html/rfc8693#section-3',
     )
-    urn_ietf_params_oauth_token_type_refresh_token = (
-        'urn:ietf:params:oauth:token-type:refresh_token'
-    )
-    urn_ietf_params_oauth_token_type_id_token = (
-        'urn:ietf:params:oauth:token-type:id_token'
-    )
-    urn_ietf_params_oauth_token_type_saml1 = 'urn:ietf:params:oauth:token-type:saml1'
-    urn_ietf_params_oauth_token_type_saml2 = 'urn:ietf:params:oauth:token-type:saml2'
-    urn_ietf_params_oauth_token_type_jwt = 'urn:ietf:params:oauth:token-type:jwt'
-
-
-class GrantType(Enum):
-    client_credentials = 'client_credentials'
 
 
 class OAuthClientCredentialsRequest(BaseModel):
@@ -399,7 +353,7 @@ class OAuthClientCredentialsRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
     """
 
-    grant_type: GrantType
+    grant_type: Literal['client_credentials']
     scope: Optional[str] = None
     client_id: str = Field(
         ...,
@@ -411,12 +365,6 @@ class OAuthClientCredentialsRequest(BaseModel):
     )
 
 
-class GrantType1(Enum):
-    urn_ietf_params_oauth_grant_type_token_exchange = (
-        'urn:ietf:params:oauth:grant-type:token-exchange'
-    )
-
-
 class OAuthTokenExchangeRequest(BaseModel):
     """
     OAuth2 token exchange request
@@ -424,7 +372,7 @@ class OAuthTokenExchangeRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc8693
     """
 
-    grant_type: GrantType1
+    grant_type: Literal['urn:ietf:params:oauth:grant-type:token-exchange']
     scope: Optional[str] = None
     requested_token_type: Optional[TokenType] = None
     subject_token: str = Field(
@@ -469,38 +417,24 @@ class CommitReport(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class Error(Enum):
-    invalid_request = 'invalid_request'
-    invalid_client = 'invalid_client'
-    invalid_grant = 'invalid_grant'
-    unauthorized_client = 'unauthorized_client'
-    unsupported_grant_type = 'unsupported_grant_type'
-    invalid_scope = 'invalid_scope'
-
-
 class OAuthError(BaseModel):
-    error: Error
+    error: Literal[
+        'invalid_request',
+        'invalid_client',
+        'invalid_grant',
+        'unauthorized_client',
+        'unsupported_grant_type',
+        'invalid_scope',
+    ]
     error_description: Optional[str] = None
     error_uri: Optional[str] = None
-
-
-class TokenType1(Enum):
-    """
-    Access token type for client credentials or token exchange
-
-    See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
-    """
-
-    bearer = 'bearer'
-    mac = 'mac'
-    N_A = 'N_A'
 
 
 class OAuthTokenResponse(BaseModel):
     access_token: str = Field(
         ..., description='The access token, for client credentials or token exchange'
     )
-    token_type: TokenType1 = Field(
+    token_type: Literal['bearer', 'mac', 'N_A'] = Field(
         ...,
         description='Access token type for client credentials or token exchange\n\nSee https://datatracker.ietf.org/doc/html/rfc6749#section-7.1',
     )
@@ -578,7 +512,7 @@ class RenameTableRequest(BaseModel):
 
 
 class TransformTerm(BaseModel):
-    type: Type4
+    type: Literal['transform']
     transform: Transform
     term: Reference
 
@@ -618,19 +552,19 @@ class StructField(BaseModel):
 
 
 class StructType(BaseModel):
-    type: Type1
+    type: Literal['struct']
     fields: List[StructField]
 
 
 class ListType(BaseModel):
-    type: Type2
+    type: Literal['list']
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
 
 
 class MapType(BaseModel):
-    type: Type3
+    type: Literal['map']
     key_id: int = Field(..., alias='key-id')
     key: Type
     value_id: int = Field(..., alias='value-id')
