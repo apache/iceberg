@@ -110,11 +110,7 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
     out.writeInt(this.relativeIndex);
     out.writeObject(this.keyDataType);
     out.writeBoolean(this.wrapper.isOneDimensional());
-    if (this.wrapper.isOneDimensional()) {
-      out.writeObject(this.wrapper.getBaseAs1DArray());
-    } else {
-      out.writeObject(this.wrapper.getBaseAs2DArray());
-    }
+    out.writeObject(this.wrapper.getBaseArray());
   }
 
   @Override

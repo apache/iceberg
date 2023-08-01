@@ -38,37 +38,31 @@ public final class BroadcastUtil {
   public static <T> Stream<Literal<T>> evaluateLiteral(BroadcastedJoinKeysWrapper bcVar) {
     // TODO: Verify if any of the element of broadcast varaibl keys can be null.
     // logicaly if it is null, it should not be present as key at all
-    return Stream.of(bcVar.getKeysArray().getBaseAs1DArray())
+    return Stream.of(bcVar.getKeysArray().getBaseArray())
         // .filter(Objects::nonNull)
-        .map(
-            ele ->
-                (Literal<T>)
-                    (ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) : null));
+        .map(ele ->(Literal<T>)(ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) : null));
   }
 
   public static List<Literal[]> evaluateLiteralFor2D(BroadcastedJoinKeysWrapper bcVar) {
-    return Stream.of(bcVar.getKeysArray().getBaseAs2DArray())
-        .map(
-            (Object[] eleArr) ->
-                Arrays.stream(eleArr)
-                    .map(
-                        (Object ele) ->
-                            ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) : null)
-                    .toArray(len -> new Literal[len]))
-        .collect(Collectors.<Literal[]>toList());
+    return Stream.of(bcVar.getKeysArray().getBaseArray())
+        .map(eleArrArg -> {
+              Object[] eleArr = (Object[]) eleArrArg;
+              return Arrays.stream(eleArr).map(ele -> ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) :
+                  null).toArray(len -> new Literal[len]);
+            }).collect(Collectors.<Literal[]>toList());
   }
 
   public static <S, T> Stream<Literal<T>> evaluateLiteralWithTransform(
       BroadcastedJoinKeysWrapper bcVar, Function<S, T> transform, boolean fixDate) {
     if (fixDate) {
       List<Object> temp =
-          Stream.of(bcVar.getKeysArray().getBaseAs1DArray()) // .filter(Objects::nonNull).
+          Stream.of(bcVar.getKeysArray().getBaseArray()) // .filter(Objects::nonNull).
               .map(x -> x != null ? transform.apply((S) SparkFilters.convertLiteral(x)) : null)
               .collect(Collectors.toList());
       return Transform.dateFixer.apply(temp).stream()
           .map(x -> x != null ? Literals.from((T) x) : null);
     } else {
-      return Stream.of(bcVar.getKeysArray().getBaseAs1DArray())
+      return Stream.of(bcVar.getKeysArray().getBaseArray())
           // .filter(Objects::nonNull).
           .map(
               x ->
@@ -86,25 +80,23 @@ public final class BroadcastUtil {
       boolean fixDate) {
     if (fixDate) {
       List<Object> temp =
-          Stream.of(bcVar.getKeysArray().getBaseAs2DArray())
+          Stream.of(bcVar.getKeysArray().getBaseArray())
               .map(
-                  eleArr ->
-                      eleArr[relativeKeyIndex] != null
-                          ? transform.apply(
-                              (S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex]))
-                          : null)
-              .collect(Collectors.toList());
+                  eleArrArg -> {Object[] eleArr = (Object[])eleArrArg;
+                  return eleArr[relativeKeyIndex] != null ? transform.apply(
+                      (S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex])): null;
+                  }).collect(Collectors.toList());
       return Transform.dateFixer.apply(temp).stream()
           .map(x -> x != null ? Literals.from((T) x) : null);
     } else {
-      return Stream.of(bcVar.getKeysArray().getBaseAs2DArray())
+      return Stream.of(bcVar.getKeysArray().getBaseArray())
           .map(
-              eleArr ->
-                  eleArr[relativeKeyIndex] != null
-                      ? Literals.from(
-                          transform.apply(
-                              (S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex])))
-                      : null);
+              eleArrArg -> {
+                  Object[] eleArr = (Object[])eleArrArg;
+                  return eleArr[relativeKeyIndex] != null ? Literals.from(
+                          transform.apply((S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex]))): null;
+              }
+          );
     }
   }
 }
