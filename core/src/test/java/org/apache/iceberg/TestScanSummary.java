@@ -29,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -89,11 +90,9 @@ public class TestScanSummary extends TableTestBase {
             .filter(greaterThanOrEqual("dateCreated", t0))
             .filter(lessThan("dateCreated", t2));
 
-    AssertHelpers.assertThrows(
-        "Should fail summary because range may include expired snapshots",
-        IllegalArgumentException.class,
-        "may include expired snapshots",
-        () -> new ScanSummary.Builder(scan).build());
+    Assertions.assertThatThrownBy(() -> new ScanSummary.Builder(scan).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot satisfy time filters: time range may include expired snapshots");
   }
 
   @Test
@@ -147,13 +146,12 @@ public class TestScanSummary extends TableTestBase {
             ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", upper))));
 
     // >= lower and < lower is an empty range
-    AssertHelpers.assertThrows(
-        "Should reject empty ranges",
-        IllegalArgumentException.class,
-        "No timestamps can match filters",
-        () ->
-            timestampRange(
-                ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", lower))));
+    Assertions.assertThatThrownBy(
+            () ->
+                timestampRange(
+                    ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", lower))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("No timestamps can match filters");
   }
 
   @Test

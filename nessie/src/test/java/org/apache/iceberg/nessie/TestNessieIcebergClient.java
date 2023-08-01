@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.IOException;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
@@ -88,5 +89,17 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThat(client.withReference(branch, null).getRef().getReference())
         .isEqualTo(ref);
     Assertions.assertThat(client.withReference(branch, null)).isNotEqualTo(client);
+  }
+
+  @Test
+  public void testInvalidClientApiVersion() throws IOException {
+    try (NessieCatalog newCatalog = new NessieCatalog()) {
+      newCatalog.setConf(hadoopConfig);
+      ImmutableMap.Builder<String, String> options =
+          ImmutableMap.<String, String>builder().put("client-api-version", "3");
+      Assertions.assertThatThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
+    }
   }
 }

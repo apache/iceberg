@@ -32,6 +32,7 @@ case class CreateOrReplaceBranchExec(
                               ident: Identifier,
                               branch: String,
                               branchOptions: BranchOptions,
+                              create: Boolean,
                               replace: Boolean,
                               ifNotExists: Boolean) extends LeafV2CommandExec {
 
@@ -47,19 +48,29 @@ case class CreateOrReplaceBranchExec(
           .map(java.lang.Long.valueOf)
           .orNull
 
-        Preconditions.checkArgument(snapshotId != null,
-          "Cannot complete create or replace branch operation on %s, main has no snapshot", ident)
-
         val manageSnapshots = iceberg.table().manageSnapshots()
-        if (!replace) {
-          val ref = iceberg.table().refs().get(branch)
-          if (ref != null && ifNotExists) {
+        val refExists = null != iceberg.table().refs().get(branch)
+
+        def safeCreateBranch(): Unit = {
+          if (snapshotId == null) {
+            manageSnapshots.createBranch(branch)
+          } else {
+            manageSnapshots.createBranch(branch, snapshotId)
+          }
+        }
+
+        if (create && replace && !refExists) {
+          safeCreateBranch()
+        } else if (replace) {
+          Preconditions.checkArgument(snapshotId != null,
+            "Cannot complete replace branch operation on %s, main has no snapshot", ident)
+          manageSnapshots.replaceBranch(branch, snapshotId)
+        } else {
+          if (refExists && ifNotExists) {
             return Nil
           }
 
-          manageSnapshots.createBranch(branch, snapshotId)
-        } else {
-          manageSnapshots.replaceBranch(branch, snapshotId)
+          safeCreateBranch()
         }
 
         if (branchOptions.numSnapshots.nonEmpty) {

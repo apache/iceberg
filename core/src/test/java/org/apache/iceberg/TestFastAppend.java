@@ -239,11 +239,9 @@ public class TestFastAppend extends TableTestBase {
     ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
   }
@@ -260,11 +258,9 @@ public class TestFastAppend extends TableTestBase {
     ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
   }
@@ -376,8 +372,9 @@ public class TestFastAppend extends TableTestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit", CommitFailedException.class, "Injected failure", append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
   }
@@ -391,19 +388,17 @@ public class TestFastAppend extends TableTestBase {
 
     ManifestFile manifestWithExistingFiles =
         writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with existing files",
-        () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with existing files");
 
     ManifestFile manifestWithDeletedFiles =
         writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with deleted files",
-        () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with deleted files");
   }
 
   @Test

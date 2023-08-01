@@ -45,7 +45,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -137,35 +136,27 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   }
 
   @Override
-  public void renameTable(TableIdentifier fromTableIdentifier, TableIdentifier toTableIdentifier) {
-    if (fromTableIdentifier.equals(toTableIdentifier)) {
+  public synchronized void renameTable(TableIdentifier from, TableIdentifier to) {
+    if (from.equals(to)) {
       return;
     }
 
-    if (!namespaceExists(toTableIdentifier.namespace())) {
+    if (!namespaceExists(to.namespace())) {
       throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s",
-          fromTableIdentifier, toTableIdentifier, toTableIdentifier.namespace());
+          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
     }
 
-    if (!tables.containsKey(fromTableIdentifier)) {
-      throw new NoSuchTableException(
-          "Cannot rename %s to %s. Table does not exist", fromTableIdentifier, toTableIdentifier);
+    String fromLocation = tables.get(from);
+    if (null == fromLocation) {
+      throw new NoSuchTableException("Cannot rename %s to %s. Table does not exist", from, to);
     }
 
-    if (tables.containsKey(toTableIdentifier)) {
-      throw new AlreadyExistsException(
-          "Cannot rename %s to %s. Table already exists", fromTableIdentifier, toTableIdentifier);
+    if (tables.containsKey(to)) {
+      throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
     }
 
-    String fromLocation = tables.remove(fromTableIdentifier);
-    Preconditions.checkState(
-        null != fromLocation,
-        "Cannot rename from %s to %s. Source table does not exist",
-        fromTableIdentifier,
-        toTableIdentifier);
-
-    tables.put(toTableIdentifier, fromLocation);
+    tables.put(to, fromLocation);
+    tables.remove(from);
   }
 
   @Override

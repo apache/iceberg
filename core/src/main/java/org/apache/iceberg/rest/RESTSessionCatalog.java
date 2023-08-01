@@ -52,6 +52,7 @@ import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -63,13 +64,18 @@ import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
@@ -400,7 +406,40 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
-    throw new UnsupportedOperationException("Register table is not supported");
+    checkIdentifierIsValid(ident);
+
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Invalid metadata file location: %s",
+        metadataFileLocation);
+
+    RegisterTableRequest request =
+        ImmutableRegisterTableRequest.builder()
+            .name(ident.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    LoadTableResponse response =
+        client.post(
+            paths.register(ident.namespace()),
+            request,
+            LoadTableResponse.class,
+            headers(context),
+            ErrorHandlers.tableErrorHandler());
+
+    AuthSession session = tableSession(response.config(), session(context));
+    RESTTableOperations ops =
+        new RESTTableOperations(
+            client,
+            paths.table(ident),
+            session::headers,
+            tableFileIO(context, response.config()),
+            response.tableMetadata());
+
+    trackFileIO(ops);
+
+    return new BaseTable(
+        ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
   }
 
   @Override
@@ -915,5 +954,21 @@ public class RESTSessionCatalog extends BaseSessionCatalog
                   }
                 })
         .build();
+  }
+
+  public void commitTransaction(SessionContext context, List<TableCommit> commits) {
+    List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
+
+    for (TableCommit commit : commits) {
+      tableChanges.add(
+          UpdateTableRequest.create(commit.identifier(), commit.requirements(), commit.updates()));
+    }
+
+    client.post(
+        paths.commitTransaction(),
+        new CommitTransactionRequest(tableChanges),
+        null,
+        headers(context),
+        ErrorHandlers.tableCommitHandler());
   }
 }

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.dell.mock.ecs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.emc.object.Protocol;
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
@@ -91,7 +93,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Assert;
 
 /** Memorized s3 client used in tests. */
 public class MockS3Client implements S3Client {
@@ -121,7 +122,7 @@ public class MockS3Client implements S3Client {
       }
     } else if (request.getIfNoneMatch() != null) {
       // Put if absent
-      Assert.assertEquals("If-None-Match only allow *", "*", request.getIfNoneMatch());
+      assertThat(request.getIfNoneMatch()).as("If-None-Match only allow *").isEqualTo("*");
       if (this.objectData.putIfAbsent(objectId, data) != null) {
         throw new S3Exception("", 412, "PreconditionFailed", "");
       }
@@ -212,7 +213,7 @@ public class MockS3Client implements S3Client {
     String marker = request.getMarker();
     String delimiter = request.getDelimiter();
     // Use a small default value in mock client
-    Assert.assertNull("MaxKeys does not set", request.getMaxKeys());
+    assertThat(request.getMaxKeys()).as("MaxKeys does not set").isNull();
     int maxKeys = 5;
 
     List<S3Object> objectResults = Lists.newArrayListWithCapacity(maxKeys);

@@ -27,7 +27,6 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -72,19 +71,6 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
     Assert.assertTrue(
         "Database should be created", validationNamespaceCatalog.namespaceExists(icebergNamespace));
-  }
-
-  @Test
-  public void testDefaultDatabase() {
-    sql("USE CATALOG %s", catalogName);
-    sql("SHOW TABLES");
-
-    Assert.assertEquals(
-        "Should use the current catalog", getTableEnv().getCurrentCatalog(), catalogName);
-    Assert.assertEquals(
-        "Should use the configured default namespace",
-        getTableEnv().getCurrentDatabase(),
-        "default");
   }
 
   @Test
@@ -174,22 +160,17 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     List<Row> databases = sql("SHOW DATABASES");
 
     if (isHadoopCatalog) {
-      Assert.assertEquals("Should have 2 database", 2, databases.size());
-      Assert.assertEquals(
-          "Should have db and default database",
-          Sets.newHashSet("default", "db"),
-          Sets.newHashSet(databases.get(0).getField(0), databases.get(1).getField(0)));
+      Assert.assertEquals("Should have 1 database", 1, databases.size());
+      Assert.assertEquals("Should have db database", "db", databases.get(0).getField(0));
 
       if (!baseNamespace.isEmpty()) {
         // test namespace not belongs to this catalog
         validationNamespaceCatalog.createNamespace(
             Namespace.of(baseNamespace.level(0), "UNKNOWN_NAMESPACE"));
         databases = sql("SHOW DATABASES");
-        Assert.assertEquals("Should have 2 database", 2, databases.size());
+        Assert.assertEquals("Should have 1 database", 1, databases.size());
         Assert.assertEquals(
-            "Should have db and default database",
-            Sets.newHashSet("default", "db"),
-            Sets.newHashSet(databases.get(0).getField(0), databases.get(1).getField(0)));
+            "Should have db and default database", "db", databases.get(0).getField(0));
       }
     } else {
       // If there are multiple classes extends FlinkTestBase, TestHiveMetastore may loose the

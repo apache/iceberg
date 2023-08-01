@@ -28,8 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestUpdateNamespacePropertiesRequest
     extends RequestResponseTestBase<UpdateNamespacePropertiesRequest> {
@@ -212,12 +211,12 @@ public class TestUpdateNamespacePropertiesRequest
   @Override
   public void assertEquals(
       UpdateNamespacePropertiesRequest actual, UpdateNamespacePropertiesRequest expected) {
-    Assert.assertEquals(
-        "Properties to update should be equal", actual.updates(), expected.updates());
-    Assert.assertEquals(
-        "Properties to remove should be equal",
-        Sets.newHashSet(actual.removals()),
-        Sets.newHashSet(expected.removals()));
+    Assertions.assertThat(actual.updates())
+        .as("Properties to update should be equal")
+        .isEqualTo(expected.updates());
+    Assertions.assertThat(Sets.newHashSet(actual.removals()))
+        .as("Properties to remove should be equal")
+        .containsExactlyInAnyOrderElementsOf(Sets.newHashSet(expected.removals()));
   }
 
   @Override

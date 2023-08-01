@@ -32,10 +32,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
@@ -49,6 +55,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
@@ -461,5 +469,103 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     Preconditions.checkState(
         file.isDirectory(), "Table location '%s' does not point to a directory", location);
     return file;
+  }
+
+  @Test
+  public void testRemoveOrphanFilesProcedureWithPrefixMode()
+      throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, temp.newFolder().toURI().toString());
+    }
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String location = table.location();
+    Path originalPath = new Path(location);
+    FileSystem localFs = FileSystem.getLocal(new Configuration());
+    Path originalDataPath = new Path(originalPath, "data");
+    localFs.mkdirs(originalDataPath);
+    localFs.create(new Path(originalDataPath, "data-a.parquet")).close();
+    localFs.create(new Path(originalDataPath, "data-b.parquet")).close();
+
+    URI uri = originalPath.toUri();
+    Path newParentPath = new Path("file1", uri.getAuthority(), uri.getPath());
+
+    DataFile dataFile1 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "data/data-a.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "data/data-b.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    table.newFastAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    Assert.assertEquals(
+        0,
+        sql(
+                "CALL %s.system.remove_orphan_files("
+                    + "table => '%s',"
+                    + "older_than => TIMESTAMP '%s',"
+                    + "equal_schemes => map('file1', 'file'))",
+                catalogName, tableIdent, currentTimestamp)
+            .size());
+
+    // Test with no equal schemes
+    AssertHelpers.assertThrows(
+        "Should complain about removing orphan files",
+        ValidationException.class,
+        "Conflicting authorities/schemes: [(file1, file)]",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files("
+                    + "table => '%s',"
+                    + "older_than => TIMESTAMP '%s')",
+                catalogName, tableIdent, currentTimestamp));
+
+    AssertHelpers.assertThrows(
+        "Should complain about removing orphan files",
+        ValidationException.class,
+        "Conflicting authorities/schemes: [(file1, file)]",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files("
+                    + "table => '%s',"
+                    + "older_than => TIMESTAMP '%s',"
+                    + "prefix_mismatch_mode => 'error')",
+                catalogName, tableIdent, currentTimestamp));
+
+    Assert.assertEquals(
+        2,
+        sql(
+                "CALL %s.system.remove_orphan_files("
+                    + "table => '%s',"
+                    + "older_than => TIMESTAMP '%s',"
+                    + "prefix_mismatch_mode => 'delete')",
+                catalogName, tableIdent, currentTimestamp)
+            .size());
+
+    Assert.assertEquals(
+        0,
+        sql(
+                "CALL %s.system.remove_orphan_files("
+                    + "table => '%s',"
+                    + "older_than => TIMESTAMP '%s',"
+                    + "prefix_mismatch_mode => 'ignore')",
+                catalogName, tableIdent, currentTimestamp)
+            .size());
+
+    // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
+    // Dropping the table here
+    sql("DROP TABLE %s", tableName);
   }
 }

@@ -35,8 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableRequest> {
 
@@ -259,20 +258,27 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
   @Override
   public void assertEquals(CreateTableRequest actual, CreateTableRequest expected) {
-    Assert.assertEquals("Name should be the same", expected.name(), actual.name());
-    Assert.assertEquals(
-        "Location should be the same if provided", expected.location(), actual.location());
-    Assert.assertTrue(
-        "Schemas should be equivalent and have same schema id",
-        expected.schema().sameSchema(actual.schema())
-            && expected.schema().schemaId() == actual.schema().schemaId());
-    Assert.assertEquals("Partition spec should be equal", expected.spec(), actual.spec());
-    Assert.assertEquals(
-        "Write [sort] order should be the same", expected.writeOrder(), actual.writeOrder());
-    Assert.assertEquals(
-        "Properties should be the same", expected.properties(), actual.properties());
-    Assert.assertEquals(
-        "Stage create should be equal", expected.stageCreate(), actual.stageCreate());
+    Assertions.assertThat(actual.name()).as("Name should be the same").isEqualTo(expected.name());
+    Assertions.assertThat(actual.location())
+        .as("Location should be the same if provided")
+        .isEqualTo(expected.location());
+    Assertions.assertThat(
+            expected.schema().sameSchema(actual.schema())
+                && expected.schema().schemaId() == actual.schema().schemaId())
+        .as("Schemas should be equivalent and have same schema id")
+        .isTrue();
+    Assertions.assertThat(actual.spec())
+        .as("Partition spec should be equal")
+        .isEqualTo(expected.spec());
+    Assertions.assertThat(actual.writeOrder())
+        .as("Write [sort] order should be the same")
+        .isEqualTo(expected.writeOrder());
+    Assertions.assertThat(actual.properties())
+        .as("Properties should be the same")
+        .isEqualTo(expected.properties());
+    Assertions.assertThat(actual.stageCreate())
+        .as("Stage create should be equal")
+        .isEqualTo(expected.stageCreate());
   }
 
   @Override

@@ -24,6 +24,7 @@ from typing import (
     Generic,
     Iterable,
     Set,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -57,7 +58,7 @@ def _to_literal(value: Union[L, Literal[L]]) -> Literal[L]:
 
 
 class BooleanExpression(ABC):
-    """An expression that evaluates to a boolean"""
+    """An expression that evaluates to a boolean."""
 
     @abstractmethod
     def __invert__(self) -> BooleanExpression:
@@ -65,18 +66,18 @@ class BooleanExpression(ABC):
 
 
 class Term(Generic[L], ABC):
-    """A simple expression that evaluates to a value"""
+    """A simple expression that evaluates to a value."""
 
 
 class Bound(ABC):
-    """Represents a bound value expression"""
+    """Represents a bound value expression."""
 
 
 B = TypeVar("B")
 
 
 class Unbound(Generic[B], ABC):
-    """Represents an unbound value expression"""
+    """Represents an unbound value expression."""
 
     @abstractmethod
     def bind(self, schema: Schema, case_sensitive: bool = True) -> B:
@@ -89,23 +90,23 @@ class Unbound(Generic[B], ABC):
 
 
 class BoundTerm(Term[L], Bound, ABC):
-    """Represents a bound term"""
+    """Represents a bound term."""
 
     @abstractmethod
     def ref(self) -> BoundReference[L]:
-        """Returns the bound reference"""
+        """Returns the bound reference."""
 
     @abstractmethod
     def eval(self, struct: StructProtocol) -> L:  # pylint: disable=W0613
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol"""
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol."""
 
 
 class BoundReference(BoundTerm[L]):
-    """A reference bound to a field in a schema
+    """A reference bound to a field in a schema.
 
     Args:
-        field (NestedField): A referenced field in an Iceberg schema
-        accessor (Accessor): An Accessor object to access the value at the field's position
+        field (NestedField): A referenced field in an Iceberg schema.
+        accessor (Accessor): An Accessor object to access the value at the field's position.
     """
 
     field: NestedField
@@ -116,19 +117,21 @@ class BoundReference(BoundTerm[L]):
         self.accessor = accessor
 
     def eval(self, struct: StructProtocol) -> L:
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol.
 
         Args:
-            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position.
         Returns:
-            Any: The value at the referenced field's position in `struct`
+            Any: The value at the referenced field's position in `struct`.
         """
         return self.accessor.get(struct)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the BoundReference class."""
         return self.field == other.field if isinstance(other, BoundReference) else False
 
     def __repr__(self) -> str:
+        """Returns the string representation of the BoundReference class."""
         return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
 
     def ref(self) -> BoundReference[L]:
@@ -144,13 +147,13 @@ class UnboundTerm(Term[Any], Unbound[BoundTerm[L]], ABC):
 
 
 class Reference(UnboundTerm[Any]):
-    """A reference not yet bound to a field in a schema
+    """A reference not yet bound to a field in a schema.
 
     Args:
-        name (str): The name of the field
+        name (str): The name of the field.
 
     Note:
-        An unbound reference is sometimes referred to as a "named" reference
+        An unbound reference is sometimes referred to as a "named" reference.
     """
 
     name: str
@@ -159,23 +162,25 @@ class Reference(UnboundTerm[Any]):
         self.name = name
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Reference class."""
         return f"Reference(name={repr(self.name)})"
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Reference class."""
         return self.name == other.name if isinstance(other, Reference) else False
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[L]:
-        """Bind the reference to an Iceberg schema
+        """Bind the reference to an Iceberg schema.
 
         Args:
-            schema (Schema): An Iceberg schema
-            case_sensitive (bool): Whether to consider case when binding the reference to the field
+            schema (Schema): An Iceberg schema.
+            case_sensitive (bool): Whether to consider case when binding the reference to the field.
 
         Raises:
-            ValueError: If an empty name is provided
+            ValueError: If an empty name is provided.
 
         Returns:
-            BoundReference: A reference bound to the specific field in the Iceberg schema
+            BoundReference: A reference bound to the specific field in the Iceberg schema.
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         accessor = schema.accessor_for_field(field.field_id)
@@ -187,7 +192,7 @@ class Reference(UnboundTerm[Any]):
 
 
 class And(BooleanExpression):
-    """AND operation expression - logical conjunction"""
+    """AND operation expression - logical conjunction."""
 
     left: BooleanExpression
     right: BooleanExpression
@@ -208,21 +213,29 @@ class And(BooleanExpression):
             return obj
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the And class."""
         return self.left == other.left and self.right == other.right if isinstance(other, And) else False
 
     def __str__(self) -> str:
+        """Returns the string representation of the And class."""
         return f"And(left={str(self.left)}, right={str(self.right)})"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the And class."""
         return f"And(left={repr(self.left)}, right={repr(self.right)})"
 
     def __invert__(self) -> BooleanExpression:
+        """Transform the Expression into its negated version."""
         # De Morgan's law: not (A and B) = (not A) or (not B)
         return Or(~self.left, ~self.right)
 
+    def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
+        """A magic function for pickling the And class."""
+        return (self.left, self.right)
+
 
 class Or(BooleanExpression):
-    """OR operation expression - logical disjunction"""
+    """OR operation expression - logical disjunction."""
 
     left: BooleanExpression
     right: BooleanExpression
@@ -243,18 +256,25 @@ class Or(BooleanExpression):
             return obj
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Or class."""
         return self.left == other.left and self.right == other.right if isinstance(other, Or) else False
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Or class."""
         return f"Or(left={repr(self.left)}, right={repr(self.right)})"
 
     def __invert__(self) -> BooleanExpression:
+        """Transform the Expression into its negated version."""
         # De Morgan's law: not (A or B) = (not A) and (not B)
         return And(~self.left, ~self.right)
 
+    def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
+        """A magic function for pickling the Or class."""
+        return (self.left, self.right)
+
 
 class Not(BooleanExpression):
-    """NOT operation expression - logical negation"""
+    """NOT operation expression - logical negation."""
 
     child: BooleanExpression
 
@@ -270,38 +290,51 @@ class Not(BooleanExpression):
         return obj
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Not class."""
         return f"Not(child={repr(self.child)})"
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Not class."""
         return self.child == other.child if isinstance(other, Not) else False
 
     def __invert__(self) -> BooleanExpression:
+        """Transform the Expression into its negated version."""
         return self.child
+
+    def __getnewargs__(self) -> Tuple[BooleanExpression]:
+        """A magic function for pickling the Not class."""
+        return (self.child,)
 
 
 class AlwaysTrue(BooleanExpression, Singleton):
-    """TRUE expression"""
+    """TRUE expression."""
 
     def __invert__(self) -> AlwaysFalse:
+        """Transform the Expression into its negated version."""
         return AlwaysFalse()
 
     def __str__(self) -> str:
+        """Returns the string representation of the AlwaysTrue class."""
         return "AlwaysTrue()"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the AlwaysTrue class."""
         return "AlwaysTrue()"
 
 
 class AlwaysFalse(BooleanExpression, Singleton):
-    """FALSE expression"""
+    """FALSE expression."""
 
     def __invert__(self) -> AlwaysTrue:
+        """Transform the Expression into its negated version."""
         return AlwaysTrue()
 
     def __str__(self) -> str:
+        """Returns the string representation of the AlwaysFalse class."""
         return "AlwaysFalse()"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the AlwaysFalse class."""
         return "AlwaysFalse()"
 
 
@@ -312,6 +345,7 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
         self.term = term
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the BoundPredicate class."""
         if isinstance(other, BoundPredicate):
             return self.term == other.term
         return False
@@ -329,6 +363,7 @@ class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression
         self.term = _to_unbound_term(term)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the UnboundPredicate class."""
         return self.term == other.term if isinstance(other, UnboundPredicate) else False
 
     @abstractmethod
@@ -347,6 +382,7 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
         return self.as_bound(bound_term)
 
     def __repr__(self) -> str:
+        """Returns the string representation of the UnaryPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
     @property
@@ -357,12 +393,17 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
 
 class BoundUnaryPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
+        """Returns the string representation of the BoundUnaryPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
     @property
     @abstractmethod
     def as_unbound(self) -> Type[UnaryPredicate]:
         ...
+
+    def __getnewargs__(self) -> Tuple[BoundTerm[L]]:
+        """A magic function for pickling the BoundUnaryPredicate class."""
+        return (self.term,)
 
 
 class BoundIsNull(BoundUnaryPredicate[L]):
@@ -372,6 +413,7 @@ class BoundIsNull(BoundUnaryPredicate[L]):
         return super().__new__(cls)
 
     def __invert__(self) -> BoundNotNull[L]:
+        """Transform the Expression into its negated version."""
         return BoundNotNull(self.term)
 
     @property
@@ -386,6 +428,7 @@ class BoundNotNull(BoundUnaryPredicate[L]):
         return super().__new__(cls)
 
     def __invert__(self) -> BoundIsNull[L]:
+        """Transform the Expression into its negated version."""
         return BoundIsNull(self.term)
 
     @property
@@ -395,6 +438,7 @@ class BoundNotNull(BoundUnaryPredicate[L]):
 
 class IsNull(UnaryPredicate):
     def __invert__(self) -> NotNull:
+        """Transform the Expression into its negated version."""
         return NotNull(self.term)
 
     @property
@@ -404,6 +448,7 @@ class IsNull(UnaryPredicate):
 
 class NotNull(UnaryPredicate):
     def __invert__(self) -> IsNull:
+        """Transform the Expression into its negated version."""
         return IsNull(self.term)
 
     @property
@@ -419,6 +464,7 @@ class BoundIsNaN(BoundUnaryPredicate[L]):
         return AlwaysFalse()
 
     def __invert__(self) -> BoundNotNaN[L]:
+        """Transform the Expression into its negated version."""
         return BoundNotNaN(self.term)
 
     @property
@@ -434,6 +480,7 @@ class BoundNotNaN(BoundUnaryPredicate[L]):
         return AlwaysTrue()
 
     def __invert__(self) -> BoundIsNaN[L]:
+        """Transform the Expression into its negated version."""
         return BoundIsNaN(self.term)
 
     @property
@@ -443,6 +490,7 @@ class BoundNotNaN(BoundUnaryPredicate[L]):
 
 class IsNaN(UnaryPredicate):
     def __invert__(self) -> NotNaN:
+        """Transform the Expression into its negated version."""
         return NotNaN(self.term)
 
     @property
@@ -452,6 +500,7 @@ class IsNaN(UnaryPredicate):
 
 class NotNaN(UnaryPredicate):
     def __invert__(self) -> IsNaN:
+        """Transform the Expression into its negated version."""
         return IsNaN(self.term)
 
     @property
@@ -471,15 +520,22 @@ class SetPredicate(UnboundPredicate[L], ABC):
         return self.as_bound(bound_term, {lit.to(bound_term.ref().field.field_type) for lit in self.literals})
 
     def __str__(self) -> str:
+        """Returns the string representation of the SetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the SetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the SetPredicate class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, SetPredicate) else False
+
+    def __getnewargs__(self) -> Tuple[UnboundTerm[L], Set[Literal[L]]]:
+        """A magic function for pickling the SetPredicate class."""
+        return (self.term, self.literals)
 
     @property
     @abstractmethod
@@ -500,15 +556,22 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
         return {lit.value for lit in self.literals}
 
     def __str__(self) -> str:
+        """Returns the string representation of the BoundSetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the BoundSetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the BoundSetPredicate class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
+
+    def __getnewargs__(self) -> Tuple[BoundTerm[L], Set[Literal[L]]]:
+        """A magic function for pickling the BoundSetPredicate class."""
+        return (self.term, self.literals)
 
     @property
     @abstractmethod
@@ -527,9 +590,11 @@ class BoundIn(BoundSetPredicate[L]):
             return super().__new__(cls)
 
     def __invert__(self) -> BoundNotIn[L]:
+        """Transform the Expression into its negated version."""
         return BoundNotIn(self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the BoundIn class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundIn) else False
 
     @property
@@ -552,6 +617,7 @@ class BoundNotIn(BoundSetPredicate[L]):
             return super().__new__(cls)
 
     def __invert__(self) -> BoundIn[L]:
+        """Transform the Expression into its negated version."""
         return BoundIn(self.term, self.literals)
 
     @property
@@ -573,6 +639,7 @@ class In(SetPredicate[L]):
             return super().__new__(cls)
 
     def __invert__(self) -> NotIn[L]:
+        """Transform the Expression into its negated version."""
         return NotIn[L](self.term, self.literals)
 
     @property
@@ -594,9 +661,11 @@ class NotIn(SetPredicate[L], ABC):
             return super().__new__(cls)
 
     def __invert__(self) -> In[L]:
+        """Transform the Expression into its negated version."""
         return In[L](self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the NotIn class."""
         if isinstance(other, NotIn):
             return self.term == other.term and self.literals == other.literals
         return False
@@ -631,11 +700,13 @@ class LiteralPredicate(UnboundPredicate[L], ABC):
         return self.as_bound(bound_term, lit)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the LiteralPredicate class."""
         if isinstance(other, LiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
+        """Returns the string representation of the LiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property
@@ -653,11 +724,13 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
         self.literal = literal  # pylint: disable=W0621
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the BoundLiteralPredicate class."""
         if isinstance(other, BoundLiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
+        """Returns the string representation of the BoundLiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property
@@ -668,6 +741,7 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
 
 class BoundEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundNotEqualTo[L]:
+        """Transform the Expression into its negated version."""
         return BoundNotEqualTo[L](self.term, self.literal)
 
     @property
@@ -677,6 +751,7 @@ class BoundEqualTo(BoundLiteralPredicate[L]):
 
 class BoundNotEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundEqualTo[L]:
+        """Transform the Expression into its negated version."""
         return BoundEqualTo[L](self.term, self.literal)
 
     @property
@@ -686,6 +761,7 @@ class BoundNotEqualTo(BoundLiteralPredicate[L]):
 
 class BoundGreaterThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThan[L]:
+        """Transform the Expression into its negated version."""
         return BoundLessThan[L](self.term, self.literal)
 
     @property
@@ -695,6 +771,7 @@ class BoundGreaterThanOrEqual(BoundLiteralPredicate[L]):
 
 class BoundGreaterThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThanOrEqual[L]:
+        """Transform the Expression into its negated version."""
         return BoundLessThanOrEqual(self.term, self.literal)
 
     @property
@@ -704,6 +781,7 @@ class BoundGreaterThan(BoundLiteralPredicate[L]):
 
 class BoundLessThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThanOrEqual[L]:
+        """Transform the Expression into its negated version."""
         return BoundGreaterThanOrEqual[L](self.term, self.literal)
 
     @property
@@ -713,6 +791,7 @@ class BoundLessThan(BoundLiteralPredicate[L]):
 
 class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThan[L]:
+        """Transform the Expression into its negated version."""
         return BoundGreaterThan[L](self.term, self.literal)
 
     @property
@@ -722,6 +801,7 @@ class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
 
 class BoundStartsWith(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundNotStartsWith[L]:
+        """Transform the Expression into its negated version."""
         return BoundNotStartsWith[L](self.term, self.literal)
 
     @property
@@ -731,6 +811,7 @@ class BoundStartsWith(BoundLiteralPredicate[L]):
 
 class BoundNotStartsWith(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundStartsWith[L]:
+        """Transform the Expression into its negated version."""
         return BoundStartsWith[L](self.term, self.literal)
 
     @property
@@ -740,6 +821,7 @@ class BoundNotStartsWith(BoundLiteralPredicate[L]):
 
 class EqualTo(LiteralPredicate[L]):
     def __invert__(self) -> NotEqualTo[L]:
+        """Transform the Expression into its negated version."""
         return NotEqualTo[L](self.term, self.literal)
 
     @property
@@ -749,6 +831,7 @@ class EqualTo(LiteralPredicate[L]):
 
 class NotEqualTo(LiteralPredicate[L]):
     def __invert__(self) -> EqualTo[L]:
+        """Transform the Expression into its negated version."""
         return EqualTo[L](self.term, self.literal)
 
     @property
@@ -758,6 +841,7 @@ class NotEqualTo(LiteralPredicate[L]):
 
 class LessThan(LiteralPredicate[L]):
     def __invert__(self) -> GreaterThanOrEqual[L]:
+        """Transform the Expression into its negated version."""
         return GreaterThanOrEqual[L](self.term, self.literal)
 
     @property
@@ -767,6 +851,7 @@ class LessThan(LiteralPredicate[L]):
 
 class GreaterThanOrEqual(LiteralPredicate[L]):
     def __invert__(self) -> LessThan[L]:
+        """Transform the Expression into its negated version."""
         return LessThan[L](self.term, self.literal)
 
     @property
@@ -776,6 +861,7 @@ class GreaterThanOrEqual(LiteralPredicate[L]):
 
 class GreaterThan(LiteralPredicate[L]):
     def __invert__(self) -> LessThanOrEqual[L]:
+        """Transform the Expression into its negated version."""
         return LessThanOrEqual[L](self.term, self.literal)
 
     @property
@@ -785,6 +871,7 @@ class GreaterThan(LiteralPredicate[L]):
 
 class LessThanOrEqual(LiteralPredicate[L]):
     def __invert__(self) -> GreaterThan[L]:
+        """Transform the Expression into its negated version."""
         return GreaterThan[L](self.term, self.literal)
 
     @property
@@ -794,6 +881,7 @@ class LessThanOrEqual(LiteralPredicate[L]):
 
 class StartsWith(LiteralPredicate[L]):
     def __invert__(self) -> NotStartsWith[L]:
+        """Transform the Expression into its negated version."""
         return NotStartsWith[L](self.term, self.literal)
 
     @property
@@ -803,6 +891,7 @@ class StartsWith(LiteralPredicate[L]):
 
 class NotStartsWith(LiteralPredicate[L]):
     def __invert__(self) -> NotStartsWith[L]:
+        """Transform the Expression into its negated version."""
         return NotStartsWith[L](self.term, self.literal)
 
     @property

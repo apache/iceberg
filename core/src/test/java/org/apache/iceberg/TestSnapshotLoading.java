@@ -31,6 +31,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.assertj.core.api.Assumptions;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -131,6 +132,10 @@ public class TestSnapshotLoading extends TableTestBase {
 
   @Test
   public void testFutureSnapshotsAreRemoved() {
+    Assumptions.assumeThat(formatVersion)
+        .as("Future snapshots are only removed for V2 tables")
+        .isGreaterThan(1);
+
     table.newFastAppend().appendFile(FILE_C).commit();
 
     TableMetadata futureTableMetadata =

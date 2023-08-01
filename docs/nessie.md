@@ -110,8 +110,9 @@ There is nothing special above about the `nessie` name. A spark catalog can have
 settings for the `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
 operations on branches and perform commits on branches. Each Iceberg table in a Nessie Catalog is identified by an
-arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces are implicit and don't need to
-be created separately. Any transaction on a Nessie enabled Iceberg table is a single commit in Nessie. Nessie commits
+arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces must be explicitly created 
+as mentioned [here](https://projectnessie.org/blog/namespace-enforcement/).
+Any transaction on a Nessie enabled Iceberg table is a single commit in Nessie. Nessie commits
 can encompass an arbitrary number of actions on an arbitrary number of tables, however in Iceberg this will be limited
 to the set of single table transactions currently available.
 

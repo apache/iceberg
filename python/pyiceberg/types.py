@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Data types used in describing Iceberg schemas
+"""Data types used in describing Iceberg schemas.
 
 This module implements the data types described in the Iceberg specification for Iceberg schemas. To
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
@@ -55,7 +55,7 @@ FIXED_PARSER = ParseNumberFromBrackets(FIXED)
 
 
 class IcebergType(IcebergBaseModel, Singleton):
-    """Base type for all Iceberg Types
+    """Base type for all Iceberg Types.
 
     Example:
         >>> str(IcebergType())
@@ -66,6 +66,7 @@ class IcebergType(IcebergBaseModel, Singleton):
 
     @classmethod
     def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
+        """Called to validate the input of the IcebergType class."""
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
@@ -107,19 +108,22 @@ class IcebergType(IcebergBaseModel, Singleton):
 
 
 class PrimitiveType(IcebergType):
-    """Base class for all Iceberg Primitive Types"""
+    """Base class for all Iceberg Primitive Types."""
 
     __root__: str = Field()
 
     def __repr__(self) -> str:
+        """Returns the string representation of the PrimitiveType class."""
         return f"{type(self).__name__}()"
 
     def __str__(self) -> str:
+        """Returns the string representation of the PrimitiveType class."""
         return self.__root__
 
 
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
+
     Example:
         >>> FixedType(8)
         FixedType(length=8)
@@ -141,14 +145,21 @@ class FixedType(PrimitiveType):
         self._len = length
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the FixedType class."""
         return self._len
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FixedType class."""
         return f"FixedType(length={self._len})"
+
+    def __getnewargs__(self) -> Tuple[int]:
+        """A magic function for pickling the FixedType class."""
+        return (self._len,)
 
 
 class DecimalType(PrimitiveType):
     """A fixed data type in Iceberg.
+
     Example:
         >>> DecimalType(32, 3)
         DecimalType(precision=32, scale=3)
@@ -188,7 +199,12 @@ class DecimalType(PrimitiveType):
         return self._scale
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DecimalType class."""
         return f"DecimalType(precision={self._precision}, scale={self._scale})"
+
+    def __getnewargs__(self) -> Tuple[int, int]:
+        """A magic function for pickling the DecimalType class."""
+        return (self._precision, self._scale)
 
 
 class NestedField(IcebergType):
@@ -242,9 +258,14 @@ class NestedField(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the NestedField class."""
         doc = "" if not self.doc else f" ({self.doc})"
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
+
+    def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
+        """A magic function for pickling the NestedField class."""
+        return (self.field_id, self.name, self.field_type, self.required, self.doc)
 
     @property
     def optional(self) -> bool:
@@ -252,7 +273,7 @@ class NestedField(IcebergType):
 
 
 class StructType(IcebergType):
-    """A struct type in Iceberg
+    """A struct type in Iceberg.
 
     Example:
         >>> str(StructType(
@@ -264,12 +285,14 @@ class StructType(IcebergType):
 
     type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
+    _hash: int = PrivateAttr()
 
     def __init__(self, *fields: NestedField, **data: Any):
         # In case we use positional arguments, instead of keyword args
         if fields:
             data["fields"] = fields
         super().__init__(**data)
+        self._hash = hash(self.fields)
 
     def field(self, field_id: int) -> Optional[NestedField]:
         for field in self.fields:
@@ -278,17 +301,28 @@ class StructType(IcebergType):
         return None
 
     def __str__(self) -> str:
+        """Returns the string representation of the StructType class."""
         return f"struct<{', '.join(map(str, self.fields))}>"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the StructType class."""
         return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the StructType class."""
         return len(self.fields)
+
+    def __getnewargs__(self) -> Tuple[NestedField, ...]:
+        """A magic function for pickling the StructType class."""
+        return self.fields
+
+    def __hash__(self) -> int:
+        """Used the cache hash value of the StructType class."""
+        return self._hash
 
 
 class ListType(IcebergType):
-    """A list type in Iceberg
+    """A list type in Iceberg.
 
     Example:
         >>> ListType(element_id=3, element_type=StringType(), element_required=True)
@@ -319,11 +353,16 @@ class ListType(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the ListType class."""
         return f"list<{self.element_type}>"
+
+    def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
+        """A magic function for pickling the ListType class."""
+        return (self.element_id, self.element_type, self.element_required)
 
 
 class MapType(IcebergType):
-    """A map type in Iceberg
+    """A map type in Iceberg.
 
     Example:
         >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
@@ -364,7 +403,12 @@ class MapType(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the MapType class."""
         return f"map<{self.key_type}, {self.value_type}>"
+
+    def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
+        """A magic function for pickling the MapType class."""
+        return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
 
 class BooleanType(PrimitiveType):
@@ -382,8 +426,9 @@ class BooleanType(PrimitiveType):
 
 
 class IntegerType(PrimitiveType):
-    """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
-    32-bit signed and can be promoted to Longs.
+    """An Integer data type in Iceberg can be represented using an instance of this class.
+
+    Integers in Iceberg are 32-bit signed and can be promoted to Longs.
 
     Example:
         >>> column_foo = IntegerType()
@@ -404,8 +449,9 @@ class IntegerType(PrimitiveType):
 
 
 class LongType(PrimitiveType):
-    """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
-    64-bit signed integers.
+    """A Long data type in Iceberg can be represented using an instance of this class.
+
+    Longs in Iceberg are 64-bit signed integers.
 
     Example:
         >>> column_foo = LongType()
@@ -430,8 +476,9 @@ class LongType(PrimitiveType):
 
 
 class FloatType(PrimitiveType):
-    """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
-    32-bit IEEE 754 floating points and can be promoted to Doubles.
+    """A Float data type in Iceberg can be represented using an instance of this class.
+
+    Floats in Iceberg are 32-bit IEEE 754 floating points and can be promoted to Doubles.
 
     Example:
         >>> column_foo = FloatType()
@@ -454,8 +501,9 @@ class FloatType(PrimitiveType):
 
 
 class DoubleType(PrimitiveType):
-    """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
-    64-bit IEEE 754 floating points.
+    """A Double data type in Iceberg can be represented using an instance of this class.
+
+    Doubles in Iceberg are 64-bit IEEE 754 floating points.
 
     Example:
         >>> column_foo = DoubleType()
@@ -469,8 +517,9 @@ class DoubleType(PrimitiveType):
 
 
 class DateType(PrimitiveType):
-    """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
-    calendar dates without a timezone or time.
+    """A Date data type in Iceberg can be represented using an instance of this class.
+
+    Dates in Iceberg are calendar dates without a timezone or time.
 
     Example:
         >>> column_foo = DateType()
@@ -484,8 +533,9 @@ class DateType(PrimitiveType):
 
 
 class TimeType(PrimitiveType):
-    """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
-    have microsecond precision and are a time of day without a date or timezone.
+    """A Time data type in Iceberg can be represented using an instance of this class.
+
+    Times in Iceberg have microsecond precision and are a time of day without a date or timezone.
 
     Example:
         >>> column_foo = TimeType()
@@ -499,8 +549,9 @@ class TimeType(PrimitiveType):
 
 
 class TimestampType(PrimitiveType):
-    """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
-    Iceberg have microsecond precision and include a date and a time of day without a timezone.
+    """A Timestamp data type in Iceberg can be represented using an instance of this class.
+
+    Timestamps in Iceberg have microsecond precision and include a date and a time of day without a timezone.
 
     Example:
         >>> column_foo = TimestampType()
@@ -514,8 +565,9 @@ class TimestampType(PrimitiveType):
 
 
 class TimestamptzType(PrimitiveType):
-    """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
-    Iceberg are stored as UTC and include a date and a time of day with a timezone.
+    """A Timestamptz data type in Iceberg can be represented using an instance of this class.
+
+    Timestamptzs in Iceberg are stored as UTC and include a date and a time of day with a timezone.
 
     Example:
         >>> column_foo = TimestamptzType()
@@ -529,8 +581,9 @@ class TimestamptzType(PrimitiveType):
 
 
 class StringType(PrimitiveType):
-    """A String data type in Iceberg can be represented using an instance of this class. Strings in
-    Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
+    """A String data type in Iceberg can be represented using an instance of this class.
+
+    Strings in Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
 
     Example:
         >>> column_foo = StringType()
@@ -544,8 +597,9 @@ class StringType(PrimitiveType):
 
 
 class UUIDType(PrimitiveType):
-    """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
-    Iceberg are universally unique identifiers.
+    """A UUID data type in Iceberg can be represented using an instance of this class.
+
+    UUIDs in Iceberg are universally unique identifiers.
 
     Example:
         >>> column_foo = UUIDType()
@@ -559,8 +613,9 @@ class UUIDType(PrimitiveType):
 
 
 class BinaryType(PrimitiveType):
-    """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
-    Iceberg are arbitrary-length byte arrays.
+    """A Binary data type in Iceberg can be represented using an instance of this class.
+
+    Binaries in Iceberg are arbitrary-length byte arrays.
 
     Example:
         >>> column_foo = BinaryType()

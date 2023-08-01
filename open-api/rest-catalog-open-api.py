@@ -327,6 +327,11 @@ class TableRequirement(BaseModel):
     default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
 
 
+class RegisterTableRequest(BaseModel):
+    name: str
+    metadata_location: str = Field(..., alias='metadata-location')
+
+
 class TokenType(BaseModel):
     __root__: Literal[
         'urn:ietf:params:oauth:token-type:access_token',
@@ -611,6 +616,7 @@ class TableMetadata(BaseModel):
     snapshots: Optional[List[Snapshot]] = None
     refs: Optional[SnapshotReferences] = None
     current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
+    last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
 
@@ -682,8 +688,16 @@ class LoadTableResult(BaseModel):
 
 
 class CommitTableRequest(BaseModel):
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table identifier to update; must be present for CommitTransactionRequest',
+    )
     requirements: List[TableRequirement]
     updates: List[TableUpdate]
+
+
+class CommitTransactionRequest(BaseModel):
+    table_changes: List[CommitTableRequest] = Field(..., alias='table-changes')
 
 
 class CreateTableRequest(BaseModel):
