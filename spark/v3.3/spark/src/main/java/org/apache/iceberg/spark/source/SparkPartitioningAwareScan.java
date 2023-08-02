@@ -120,15 +120,13 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   }
 
   protected List<T> addAsDataFilters(
-      List<Expression> partitionBasedBroadcastVar,
-      List<Expression> nonPartitionBasedBroadcastVar) {
+      List<Expression> partitionBasedBroadcastVar, List<Expression> nonPartitionBasedBroadcastVar) {
     Set<Integer> specIds = Sets.newHashSet();
 
     for (PartitionSpec spec : specs()) {
       specIds.add(spec.specId());
     }
-    List<Expression> netBroadcastDataFiltersToAdd =
-        new LinkedList<>(nonPartitionBasedBroadcastVar);
+    List<Expression> netBroadcastDataFiltersToAdd = new LinkedList<>(nonPartitionBasedBroadcastVar);
     boolean shouldAddPartitionBroadcastVar = false;
     if (!partitionBasedBroadcastVar.isEmpty()) {
       shouldAddPartitionBroadcastVar =
@@ -145,26 +143,23 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       // No point adding the non broadcast partition filters as data filters as their data is not
       // sorted
       Expression newCombinedDataFilters =
-          netBroadcastDataFiltersToAdd.stream()
-              .reduce(Expressions.alwaysTrue(), Expressions::and);
+          netBroadcastDataFiltersToAdd.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
       // re-evaluate the scan so that new data filters are added
       this.addFilterExpression(newCombinedDataFilters);
       this.scan =
-          (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>) this.scan.filter(newCombinedDataFilters);
+          (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
+              this.scan.filter(newCombinedDataFilters);
       // add the new data filters to existing file tasks
       return tasks().stream()
-              .parallel()
-              .map(fs -> (T)((BaseFileScanTask) fs).addFilter(newCombinedDataFilters))
-              .collect(Collectors.toList());
+          .parallel()
+          .map(fs -> (T) ((BaseFileScanTask) fs).addFilter(newCombinedDataFilters))
+          .collect(Collectors.toList());
     } else {
       return tasks();
     }
-
   }
 
-
-  protected void incrementTaskCreationVersion() {
-  }
+  protected void incrementTaskCreationVersion() {}
 
   @Override
   protected StructType groupingKeyType() {

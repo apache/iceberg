@@ -214,11 +214,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     if (!netNewBroadcastVarFilters.isEmpty()) {
       // just collect non partition based data filters do not use it for pruning tasks now
       this.broadcastVarDataExpressions.addAll(nonPartitionBasedBroadcastVar);
-      // since partition based broadcast vars may have transforms and hence may be used in data pruning
+      // since partition based broadcast vars may have transforms and hence may be used in data
+      // pruning
       // add those too again in the list of data filters
       this.broadcastVarPartitionExpressions.addAll(partitionBasedBroadcastVar);
     }
-
 
     // first filter tasks on the basis of partition filters
     Expression netPartitionFilter = Expressions.alwaysTrue();
@@ -290,7 +290,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
                 boolean shouldEvalFile =
                     nonPartitionBroadcastFilterExists
                         || task.spec().fields().stream()
-                        .anyMatch(pf -> !pf.transform().isIdentity());
+                            .anyMatch(pf -> !pf.transform().isIdentity());
                 return !shouldEvalFile || evaluator.eval(task.asFileScanTask().file());
               })
           .collect(Collectors.toList());
@@ -298,22 +298,21 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     return filteredFiles;
   }
 
-
   @Override
   public void callbackBeforeOpeningIterator() {
-    if (!this.broadcastVarDataExpressions.isEmpty() || !this.broadcastVarPartitionExpressions.isEmpty()) {
+    if (!this.broadcastVarDataExpressions.isEmpty()
+        || !this.broadcastVarPartitionExpressions.isEmpty()) {
       // initialize the variable
       List<PartitionScanTask> filteredTasks;
-      filteredTasks = addAsDataFilters(this.broadcastVarPartitionExpressions,
-          this.broadcastVarDataExpressions);
+      filteredTasks =
+          addAsDataFilters(this.broadcastVarPartitionExpressions, this.broadcastVarDataExpressions);
       List<Expression> netNewExprFilters = Lists.newArrayList();
       netNewExprFilters.addAll(this.broadcastVarDataExpressions);
       netNewExprFilters.addAll(this.broadcastVarPartitionExpressions);
-      filteredTasks = filterFilesAtDataFileLevelUsingBounds(netNewExprFilters,
-          this.broadcastVarDataExpressions,
-          filteredTasks);
+      filteredTasks =
+          filterFilesAtDataFileLevelUsingBounds(
+              netNewExprFilters, this.broadcastVarDataExpressions, filteredTasks);
       this.resetTasks(filteredTasks);
-
     }
   }
 
@@ -338,12 +337,12 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       }
 
       return tasks().stream()
-              .filter(
-                  task -> {
-                    Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
-                    return evaluator.eval(task.partition());
-                  })
-              .collect(Collectors.toList());
+          .filter(
+              task -> {
+                Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
+                return evaluator.eval(task.partition());
+              })
+          .collect(Collectors.toList());
     }
     return tasks();
   }
@@ -406,6 +405,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public boolean hasPushedBroadCastFilter() {
     return this.hasPushedBroadcastVar;
   }
+
   @Override
   public Statistics estimateStatistics() {
     if (scan() == null) {
@@ -540,6 +540,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public int getNumFileScanTasks() {
     return tasks().size();
   }
+
   private boolean checkFilterExpressionsEquality(SparkBatchQueryScan that) {
     /*
     return filterExpressions().stream().map(expr ->

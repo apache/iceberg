@@ -51,7 +51,6 @@ class SparkBatch implements Batch {
   private final int scanHashCode;
   private final Broadcast<Table> tableBroadcast;
 
-
   SparkBatch(
       JavaSparkContext sparkContext,
       Table table,

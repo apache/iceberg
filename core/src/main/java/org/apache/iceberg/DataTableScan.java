@@ -27,9 +27,14 @@ import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
 
-  protected volatile  List<FileScanTask> files = null;
+  private volatile List<FileScanTask> files = null;
+
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
+  }
+
+  protected void setFiles(List<FileScanTask> files) {
+    this.files = files;
   }
 
   @Override
@@ -94,7 +99,7 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
     CloseableIterable<FileScanTask> temp = manifestGroup.planFiles();
-    this.files = Lists.newArrayList(temp);
+    this.setFiles(Lists.newArrayList(temp));
     return temp;
   }
 }

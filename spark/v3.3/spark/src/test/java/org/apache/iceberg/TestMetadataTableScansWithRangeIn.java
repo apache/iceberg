@@ -57,7 +57,8 @@ public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase
 
     Expression set = RangeInTestUtils.createPredicate("partition.data_bucket", new Object[] {2, 3});
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    CloseableIterable<ContentFile<?>> tasksSet = PartitionsTable.planFiles((StaticTableScan) scanSet);
+    CloseableIterable<ContentFile<?>> tasksSet =
+        PartitionsTable.planFiles((StaticTableScan) scanSet);
     Assert.assertEquals(2, Iterators.size(tasksSet.iterator()));
     validateSingleFieldPartition(tasksSet, 2);
     validateSingleFieldPartition(tasksSet, 3);

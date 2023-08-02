@@ -39,26 +39,24 @@ public abstract class MetadataTableFiltersCommon extends TableTestBase {
           MetadataTableType.ALL_FILES,
           MetadataTableType.ALL_ENTRIES);
 
-
   @Parameterized.Parameters(name = "table_type = {0}, format = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {MetadataTableType.DATA_FILES, 1},
-        {MetadataTableType.DATA_FILES, 2},
-        {MetadataTableType.DELETE_FILES, 2},
-        {MetadataTableType.FILES, 1},
-        {MetadataTableType.FILES, 2},
-        {MetadataTableType.ALL_DATA_FILES, 1},
-        {MetadataTableType.ALL_DATA_FILES, 2},
-        {MetadataTableType.ALL_DELETE_FILES, 2},
-        {MetadataTableType.ALL_FILES, 1},
-        {MetadataTableType.ALL_FILES, 2},
-        {MetadataTableType.ENTRIES, 1},
-        {MetadataTableType.ENTRIES, 2},
-        {MetadataTableType.ALL_ENTRIES, 1},
-        {MetadataTableType.ALL_ENTRIES, 2}
+      {MetadataTableType.DATA_FILES, 1},
+      {MetadataTableType.DATA_FILES, 2},
+      {MetadataTableType.DELETE_FILES, 2},
+      {MetadataTableType.FILES, 1},
+      {MetadataTableType.FILES, 2},
+      {MetadataTableType.ALL_DATA_FILES, 1},
+      {MetadataTableType.ALL_DATA_FILES, 2},
+      {MetadataTableType.ALL_DELETE_FILES, 2},
+      {MetadataTableType.ALL_FILES, 1},
+      {MetadataTableType.ALL_FILES, 2},
+      {MetadataTableType.ENTRIES, 1},
+      {MetadataTableType.ENTRIES, 2},
+      {MetadataTableType.ALL_ENTRIES, 1},
+      {MetadataTableType.ALL_ENTRIES, 2}
     };
-
   }
 
   protected final MetadataTableType type;
@@ -183,7 +181,6 @@ public abstract class MetadataTableFiltersCommon extends TableTestBase {
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
   }
-
 
   protected void validateFileScanTasks(
       CloseableIterable<FileScanTask> fileScanTasks, int partValue) {

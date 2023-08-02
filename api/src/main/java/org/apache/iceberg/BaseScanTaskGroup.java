@@ -72,9 +72,9 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
     return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
   }
 
-
   @Override
-  public String[]  setIfNeededAndGetPreferredLocations(Supplier<String[]> preferredLocationsEvaluator) {
+  public String[] setIfNeededAndGetPreferredLocations(
+      Supplier<String[]> preferredLocationsEvaluator) {
     if (this.preferredLocations.length == 0) {
       this.preferredLocations = preferredLocationsEvaluator.get();
     }

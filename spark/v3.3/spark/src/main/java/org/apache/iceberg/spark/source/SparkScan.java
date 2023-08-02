@@ -119,8 +119,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   public Batch toBatch() {
     Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema,
-        hashCode(), tableBroadcast);
+        sparkContext,
+        table,
+        readConf,
+        groupingKeyType(),
+        taskGroups(),
+        expectedSchema,
+        hashCode(),
+        tableBroadcast);
   }
 
   private Broadcast<Table> initTableMetadataBroadcast() {

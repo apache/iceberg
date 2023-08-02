@@ -52,7 +52,8 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   }
 
   @Override
-  public String[]  setIfNeededAndGetPreferredLocations(Supplier<String[]> preferredLocationsEvaluator) {
+  public String[] setIfNeededAndGetPreferredLocations(
+      Supplier<String[]> preferredLocationsEvaluator) {
     if (this.preferredLocations.length == 0) {
       this.preferredLocations = preferredLocationsEvaluator.get();
     }

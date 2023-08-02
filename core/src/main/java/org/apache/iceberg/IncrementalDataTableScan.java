@@ -116,7 +116,7 @@ class IncrementalDataTableScan extends DataTableScan {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
     CloseableIterable<FileScanTask> temp = manifestGroup.planFiles();
-    this.files = Lists.newArrayList(temp);
+    this.setFiles(Lists.newArrayList(temp));
     return temp;
   }
 

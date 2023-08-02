@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -63,9 +62,8 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
     return tasks().stream().mapToInt(ScanTask::filesCount).sum();
   }
 
-
-  default String[] setIfNeededAndGetPreferredLocations(Supplier<String[]> preferredLocationsEvaluator) {
+  default String[] setIfNeededAndGetPreferredLocations(
+      Supplier<String[]> preferredLocationsEvaluator) {
     return new String[0];
   }
-
 }
