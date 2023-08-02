@@ -188,6 +188,18 @@ public class AwsProperties implements Serializable {
   public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
   /**
+   * If set, Glue will always update the catalog table if the table already exists in glue catalog.
+   * By default, Glue catalog will only be able to create new table and will throw
+   * AlreadyExistsException when register an existing table name.
+   */
+  public static final String GLUE_CATALOG_FORCE_REGISTER_TABLE = "glue.force-register-table";
+
+  public static final boolean GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT = false;
+
+  /** Configure the Glue Catalog S3 FileIO Region to allow cross region s3 access */
+  public static final String GLUE_CATALOG_FILE_IO_REGION = "glue.catalog-file-io-region";
+
+  /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    *
@@ -979,6 +991,8 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
+  private boolean glueCatalogForceRegisterTable;
+  private String glueCatalogFileIORegion;
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
@@ -1038,6 +1052,8 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
+    this.glueCatalogForceRegisterTable = GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT;
+    this.glueCatalogFileIORegion = null;
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
@@ -1098,6 +1114,13 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
+    this.glueCatalogForceRegisterTable =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            GLUE_CATALOG_FORCE_REGISTER_TABLE,
+            GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT);
+    this.glueCatalogFileIORegion = properties.get(GLUE_CATALOG_FILE_IO_REGION);
+
     this.s3FileIoMultipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties,
@@ -1319,6 +1342,24 @@ public class AwsProperties implements Serializable {
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
   }
+
+
+  public boolean glueCatalogForceRegisterTable() {
+    return glueCatalogForceRegisterTable;
+  }
+
+  public void setGlueCatalogForceRegisterTable(boolean glueCatalogForceRegisterTable) {
+    this.glueCatalogForceRegisterTable = glueCatalogForceRegisterTable;
+  }
+
+  public String getGlueCatalogFileIORegion() {
+    return glueCatalogFileIORegion;
+  }
+
+  public void setGlueCatalogFileIORegion(String glueCatalogFileIORegion) {
+    this.glueCatalogFileIORegion = glueCatalogFileIORegion;
+  }
+
 
   /**
    * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}

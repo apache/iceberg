@@ -20,7 +20,9 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,7 +33,9 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -49,6 +53,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -78,6 +83,7 @@ import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
+import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 
 public class GlueCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Configuration> {
@@ -111,7 +117,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.catalogProperties = new HashMap<>();
+    catalogProperties.putAll(properties);
     AwsClientFactory awsClientFactory;
     FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
@@ -435,6 +442,81 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
 
     LOG.info("Successfully renamed table from {} to {}", from, to);
+  }
+
+  @Override
+  public org.apache.iceberg.Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        isValidIdentifier(identifier), "Table identifier to register is invalid: " + identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    // keep the original behavior when force-register-table flag is off
+    if (!awsProperties.glueCatalogForceRegisterTable()) {
+      return super.registerTable(identifier, metadataFileLocation);
+    }
+
+    String factoryImpl =
+        PropertyUtil.propertyAsString(catalogProperties, AwsProperties.CLIENT_FACTORY, null);
+    if (factoryImpl != null && factoryImpl.equals(AssumeRoleAwsClientFactory.class.getName())) {
+      // overwrite client assume_role_region for file IO to make cross region call
+      String catalogFileIORegion = awsProperties.getGlueCatalogFileIORegion();
+      if (catalogFileIORegion != null) {
+        catalogProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, catalogFileIORegion);
+      }
+    }
+
+    TableOperations ops = newTableOps(identifier);
+    InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
+    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+
+    Map<String, String> tableParameters =
+        ImmutableMap.of(
+            BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
+            BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+            metadataFileLocation);
+
+    String databaseName =
+        IcebergToGlueConverter.getDatabaseName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+    String tableName =
+        IcebergToGlueConverter.getTableName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+
+    TableInput tableInput =
+        TableInput.builder()
+            .applyMutation(
+                builder ->
+                    IcebergToGlueConverter.setTableInputInformation(
+                        builder, metadata, tableParameters))
+            .name(tableName)
+            .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
+            .parameters(tableParameters)
+            .build();
+
+    try {
+      glue.createTable(
+          CreateTableRequest.builder().databaseName(databaseName).tableInput(tableInput).build());
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder().databaseName(databaseName).name(tableName).build());
+      String versionId = response.table().versionId();
+      glue.updateTable(
+          UpdateTableRequest.builder()
+              .databaseName(databaseName)
+              .tableInput(tableInput)
+              .versionId(versionId)
+              .build());
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchNamespaceException(
+          e, "Namespace %s is not found in Glue", identifier.namespace());
+    }
+
+    return loadTable(identifier);
   }
 
   @Override

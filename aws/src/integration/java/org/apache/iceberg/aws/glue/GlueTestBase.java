@@ -61,6 +61,7 @@ public class GlueTestBase {
   // iceberg
   static GlueCatalog glueCatalog;
   static GlueCatalog glueCatalogWithSkipNameValidation;
+  static GlueCatalog glueCatalogWithForceRegisterTable;
 
   static Schema schema =
       new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
@@ -93,6 +94,17 @@ public class GlueTestBase {
         propertiesSkipNameValidation,
         glue,
         null,
+        fileIO,
+        ImmutableMap.of());
+    glueCatalogWithForceRegisterTable = new GlueCatalog();
+    AwsProperties propertiesForceRegisterTable = new AwsProperties();
+    propertiesForceRegisterTable.setGlueCatalogForceRegisterTable(true);
+    glueCatalogWithForceRegisterTable.initialize(
+        catalogName,
+        testBucketPath,
+        propertiesForceRegisterTable,
+        glue,
+        LockManagers.defaultLockManager(),
         fileIO,
         ImmutableMap.of());
   }
