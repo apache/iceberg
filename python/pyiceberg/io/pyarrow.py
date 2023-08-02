@@ -79,6 +79,9 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    GCS_DEFAULT_LOCATION,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT,
     HDFS_HOST,
     HDFS_KERB_TICKET,
     HDFS_PORT,
@@ -130,6 +133,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
+from pyiceberg.utils.datetime import millis_to_datetime
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -315,16 +319,14 @@ class PyArrowFileIO(FileIO):
             }
             return HadoopFileSystem(**client_kwargs)
         elif scheme in {"gs", "gcs"}:
-            access_token = self.properties.get("gs.token")
-            expiration = self.properties.get("gs.credential-token-expiration")
-            if (access_token is not None) and (expiration is not None):
-                client_kwargs = {
-                    "access_token": access_token,
-                    "credential_token_expiration": expiration,
-                }
-                return GcsFileSystem(**client_kwargs)
-            else:
-                return GcsFileSystem()
+            gcs_kwargs: Dict[str, Any] = {}
+            if access_token := self.properties.get(GCS_TOKEN):
+                gcs_kwargs["access_token"] = access_token
+            if expiration := self.properties.get(GCS_TOKEN_EXPIRES_AT):
+                gcs_kwargs["credential_token_expiration"] = millis_to_datetime(int(expiration))
+            if bucket_location := self.properties.get(GCS_DEFAULT_LOCATION):
+                gcs_kwargs["default_bucket_location"] = bucket_location
+            return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
             return LocalFileSystem()
         else:

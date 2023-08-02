@@ -16,7 +16,6 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems."""
 import errno
-import json
 import logging
 import os
 from functools import lru_cache, partial
@@ -38,6 +37,16 @@ from requests import HTTPError
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
+    GCS_ACCESS,
+    GCS_CACHE_TIMEOUT,
+    GCS_CONSISTENCY,
+    GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT_URL,
+    GCS_PROJECT_ID,
+    GCS_REQUESTER_PAYS,
+    GCS_SESSION_KWARGS,
+    GCS_TOKEN,
+    GCS_VERSION_AWARE,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
     S3_PROXY_URI,
@@ -126,21 +135,21 @@ def _s3(properties: Properties) -> AbstractFileSystem:
 
 
 def _gs(properties: Properties) -> AbstractFileSystem:
+    # https://gcsfs.readthedocs.io/en/latest/api.html#gcsfs.core.GCSFileSystem
     from gcsfs import GCSFileSystem
 
-    fs_kwargs = {
-        "project": properties.get("gs.project"),
-        "access": properties.get("gs.access", "full_control"),
-        "token": properties.get("gs.token"),
-        "consistency": properties.get("gs.consistency"),
-        "cache_timeout": properties.get("gs.cache-timeout"),
-        "requester_pays": properties.get("gs.requester-pays"),
-        "session_kwargs": json.loads(properties.get("gs.session-kwargs", "{}")),
-        "endpoint_url": properties.get("gs.endpoint-url"),
-        "default_location": properties.get("gs.default-location"),
-        "version_aware": properties.get("gs.version-aware", "false").lower() == 'true',
-    }
-    return GCSFileSystem(**fs_kwargs)
+    return GCSFileSystem(
+        project=properties.get(GCS_PROJECT_ID),
+        access=properties.get(GCS_ACCESS, "full_control"),
+        token=properties.get(GCS_TOKEN),
+        consistency=properties.get(GCS_CONSISTENCY),
+        cache_timeout=properties.get(GCS_CACHE_TIMEOUT),
+        requester_pays=properties.get(GCS_REQUESTER_PAYS),
+        session_kwargs=properties.get(GCS_SESSION_KWARGS, "{}"),
+        endpoint_url=properties.get(GCS_ENDPOINT_URL),
+        default_location=properties.get(GCS_DEFAULT_LOCATION),
+        version_aware=properties.get(GCS_VERSION_AWARE, "false").lower() == "true",
+    )
 
 
 def _adlfs(properties: Properties) -> AbstractFileSystem:
