@@ -129,15 +129,15 @@ public class PartitionsTable extends BaseMetadataTable {
           partitions,
           root ->
               StaticDataTask.Row.of(
-                  root.dataRecordCount,
-                  root.dataFileCount,
-                  root.dataFileSizeInBytes,
-                  root.posDeleteRecordCount,
-                  root.posDeleteFileCount,
-                  root.eqDeleteRecordCount,
-                  root.eqDeleteFileCount,
-                  root.lastUpdatedAt,
-                  root.lastUpdatedSnapshotId));
+                  root.dataRecordCount(),
+                  root.dataFileCount(),
+                  root.dataFileSizeInBytes(),
+                  root.posDeleteRecordCount(),
+                  root.posDeleteFileCount(),
+                  root.eqDeleteRecordCount(),
+                  root.eqDeleteFileCount(),
+                  root.lastUpdatedAt(),
+                  root.lastUpdatedSnapshotId()));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -150,17 +150,17 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
     return StaticDataTask.Row.of(
-        partition.partitionData,
-        partition.specId,
-        partition.dataRecordCount,
-        partition.dataFileCount,
-        partition.dataFileSizeInBytes,
-        partition.posDeleteRecordCount,
-        partition.posDeleteFileCount,
-        partition.eqDeleteRecordCount,
-        partition.eqDeleteFileCount,
-        partition.lastUpdatedAt,
-        partition.lastUpdatedSnapshotId);
+        partition.partitionData(),
+        partition.specId(),
+        partition.dataRecordCount(),
+        partition.dataFileCount(),
+        partition.dataFileSizeInBytes(),
+        partition.posDeleteRecordCount(),
+        partition.posDeleteFileCount(),
+        partition.eqDeleteRecordCount(),
+        partition.eqDeleteFileCount(),
+        partition.lastUpdatedAt(),
+        partition.lastUpdatedSnapshotId());
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
@@ -269,76 +269,6 @@ public class PartitionsTable extends BaseMetadataTable {
 
     Iterable<Partition> all() {
       return partitions.values();
-    }
-  }
-
-  static class Partition {
-    private final PartitionData partitionData;
-    private int specId;
-    private long dataRecordCount;
-    private int dataFileCount;
-    private long dataFileSizeInBytes;
-    private long posDeleteRecordCount;
-    private int posDeleteFileCount;
-    private long eqDeleteRecordCount;
-    private int eqDeleteFileCount;
-    private Long lastUpdatedAt;
-    private Long lastUpdatedSnapshotId;
-
-    Partition(StructLike key, Types.StructType keyType) {
-      this.partitionData = toPartitionData(key, keyType);
-      this.specId = 0;
-      this.dataRecordCount = 0L;
-      this.dataFileCount = 0;
-      this.dataFileSizeInBytes = 0L;
-      this.posDeleteRecordCount = 0L;
-      this.posDeleteFileCount = 0;
-      this.eqDeleteRecordCount = 0L;
-      this.eqDeleteFileCount = 0;
-    }
-
-    void update(ContentFile<?> file, Snapshot snapshot) {
-      if (snapshot != null) {
-        long snapshotCommitTime = snapshot.timestampMillis() * 1000;
-        if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
-          this.lastUpdatedAt = snapshotCommitTime;
-          this.lastUpdatedSnapshotId = snapshot.snapshotId();
-        }
-      }
-
-      switch (file.content()) {
-        case DATA:
-          this.dataRecordCount += file.recordCount();
-          this.dataFileCount += 1;
-          this.specId = file.specId();
-          this.dataFileSizeInBytes += file.fileSizeInBytes();
-          break;
-        case POSITION_DELETES:
-          this.posDeleteRecordCount = file.recordCount();
-          this.posDeleteFileCount += 1;
-          this.specId = file.specId();
-          break;
-        case EQUALITY_DELETES:
-          this.eqDeleteRecordCount = file.recordCount();
-          this.eqDeleteFileCount += 1;
-          this.specId = file.specId();
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported file content type: " + file.content());
-      }
-    }
-
-    /** Needed because StructProjection is not serializable */
-    private PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData data = new PartitionData(keyType);
-      for (int i = 0; i < keyType.fields().size(); i++) {
-        Object val = key.get(i, keyType.fields().get(i).type().typeId().javaClass());
-        if (val != null) {
-          data.set(i, val);
-        }
-      }
-      return data;
     }
   }
 }
