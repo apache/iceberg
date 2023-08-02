@@ -64,9 +64,9 @@ object ExtendedDistributionAndOrderingUtils {
         }
 
         val strictDistributionMode = conf.getConfString(SparkSQLProperties.STRICT_TABLE_DISTRIBUTION,
-          SparkSQLProperties.STRICT_TABLE_DISTRIBUTION_DEFAULT)
+          SparkSQLProperties.STRICT_TABLE_DISTRIBUTION_DEFAULT).toBoolean
 
-        if (strictDistributionMode.equals("false") && isHashDistributionMode) {
+        if (!strictDistributionMode && isHashDistributionMode) {
           // if strict distribution mode is not enabled, then we fallback to spark AQE
           // to determine the number of partitions by coalescing and un-skewing partitions
           // Also to note, Rebalance is only supported for hash distribution mode in spark 3.3
