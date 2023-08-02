@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -37,21 +35,12 @@ public class AesGcmOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream create() {
-    try {
-      return new AesGcmOutputStream(targetFile.create(), dataKey, fileAADPrefix);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create GCM stream for " + targetFile.location(), e);
-    }
+    return new AesGcmOutputStream(targetFile.create(), dataKey, fileAADPrefix);
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    try {
-      return new AesGcmOutputStream(targetFile.createOrOverwrite(), dataKey, fileAADPrefix);
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to create or overwrite GCM stream for " + targetFile.location(), e);
-    }
+    return new AesGcmOutputStream(targetFile.createOrOverwrite(), dataKey, fileAADPrefix);
   }
 
   @Override
@@ -61,6 +50,6 @@ public class AesGcmOutputFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    throw new UnsupportedOperationException();
+    return new AesGcmInputFile(targetFile.toInputFile(), dataKey, fileAADPrefix);
   }
 }

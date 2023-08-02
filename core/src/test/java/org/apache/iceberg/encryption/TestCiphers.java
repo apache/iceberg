@@ -41,6 +41,7 @@ public class TestCiphers {
   private void testEncryptDecrypt(byte[] aad) {
     SecureRandom random = new SecureRandom();
     int[] aesKeyLengthArray = {16, 24, 32};
+
     for (int keyLength : aesKeyLengthArray) {
       byte[] key = new byte[keyLength];
       random.nextBytes(key);

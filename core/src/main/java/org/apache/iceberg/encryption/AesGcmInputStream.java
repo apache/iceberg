@@ -30,16 +30,16 @@ public class AesGcmInputStream extends SeekableInputStream {
   private final SeekableInputStream sourceStream;
   private final byte[] fileAADPrefix;
   private final Ciphers.AesGcmDecryptor decryptor;
-  private final byte[] cipherBlockBuffer;
   private final long numBlocks;
   private final int lastCipherBlockSize;
   private final long plainStreamSize;
+  private final byte[] singleByte;
 
   private long plainStreamPosition;
   private long currentPlainBlockIndex;
+  private byte[] cipherBlockBuffer;
   private byte[] currentPlainBlock;
   private int currentPlainBlockSize;
-  private byte[] singleByte;
 
   AesGcmInputStream(
       SeekableInputStream sourceStream, long sourceLength, byte[] aesKey, byte[] fileAADPrefix) {
@@ -47,10 +47,9 @@ public class AesGcmInputStream extends SeekableInputStream {
     this.fileAADPrefix = fileAADPrefix;
     this.decryptor = new Ciphers.AesGcmDecryptor(aesKey);
     this.cipherBlockBuffer = new byte[Ciphers.CIPHER_BLOCK_SIZE];
-
+    this.currentPlainBlock = new byte[Ciphers.PLAIN_BLOCK_SIZE];
     this.plainStreamPosition = 0;
     this.currentPlainBlockIndex = -1;
-    this.currentPlainBlock = null;
     this.currentPlainBlockSize = 0;
 
     long streamLength = sourceLength - Ciphers.GCM_STREAM_HEADER_LENGTH;
@@ -97,7 +96,7 @@ public class AesGcmInputStream extends SeekableInputStream {
   }
 
   private int availableInCurrentBlock() {
-    if (currentPlainBlockIndex < 0) {
+    if (blockIndex(plainStreamPosition) != currentPlainBlockIndex) {
       return 0;
     }
 
@@ -130,11 +129,6 @@ public class AesGcmInputStream extends SeekableInputStream {
         remainingBytesToRead -= bytesToCopy;
         resultBufferOffset += bytesToCopy;
         this.plainStreamPosition += bytesToCopy;
-        if (blockIndex(plainStreamPosition) != currentPlainBlockIndex) {
-          // invalidate the current block
-          this.currentPlainBlockIndex = -1;
-        }
-
       } else if (available() > 0) {
         decryptBlock(blockIndex(plainStreamPosition));
 
@@ -157,10 +151,6 @@ public class AesGcmInputStream extends SeekableInputStream {
     }
 
     this.plainStreamPosition = newPos;
-    if (blockIndex(plainStreamPosition) != currentPlainBlockIndex) {
-      // invalidate the current block
-      this.currentPlainBlockIndex = -1;
-    }
   }
 
   @Override
@@ -177,10 +167,6 @@ public class AesGcmInputStream extends SeekableInputStream {
     }
 
     this.plainStreamPosition += n;
-    if (blockIndex(plainStreamPosition) != currentPlainBlockIndex) {
-      // invalidate the current block
-      this.currentPlainBlockIndex = -1;
-    }
 
     return n;
   }
@@ -197,13 +183,16 @@ public class AesGcmInputStream extends SeekableInputStream {
       return -1;
     }
 
-    return singleByte[0];
+    int unsignedByte = singleByte[0] >= 0 ? singleByte[0] : 256 + singleByte[0];
+
+    return unsignedByte;
   }
 
   @Override
   public void close() throws IOException {
     sourceStream.close();
     this.currentPlainBlock = null;
+    this.cipherBlockBuffer = null;
   }
 
   private void decryptBlock(long blockIndex) throws IOException {
@@ -224,9 +213,8 @@ public class AesGcmInputStream extends SeekableInputStream {
     int cipherBlockSize = isLastBlock ? lastCipherBlockSize : Ciphers.CIPHER_BLOCK_SIZE;
     IOUtil.readFully(sourceStream, cipherBlockBuffer, 0, cipherBlockSize);
 
-    // TODO: the AAD should probably use a long block index.
     byte[] blockAAD = Ciphers.streamBlockAAD(fileAADPrefix, Math.toIntExact(blockIndex));
-    this.currentPlainBlock = decryptor.decrypt(cipherBlockBuffer, 0, cipherBlockSize, blockAAD);
+    decryptor.decrypt(cipherBlockBuffer, 0, cipherBlockSize, currentPlainBlock, 0, blockAAD);
     this.currentPlainBlockSize = cipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
     this.currentPlainBlockIndex = blockIndex;
   }

@@ -51,6 +51,7 @@ public class Ciphers {
     private final SecretKeySpec aesKey;
     private final Cipher cipher;
     private final SecureRandom randomGenerator;
+    private final byte[] nonce;
 
     public AesGcmEncryptor(byte[] keyBytes) {
       Preconditions.checkArgument(keyBytes != null, "Key can't be null");
@@ -69,6 +70,7 @@ public class Ciphers {
       }
 
       this.randomGenerator = new SecureRandom();
+      this.nonce = new byte[NONCE_LENGTH];
     }
 
     public byte[] encrypt(byte[] plaintext, byte[] aad) {
@@ -76,11 +78,22 @@ public class Ciphers {
     }
 
     public byte[] encrypt(byte[] plaintext, int plaintextOffset, int plaintextLength, byte[] aad) {
-      Preconditions.checkArgument(plaintextLength > 0, "Wrong plaintextLength " + plaintextLength);
-      byte[] nonce = new byte[NONCE_LENGTH];
-      randomGenerator.nextBytes(nonce);
       int cipherTextLength = NONCE_LENGTH + plaintextLength + GCM_TAG_LENGTH;
       byte[] cipherText = new byte[cipherTextLength];
+      encrypt(plaintext, plaintextOffset, plaintextLength, cipherText, 0, aad);
+      return cipherText;
+    }
+
+    public int encrypt(
+        byte[] plaintext,
+        int plaintextOffset,
+        int plaintextLength,
+        byte[] ciphertextBuffer,
+        int ciphertextOffset,
+        byte[] aad) {
+      Preconditions.checkArgument(plaintextLength > 0, "Wrong plaintextLength " + plaintextLength);
+      randomGenerator.nextBytes(nonce);
+      int enciphered;
 
       try {
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
@@ -88,8 +101,13 @@ public class Ciphers {
         if (null != aad) {
           cipher.updateAAD(aad);
         }
-        int enciphered =
-            cipher.doFinal(plaintext, plaintextOffset, plaintextLength, cipherText, NONCE_LENGTH);
+        enciphered =
+            cipher.doFinal(
+                plaintext,
+                plaintextOffset,
+                plaintextLength,
+                ciphertextBuffer,
+                ciphertextOffset + NONCE_LENGTH);
 
         if (enciphered != plaintextLength + GCM_TAG_LENGTH) {
           throw new RuntimeException(
@@ -104,9 +122,9 @@ public class Ciphers {
       }
 
       // Add the nonce
-      System.arraycopy(nonce, 0, cipherText, 0, NONCE_LENGTH);
+      System.arraycopy(nonce, 0, ciphertextBuffer, ciphertextOffset, NONCE_LENGTH);
 
-      return cipherText;
+      return enciphered + NONCE_LENGTH;
     }
   }
 
@@ -137,12 +155,26 @@ public class Ciphers {
 
     public byte[] decrypt(
         byte[] ciphertext, int ciphertextOffset, int ciphertextLength, byte[] aad) {
+      int plaintextLength = ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH;
+      byte[] plaintext = new byte[plaintextLength];
+      decrypt(ciphertext, ciphertextOffset, ciphertextLength, plaintext, 0, aad);
+      return plaintext;
+    }
+
+    public int decrypt(
+        byte[] ciphertext,
+        int ciphertextOffset,
+        int ciphertextLength,
+        byte[] plaintextBuffer,
+        int plaintextOffset,
+        byte[] aad) {
       Preconditions.checkState(
           ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH >= 1,
           "Cannot decrypt cipher text of length "
               + ciphertext.length
               + " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted"
               + " with AES GCM cipher");
+      int plaintextLength;
 
       try {
         GCMParameterSpec spec =
@@ -152,8 +184,13 @@ public class Ciphers {
           cipher.updateAAD(aad);
         }
         // For java Cipher, the nonce is not part of ciphertext
-        return cipher.doFinal(
-            ciphertext, ciphertextOffset + NONCE_LENGTH, ciphertextLength - NONCE_LENGTH);
+        plaintextLength =
+            cipher.doFinal(
+                ciphertext,
+                ciphertextOffset + NONCE_LENGTH,
+                ciphertextLength - NONCE_LENGTH,
+                plaintextBuffer,
+                plaintextOffset);
       } catch (AEADBadTagException e) {
         throw new RuntimeException(
             "GCM tag check failed. Possible reasons: wrong decryption key; or corrupt/tampered"
@@ -162,6 +199,8 @@ public class Ciphers {
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to decrypt", e);
       }
+
+      return plaintextLength;
     }
   }
 

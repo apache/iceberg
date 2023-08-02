@@ -27,58 +27,61 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   private final Ciphers.AesGcmEncryptor gcmEncryptor;
   private final PositionOutputStream targetStream;
-  private final byte[] plainBlockBuffer;
   private final byte[] fileAadPrefix;
+  private final byte[] singleByte;
 
-  private int positionInBuffer;
+  private byte[] plainBlock;
+  private byte[] cipherBlock;
+  private int positionInPlainBlock;
   private long streamPosition;
   private int currentBlockIndex;
+  private boolean isHeaderWritten;
 
-  AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix)
-      throws IOException {
+  AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix) {
     this.targetStream = targetStream;
     this.gcmEncryptor = new Ciphers.AesGcmEncryptor(aesKey);
-    this.plainBlockBuffer = new byte[Ciphers.PLAIN_BLOCK_SIZE];
-    this.positionInBuffer = 0;
+    this.plainBlock = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+    this.cipherBlock = new byte[Ciphers.CIPHER_BLOCK_SIZE];
+    this.positionInPlainBlock = 0;
     this.streamPosition = 0;
     this.currentBlockIndex = 0;
     this.fileAadPrefix = fileAadPrefix;
-
-    byte[] headerBytes =
-        ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
-            .putInt(Ciphers.PLAIN_BLOCK_SIZE)
-            .array();
-    targetStream.write(headerBytes);
+    this.isHeaderWritten = false;
+    this.singleByte = new byte[1];
   }
 
   @Override
   public void write(int b) throws IOException {
-    throw new UnsupportedOperationException();
+    singleByte[0] = (byte) (b & 0x000000FF);
+    write(singleByte);
   }
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    if (!isHeaderWritten) {
+      writeHeader();
+    }
+
     if (b.length - off < len) {
       throw new IOException(
           "Insufficient bytes in buffer: " + b.length + " - " + off + " < " + len);
     }
+
     int remaining = len;
     int offset = off;
 
     while (remaining > 0) {
-      int freeBlockBytes = Ciphers.PLAIN_BLOCK_SIZE - positionInBuffer;
-      int toWrite = freeBlockBytes <= remaining ? freeBlockBytes : remaining;
+      int freeBlockBytes = plainBlock.length - positionInPlainBlock;
+      int toWrite = Math.min(freeBlockBytes, remaining);
 
-      System.arraycopy(b, offset, plainBlockBuffer, positionInBuffer, toWrite);
-      positionInBuffer += toWrite;
-      if (positionInBuffer == Ciphers.PLAIN_BLOCK_SIZE) {
-        encryptAndWriteBlock();
-        positionInBuffer = 0;
-      }
+      System.arraycopy(b, offset, plainBlock, positionInPlainBlock, toWrite);
+      positionInPlainBlock += toWrite;
       offset += toWrite;
       remaining -= toWrite;
+
+      if (positionInPlainBlock == Ciphers.PLAIN_BLOCK_SIZE) {
+        encryptAndWriteBlock();
+      }
     }
 
     streamPosition += len;
@@ -96,10 +99,28 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
-    if (positionInBuffer > 0) {
+    if (!isHeaderWritten) {
+      writeHeader();
+    }
+
+    if (positionInPlainBlock > 0) {
       encryptAndWriteBlock();
     }
+
     targetStream.close();
+    plainBlock = null;
+    cipherBlock = null;
+  }
+
+  private void writeHeader() throws IOException {
+    byte[] headerBytes =
+        ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
+            .putInt(Ciphers.PLAIN_BLOCK_SIZE)
+            .array();
+    targetStream.write(headerBytes);
+    isHeaderWritten = true;
   }
 
   private void encryptAndWriteBlock() throws IOException {
@@ -108,8 +129,10 @@ public class AesGcmOutputStream extends PositionOutputStream {
     }
 
     byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);
-    byte[] cipherBlockBuffer = gcmEncryptor.encrypt(plainBlockBuffer, 0, positionInBuffer, aad);
+    int ciphertextLength =
+        gcmEncryptor.encrypt(plainBlock, 0, positionInPlainBlock, cipherBlock, 0, aad);
+    targetStream.write(cipherBlock, 0, ciphertextLength);
+    positionInPlainBlock = 0;
     currentBlockIndex++;
-    targetStream.write(cipherBlockBuffer);
   }
 }
