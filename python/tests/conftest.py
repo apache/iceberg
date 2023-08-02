@@ -28,6 +28,7 @@ import os
 import re
 import string
 import uuid
+from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
@@ -56,7 +57,15 @@ from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
-from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.io import (
+    GCS_ENDPOINT_URL,
+    GCS_PROJECT_ID,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT,
+    OutputFile,
+    OutputStream,
+    fsspec,
+)
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
@@ -78,6 +87,7 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from pyiceberg.utils.datetime import datetime_to_millis
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -114,10 +124,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="The ADLS secret account key for tests marked as adlfs",
     )
     parser.addoption(
-        "--gs.endpoint-url", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+        "--gcs.endpoint-url", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
     )
-    parser.addoption("--gs.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs")
-    parser.addoption("--gs.project", action="store", default="test", help="The GCP project for tests marked gcs")
+    parser.addoption(
+        "--gcs.oauth2.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs"
+    )
+    parser.addoption("--gcs.project-id", action="store", default="test", help="The GCP project for tests marked gcs")
 
 
 @pytest.fixture(scope="session")
@@ -1305,11 +1317,22 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
 @pytest.fixture
 def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
     properties = {
-        "gs.endpoint-url": request.config.getoption("--gs.endpoint-url"),
-        "gs.token": request.config.getoption("--gs.token"),
-        "gs.project": request.config.getoption("--gs.project"),
+        GCS_ENDPOINT_URL: request.config.getoption("--gcs.endpoint-url"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
     }
     return fsspec.FsspecFileIO(properties=properties)
+
+
+@pytest.fixture
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
+    properties = {
+        GCS_ENDPOINT_URL: request.config.getoption("--gcs.endpoint-url"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+        GCS_TOKEN_EXPIRES_AT: datetime_to_millis(datetime.now()) + 60 * 1000,
+    }
+    return PyArrowFileIO(properties=properties)
 
 
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):

@@ -80,6 +80,7 @@ from pyiceberg.expressions.visitors import (
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT_URL,
     GCS_TOKEN,
     GCS_TOKEN_EXPIRES_AT,
     HDFS_HOST,
@@ -326,6 +327,10 @@ class PyArrowFileIO(FileIO):
                 gcs_kwargs["credential_token_expiration"] = millis_to_datetime(int(expiration))
             if bucket_location := self.properties.get(GCS_DEFAULT_LOCATION):
                 gcs_kwargs["default_bucket_location"] = bucket_location
+            if endpoint := self.properties.get(GCS_ENDPOINT_URL):
+                url_parts = urlparse(endpoint)
+                gcs_kwargs["scheme"] = url_parts.scheme
+                gcs_kwargs["endpoint_override"] = url_parts.netloc
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
             return LocalFileSystem()

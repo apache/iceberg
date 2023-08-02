@@ -22,9 +22,3 @@ services:
     container_name: gcs-server
     ports:
       - 4443:4443
-    entrypoint: >
-      /bin/sh -c "
-      mkdir -p /data/warehouse;
-      /bin/fake-gcs-server -data /data -scheme http;
-      exit 0;
-      "

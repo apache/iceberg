@@ -16,6 +16,7 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems."""
 import errno
+import json
 import logging
 import os
 from functools import lru_cache, partial
@@ -142,10 +143,10 @@ def _gs(properties: Properties) -> AbstractFileSystem:
         project=properties.get(GCS_PROJECT_ID),
         access=properties.get(GCS_ACCESS, "full_control"),
         token=properties.get(GCS_TOKEN),
-        consistency=properties.get(GCS_CONSISTENCY),
+        consistency=properties.get(GCS_CONSISTENCY, "none"),
         cache_timeout=properties.get(GCS_CACHE_TIMEOUT),
-        requester_pays=properties.get(GCS_REQUESTER_PAYS),
-        session_kwargs=properties.get(GCS_SESSION_KWARGS, "{}"),
+        requester_pays=properties.get(GCS_REQUESTER_PAYS, False),
+        session_kwargs=json.loads(properties.get(GCS_SESSION_KWARGS, "{}")),
         endpoint_url=properties.get(GCS_ENDPOINT_URL),
         default_location=properties.get(GCS_DEFAULT_LOCATION),
         version_aware=properties.get(GCS_VERSION_AWARE, "false").lower() == "true",
