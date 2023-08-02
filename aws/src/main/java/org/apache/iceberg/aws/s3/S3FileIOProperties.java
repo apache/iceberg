@@ -385,6 +385,46 @@ public class S3FileIOProperties implements Serializable {
    */
   private static final String S3_FILE_IO_USER_AGENT = "s3fileio/" + EnvironmentContext.get();
 
+  /** Number of times to retry S3 read operation. */
+  public static final String S3_READ_RETRY_NUM_RETRIES = "s3.read.retry.num-retries";
+
+  public static final int S3_READ_RETRY_NUM_RETRIES_DEFAULT = 7;
+
+  /** Minimum wait time to retry a S3 read operation */
+  public static final String S3_READ_RETRY_MIN_WAIT_MS = "s3.read.retry.min-wait-ms";
+
+  public static final long S3_READ_RETRY_MIN_WAIT_MS_DEFAULT = 500; // 0.5 seconds
+
+  /** Maximum wait time to retry a S3 read operation */
+  public static final String S3_READ_RETRY_MAX_WAIT_MS = "s3.read.retry.max-wait-ms";
+
+  public static final long S3_READ_RETRY_MAX_WAIT_MS_DEFAULT = 2 * 60 * 1000; // 2 minute
+
+  /** Total retry time for a S3 read operation */
+  public static final String S3_READ_RETRY_TOTAL_TIMEOUT_MS = "s3.read.retry.total-timeout-ms";
+
+  public static final long S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT = 10 * 60 * 1000; // 10 minutes
+
+  /** Number of times to retry S3 write operation. */
+  public static final String S3_WRITE_RETRY_NUM_RETRIES = "s3.write.retry.num-retries";
+
+  public static final int S3_WRITE_RETRY_NUM_RETRIES_DEFAULT = 7;
+
+  /** Minimum wait time to retry a S3 write operation */
+  public static final String S3_WRITE_RETRY_MIN_WAIT_MS = "s3.write.retry.min-wait-ms";
+
+  public static final long S3_WRITE_RETRY_MIN_WAIT_MS_DEFAULT = 500; // 0.5 seconds
+
+  /** Maximum wait time to retry a S3 write operation */
+  public static final String S3_WRITE_RETRY_MAX_WAIT_MS = "s3.write.retry.max-wait-ms";
+
+  public static final long S3_WRITE_RETRY_MAX_WAIT_MS_DEFAULT = 2 * 60 * 1000; // 2 minute
+
+  /** Total retry time for a S3 write operation */
+  public static final String S3_WRITE_RETRY_TOTAL_TIMEOUT_MS = "s3.write.retry.total-timeout-ms";
+
+  public static final long S3_WRITE_RETRY_TOTAL_TIMEOUT_MS_DEFAULT = 10 * 60 * 1000; // 10 minutes
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -408,6 +448,14 @@ public class S3FileIOProperties implements Serializable {
   private boolean isDeleteEnabled;
   private final Map<String, String> bucketToAccessPointMapping;
   private boolean isPreloadClientEnabled;
+  private int s3ReadRetryNumRetries;
+  private long s3ReadRetryMinWaitMs;
+  private long s3ReadRetryMaxWaitMs;
+  private long s3ReadRetryTotalTimeoutMs;
+  private int s3WriteRetryNumRetries;
+  private long s3WriteRetryMinWaitMs;
+  private long s3WriteRetryMaxWaitMs;
+  private long s3WriteRetryTotalTimeoutMs;
   private boolean isDualStackEnabled;
   private boolean isPathStyleAccess;
   private boolean isUseArnRegionEnabled;
@@ -440,6 +488,14 @@ public class S3FileIOProperties implements Serializable {
     this.isDeleteEnabled = DELETE_ENABLED_DEFAULT;
     this.bucketToAccessPointMapping = Collections.emptyMap();
     this.isPreloadClientEnabled = PRELOAD_CLIENT_ENABLED_DEFAULT;
+    this.s3ReadRetryNumRetries = S3_READ_RETRY_NUM_RETRIES_DEFAULT;
+    this.s3ReadRetryMinWaitMs = S3_READ_RETRY_MIN_WAIT_MS_DEFAULT;
+    this.s3ReadRetryMaxWaitMs = S3_READ_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3ReadRetryTotalTimeoutMs = S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT;
+    this.s3WriteRetryNumRetries = S3_WRITE_RETRY_NUM_RETRIES_DEFAULT;
+    this.s3WriteRetryMinWaitMs = S3_WRITE_RETRY_MIN_WAIT_MS_DEFAULT;
+    this.s3WriteRetryMaxWaitMs = S3_WRITE_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3WriteRetryTotalTimeoutMs = S3_WRITE_RETRY_TOTAL_TIMEOUT_MS_DEFAULT;
     this.isDualStackEnabled = DUALSTACK_ENABLED_DEFAULT;
     this.isPathStyleAccess = PATH_STYLE_ACCESS_DEFAULT;
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
@@ -532,6 +588,30 @@ public class S3FileIOProperties implements Serializable {
     this.isPreloadClientEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, PRELOAD_CLIENT_ENABLED, PRELOAD_CLIENT_ENABLED_DEFAULT);
+    this.s3ReadRetryNumRetries =
+        PropertyUtil.propertyAsInt(
+            properties, S3_READ_RETRY_NUM_RETRIES, S3_READ_RETRY_NUM_RETRIES_DEFAULT);
+    this.s3ReadRetryMinWaitMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_READ_RETRY_MIN_WAIT_MS, S3_READ_RETRY_MIN_WAIT_MS_DEFAULT);
+    this.s3ReadRetryMaxWaitMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_READ_RETRY_MAX_WAIT_MS, S3_READ_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3ReadRetryTotalTimeoutMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_READ_RETRY_TOTAL_TIMEOUT_MS, S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT);
+    this.s3WriteRetryNumRetries =
+        PropertyUtil.propertyAsInt(
+            properties, S3_WRITE_RETRY_NUM_RETRIES, S3_WRITE_RETRY_NUM_RETRIES_DEFAULT);
+    this.s3WriteRetryMinWaitMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_WRITE_RETRY_MIN_WAIT_MS, S3_WRITE_RETRY_MIN_WAIT_MS_DEFAULT);
+    this.s3WriteRetryMaxWaitMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_WRITE_RETRY_MAX_WAIT_MS, S3_WRITE_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3WriteRetryTotalTimeoutMs =
+        PropertyUtil.propertyAsLong(
+            properties, S3_WRITE_RETRY_TOTAL_TIMEOUT_MS, S3_WRITE_RETRY_TOTAL_TIMEOUT_MS_DEFAULT);
     this.isRemoteSigningEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
@@ -721,6 +801,70 @@ public class S3FileIOProperties implements Serializable {
 
   public String writeStorageClass() {
     return writeStorageClass;
+  }
+
+  public int s3ReadRetryNumRetries() {
+    return s3ReadRetryNumRetries;
+  }
+
+  public void setS3ReadRetryNumRetries(int s3ReadRetryNumRetries) {
+    this.s3ReadRetryNumRetries = s3ReadRetryNumRetries;
+  }
+
+  public long s3ReadRetryMinWaitMs() {
+    return s3ReadRetryMinWaitMs;
+  }
+
+  public void setS3ReadRetryMinWaitMs(long s3ReadRetryMinWaitMs) {
+    this.s3ReadRetryMinWaitMs = s3ReadRetryMinWaitMs;
+  }
+
+  public long s3ReadRetryMaxWaitMs() {
+    return s3ReadRetryMaxWaitMs;
+  }
+
+  public void setS3ReadRetryMaxWaitMs(long s3ReadRetryMaxWaitMs) {
+    this.s3ReadRetryMaxWaitMs = s3ReadRetryMaxWaitMs;
+  }
+
+  public long s3ReadRetryTotalTimeoutMs() {
+    return s3ReadRetryTotalTimeoutMs;
+  }
+
+  public void setS3ReadRetryTotalTimeoutMs(long s3ReadRetryTotalTimeoutMs) {
+    this.s3ReadRetryTotalTimeoutMs = s3ReadRetryTotalTimeoutMs;
+  }
+
+  public int s3WriteRetryNumRetries() {
+    return s3WriteRetryNumRetries;
+  }
+
+  public void setS3WriteRetryNumRetries(int s3WriteRetryNumRetries) {
+    this.s3WriteRetryNumRetries = s3WriteRetryNumRetries;
+  }
+
+  public long s3WriteRetryMinWaitMs() {
+    return s3WriteRetryMinWaitMs;
+  }
+
+  public void setS3WriteRetryMinWaitMs(long s3WriteRetryMinWaitMs) {
+    this.s3WriteRetryMinWaitMs = s3WriteRetryMinWaitMs;
+  }
+
+  public long s3WriteRetryMaxWaitMs() {
+    return s3WriteRetryMaxWaitMs;
+  }
+
+  public void setS3WriteRetryMaxWaitMs(long s3WriteRetryMaxWaitMs) {
+    this.s3WriteRetryMaxWaitMs = s3WriteRetryMaxWaitMs;
+  }
+
+  public long s3WriteRetryTotalTimeoutMs() {
+    return s3WriteRetryTotalTimeoutMs;
+  }
+
+  public void setS3WriteRetryTotalTimeoutMs(long s3WriteRetryTotalTimeoutMs) {
+    this.s3WriteRetryTotalTimeoutMs = s3WriteRetryTotalTimeoutMs;
   }
 
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {

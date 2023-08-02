@@ -164,7 +164,7 @@ class S3OutputStream extends PositionOutputStream {
   public void write(int b) throws IOException {
     if (stream.getCount() >= multiPartSize) {
       newStream();
-      uploadParts();
+      retryAndThrow(ignored -> uploadParts());
     }
 
     stream.write(b);
@@ -174,8 +174,11 @@ class S3OutputStream extends PositionOutputStream {
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
-      initializeMultiPartUpload();
-      uploadParts();
+      retryAndThrow(
+          ignored -> {
+            initializeMultiPartUpload();
+            uploadParts();
+          });
     }
   }
 
@@ -195,7 +198,7 @@ class S3OutputStream extends PositionOutputStream {
       relativeOffset += writeSize;
 
       newStream();
-      uploadParts();
+      retryAndThrow(ignored -> uploadParts());
     }
 
     stream.write(b, relativeOffset, remaining);
@@ -205,14 +208,24 @@ class S3OutputStream extends PositionOutputStream {
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
-      initializeMultiPartUpload();
-      uploadParts();
+      retryAndThrow(
+          ignored -> {
+            initializeMultiPartUpload();
+            uploadParts();
+          });
     }
   }
 
   private void newStream() throws IOException {
     if (stream != null) {
-      stream.close();
+      retryAndThrow(
+          ignored -> {
+            try {
+              stream.close();
+            } catch (IOException e) {
+              throw new UncheckedIOException(e);
+            }
+          });
     }
 
     createStagingDirectoryIfNotExists();
@@ -262,7 +275,7 @@ class S3OutputStream extends PositionOutputStream {
 
     try {
       stream.close();
-      completeUploads();
+      retryAndThrow(ignored -> completeUploads());
     } finally {
       cleanUpStagingFiles();
     }
@@ -472,6 +485,23 @@ class S3OutputStream extends PositionOutputStream {
                   + stagingDirectory.getAbsolutePath());
         }
       }
+    }
+  }
+
+  private void retryAndThrow(Tasks.Task task) throws IOException {
+    try {
+      Tasks.foreach(0)
+          .retry(s3FileIOProperties.s3WriteRetryNumRetries())
+          .exponentialBackoff(
+              s3FileIOProperties.s3WriteRetryMinWaitMs(),
+              s3FileIOProperties.s3WriteRetryMaxWaitMs(),
+              s3FileIOProperties.s3WriteRetryTotalTimeoutMs(),
+              2.0 /* exponential */)
+          .shouldRetryTest(S3InputStream::shouldRetry)
+          .throwFailureWhenFinished()
+          .run(task);
+    } catch (UncheckedIOException e) {
+      throw e.getCause();
     }
   }
 
