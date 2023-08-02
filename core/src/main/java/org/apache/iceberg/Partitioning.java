@@ -238,7 +238,10 @@ public class Partitioning {
    * @return the constructed unified partition type
    */
   public static StructType partitionType(Table table) {
-    Collection<PartitionSpec> specs = table.specs().values();
+    return partitionType(table.specs().values());
+  }
+
+  public static StructType partitionType(Collection<PartitionSpec> specs) {
     return buildPartitionProjectionType("table partition", specs, allFieldIds(specs));
   }
 
