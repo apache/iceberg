@@ -25,7 +25,7 @@ import org.apache.iceberg.TableMetadata;
 
 public interface EncryptionManagerFactory extends Closeable {
 
-  EncryptionManagerFactory NO_ENCRYPTION = tableMetadata -> PlaintextEncryptionManager.INSTANCE;
+  EncryptionManagerFactory NO_ENCRYPTION = tableMetadata -> PlaintextEncryptionManager.instance();
 
   /**
    * Initialize EncryptionManagerFactory from catalog properties.

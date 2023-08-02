@@ -41,17 +41,10 @@ public class StandardEncryptionManagerFactory implements EncryptionManagerFactor
   @Override
   public EncryptionManager create(TableMetadata tableMetadata) {
     if (tableMetadata == null) {
-      return PlaintextEncryptionManager.INSTANCE;
+      return PlaintextEncryptionManager.instance();
     }
 
     Map<String, String> tableProperties = tableMetadata.properties();
-    String fileFormat =
-        PropertyUtil.propertyAsString(
-            tableProperties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
-      throw new UnsupportedOperationException(
-          "Iceberg encryption currently supports only parquet format for data files");
-    }
 
     final Map<String, String> encryptionProperties = Maps.newHashMap();
     encryptionProperties.putAll(tableProperties);
@@ -63,10 +56,25 @@ public class StandardEncryptionManagerFactory implements EncryptionManagerFactor
 
     if (null == tableKeyId) {
       // Unencrypted table
-      return PlaintextEncryptionManager.INSTANCE;
+      return PlaintextEncryptionManager.instance();
     } else {
+      String fileFormat =
+          PropertyUtil.propertyAsString(
+              tableProperties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+
+      if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
+        throw new UnsupportedOperationException(
+            "Iceberg encryption currently supports only parquet format for data files");
+      }
+
+      int dataKeyLength =
+          PropertyUtil.propertyAsInt(
+              encryptionProperties,
+              EncryptionProperties.ENCRYPTION_DEK_LENGTH,
+              EncryptionProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
       return new StandardEncryptionManager(
-          tableKeyId, kmsClient(encryptionProperties), encryptionProperties);
+          tableKeyId, dataKeyLength, kmsClient(encryptionProperties), encryptionProperties);
     }
   }
 

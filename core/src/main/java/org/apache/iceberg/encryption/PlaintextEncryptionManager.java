@@ -18,20 +18,24 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.nio.ByteBuffer;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PlaintextEncryptionManager implements EncryptionManager {
-  public static final EncryptionManager INSTANCE = new PlaintextEncryptionManager();
-
+  private static final EncryptionManager INSTANCE = new PlaintextEncryptionManager();
   private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
+
+  public static EncryptionManager instance() {
+    return INSTANCE;
+  }
 
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
-    if (encrypted.keyMetadata().buffer() != null) {
+    if (encrypted.keyMetadata() != null
+        && encrypted.keyMetadata().buffer() != null
+        && encrypted.keyMetadata().buffer().capacity() > 0) {
       LOG.warn(
           "File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
     }
@@ -40,6 +44,6 @@ public class PlaintextEncryptionManager implements EncryptionManager {
 
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
-    return EncryptedFiles.encryptedOutput(rawOutput, (ByteBuffer) null);
+    return EncryptedFiles.encryptedOutput(rawOutput, EncryptionKeyMetadata.empty());
   }
 }

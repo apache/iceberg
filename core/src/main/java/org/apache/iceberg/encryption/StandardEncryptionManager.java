@@ -24,13 +24,11 @@ import java.util.Map;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.PropertyUtil;
 
 public class StandardEncryptionManager implements EncryptionManager {
   private final KeyManagementClient kmsClient;
   private String tableKeyId;
   private int dataKeyLength;
-  private boolean kmsGeneratedKeys;
 
   private transient volatile SecureRandom workerRNG = null;
 
@@ -40,31 +38,22 @@ public class StandardEncryptionManager implements EncryptionManager {
    * @param encryptionProperties encryption properties
    */
   public StandardEncryptionManager(
-      String tableKeyId, KeyManagementClient kmsClient, Map<String, String> encryptionProperties) {
-    Preconditions.checkNotNull(
-        tableKeyId,
-        "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
-    Preconditions.checkNotNull(
-        kmsClient, "Cannot create EnvelopeEncryptionManager because kmsClient is null");
-    Preconditions.checkNotNull(
-        encryptionProperties,
-        "Cannot create EnvelopeEncryptionManager because encryptionProperties are not passed");
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient,
+      Map<String, String> encryptionProperties) {
+    Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
+    Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
+    Preconditions.checkNotNull(encryptionProperties, "Invalid encryption properties: null");
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
-    this.kmsGeneratedKeys = kmsClient.supportsKeyGeneration();
 
-    this.dataKeyLength =
-        PropertyUtil.propertyAsInt(
-            encryptionProperties,
-            EncryptionProperties.ENCRYPTION_DEK_LENGTH,
-            EncryptionProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+    this.dataKeyLength = dataKeyLength;
   }
 
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
-    if (null == workerRNG) {
-      createSecureRandomGenerator();
-    }
+    lazyCreateRNG();
 
     ByteBuffer fileDek = ByteBuffer.allocate(dataKeyLength);
     workerRNG.nextBytes(fileDek.array());
@@ -72,49 +61,42 @@ public class StandardEncryptionManager implements EncryptionManager {
     ByteBuffer aadPrefix = ByteBuffer.allocate(EncryptionProperties.ENCRYPTION_AAD_LENGTH_DEFAULT);
     workerRNG.nextBytes(aadPrefix.array());
 
-    // For data files
-    KeyMetadata dataEncryptionMetadata = new KeyMetadata(fileDek, null, aadPrefix);
+    KeyMetadata encryptionMetadata = new KeyMetadata(fileDek, aadPrefix);
 
-    // For metadata files
-    // This is an expensive operation, RPC to KMS server
-    ByteBuffer wrappedDek = kmsClient.wrapKey(fileDek, tableKeyId);
-    KeyMetadata manifestEncryptionMetadata = new KeyMetadata(wrappedDek, tableKeyId, aadPrefix);
-
-    // We don't know which key metadata to use, because we don't know what file we encrypt.
-    // Works for data files:
-    // return new BaseEncryptedOutputFile(new AesGcmOutputFile(rawOutput, fileDek, aadPrefix),
-    //    dataEncryptionMetadata, rawOutput);
-    // Works for manifest files:
-    // return new BaseEncryptedOutputFile(new AesGcmOutputFile(rawOutput, fileDek, aadPrefix),
-    //    manifestEncryptionMetadata, rawOutput);
-
-    // Temp return, for parquet data only. TODO - remove
-    return new BaseEncryptedOutputFile(null, dataEncryptionMetadata, rawOutput);
+    return new BaseEncryptedOutputFile(
+        new AesGcmOutputFile(rawOutput, fileDek.array(), aadPrefix.array()),
+        encryptionMetadata,
+        rawOutput);
   }
 
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
-    if (encrypted.keyMetadata() == null || encrypted.keyMetadata().buffer() == null) {
-      throw new RuntimeException(
+    if (encrypted.keyMetadata() == null
+        || encrypted.keyMetadata().buffer() == null
+        || encrypted.keyMetadata().buffer().capacity() == 0) {
+      throw new SecurityException(
           "Unencrypted file " + encrypted.encryptedInputFile().location() + " in encrypted table");
     }
 
     KeyMetadata keyMetadata = KeyMetadata.parse(encrypted.keyMetadata().buffer());
 
-    ByteBuffer fileDek;
-    if (keyMetadata.wrappingKeyId() == null) {
-      fileDek = keyMetadata.encryptionKey();
-    } else {
-      fileDek = kmsClient.unwrapKey(keyMetadata.encryptionKey(), keyMetadata.wrappingKeyId());
-    }
+    byte[] fileDek = keyMetadata.encryptionKey().array();
+    byte[] aadPrefix = keyMetadata.aadPrefix().array();
 
-    // return new AesGcmInputFile(encrypted.encryptedInputFile(), fileDek, keyMetadata.aadPrefix());
-
-    // Temp return null - decrypt is not called for parquet data files. TODO - remove
-    return null;
+    return new AesGcmInputFile(encrypted.encryptedInputFile(), fileDek, aadPrefix);
   }
 
-  private void createSecureRandomGenerator() {
-    this.workerRNG = new SecureRandom();
+  private void lazyCreateRNG() {
+    if (this.workerRNG == null) {
+      this.workerRNG = new SecureRandom();
+    }
+  }
+
+  public ByteBuffer wrapKey(ByteBuffer secretKey) {
+    return kmsClient.wrapKey(secretKey, tableKeyId);
+  }
+
+  public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
+    return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 }
