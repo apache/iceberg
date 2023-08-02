@@ -111,7 +111,7 @@ public class GCSFileIO implements FileIO {
     return properties.immutableMap();
   }
 
-  private Storage client() {
+  public Storage client() {
     if (storage == null) {
       synchronized (this) {
         if (storage == null) {
