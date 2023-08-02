@@ -149,6 +149,17 @@ public interface Transaction {
   }
 
   /**
+   * Create a new {@link UpdatePartitionStatistics update partition statistics API} to add or remove
+   * partition statistics files in this table.
+   *
+   * @return a new {@link UpdatePartitionStatistics}
+   */
+  default UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(
+        "Updating partition statistics is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table.
    *
    * @return a new {@link ExpireSnapshots}

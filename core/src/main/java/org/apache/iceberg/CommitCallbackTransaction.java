@@ -107,6 +107,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    return wrapped.updatePartitionStatistics();
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return wrapped.expireSnapshots();
   }

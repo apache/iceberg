@@ -137,7 +137,9 @@ public class ReachableFileUtil {
    *
    * @param table table for which statistics files needs to be listed
    * @return the location of statistics files
+   * @deprecated use the {@code allStatisticsFilesLocations(table)} instead.
    */
+  @Deprecated
   public static List<String> statisticsFilesLocations(Table table) {
     return statisticsFilesLocations(table, statisticsFile -> true);
   }
@@ -148,12 +150,62 @@ public class ReachableFileUtil {
    * @param table table for which statistics files needs to be listed
    * @param predicate predicate for filtering the statistics files
    * @return the location of statistics files
+   * @deprecated use the {@code allStatisticsFilesLocations(table, snapshotIds)} instead.
    */
+  @Deprecated
   public static List<String> statisticsFilesLocations(
       Table table, Predicate<StatisticsFile> predicate) {
     return table.statisticsFiles().stream()
         .filter(predicate)
         .map(StatisticsFile::path)
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Returns locations of statistics files in a table.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @return the location of statistics files
+   */
+  public static List<String> allStatisticsFilesLocations(Table table) {
+    return allStatisticsFilesLocations(table, null);
+  }
+
+  /**
+   * Returns locations of statistics files for a table for given snapshots.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @param snapshotIds snapshot IDs for which statistics files needs to be listed
+   * @return the location of statistics files
+   */
+  public static List<String> allStatisticsFilesLocations(Table table, Set<Long> snapshotIds) {
+    List<String> statsFileLocations = Lists.newArrayList();
+
+    Predicate<StatisticsFile> statisticsFilePredicate;
+    Predicate<PartitionStatisticsFile> partitionStatisticsFilePredicate;
+    if (snapshotIds == null) {
+      statisticsFilePredicate = statisticsFile -> true;
+      partitionStatisticsFilePredicate = partitionStatisticsFile -> true;
+    } else {
+      statisticsFilePredicate = statisticsFile -> snapshotIds.contains(statisticsFile.snapshotId());
+      partitionStatisticsFilePredicate =
+          partitionStatisticsFile -> snapshotIds.contains(partitionStatisticsFile.snapshotId());
+    }
+
+    if (table.statisticsFiles() != null) {
+      table.statisticsFiles().stream()
+          .filter(statisticsFilePredicate)
+          .map(StatisticsFile::path)
+          .forEach(statsFileLocations::add);
+    }
+
+    if (table.partitionStatisticsFiles() != null) {
+      table.partitionStatisticsFiles().stream()
+          .filter(partitionStatisticsFilePredicate)
+          .map(PartitionStatisticsFile::path)
+          .forEach(statsFileLocations::add);
+    }
+
+    return statsFileLocations;
   }
 }

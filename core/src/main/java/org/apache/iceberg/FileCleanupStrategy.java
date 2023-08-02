@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
@@ -98,10 +97,15 @@ abstract class FileCleanupStrategy {
     Set<String> statsFileLocations = Sets.newHashSet();
 
     if (tableMetadata.statisticsFiles() != null) {
-      statsFileLocations =
-          tableMetadata.statisticsFiles().stream()
-              .map(StatisticsFile::path)
-              .collect(Collectors.toSet());
+      tableMetadata.statisticsFiles().stream()
+          .map(StatisticsFile::path)
+          .forEach(statsFileLocations::add);
+    }
+
+    if (tableMetadata.partitionStatisticsFiles() != null) {
+      tableMetadata.partitionStatisticsFiles().stream()
+          .map(PartitionStatisticsFile::path)
+          .forEach(statsFileLocations::add);
     }
 
     return statsFileLocations;

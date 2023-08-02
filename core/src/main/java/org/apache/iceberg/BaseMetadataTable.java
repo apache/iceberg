@@ -195,6 +195,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   }
 
   @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
   }
