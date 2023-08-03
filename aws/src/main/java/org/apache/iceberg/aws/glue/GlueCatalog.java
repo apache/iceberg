@@ -48,7 +48,6 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -89,7 +88,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private String catalogName;
   private String warehousePath;
   private AwsProperties awsProperties;
-  private FileIO fileIO;
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
@@ -113,7 +111,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public void initialize(String name, Map<String, String> properties) {
     this.catalogProperties = ImmutableMap.copyOf(properties);
     AwsClientFactory awsClientFactory;
-    FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
         properties,
         AwsProperties.GLUE_LAKEFORMATION_ENABLED,
@@ -133,10 +130,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
           "Detected LakeFormation enabled for Glue catalog, should use a client factory that extends %s, but found %s",
           LakeFormationAwsClientFactory.class.getName(),
           factoryImpl);
-      catalogFileIO = null;
     } else {
       awsClientFactory = AwsClientFactories.from(properties);
-      catalogFileIO = GlueTableOperations.initializeFileIO(properties, hadoopConf);
     }
 
     initialize(
@@ -144,8 +139,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         awsClientFactory.glue(),
-        initializeLockManager(properties),
-        catalogFileIO);
+        initializeLockManager(properties));
   }
 
   private LockManager initializeLockManager(Map<String, String> properties) {
@@ -170,32 +164,24 @@ public class GlueCatalog extends BaseMetastoreCatalog
       AwsProperties properties,
       GlueClient client,
       LockManager lock,
-      FileIO io,
       Map<String, String> catalogProps) {
     this.catalogProperties = catalogProps;
-    initialize(name, path, properties, client, lock, io);
+    initialize(name, path, properties, client, lock);
   }
 
   @VisibleForTesting
   void initialize(
-      String name,
-      String path,
-      AwsProperties properties,
-      GlueClient client,
-      LockManager lock,
-      FileIO io) {
+      String name, String path, AwsProperties properties, GlueClient client, LockManager lock) {
     this.catalogName = name;
     this.awsProperties = properties;
     this.warehousePath =
         (path != null && path.length() > 0) ? LocationUtil.stripTrailingSlash(path) : null;
     this.glue = client;
     this.lockManager = lock;
-    this.fileIO = io;
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(glue);
     closeableGroup.addCloseable(lockManager);
-    closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
   }
 

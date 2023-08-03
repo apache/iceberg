@@ -33,7 +33,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.dynamodb.DynamoDbLockManager;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -55,7 +54,6 @@ public class TestGlueCatalogLock extends GlueTestBase {
     GlueTestBase.beforeClass();
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
     lockTableName = getRandomName();
-    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     glueCatalog = new GlueCatalog();
     AwsProperties awsProperties = new AwsProperties();
     dynamo = clientFactory.dynamo();
@@ -65,7 +63,6 @@ public class TestGlueCatalogLock extends GlueTestBase {
         awsProperties,
         glue,
         new DynamoDbLockManager(dynamo, lockTableName),
-        fileIO,
         ImmutableMap.of());
   }
 
