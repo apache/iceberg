@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * Delegate FileIO implementations must support the mixin interfaces {@link
  * SupportsPrefixOperations} and {@link SupportsBulkOperations}, otherwise initialization will fail.
  */
-public class ResolvingFileIO
+public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations>
     implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -60,7 +60,7 @@ public class ResolvingFileIO
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL);
 
-  private final Map<String, FileIO> ioInstances = Maps.newHashMap();
+  private final Map<String, T> ioInstances = Maps.newHashMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
@@ -104,20 +104,18 @@ public class ResolvingFileIO
     }
 
     PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
-    FileIO fileIO = io(iterator.peek());
-    ((SupportsBulkOperations) fileIO).deleteFiles(() -> iterator);
+    T fileIO = io(iterator.peek());
+    fileIO.deleteFiles(() -> iterator);
   }
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    FileIO fileIO = io(prefix);
-    return ((SupportsPrefixOperations) fileIO).listPrefix(prefix);
+    return io(prefix).listPrefix(prefix);
   }
 
   @Override
   public void deletePrefix(String prefix) {
-    FileIO fileIO = io(prefix);
-    ((SupportsPrefixOperations) fileIO).deletePrefix(prefix);
+    io(prefix).deletePrefix(prefix);
   }
 
   @Override
@@ -135,14 +133,14 @@ public class ResolvingFileIO
   @Override
   public void close() {
     if (isClosed.compareAndSet(false, true)) {
-      List<FileIO> instances = Lists.newArrayList();
+      List<T> instances = Lists.newArrayList();
 
       synchronized (ioInstances) {
         instances.addAll(ioInstances.values());
         ioInstances.clear();
       }
 
-      for (FileIO io : instances) {
+      for (T io : instances) {
         io.close();
       }
     }
@@ -164,9 +162,9 @@ public class ResolvingFileIO
     return hadoopConf.get();
   }
 
-  private FileIO io(String location) {
+  private T io(String location) {
     String impl = implFromLocation(location);
-    FileIO io = ioInstances.get(impl);
+    T io = ioInstances.get(impl);
     if (io != null) {
       return io;
     }
@@ -181,12 +179,13 @@ public class ResolvingFileIO
 
       Configuration conf = hadoopConf.get();
 
+      FileIO newFileIO;
       try {
         Map<String, String> props = Maps.newHashMap(properties);
         // ResolvingFileIO is keeping track of the creation stacktrace, so no need to do the same in
         // S3FileIO.
         props.put("init-creation-stacktrace", "false");
-        io = CatalogUtil.loadFileIO(impl, props, conf);
+        newFileIO = CatalogUtil.loadFileIO(impl, props, conf);
       } catch (IllegalArgumentException e) {
         if (impl.equals(FALLBACK_IMPL)) {
           // no implementation to fall back to, throw the exception
@@ -199,7 +198,7 @@ public class ResolvingFileIO
               FALLBACK_IMPL,
               e);
           try {
-            io = CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
+            newFileIO = CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
           } catch (IllegalArgumentException suppressed) {
             LOG.warn(
                 "Failed to load FileIO implementation: {} (fallback)", FALLBACK_IMPL, suppressed);
@@ -212,12 +211,13 @@ public class ResolvingFileIO
       }
 
       Preconditions.checkState(
-          io instanceof SupportsPrefixOperations,
-          "FileIO does not implement SupportsPrefixOperations: " + io.getClass().getName());
+          newFileIO instanceof SupportsPrefixOperations,
+          "FileIO does not implement SupportsPrefixOperations: " + newFileIO.getClass().getName());
       Preconditions.checkState(
-          io instanceof SupportsBulkOperations,
-          "FileIO does not implement SupportsBulkOperations: " + io.getClass().getName());
+          newFileIO instanceof SupportsBulkOperations,
+          "FileIO does not implement SupportsBulkOperations: " + newFileIO.getClass().getName());
 
+      io = (T) newFileIO;
       ioInstances.put(impl, io);
     }
 
