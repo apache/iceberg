@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -25,10 +26,12 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -193,10 +196,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
 
-      if (Boolean.parseBoolean(tableProperties.get(TableProperties.UNIQUE_LOCATION))) {
-        boolean alreadyExists = ops.io().newInputFile(baseLocation).exists();
-        if (alreadyExists) {
-          throw new AlreadyExistsException("Table location already in use: %s", baseLocation);
+      if (Boolean.parseBoolean(
+          tableProperties.get(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED))) {
+        boolean conflictLocationDetected =
+            (ops.io() instanceof SupportsPrefixOperations)
+                ? !prefixEmpty((SupportsPrefixOperations) ops.io(), baseLocation)
+                : ops.io().newInputFile(baseLocation).exists();
+        if (conflictLocationDetected) {
+          throw new AlreadyExistsException("Table location already exists: %s", baseLocation);
         }
       }
 
@@ -210,6 +217,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    }
+
+    private boolean prefixEmpty(SupportsPrefixOperations io, String prefix) {
+      try {
+        return Iterables.isEmpty(io.listPrefix(prefix));
+      } catch (UncheckedIOException e) {
+        return true;
+      }
     }
 
     @Override

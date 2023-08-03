@@ -287,15 +287,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testCreateTableWithUniqueLocation() throws IOException {
+  public void testCreateTableWithLocationConflict() throws IOException {
     try (JdbcCatalog jdbcCatalog =
         initCatalog(
             "unique_jdbc_catalog",
             ImmutableMap.of(
-                String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true"))) {
+                String.format(
+                    "table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+                "true"))) {
       Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
       jdbcCatalog.createNamespace(testNamespace, Maps.newHashMap());
-      TableIdentifier tableIdent = TableIdentifier.of(testNamespace, "unique");
+      TableIdentifier tableIdent = TableIdentifier.of(testNamespace, "original");
       TableIdentifier tableRenamed = TableIdentifier.of(testNamespace, "renamed");
 
       Table table = jdbcCatalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
@@ -314,7 +316,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                       currentLocation,
                       ImmutableMap.of()))
           .isInstanceOf(AlreadyExistsException.class)
-          .hasMessageStartingWith("Table location already in use");
+          .hasMessageStartingWith("Table location already exists");
 
       Table recreated =
           jdbcCatalog.createTable(
@@ -322,7 +324,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
               SCHEMA,
               PartitionSpec.unpartitioned(),
               currentLocation,
-              ImmutableMap.of(TableProperties.UNIQUE_LOCATION, "false"));
+              ImmutableMap.of(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false"));
       assertThat(recreated.location()).isEqualTo(currentLocation);
 
       jdbcCatalog.dropTable(tableRenamed);

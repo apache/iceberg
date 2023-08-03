@@ -1163,13 +1163,15 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateTableWithUniqueLocation() {
+  public void testCreateTableWithLocationConflict() {
     Schema schema = getTestSchema();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "unique");
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "original");
     TableIdentifier tableRenamed = TableIdentifier.of(DB_NAME, "renamed");
 
     ImmutableMap<String, String> catalogProps =
-        ImmutableMap.of(String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true");
+        ImmutableMap.of(
+            String.format("table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+            "true");
     Catalog hiveCatalog =
         CatalogUtil.loadCatalog(
             HiveCatalog.class.getName(),
@@ -1185,12 +1187,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       assertThatThrownBy(() -> hiveCatalog.buildTable(tableIdent, schema).create())
           .isInstanceOf(AlreadyExistsException.class)
-          .hasMessageStartingWith("Table location already in use");
+          .hasMessageStartingWith("Table location already exists");
 
       Table recreated =
           hiveCatalog
               .buildTable(tableIdent, schema)
-              .withProperty(TableProperties.UNIQUE_LOCATION, "false")
+              .withProperty(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false")
               .create();
       assertThat(recreated.location()).isEqualTo(currentLocation);
     } finally {

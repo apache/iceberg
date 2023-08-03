@@ -205,28 +205,34 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCreateTableWithUniqueLocation() throws IOException {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "unique");
+  public void testCreateTableWithLocationConflict() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "tbl");
+    TableIdentifier tableIdentWithLocationConflict = TableIdentifier.of("db", "ns1");
     ImmutableMap<String, String> catalogProps =
-        ImmutableMap.of(String.format("table-default.%s", TableProperties.UNIQUE_LOCATION), "true");
+        ImmutableMap.of(
+            String.format("table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+            "true");
 
     HadoopCatalog catalog = hadoopCatalog(catalogProps);
-    String location = catalog.defaultWarehouseLocation(tableIdent);
-    FileSystem fs = Util.getFs(new Path(location), catalog.getConf());
-    Assertions.assertThat(fs.mkdirs(new Path(location))).isTrue();
+
+    Table original = catalog.buildTable(tableIdent, SCHEMA).create();
+    assertThat(original.location()).isEqualTo(catalog.defaultWarehouseLocation(tableIdent));
 
     Assertions.assertThatThrownBy(
-            () -> catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create())
+            () -> catalog.buildTable(tableIdentWithLocationConflict, SCHEMA).create())
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("Table location already in use");
+        .hasMessageStartingWith("Table location already exists");
 
-    Table recreated =
+    Table withLocationConflict =
         catalog
-            .buildTable(tableIdent, SCHEMA)
-            .withProperty(TableProperties.UNIQUE_LOCATION, "false")
+            .buildTable(tableIdentWithLocationConflict, SCHEMA)
+            .withProperty(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false")
             .create();
-    assertThat(recreated.location()).isEqualTo(location);
+    assertThat(withLocationConflict.location())
+        .isEqualTo(catalog.defaultWarehouseLocation(tableIdentWithLocationConflict));
+
     catalog.dropTable(tableIdent);
+    catalog.dropTable(tableIdentWithLocationConflict);
   }
 
   @Test
