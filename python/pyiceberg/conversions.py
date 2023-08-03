@@ -28,6 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
+from datetime import datetime, time, date, timezone
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
@@ -57,6 +58,12 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
+from pyiceberg.utils.datetime import (
+    datetime_to_micros,
+    timestamptz_to_micros,
+    date_to_days,
+    time_object_to_micros,
+)
 
 _BOOL_STRUCT = Struct("<?")
 _INT_STRUCT = Struct("<i")
@@ -172,18 +179,48 @@ def _(_: BooleanType, value: bool) -> bytes:
 
 
 @to_bytes.register(IntegerType)
-@to_bytes.register(DateType)
 def _(_: PrimitiveType, value: int) -> bytes:
     return _INT_STRUCT.pack(value)
 
 
 @to_bytes.register(LongType)
-@to_bytes.register(TimeType)
-@to_bytes.register(TimestampType)
-@to_bytes.register(TimestamptzType)
 def _(_: PrimitiveType, value: int) -> bytes:
     return _LONG_STRUCT.pack(value)
 
+@to_bytes.register(TimestampType)
+def _(_: TimestampType, value) -> bytes:
+    if not isinstance(value, (datetime, int)):
+        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
+    if isinstance(value, datetime):
+        value = datetime_to_micros(value)
+    return _LONG_STRUCT.pack(value)
+
+@to_bytes.register(TimestamptzType)
+def _(_: TimestamptzType, value) -> bytes:
+    if not isinstance(value, (datetime, int)):
+        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
+    if isinstance(value, datetime):
+        iso_str = value.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+        iso_str = iso_str[:-2] + ":" + iso_str[-2:]
+        value = timestamptz_to_micros(iso_str)
+    return _LONG_STRUCT.pack(value)
+
+
+@to_bytes.register(DateType)
+def _(_: DateType, value) -> bytes:
+    if not isinstance(value, (date, int)):
+        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.date or int")
+    if isinstance(value, date):
+        value = date_to_days(value)
+    return _INT_STRUCT.pack(value)
+
+@to_bytes.register(TimeType)
+def _(_: TimeType, value) -> bytes:
+    if not isinstance(value, (time, int)):
+        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.time or int")
+    if isinstance(value, time):
+        value = time_object_to_micros(value)
+    return _LONG_STRUCT.pack(value)
 
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
