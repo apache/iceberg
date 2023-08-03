@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,8 +43,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * FileIO implementation that uses location scheme to choose the correct FileIO implementation.
- * Delegate FileIO implementations should support the mixin interfaces {@link
- * SupportsPrefixOperations} and {@link SupportsBulkOperations}.
+ * Delegate FileIO implementations must support the mixin interfaces {@link
+ * SupportsPrefixOperations} and {@link SupportsBulkOperations}, otherwise initialization will fail.
  */
 public class ResolvingFileIO
     implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
@@ -103,31 +104,18 @@ public class ResolvingFileIO
 
     PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
     FileIO fileIO = io(iterator.peek());
-    if (!(fileIO instanceof SupportsPrefixOperations)) {
-      throw new UnsupportedOperationException(
-          "FileIO doesn't support bulk operations: " + fileIO.getClass().getName());
-    }
-
     ((SupportsBulkOperations) fileIO).deleteFiles(() -> iterator);
   }
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     FileIO fileIO = io(prefix);
-    if (!(fileIO instanceof SupportsPrefixOperations)) {
-      throw new UnsupportedOperationException(
-          "FileIO doesn't support prefix operations: " + fileIO.getClass().getName());
-    }
     return ((SupportsPrefixOperations) fileIO).listPrefix(prefix);
   }
 
   @Override
   public void deletePrefix(String prefix) {
     FileIO fileIO = io(prefix);
-    if (!(fileIO instanceof SupportsPrefixOperations)) {
-      throw new UnsupportedOperationException(
-          "FileIO doesn't support prefix operations: " + fileIO.getClass().getName());
-    }
     ((SupportsPrefixOperations) fileIO).deletePrefix(prefix);
   }
 
@@ -183,6 +171,7 @@ public class ResolvingFileIO
     }
 
     synchronized (ioInstances) {
+
       // double check while holding the lock
       io = ioInstances.get(impl);
       if (io != null) {
@@ -220,6 +209,13 @@ public class ResolvingFileIO
           }
         }
       }
+
+      Preconditions.checkState(
+          io instanceof SupportsPrefixOperations,
+          "FileIO does not implement SupportsPrefixOperations: " + io.getClass().getName());
+      Preconditions.checkState(
+          io instanceof SupportsBulkOperations,
+          "FileIO does not implement SupportsBulkOperations: " + io.getClass().getName());
 
       ioInstances.put(impl, io);
     }
