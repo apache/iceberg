@@ -28,7 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
-from datetime import datetime, time, date
+from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
@@ -57,12 +57,8 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
-from pyiceberg.utils.datetime import (
-    datetime_to_micros,
-    date_to_days,
-    time_object_to_micros,
-)
 
 _BOOL_STRUCT = Struct("<?")
 _INT_STRUCT = Struct("<i")
@@ -189,7 +185,7 @@ def _(_: PrimitiveType, value: int) -> bytes:
 
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
-def _(_: TimestampType, value) -> bytes:
+def _(_: TimestampType, value: Union[datetime, int]) -> bytes:
     if not isinstance(value, (datetime, int)):
         raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
     if isinstance(value, datetime):
@@ -198,7 +194,7 @@ def _(_: TimestampType, value) -> bytes:
 
 
 @to_bytes.register(DateType)
-def _(_: DateType, value) -> bytes:
+def _(_: DateType, value: Union[date, int]) -> bytes:
     if not isinstance(value, (date, int)):
         raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.date or int")
     if isinstance(value, date):
@@ -207,7 +203,7 @@ def _(_: DateType, value) -> bytes:
 
 
 @to_bytes.register(TimeType)
-def _(_: TimeType, value) -> bytes:
+def _(_: TimeType, value: Union[time, int]) -> bytes:
     if not isinstance(value, (time, int)):
         raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.time or int")
     if isinstance(value, time):
