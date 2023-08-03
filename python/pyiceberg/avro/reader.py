@@ -42,7 +42,7 @@ from uuid import UUID
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
-from pyiceberg.utils.decimal import unscaled_to_decimal
+from pyiceberg.utils.decimal import bytes_to_decimal, decimal_required_bytes
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -270,9 +270,8 @@ class DecimalReader(Reader):
     scale: int = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> Decimal:
-        data = decoder.read(decoder.read_int())
-        unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
-        return unscaled_to_decimal(unscaled_datum, self.scale)
+        data = decoder.read(decimal_required_bytes(self.precision))
+        return bytes_to_decimal(data, self.scale)
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()

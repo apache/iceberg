@@ -207,9 +207,7 @@ for table_name, partition in [
     """
     )
 
-    # Partitioning is not really needed, but there is a bug:
-    # https://github.com/apache/iceberg/pull/7685
-    spark.sql(f"ALTER TABLE default.{table_name} ADD PARTITION FIELD {partition} AS dt_years")
+    spark.sql(f"ALTER TABLE default.{table_name} ADD PARTITION FIELD {partition}")
 
     spark.sql(
         f"""

@@ -14,12 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import decimal
 from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import OutputStream
-from pyiceberg.utils.decimal import decimal_to_unscaled
 
 
 class BinaryEncoder:
@@ -56,23 +54,6 @@ class BinaryEncoder:
     def write_double(self, f: float) -> None:
         """A double is written as 8 bytes."""
         self.write(STRUCT_DOUBLE.pack(f))
-
-    def write_decimal_bytes(self, datum: decimal.Decimal) -> None:
-        """
-        Decimal in bytes are encoded as long.
-
-        Since size of packed value in bytes for signed long is 8, 8 bytes are written.
-        """
-        unscaled_datum = decimal_to_unscaled(datum)
-        size = (unscaled_datum.bit_length() + 7) // 8
-        bytes_datum = unscaled_datum.to_bytes(length=size, byteorder="big", signed=True)
-        self.write_bytes(bytes_datum)
-
-    def write_decimal_fixed(self, datum: decimal.Decimal, size: int) -> None:
-        """Decimal in fixed are encoded as size of fixed bytes."""
-        unscaled_datum = decimal_to_unscaled(datum)
-        bytes_datum = unscaled_datum.to_bytes(length=size, byteorder="big", signed=True)
-        self.write(bytes_datum)
 
     def write_bytes(self, b: bytes) -> None:
         """Bytes are encoded as a long followed by that many bytes of data."""

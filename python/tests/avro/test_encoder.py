@@ -19,7 +19,6 @@ from __future__ import annotations
 import io
 import struct
 import uuid
-from decimal import Decimal
 
 from pyiceberg.avro.encoder import BinaryEncoder
 
@@ -99,30 +98,6 @@ def test_write_double() -> None:
     encoder.write_double(_input)
 
     assert output.getbuffer() == struct.pack("<d", _input)
-
-
-def test_write_decimal_bytes() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = Decimal("3.14159265359")
-
-    encoder.write_decimal_bytes(_input)
-
-    assert output.getbuffer() == b"\x0a\x49\x25\x59\xf6\x4f"
-
-
-def test_write_decimal_fixed() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = Decimal("3.14159265359")
-
-    encoder.write_decimal_fixed(_input, 8)
-
-    buf = output.getbuffer()
-    assert len(buf) == 8
-    assert output.getbuffer() == b"\x00\x00\x00\x49\x25\x59\xf6\x4f"
 
 
 def test_write_bytes() -> None:

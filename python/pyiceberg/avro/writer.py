@@ -35,6 +35,7 @@ from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.types import StructType
+from pyiceberg.utils.decimal import decimal_required_bytes, decimal_to_bytes
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -136,7 +137,7 @@ class DecimalWriter(Writer):
     scale: int = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: Any) -> None:
-        return encoder.write_decimal_bytes(val)
+        return encoder.write(decimal_to_bytes(val, byte_length=decimal_required_bytes(self.precision)))
 
     def __repr__(self) -> str:
         """Returns string representation of this object."""
