@@ -187,6 +187,7 @@ def _(_: PrimitiveType, value: int) -> bytes:
 def _(_: PrimitiveType, value: int) -> bytes:
     return _LONG_STRUCT.pack(value)
 
+
 @to_bytes.register(TimestampType)
 def _(_: TimestampType, value) -> bytes:
     if not isinstance(value, (datetime, int)):
@@ -194,6 +195,7 @@ def _(_: TimestampType, value) -> bytes:
     if isinstance(value, datetime):
         value = datetime_to_micros(value)
     return _LONG_STRUCT.pack(value)
+
 
 @to_bytes.register(TimestamptzType)
 def _(_: TimestamptzType, value) -> bytes:
@@ -214,6 +216,7 @@ def _(_: DateType, value) -> bytes:
         value = date_to_days(value)
     return _INT_STRUCT.pack(value)
 
+
 @to_bytes.register(TimeType)
 def _(_: TimeType, value) -> bytes:
     if not isinstance(value, (time, int)):
@@ -221,6 +224,7 @@ def _(_: TimeType, value) -> bytes:
     if isinstance(value, time):
         value = time_object_to_micros(value)
     return _LONG_STRUCT.pack(value)
+
 
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
