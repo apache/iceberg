@@ -53,6 +53,7 @@ test-adlfs:
 test-coverage:
 	sh ./dev/run-minio.sh
 	sh ./dev/run-azurite.sh
+        sh ./dev/run-gcs-server.sh
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not integration" ${PYTEST_ARGS}
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
