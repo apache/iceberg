@@ -189,22 +189,12 @@ def _(_: PrimitiveType, value: int) -> bytes:
 
 
 @to_bytes.register(TimestampType)
+@to_bytes.register(TimestamptzType)
 def _(_: TimestampType, value) -> bytes:
     if not isinstance(value, (datetime, int)):
         raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
     if isinstance(value, datetime):
         value = datetime_to_micros(value)
-    return _LONG_STRUCT.pack(value)
-
-
-@to_bytes.register(TimestamptzType)
-def _(_: TimestamptzType, value) -> bytes:
-    if not isinstance(value, (datetime, int)):
-        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
-    if isinstance(value, datetime):
-        iso_str = value.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-        iso_str = iso_str[:-2] + ":" + iso_str[-2:]
-        value = timestamptz_to_micros(iso_str)
     return _LONG_STRUCT.pack(value)
 
 
