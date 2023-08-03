@@ -28,7 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
-from datetime import datetime, time, date, timezone
+from datetime import datetime, time, date
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
@@ -60,7 +60,6 @@ from pyiceberg.types import (
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 from pyiceberg.utils.datetime import (
     datetime_to_micros,
-    timestamptz_to_micros,
     date_to_days,
     time_object_to_micros,
 )
