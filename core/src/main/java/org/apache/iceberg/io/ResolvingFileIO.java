@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * Delegate FileIO implementations must support the mixin interfaces {@link
  * SupportsPrefixOperations} and {@link SupportsBulkOperations}, otherwise initialization will fail.
  */
-public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations>
+public class ResolvingFileIO
     implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -60,7 +60,7 @@ public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & Suppo
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL);
 
-  private final Map<String, T> ioInstances = Maps.newHashMap();
+  private final Map<String, FileIO> ioInstances = Maps.newHashMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
@@ -104,7 +104,7 @@ public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & Suppo
     }
 
     PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
-    T fileIO = io(iterator.peek());
+    SupportsBulkOperations fileIO = io(iterator.peek());
     fileIO.deleteFiles(() -> iterator);
   }
 
@@ -133,14 +133,14 @@ public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & Suppo
   @Override
   public void close() {
     if (isClosed.compareAndSet(false, true)) {
-      List<T> instances = Lists.newArrayList();
+      List<FileIO> instances = Lists.newArrayList();
 
       synchronized (ioInstances) {
         instances.addAll(ioInstances.values());
         ioInstances.clear();
       }
 
-      for (T io : instances) {
+      for (FileIO io : instances) {
         io.close();
       }
     }
@@ -162,9 +162,10 @@ public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & Suppo
     return hadoopConf.get();
   }
 
-  private T io(String location) {
+  private <T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations> T io(
+      String location) {
     String impl = implFromLocation(location);
-    T io = ioInstances.get(impl);
+    T io = (T) ioInstances.get(impl);
     if (io != null) {
       return io;
     }
@@ -172,7 +173,7 @@ public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & Suppo
     synchronized (ioInstances) {
 
       // double check while holding the lock
-      io = ioInstances.get(impl);
+      io = (T) ioInstances.get(impl);
       if (io != null) {
         return io;
       }
