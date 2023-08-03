@@ -139,10 +139,10 @@ func (s *Schema) Type() string { return "struct" }
 
 // AsStruct returns a Struct with the same fields as the schema which can
 // then be used as a Type.
-func (s *Schema) AsStruct() StructType    { return StructType{Fields: s.fields} }
+func (s *Schema) AsStruct() StructType    { return StructType{FieldList: s.fields} }
 func (s *Schema) NumFields() int          { return len(s.fields) }
 func (s *Schema) Field(i int) NestedField { return s.fields[i] }
-func (s *Schema) Children() []NestedField { return slices.Clone(s.fields) }
+func (s *Schema) Fields() []NestedField   { return slices.Clone(s.fields) }
 
 func (s *Schema) UnmarshalJSON(b []byte) error {
 	type Alias Schema
@@ -389,12 +389,12 @@ func Visit[T any](sc *Schema, visitor SchemaVisitor[T]) (res T, err error) {
 }
 
 func visitStruct[T any](obj StructType, visitor SchemaVisitor[T]) T {
-	results := make([]T, len(obj.Fields))
+	results := make([]T, len(obj.FieldList))
 
 	bf, _ := visitor.(BeforeFieldVisitor)
 	af, _ := visitor.(AfterFieldVisitor)
 
-	for i, f := range obj.Fields {
+	for i, f := range obj.FieldList {
 		if bf != nil {
 			bf.BeforeField(f)
 		}
@@ -666,7 +666,7 @@ func PruneColumns(schema *Schema, selected map[int]Void, selectFullTypes bool) (
 	}
 
 	return &Schema{
-		fields:             n.Children(),
+		fields:             n.Fields(),
 		ID:                 schema.ID,
 		IdentifierFieldIDs: newIdentifierIDs,
 	}, nil
@@ -682,7 +682,7 @@ func (p *pruneColVisitor) Schema(_ *Schema, structResult Type) Type {
 }
 
 func (p *pruneColVisitor) Struct(st StructType, fieldResults []Type) Type {
-	selected, fields := []NestedField{}, st.Fields
+	selected, fields := []NestedField{}, st.FieldList
 	sameType := true
 
 	for i, t := range fieldResults {
@@ -707,7 +707,7 @@ func (p *pruneColVisitor) Struct(st StructType, fieldResults []Type) Type {
 			// nothing changed, return the original
 			return &st
 		} else {
-			return &StructType{Fields: selected}
+			return &StructType{FieldList: selected}
 		}
 	}
 

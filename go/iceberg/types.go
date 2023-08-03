@@ -29,7 +29,7 @@ import (
 
 var (
 	regexFromBrackets = regexp.MustCompile(`^\w+\[(\d+)\]$`)
-	decimalRegex      = regexp.MustCompile(`decimal\((\d+),\s*(\d+)\)`)
+	decimalRegex      = regexp.MustCompile(`decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)`)
 )
 
 type Properties map[string]string
@@ -46,7 +46,7 @@ type Type interface {
 // a nested type such as a list/struct/map type.
 type NestedType interface {
 	Type
-	Children() []NestedField
+	Fields() []NestedField
 }
 
 type typeIFace struct {
@@ -201,7 +201,7 @@ func (n *NestedField) UnmarshalJSON(b []byte) error {
 }
 
 type StructType struct {
-	Fields []NestedField `json:"fields"`
+	FieldList []NestedField `json:"fields"`
 }
 
 func (s *StructType) Equals(other Type) bool {
@@ -210,12 +210,12 @@ func (s *StructType) Equals(other Type) bool {
 		return false
 	}
 
-	return slices.EqualFunc(s.Fields, st.Fields, func(a, b NestedField) bool {
+	return slices.EqualFunc(s.FieldList, st.FieldList, func(a, b NestedField) bool {
 		return a.Equals(b)
 	})
 }
 
-func (s *StructType) Children() []NestedField { return s.Fields }
+func (s *StructType) Fields() []NestedField { return s.FieldList }
 
 func (s *StructType) MarshalJSON() ([]byte, error) {
 	type Alias StructType
@@ -229,7 +229,7 @@ func (*StructType) Type() string { return "struct" }
 func (s *StructType) String() string {
 	var b strings.Builder
 	b.WriteString("struct<")
-	for i, f := range s.Fields {
+	for i, f := range s.FieldList {
 		if i != 0 {
 			b.WriteString(", ")
 		}
@@ -268,7 +268,7 @@ func (l *ListType) Equals(other Type) bool {
 		l.ElementRequired == rhs.ElementRequired
 }
 
-func (l *ListType) Children() []NestedField {
+func (l *ListType) Fields() []NestedField {
 	return []NestedField{l.ElementField()}
 }
 
@@ -333,7 +333,7 @@ func (m *MapType) Equals(other Type) bool {
 		m.ValueRequired == rhs.ValueRequired
 }
 
-func (m *MapType) Children() []NestedField {
+func (m *MapType) Fields() []NestedField {
 	return []NestedField{m.KeyField(), m.ValueField()}
 }
 

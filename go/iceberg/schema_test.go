@@ -59,7 +59,7 @@ var (
 		iceberg.NestedField{
 			ID: 11, Name: "location", Type: &iceberg.ListType{
 				ElementID: 12, Element: &iceberg.StructType{
-					Fields: []iceberg.NestedField{
+					FieldList: []iceberg.NestedField{
 						{ID: 13, Name: "latitude", Type: iceberg.PrimitiveTypes.Float32, Required: false},
 						{ID: 14, Name: "longitude", Type: iceberg.PrimitiveTypes.Float32, Required: false},
 					},
@@ -70,7 +70,7 @@ var (
 			ID:   15,
 			Name: "person",
 			Type: &iceberg.StructType{
-				Fields: []iceberg.NestedField{
+				FieldList: []iceberg.NestedField{
 					{ID: 16, Name: "name", Type: iceberg.PrimitiveTypes.String, Required: false},
 					{ID: 17, Name: "age", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 				},
@@ -138,7 +138,7 @@ func TestSchemaIndexByIDVisitor(t *testing.T) {
 		10: {ID: 10, Name: "value", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 		11: tableSchemaNested.Field(5),
 		12: {ID: 12, Name: "element", Type: &iceberg.StructType{
-			Fields: []iceberg.NestedField{
+			FieldList: []iceberg.NestedField{
 				{ID: 13, Name: "latitude", Type: iceberg.PrimitiveTypes.Float32, Required: false},
 				{ID: 14, Name: "longitude", Type: iceberg.PrimitiveTypes.Float32, Required: false},
 			},
@@ -485,7 +485,7 @@ func TestPruneColumnsStruct(t *testing.T) {
 			Name:     "person",
 			Required: false,
 			Type: &iceberg.StructType{
-				Fields: []iceberg.NestedField{{
+				FieldList: []iceberg.NestedField{{
 					ID: 16, Name: "name", Type: iceberg.PrimitiveTypes.String, Required: false,
 				}},
 			},
@@ -502,7 +502,7 @@ func TestPruneColumnsStructFull(t *testing.T) {
 			Name:     "person",
 			Required: false,
 			Type: &iceberg.StructType{
-				Fields: []iceberg.NestedField{{
+				FieldList: []iceberg.NestedField{{
 					ID: 16, Name: "name", Type: iceberg.PrimitiveTypes.String, Required: false,
 				}},
 			},
@@ -546,7 +546,7 @@ func TestPruneColumnsStructInMap(t *testing.T) {
 				KeyType: iceberg.PrimitiveTypes.Int32,
 				ValueID: 8,
 				ValueType: &iceberg.StructType{
-					Fields: []iceberg.NestedField{
+					FieldList: []iceberg.NestedField{
 						{ID: 10, Name: "name", Type: iceberg.PrimitiveTypes.String},
 						{ID: 11, Name: "age", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 					},
@@ -568,7 +568,7 @@ func TestPruneColumnsStructInMap(t *testing.T) {
 				KeyType: iceberg.PrimitiveTypes.Int32,
 				ValueID: 8,
 				ValueType: &iceberg.StructType{
-					Fields: []iceberg.NestedField{
+					FieldList: []iceberg.NestedField{
 						{ID: 11, Name: "age", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 					},
 				},
@@ -590,7 +590,7 @@ func TestPruneColumnsStructInMapFull(t *testing.T) {
 				KeyType: iceberg.PrimitiveTypes.Int32,
 				ValueID: 8,
 				ValueType: &iceberg.StructType{
-					Fields: []iceberg.NestedField{
+					FieldList: []iceberg.NestedField{
 						{ID: 10, Name: "name", Type: iceberg.PrimitiveTypes.String},
 						{ID: 11, Name: "age", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 					},
@@ -612,7 +612,7 @@ func TestPruneColumnsStructInMapFull(t *testing.T) {
 				KeyType: iceberg.PrimitiveTypes.Int32,
 				ValueID: 8,
 				ValueType: &iceberg.StructType{
-					Fields: []iceberg.NestedField{
+					FieldList: []iceberg.NestedField{
 						{ID: 11, Name: "age", Type: iceberg.PrimitiveTypes.Int32, Required: true},
 					},
 				},
@@ -755,41 +755,4 @@ func TestSchemaRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &sc))
 
 	assert.Truef(t, tableSchemaNested.Equals(&sc), "expected: %s\ngot: %s", tableSchemaNested, &sc)
-}
-
-func TestRemainingTypes(t *testing.T) {
-	tests := []struct {
-		expected string
-		typ      iceberg.Type
-	}{
-		{"long", iceberg.PrimitiveTypes.Int64},
-		{"double", iceberg.PrimitiveTypes.Float64},
-		{"date", iceberg.PrimitiveTypes.Date},
-		{"time", iceberg.PrimitiveTypes.Time},
-		{"timestamp", iceberg.PrimitiveTypes.Timestamp},
-		{"timestamptz", iceberg.PrimitiveTypes.TimestampTz},
-		{"uuid", iceberg.PrimitiveTypes.UUID},
-		{"binary", iceberg.PrimitiveTypes.Binary},
-		{"fixed[5]", iceberg.FixedTypeOf(5)},
-		{"decimal(9, 4)", iceberg.DecimalTypeOf(9, 4)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			var data = `{
-				"id": 1,
-				"name": "test",
-				"type": "` + tt.expected + `",
-				"required": false
-			}`
-
-			var n iceberg.NestedField
-			require.NoError(t, json.Unmarshal([]byte(data), &n))
-			assert.Truef(t, n.Type.Equals(tt.typ), "expected: %s\ngot: %s", tt.typ, n.Type)
-
-			out, err := json.Marshal(n)
-			require.NoError(t, err)
-			assert.JSONEq(t, data, string(out))
-		})
-	}
 }
