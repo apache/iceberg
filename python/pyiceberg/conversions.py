@@ -186,8 +186,6 @@ def _(_: PrimitiveType, value: int) -> bytes:
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
 def _(_: TimestampType, value: Union[datetime, int]) -> bytes:
-    if not isinstance(value, (datetime, int)):
-        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.datetime or int")
     if isinstance(value, datetime):
         value = datetime_to_micros(value)
     return _LONG_STRUCT.pack(value)
@@ -195,8 +193,6 @@ def _(_: TimestampType, value: Union[datetime, int]) -> bytes:
 
 @to_bytes.register(DateType)
 def _(_: DateType, value: Union[date, int]) -> bytes:
-    if not isinstance(value, (date, int)):
-        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.date or int")
     if isinstance(value, date):
         value = date_to_days(value)
     return _INT_STRUCT.pack(value)
@@ -204,8 +200,6 @@ def _(_: DateType, value: Union[date, int]) -> bytes:
 
 @to_bytes.register(TimeType)
 def _(_: TimeType, value: Union[time, int]) -> bytes:
-    if not isinstance(value, (time, int)):
-        raise TypeError(f"Cannot type {type(value)} to bytes. Expected datetime.time or int")
     if isinstance(value, time):
         value = time_object_to_micros(value)
     return _LONG_STRUCT.pack(value)
