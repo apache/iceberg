@@ -23,7 +23,9 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.withSettings;
 
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
@@ -60,55 +62,19 @@ public class TestResolvingIO {
     testResolvingFileIO.setConf(new Configuration());
     testResolvingFileIO.initialize(ImmutableMap.of());
 
-    doReturn(FileIONoMixins.class.getName()).when(testResolvingFileIO).implFromLocation(any());
+    String fileIONoMixins = mock(FileIO.class).getClass().getName();
+    doReturn(fileIONoMixins).when(testResolvingFileIO).implFromLocation(any());
     assertThatThrownBy(() -> testResolvingFileIO.newInputFile("/file"))
         .isInstanceOf(IllegalStateException.class);
 
-    doReturn(FileIOWithMixins.class.getName()).when(testResolvingFileIO).implFromLocation(any());
+    String fileIOWithMixins =
+        mock(
+                FileIO.class,
+                withSettings()
+                    .extraInterfaces(SupportsPrefixOperations.class, SupportsBulkOperations.class))
+            .getClass()
+            .getName();
+    doReturn(fileIOWithMixins).when(testResolvingFileIO).implFromLocation(any());
     assertThatCode(() -> testResolvingFileIO.newInputFile("/file")).doesNotThrowAnyException();
-  }
-
-  public static class FileIONoMixins implements FileIO {
-
-    @Override
-    public InputFile newInputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public void deleteFile(String path) {}
-  }
-
-  public static class FileIOWithMixins
-      implements FileIO, SupportsPrefixOperations, SupportsBulkOperations {
-
-    @Override
-    public InputFile newInputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public void deleteFile(String path) {}
-
-    @Override
-    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {}
-
-    @Override
-    public Iterable<FileInfo> listPrefix(String prefix) {
-      return null;
-    }
-
-    @Override
-    public void deletePrefix(String prefix) {}
   }
 }
