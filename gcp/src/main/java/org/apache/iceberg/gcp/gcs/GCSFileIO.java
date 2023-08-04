@@ -194,11 +194,11 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
                     new FileInfo(
                         String.format("gs://%s/%s", blob.getBucket(), blob.getName()),
                         blob.getSize(),
-                        getCreateTimeMillis(blob)))
+                        createTimeMillis(blob)))
             .iterator();
   }
 
-  private long getCreateTimeMillis(Blob blob) {
+  private long createTimeMillis(Blob blob) {
     if (blob.getCreateTimeOffsetDateTime() == null) {
       return 0;
     }
