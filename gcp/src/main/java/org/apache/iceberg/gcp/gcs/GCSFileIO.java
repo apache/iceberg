@@ -37,7 +37,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -210,8 +209,8 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
   @Override
   public void deletePrefix(String prefix) {
     internalDeleteFiles(
-            Streams.stream(listPrefix(prefix))
-                .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
+        Streams.stream(listPrefix(prefix))
+            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
   }
 
   @Override
