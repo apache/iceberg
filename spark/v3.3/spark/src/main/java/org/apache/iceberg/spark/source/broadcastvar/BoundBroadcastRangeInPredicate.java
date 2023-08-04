@@ -40,7 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.Tuple;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.NavigableSetWrapper;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
     implements UnBoundCreator<T>, BroadcastVarPredicate {

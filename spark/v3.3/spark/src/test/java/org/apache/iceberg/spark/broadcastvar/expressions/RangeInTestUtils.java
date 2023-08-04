@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.broadcastvar.expressions;
 import java.util.Random;
 import org.apache.iceberg.spark.source.DummyBroadcastedJoinKeysWrapper;
 import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 

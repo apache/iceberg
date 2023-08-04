@@ -37,7 +37,7 @@ import org.apache.iceberg.spark.source.UncomparableLiteralException;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.source.broadcastvar;
 
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public interface BroadcastVarPredicate {
   BroadcastedJoinKeysWrapper getBroadcastVar();

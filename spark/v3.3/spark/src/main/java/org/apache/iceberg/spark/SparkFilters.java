@@ -54,7 +54,7 @@ import org.apache.iceberg.spark.source.UncomparableLiteralException;
 import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.NaNUtil;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.sources.AlwaysFalse;
 import org.apache.spark.sql.sources.AlwaysFalse$;

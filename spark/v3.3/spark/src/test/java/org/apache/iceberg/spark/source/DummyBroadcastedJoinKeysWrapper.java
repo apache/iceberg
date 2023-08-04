@@ -23,8 +23,8 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.spark.sql.catalyst.bcVar.ArrayWrapper;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.types.DataType;
 
 public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapper {

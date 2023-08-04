@@ -27,7 +27,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Literals;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public final class BroadcastUtil {
 

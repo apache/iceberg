@@ -34,7 +34,7 @@ import org.apache.iceberg.spark.source.DummyBroadcastedJoinKeysWrapper;
 import org.apache.iceberg.spark.source.Tuple;
 import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;

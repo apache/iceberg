@@ -33,7 +33,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.spark.source.Triple;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {

@@ -38,7 +38,7 @@ import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.Triple;
-import org.apache.spark.sql.catalyst.bcVar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicate<T>
     implements UnBoundCreator, BroadcastVarPredicate {
