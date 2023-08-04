@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
@@ -66,7 +65,6 @@ public class GCPProperties implements Serializable {
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  @VisibleForTesting
   public GCPProperties() {}
 
   public GCPProperties(Map<String, String> properties) {
