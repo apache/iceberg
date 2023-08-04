@@ -32,11 +32,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -53,7 +53,7 @@ public class HadoopFileIO
         HadoopConfigurable,
         SupportsPrefixOperations,
         SupportsBulkOperations,
-        ResolvingFileIO.DelegateFileIO {
+        DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";

@@ -66,9 +66,6 @@ public class ResolvingFileIO
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
 
-  public interface DelegateFileIO
-      extends FileIO, SupportsPrefixOperations, SupportsBulkOperations {}
-
   /**
    * No-arg constructor to load the FileIO dynamically.
    *

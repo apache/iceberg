@@ -33,11 +33,11 @@ import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -81,7 +81,7 @@ public class S3FileIO
         SupportsBulkOperations,
         SupportsPrefixOperations,
         CredentialSupplier,
-        ResolvingFileIO.DelegateFileIO {
+        DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
