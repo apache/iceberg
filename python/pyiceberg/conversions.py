@@ -154,7 +154,9 @@ def _(_: DecimalType, value_str: str) -> Decimal:
 
 
 @singledispatch
-def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
+def to_bytes(
+    primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, date, datetime, float, int, str, time, uuid.UUID]
+) -> bytes:
     """A generic function which converts a built-in python value to bytes.
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
