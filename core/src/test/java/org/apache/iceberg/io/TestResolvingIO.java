@@ -64,7 +64,7 @@ public class TestResolvingIO {
   @Test
   public void resolveFileIOBulkDeletion() throws IOException {
     // configure resolving fileIO
-    FileIO resolvingFileIO = new ResolvingFileIO();
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     Configuration hadoopConf = new Configuration();
     ((HadoopConfigurable) resolvingFileIO).setConf(hadoopConf);
     resolvingFileIO.initialize(
