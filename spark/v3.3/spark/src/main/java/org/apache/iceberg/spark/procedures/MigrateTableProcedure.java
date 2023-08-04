@@ -92,7 +92,7 @@ class MigrateTableProcedure extends BaseProcedure {
     }
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
-    String backupTableName = args.isNullAt(3) ? "": args.getString(3);
+    String backupTableName = args.isNullAt(3) ? "" : args.getString(3);
 
     MigrateTableSparkAction migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);

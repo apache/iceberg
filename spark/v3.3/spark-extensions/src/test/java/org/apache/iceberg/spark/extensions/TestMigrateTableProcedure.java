@@ -127,9 +127,9 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String backupTableName = "back_table_name";
     Object result =
-            scalarSql(
-                    "CALL %s.system.migrate(table => '%s', backup_table_name => '%s'",
-                    catalogName, tableName, backupTableName);
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', backup_table_name => '%s'",
+            catalogName, tableName, backupTableName);
 
     Assert.assertTrue(spark.catalog().tableExists(backupTableName));
   }
