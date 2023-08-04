@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
@@ -48,6 +49,7 @@ import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -359,6 +361,15 @@ public class TestS3FileIO {
 
     Assertions.assertThat(roundTripSerializedFileIO.properties())
         .isEqualTo(testS3FileIO.properties());
+  }
+
+  @Test
+  public void testResolvingFileIOLoad() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    InputFile inputFile = resolvingFileIO.newInputFile("s3://foo/bar");
+    Assertions.assertThat(inputFile).isInstanceOf(S3InputFile.class);
   }
 
   private void createRandomObjects(String prefix, int count) {

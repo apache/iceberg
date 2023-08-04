@@ -36,8 +36,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class GCSFileIOTest {
@@ -120,5 +122,15 @@ public class GCSFileIOTest {
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
+  }
+
+  @Disabled // FIXME
+  @Test
+  public void testResolvingFileIOLoad() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    InputFile inputFile = resolvingFileIO.newInputFile("gs://foo/bar");
+    assertThat(inputFile).isInstanceOf(GCSInputFile.class);
   }
 }
