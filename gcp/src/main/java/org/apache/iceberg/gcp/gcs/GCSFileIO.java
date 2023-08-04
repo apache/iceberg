@@ -26,6 +26,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -37,6 +38,7 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -208,19 +210,17 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
   @Override
   public void deletePrefix(String prefix) {
     internalDeleteFiles(
-        () ->
             Streams.stream(listPrefix(prefix))
-                .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location()))
-                .iterator());
+                .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
   }
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    internalDeleteFiles(() -> Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri).iterator());
+    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
   }
 
-  private void internalDeleteFiles(Iterable<BlobId> blobIdsToDelete) {
-    Streams.stream(Iterables.partition(blobIdsToDelete, gcpProperties.deleteBatchSize()))
+  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+    Streams.stream(Iterators.partition(blobIdsToDelete.iterator(), gcpProperties.deleteBatchSize()))
         .forEach(batch -> client().delete(batch));
   }
 }
