@@ -56,7 +56,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
-  private final Identifier backupIdent;
+  private Identifier backupIdent;
 
   private boolean dropBackup = false;
   private String backupTableName = "";
@@ -66,8 +66,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
-    String backupName =
-        backupTableName.isEmpty() ? sourceTableIdent.name() + BACKUP_SUFFIX : backupTableName;
+    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
   }
 
@@ -119,6 +118,10 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private MigrateTable.Result doExecute() {
     LOG.info("Starting the migration of {} to Iceberg", sourceTableIdent());
+
+    if (!backupTableName.isEmpty()) {
+      backupIdent = Identifier.of(destTableIdent.namespace(), backupTableName);
+    }
 
     // move the source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place

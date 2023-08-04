@@ -131,7 +131,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    String backupTableName = "back_table_name";
+    String backupTableName = "backup_table";
     Object result =
         scalarSql(
             "CALL %s.system.migrate(table => '%s', backup_table_name => '%s')",
@@ -140,7 +140,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Should have added one file", 1L, result);
 
     String dbName = tableName.split("\\.")[0];
-    Assert.assertTrue(spark.catalog().tableExists(dbName + "." + backupTableName));
+    Assert.assertTrue(spark.catalog().tableExists(dbName+ "." + backupTableName));
   }
 
   @Test
