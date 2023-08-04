@@ -21,7 +21,9 @@ package org.apache.iceberg.flink.source.split;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.flink.source.SplitHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -31,7 +33,7 @@ public class TestIcebergSourceSplitSerializer {
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  private final IcebergSourceSplitSerializer serializer = IcebergSourceSplitSerializer.INSTANCE;
+  private final IcebergSourceSplitSerializer serializer = new IcebergSourceSplitSerializer(true);
 
   @Test
   public void testLatestVersion() throws Exception {
@@ -82,6 +84,34 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   @Test
+  public void testV2() throws Exception {
+    serializeAndDeserializeV2(1, 1);
+    serializeAndDeserializeV2(10, 2);
+  }
+
+  private void serializeAndDeserializeV2(int splitCount, int filesPerSplit) throws Exception {
+    final List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(
+            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    for (IcebergSourceSplit split : splits) {
+      byte[] result = split.serializeV2();
+      IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV2(result, true);
+      assertSplitEquals(split, deserialized);
+    }
+  }
+
+  @Test
+  public void testDeserializeV1() throws Exception {
+    final List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    for (IcebergSourceSplit split : splits) {
+      byte[] result = split.serializeV1();
+      IcebergSourceSplit deserialized = serializer.deserialize(1, result);
+      assertSplitEquals(split, deserialized);
+    }
+  }
+
+  @Test
   public void testCheckpointedPosition() throws Exception {
     final AtomicInteger index = new AtomicInteger();
     final List<IcebergSourceSplit> splits =
@@ -90,9 +120,7 @@ public class TestIcebergSourceSplitSerializer {
                 split -> {
                   IcebergSourceSplit result;
                   if (index.get() % 2 == 0) {
-                    result =
-                        IcebergSourceSplit.fromCombinedScanTask(
-                            split.task(), index.get(), index.get());
+                    result = IcebergSourceSplit.fromCombinedScanTask(split.task(), 1, 1);
                   } else {
                     result = split;
                   }
@@ -115,7 +143,19 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void assertSplitEquals(IcebergSourceSplit expected, IcebergSourceSplit actual) {
-    Assert.assertEquals(expected.splitId(), actual.splitId());
+    List<FileScanTask> expectedTasks = Lists.newArrayList(expected.task().tasks().iterator());
+    List<FileScanTask> actualTasks = Lists.newArrayList(actual.task().tasks().iterator());
+    Assert.assertEquals(expectedTasks.size(), actualTasks.size());
+    for (int i = 0; i < expectedTasks.size(); ++i) {
+      FileScanTask expectedTask = expectedTasks.get(i);
+      FileScanTask actualTask = actualTasks.get(i);
+      Assert.assertEquals(expectedTask.file().path(), actualTask.file().path());
+      Assert.assertEquals(expectedTask.sizeBytes(), actualTask.sizeBytes());
+      Assert.assertEquals(expectedTask.filesCount(), actualTask.filesCount());
+      Assert.assertEquals(expectedTask.start(), actualTask.start());
+      Assert.assertEquals(expectedTask.length(), actualTask.length());
+    }
+
     Assert.assertEquals(expected.fileOffset(), actual.fileOffset());
     Assert.assertEquals(expected.recordOffset(), actual.recordOffset());
   }
