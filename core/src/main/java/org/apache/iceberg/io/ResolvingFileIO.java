@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * Delegate FileIO implementations must support the mixin interfaces {@link
  * SupportsPrefixOperations} and {@link SupportsBulkOperations}, otherwise initialization will fail.
  */
-public class ResolvingFileIO
+public class ResolvingFileIO<T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations>
     implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -60,7 +60,7 @@ public class ResolvingFileIO
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL);
 
-  private final Map<String, FileIO> ioInstances = Maps.newHashMap();
+  private final Map<String, T> ioInstances = Maps.newHashMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
@@ -104,7 +104,7 @@ public class ResolvingFileIO
     }
 
     PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
-    SupportsBulkOperations fileIO = io(iterator.peek());
+    T fileIO = io(iterator.peek());
     fileIO.deleteFiles(() -> iterator);
   }
 
@@ -133,14 +133,14 @@ public class ResolvingFileIO
   @Override
   public void close() {
     if (isClosed.compareAndSet(false, true)) {
-      List<FileIO> instances = Lists.newArrayList();
+      List<T> instances = Lists.newArrayList();
 
       synchronized (ioInstances) {
         instances.addAll(ioInstances.values());
         ioInstances.clear();
       }
 
-      for (FileIO io : instances) {
+      for (T io : instances) {
         io.close();
       }
     }
@@ -162,10 +162,9 @@ public class ResolvingFileIO
     return hadoopConf.get();
   }
 
-  private <T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations> T io(
-      String location) {
+  private T io(String location) {
     String impl = implFromLocation(location);
-    T io = (T) ioInstances.get(impl);
+    T io = ioInstances.get(impl);
     if (io != null) {
       return io;
     }
@@ -173,7 +172,7 @@ public class ResolvingFileIO
     synchronized (ioInstances) {
 
       // double check while holding the lock
-      io = (T) ioInstances.get(impl);
+      io = ioInstances.get(impl);
       if (io != null) {
         return io;
       }
