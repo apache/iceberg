@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
@@ -131,7 +132,11 @@ public class GCSFileIOTest {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     resolvingFileIO.setConf(new Configuration());
     resolvingFileIO.initialize(ImmutableMap.of());
-    InputFile inputFile = resolvingFileIO.newInputFile("gs://foo/bar");
-    assertThat(inputFile).isInstanceOf(GCSInputFile.class);
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result).isInstanceOf(GCSFileIO.class);
   }
 }

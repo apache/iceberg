@@ -30,9 +30,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -175,8 +175,12 @@ public class HadoopFileIOTest {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     resolvingFileIO.setConf(new Configuration());
     resolvingFileIO.initialize(ImmutableMap.of());
-    InputFile inputFile = resolvingFileIO.newInputFile("hdfs://localhost/foobar");
-    Assertions.assertThat(inputFile).isInstanceOf(HadoopInputFile.class);
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("hdfs://foo/bar");
+    Assertions.assertThat(result).isInstanceOf(HadoopFileIO.class);
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {

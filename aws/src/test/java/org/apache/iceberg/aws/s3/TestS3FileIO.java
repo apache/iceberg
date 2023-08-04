@@ -42,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
@@ -368,8 +369,12 @@ public class TestS3FileIO {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     resolvingFileIO.setConf(new Configuration());
     resolvingFileIO.initialize(ImmutableMap.of());
-    InputFile inputFile = resolvingFileIO.newInputFile("s3://foo/bar");
-    Assertions.assertThat(inputFile).isInstanceOf(S3InputFile.class);
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    Assertions.assertThat(result).isInstanceOf(S3FileIO.class);
   }
 
   private void createRandomObjects(String prefix, int count) {
