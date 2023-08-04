@@ -32,6 +32,8 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
+    Union,
 )
 from unittest.mock import MagicMock, patch
 
@@ -76,7 +78,6 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.io import InputStream, OutputStream, load_file_io
 from pyiceberg.io.pyarrow import (
-    DEFAULT_TRUNCATION_LENGHT,
     MetricModeTypes,
     MetricsMode,
     PyArrowFile,
@@ -94,7 +95,7 @@ from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, pre_order_visit, visit
 from pyiceberg.table import FileScanTask, Table
-from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
+from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV1, TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -1375,7 +1376,7 @@ baz: [[true,false,null]]"""
     )
 
 
-def construct_test_table() -> pa.Buffer:
+def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetadataV2]]:
     table_metadata = {
         "format-version": 2,
         "location": "s3://bucket/test/location",
@@ -1440,15 +1441,13 @@ def construct_test_table() -> pa.Buffer:
         },
         schema=arrow_schema,
     )
-    f = pa.BufferOutputStream()
-
     metadata_collector: List[Any] = []
-    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
 
-    writer.write_table(table)
-    writer.close()
+    with pa.BufferOutputStream() as f:
+        with pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector) as writer:
+            writer.write_table(table)
 
-    return f.getvalue(), metadata_collector[0], table_metadata
+        return f.getvalue(), metadata_collector[0], table_metadata
 
 
 def test_record_count() -> None:
@@ -1525,7 +1524,7 @@ def test_bounds() -> None:
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
     assert len(datafile.lower_bounds) == 5
-    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"[:DEFAULT_TRUNCATION_LENGHT]
+    assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaa"
     assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
     assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
     assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
@@ -1549,7 +1548,7 @@ def test_metrics_mode_parsing() -> None:
 
     with pytest.raises(ValueError) as exc_info:
         match_metrics_mode(" Full")
-    assert "Unsupported metrics mode  Full" in str(exc_info.value)
+    assert "Unsupported metrics mode:  Full" in str(exc_info.value)
 
     assert match_metrics_mode("truncate(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
     assert match_metrics_mode("trUncatE(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
@@ -1558,7 +1557,7 @@ def test_metrics_mode_parsing() -> None:
 
     with pytest.raises(ValueError) as exc_info:
         match_metrics_mode("trUncatE(-7)")
-    assert "Unsupported metrics mode trUncatE(-7)" in str(exc_info.value)
+    assert "Malformed truncate: trUncatE(-7)" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         match_metrics_mode("trUncatE(0)")
@@ -1696,7 +1695,7 @@ def test_column_metrics_mode() -> None:
     assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
-def construct_test_table_primitive_types() -> pa.Buffer:
+def construct_test_table_primitive_types() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetadataV2]]:
     table_metadata = {
         "format-version": 2,
         "location": "s3://bucket/test/location",
@@ -1761,15 +1760,14 @@ def construct_test_table_primitive_types() -> pa.Buffer:
         },
         schema=arrow_schema,
     )
-    f = pa.BufferOutputStream()
 
     metadata_collector: List[Any] = []
-    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
 
-    writer.write_table(table)
-    writer.close()
+    with pa.BufferOutputStream() as f:
+        with pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector) as writer:
+            writer.write_table(table)
 
-    return f.getvalue(), metadata_collector[0], table_metadata
+        return f.getvalue(), metadata_collector[0], table_metadata
 
 
 def test_metrics_primitive_types() -> None:
@@ -1819,7 +1817,7 @@ def test_metrics_primitive_types() -> None:
     assert datafile.upper_bounds[12] == b"wp"
 
 
-def construct_test_table_invalid_upper_bound() -> pa.Buffer:
+def construct_test_table_invalid_upper_bound() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetadataV2]]:
     table_metadata = {
         "format-version": 2,
         "location": "s3://bucket/test/location",
@@ -1860,15 +1858,14 @@ def construct_test_table_invalid_upper_bound() -> pa.Buffer:
         },
         schema=arrow_schema,
     )
-    f = pa.BufferOutputStream()
 
     metadata_collector: List[Any] = []
-    writer = pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector)
 
-    writer.write_table(table)
-    writer.close()
+    with pa.BufferOutputStream() as f:
+        with pq.ParquetWriter(f, table.schema, metadata_collector=metadata_collector) as writer:
+            writer.write_table(table)
 
-    return f.getvalue(), metadata_collector[0], table_metadata
+        return f.getvalue(), metadata_collector[0], table_metadata
 
 
 def test_metrics_invalid_upper_bound() -> None:

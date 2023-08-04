@@ -31,7 +31,6 @@ import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Executor
 from dataclasses import dataclass
-from datetime import date, datetime, time
 from enum import Enum
 from functools import lru_cache, singledispatch
 from itertools import chain
@@ -117,6 +116,7 @@ from pyiceberg.schema import (
     visit_with_partner,
 )
 from pyiceberg.table.metadata import TableMetadata
+from pyiceberg.transforms import TruncateTransform
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -141,7 +141,6 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -1056,13 +1055,17 @@ _PRIMITIVE_TO_PHYSICAL = {
     UUIDType(): "FIXED_LEN_BYTE_ARRAY",
     BinaryType(): "BYTE_ARRAY",
 }
-_PHYSICAL_TYPES = ["BOOLEAN", "INT32", "INT64", "INT96", "FLOAT", "DOUBLE", "BYTE_ARRAY", "FIXED_LEN_BYTE_ARRAY"]
+_PHYSICAL_TYPES = set(_PRIMITIVE_TO_PHYSICAL.values()).union({"INT96"})
 
 
 class StatsAggregator:
+    current_min: Any
+    current_max: Any
+    trunc_length: Optional[int]
+
     def __init__(self, iceberg_type: PrimitiveType, physical_type_string: str, trunc_length: Optional[int] = None) -> None:
-        self.current_min: Any = None
-        self.current_max: Any = None
+        self.current_min = None
+        self.current_max = None
         self.trunc_length = trunc_length
 
         if physical_type_string not in _PHYSICAL_TYPES:
@@ -1071,47 +1074,37 @@ class StatsAggregator:
         if physical_type_string == "INT96":
             raise NotImplementedError("Statistics not implemented for INT96 physical type")
 
-        if _PRIMITIVE_TO_PHYSICAL[iceberg_type] != physical_type_string:
+        expected_physical_type = _PRIMITIVE_TO_PHYSICAL[iceberg_type]
+        if expected_physical_type != physical_type_string:
             raise ValueError(
-                f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {_PRIMITIVE_TO_PHYSICAL[iceberg_type]}"
+                f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {expected_physical_type}"
             )
 
         self.primitive_type = iceberg_type
 
     def serialize(self, value: Any) -> bytes:
-        if type(value) == date:
-            value = date_to_days(value)
-        elif type(value) == time:
-            value = time_object_to_micros(value)
-        elif type(value) == datetime:
-            value = datetime_to_micros(value)
-
         if self.primitive_type == UUIDType():
             value = uuid.UUID(bytes=value)
 
         return to_bytes(self.primitive_type, value)
 
     def add_min(self, val: Any) -> None:
-        if self.current_min is None:
-            self.current_min = val
-        else:
-            self.current_min = min(val, self.current_min)
+        self.current_min = val if self.current_min is None else min(val, self.current_min)
 
     def add_max(self, val: Any) -> None:
-        if self.current_max is None:
-            self.current_max = val
-        else:
-            self.current_max = max(self.current_max, val)
+        self.current_max = val if self.current_max is None else max(val, self.current_max)
 
     def get_min(self) -> bytes:
-        if self.primitive_type == StringType():
-            if type(self.current_min) != str:
-                raise ValueError("Expected the current_min to be a string")
-            return self.serialize(self.current_min[: self.trunc_length])
-        else:
-            return self.serialize(self.current_min)[: self.trunc_length]
+        return self.serialize(
+            self.current_min
+            if self.trunc_length is None
+            else TruncateTransform(width=self.trunc_length).transform(self.primitive_type)(self.current_min)
+        )
 
     def get_max(self) -> Optional[bytes]:
+        if self.current_max is None:
+            return None
+
         if self.primitive_type == StringType():
             if type(self.current_max) != str:
                 raise ValueError("Expected the current_max to be a string")
@@ -1148,7 +1141,7 @@ class StatsAggregator:
             return self.serialize(self.current_max)[: self.trunc_length]
 
 
-DEFAULT_TRUNCATION_LENGHT = 16
+DEFAULT_TRUNCATION_LENGTH = 16
 TRUNCATION_EXPR = r"^truncate\((\d+)\)$"
 
 
@@ -1170,20 +1163,24 @@ class MetricsMode(Singleton):
 
 
 def match_metrics_mode(mode: str) -> MetricsMode:
-    m = re.match(TRUNCATION_EXPR, mode, re.IGNORECASE)
-    if m:
-        length = int(m[1])
-        if length < 1:
-            raise ValueError("Truncation length must be larger than 0")
-        return MetricsMode(MetricModeTypes.TRUNCATE, int(m[1]))
-    elif re.match("^none$", mode, re.IGNORECASE):
+    sanitized_mode = mode.lower()
+    if sanitized_mode.startswith("truncate"):
+        m = re.match(TRUNCATION_EXPR, mode, re.IGNORECASE)
+        if m:
+            length = int(m[1])
+            if length < 1:
+                raise ValueError("Truncation length must be larger than 0")
+            return MetricsMode(MetricModeTypes.TRUNCATE, int(m[1]))
+        else:
+            raise ValueError(f"Malformed truncate: {mode}")
+    elif sanitized_mode.startswith("none"):
         return MetricsMode(MetricModeTypes.NONE)
-    elif re.match("^counts$", mode, re.IGNORECASE):
+    elif sanitized_mode.startswith("counts"):
         return MetricsMode(MetricModeTypes.COUNTS)
-    elif re.match("^full$", mode, re.IGNORECASE):
+    elif sanitized_mode.startswith("full"):
         return MetricsMode(MetricModeTypes.FULL)
     else:
-        raise ValueError(f"Unsupported metrics mode {mode}")
+        raise ValueError(f"Unsupported metrics mode: {mode}")
 
 
 @dataclass(frozen=True)
@@ -1195,7 +1192,7 @@ class StatisticsCollector:
 
 
 class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]]):
-    _field_id = 0
+    _field_id: int = 0
     _schema: Schema
     _properties: Dict[str, str]
 
@@ -1237,7 +1234,7 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         if column_name is None:
             raise ValueError(f"Column for field {self._field_id} not found")
 
-        metrics_mode = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGHT)
+        metrics_mode = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGTH)
 
         default_mode = self._properties.get(DEFAULT_METRICS_MODE_KEY)
         if default_mode:
