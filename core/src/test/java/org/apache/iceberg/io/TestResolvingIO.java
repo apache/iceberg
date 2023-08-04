@@ -30,7 +30,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -66,7 +65,7 @@ public class TestResolvingIO {
     // configure resolving fileIO
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     Configuration hadoopConf = new Configuration();
-    ((HadoopConfigurable) resolvingFileIO).setConf(hadoopConf);
+    resolvingFileIO.setConf(hadoopConf);
     resolvingFileIO.initialize(
         ImmutableMap.of("io-impl", "org.apache.iceberg.hadoop.HadoopFileIO"));
     // configure delegation IO
@@ -85,7 +84,7 @@ public class TestResolvingIO {
     // bulk deletion
     List<String> randomFilePathString =
         randomFilePaths.stream().map(p -> p.toUri().toString()).collect(Collectors.toList());
-    ((SupportsBulkOperations) resolvingFileIO).deleteFiles(randomFilePathString);
+    resolvingFileIO.deleteFiles(randomFilePathString);
 
     for (String path : randomFilePathString) {
       assertThat(delegate.newInputFile(path).exists()).isFalse();
