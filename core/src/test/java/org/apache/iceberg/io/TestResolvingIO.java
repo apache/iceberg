@@ -68,10 +68,7 @@ public class TestResolvingIO {
         .isInstanceOf(IllegalStateException.class);
 
     String fileIOWithMixins =
-        mock(
-                FileIO.class,
-                withSettings()
-                    .extraInterfaces(SupportsPrefixOperations.class, SupportsBulkOperations.class))
+        mock(FileIO.class, withSettings().extraInterfaces(ResolvingFileIO.DelegateFileIO.class))
             .getClass()
             .getName();
     doReturn(fileIOWithMixins).when(testResolvingFileIO).implFromLocation(any());
