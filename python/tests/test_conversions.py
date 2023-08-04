@@ -73,8 +73,14 @@ Notes:
 """
 import struct
 import uuid
+from datetime import (
+    date,
+    datetime,
+    time,
+    timezone,
+)
 from decimal import Decimal
-from typing import Any
+from typing import Any, Union
 
 import pytest
 
@@ -253,16 +259,12 @@ def test_partition_to_py_raise_on_incorrect_precision_or_scale(
         (DoubleType(), b"\x8d\x97\x6e\x12\x83\xc0\xf3\x3f", 1.2345),
         (DateType(), b"\xe8\x03\x00\x00", 1000),
         (DateType(), b"\xd2\x04\x00\x00", 1234),
-        (DateType(), b"\xd9K\x00\x00", 19417),
         (TimeType(), b"\x10'\x00\x00\x00\x00\x00\x00", 10000),
         (TimeType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimeType(), b"`\xc8\xeb|\n\x00\x00\x00", 45045500000),
         (TimestamptzType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestamptzType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestamptzType(), b"\x00\xbb\r\xab\xdb\xf5\x05\x00", 1677698700000000),
         (TimestampType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestampType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestampType(), b"\x00\xbb\r\xab\xdb\xf5\x05\x00", 1677698700000000),
         (StringType(), b"ABC", "ABC"),
         (StringType(), b"foo", "foo"),
         (
@@ -296,15 +298,11 @@ def test_from_bytes(primitive_type: PrimitiveType, b: bytes, result: Any) -> Non
         (DoubleType(), b"\x8d\x97n\x12\x83\xc0\xf3?", 1.2345),
         (DateType(), b"\xe8\x03\x00\x00", 1000),
         (DateType(), b"\xd2\x04\x00\x00", 1234),
-        (DateType(), b"\xd9K\x00\x00", 19417),
         (TimeType(), b"\x10'\x00\x00\x00\x00\x00\x00", 10000),
         (TimeType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimeType(), b"`\xc8\xeb|\n\x00\x00\x00", 45045500000),
         (TimestamptzType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestamptzType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestamptzType(), b"\x00\xbb\r\xab\xdb\xf5\x05\x00", 1677698700000000),
         (TimestampType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestampType(), b"\x00\xbb\r\xab\xdb\xf5\x05\x00", 1677698700000000),
         (StringType(), b"ABC", "ABC"),
         (StringType(), b"foo", "foo"),
         (
