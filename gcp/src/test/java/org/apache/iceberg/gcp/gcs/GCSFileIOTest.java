@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
