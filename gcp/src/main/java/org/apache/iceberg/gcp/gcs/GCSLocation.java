@@ -43,7 +43,7 @@ class GCSLocation {
    * @param location fully qualified URI
    */
   GCSLocation(String location) {
-    Preconditions.checkNotNull(location, "Location cannot be null.");
+    Preconditions.checkArgument(location != null, "Invalid location: null");
 
     String[] schemeSplit = location.split(SCHEME_DELIM, -1);
     ValidationException.check(
