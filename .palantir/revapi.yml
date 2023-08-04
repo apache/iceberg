@@ -781,6 +781,9 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "interface org.apache.iceberg.view.SQLViewRepresentation"
       justification: "Moving from iceberg-api to iceberg-core"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.view.ViewVersion::defaultNamespace()"
+      justification: "Acceptable break due to updating View APIs and the View Spec"
     - code: "java.method.numberOfParametersChanged"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQuery(java.lang.String)"
       new: "method T org.apache.iceberg.view.VersionBuilder<T>::withQuery(java.lang.String,\

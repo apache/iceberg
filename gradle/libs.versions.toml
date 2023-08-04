@@ -1,0 +1,194 @@
+# Rich versions are used for better compatibility with GitHub's automated dependency tools (such as Dependabot and Renovate).
+# Without a rich version definition, dependabot will try to align different versions of the same library.
+
+[versions]
+activation = "1.1.1"
+aliyun-sdk-oss = "3.10.2"
+antlr = "4.9.3"
+aircompressor = "0.24"
+arrow = "12.0.1"
+avro = "1.11.1"
+assertj-core = "3.24.2"
+awaitility = "4.2.0"
+awssdk-bom = "2.20.18"
+caffeine = "2.9.3"
+calcite = "1.10.0"
+delta-standalone = "0.6.0"
+delta-core = "2.2.0"
+esotericsoftware-kryo = "4.0.2"
+errorprone-annotations = "2.3.3"
+findbugs-jsr305 = "3.0.2"
+flink115 = { strictly = "[1.15, 1.16[", prefer = "1.15.0"} # see rich version usage explanation above
+flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
+flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
+google-libraries-bom = "26.18.0"
+guava = "32.1.1-jre"
+hadoop2 = "2.7.3"
+hadoop3-client = "3.3.6"
+httpcomponents-httpclient5 = "5.2.1"
+hive2 = { strictly = "[2, 3[", prefer = "2.3.9"} # see rich version usage explanation above
+hive3 = "3.1.3"
+immutables-value = "2.9.2"
+jackson-annotations = "2.15.2"
+jackson-bom = "2.14.2"
+jackson-dataformat-xml = "2.9.9"
+jackson211 = { strictly = "[2.11, 2.12[", prefer = "2.11.4"} # see rich version usage explanation above
+jackson212 = { strictly = "[2.12, 2.13[", prefer = "2.12.3"}
+jackson213 = { strictly = "[2.13, 2.14[", prefer = "2.13.4"}
+jackson214 = { strictly = "[2.14, 2.15[", prefer = "2.14.2"}
+jakarta-el-api = "3.0.3"
+jaxb-api = "2.3.1"
+jaxb-runtime = "2.3.3"
+jetty = "9.4.43.v20210629"
+junit = "5.9.2"
+kryo-shaded = "4.0.3"
+microprofile-openapi-api = "3.1.1"
+mockito = "4.11.0"
+mockserver = "5.13.2"
+nessie = "0.65.0"
+netty-buffer = "4.1.68.Final"
+object-client-bundle = "3.3.2"
+orc = "1.9.0"
+parquet = "1.13.1"
+pig = "0.14.0"
+roaringbitmap = "0.9.44"
+s3mock-junit5 = "2.11.0"
+scala-collection-compat = "2.11.0"
+slf4j = "1.7.36"
+snowflake-jdbc = "3.13.30"
+spark-hive31 = "3.1.3"
+spark-hive32 = "3.2.2"
+spark-hive33 = "3.3.2"
+spark-hive34 = "3.4.1"
+spring-boot = "2.5.4"
+spring-web = "5.3.9"
+sqlite-jdbc = "3.41.0.0"
+testcontainers = "1.17.6"
+tez010 = "0.10.2"
+tez08 = { strictly = "[0.8, 0.9[", prefer = "0.8.4"}  # see rich version usage explanation above
+
+[libraries]
+activation = { module = "javax.activation:activation", version.ref = "activation" }
+aircompressor = { module = "io.airlift:aircompressor", version.ref = "aircompressor" }
+aliyun-sdk-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliyun-sdk-oss" }
+antlr-antlr4 = { module = "org.antlr:antlr4", version.ref = "antlr" }
+antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
+arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.ref = "arrow" }
+arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
+avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
+awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
+calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
+delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
+errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
+findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
+flink115-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink115" }
+flink115-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink115" }
+flink115-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink115" }
+flink115-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink115" }
+flink115-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink115" }
+flink115-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink115" }
+flink116-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink116" }
+flink116-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink116" }
+flink116-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink116" }
+flink116-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink116" }
+flink116-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink116" }
+flink116-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink116" }
+flink117-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink117" }
+flink117-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink117" }
+flink117-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink117" }
+flink117-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink117" }
+flink117-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink117" }
+flink117-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink117" }
+google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
+guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
+hadoop2-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop2" }
+hadoop2-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop2" }
+hadoop2-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop2" }
+hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop2" }
+hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
+hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3-client" }
+hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
+hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
+hive2-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive2" }
+hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
+hive3-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive3" }
+hive3-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive3" }
+hive3-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive3" }
+hive3-service = { module = "org.apache.hive:hive-service", version.ref = "hive3" }
+httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
+immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
+jackson-core = { module = "com.fasterxml.jackson:jackson-core", version.ref = "jackson-bom" }
+jackson-databind = { module = "com.fasterxml.jackson:jackson-databind", version.ref = "jackson-bom" }
+jackson211-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson211" }
+jackson212-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson212" }
+jackson213-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson213" }
+jackson214-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson214" }
+jaxb-api = { module = "javax.xml.bind:jaxb-api", version.ref = "jaxb-api" }
+jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
+microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
+nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
+netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
+object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
+orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
+parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
+parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
+parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
+pig = { module = "org.apache.pig:pig", version.ref = "pig" }
+roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
+scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
+
+# test libraries
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+delta-core = { module = "io.delta:delta-core_2.12", version.ref = "delta-core" }
+esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
+flink115-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink115" }
+flink115-core = { module = "org.apache.flink:flink-core", version.ref = "flink115" }
+flink115-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink115" }
+flink115-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink115" }
+flink115-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink115" }
+flink116-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink116" }
+flink116-core = { module = "org.apache.flink:flink-core", version.ref = "flink116" }
+flink116-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink116" }
+flink116-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink116" }
+flink116-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink116" }
+flink117-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink117" }
+flink117-core = { module = "org.apache.flink:flink-core", version.ref = "flink117" }
+flink117-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink117" }
+flink117-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink117" }
+flink117-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink117" }
+guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
+jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "jackson-dataformat-xml" }
+jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
+jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
+jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
+kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+mockserver-client-java = { module = "org.mock-server:mockserver-client-java", version.ref = "mockserver" }
+mockserver-netty = { module = "org.mock-server:mockserver-netty", version.ref = "mockserver" }
+nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-testextension", version.ref = "nessie" }
+nessie-versioned-storage-inmemory = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory", version.ref = "nessie" }
+nessie-versioned-storage-testextension = { module = "org.projectnessie.nessie:nessie-versioned-storage-testextension", version.ref = "nessie" }
+orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
+s3mock-junit5 = { module = "com.adobe.testing:s3mock-junit5", version.ref = "s3mock-junit5" }
+spring-boot-starter-jetty = { module = "org.springframework.boot:spring-boot-starter-jetty", version.ref = "spring-boot" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "spring-boot" }
+spring-web = { module = "org.springframework:spring-web", version.ref = "spring-web" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+tez010-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez010" }
+tez010-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez010" }
+tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
+tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }

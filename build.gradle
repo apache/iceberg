@@ -44,10 +44,6 @@ buildscript {
   }
 }
 
-plugins {
-  id 'nebula.dependency-recommender' version '11.0.0'
-}
-
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
@@ -117,10 +113,6 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
   }
 }
 
-dependencyRecommendations {
-  propertiesFile file: file('versions.props')
-}
-
 def projectVersion = getProjectVersion()
 final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
@@ -134,7 +126,6 @@ allprojects {
 }
 
 subprojects {
-  apply plugin: 'nebula.dependency-recommender'
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
@@ -205,15 +196,15 @@ subprojects {
   targetCompatibility = '1.8'
 
   dependencies {
-    implementation 'org.slf4j:slf4j-api'
+    implementation libs.slf4j.api
 
-    testImplementation 'org.junit.vintage:junit-vintage-engine'
-    testImplementation 'org.junit.jupiter:junit-jupiter-engine'
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testImplementation 'org.slf4j:slf4j-simple'
-    testImplementation 'org.mockito:mockito-core'
-    testImplementation 'org.mockito:mockito-inline'
-    testImplementation 'org.assertj:assertj-core'
+    testImplementation libs.junit.vintage.engine
+    testImplementation libs.junit.jupiter
+    testImplementation libs.junit.jupiter.engine
+    testImplementation libs.slf4j.simple
+    testImplementation libs.mockito.core
+    testImplementation libs.mockito.inline
+    testImplementation libs.assertj.core
   }
 
   test {
@@ -257,7 +248,7 @@ project(':iceberg-bundled-guava') {
   tasks.jar.dependsOn tasks.shadowJar
 
   dependencies {
-    compileOnly('com.google.guava:guava') {
+    compileOnly(libs.guava.guava) {
       exclude group: 'com.google.code.findbugs'
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
@@ -298,12 +289,12 @@ project(':iceberg-api') {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    compileOnly "com.google.errorprone:error_prone_annotations"
-    compileOnly "com.google.code.findbugs:jsr305"
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
-    testImplementation "org.apache.avro:avro"
-    testImplementation "com.esotericsoftware:kryo"
+    compileOnly libs.errorprone.annotations
+    compileOnly libs.findbugs.jsr305
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+    testImplementation libs.avro.avro
+    testImplementation libs.esotericsoftware.kryo
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -341,33 +332,34 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    implementation("org.apache.avro:avro") {
+    implementation(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation 'io.airlift:aircompressor'
-    implementation 'org.apache.httpcomponents.client5:httpclient5'
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.aircompressor
+    implementation libs.httpcomponents.httpclient5
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "com.github.ben-manes.caffeine:caffeine"
-    implementation "org.roaringbitmap:RoaringBitmap"
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.caffeine
+    implementation libs.roaringbitmap
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    testImplementation "org.eclipse.jetty:jetty-servlet"
-    testImplementation "org.eclipse.jetty:jetty-server"
-    testImplementation 'org.mock-server:mockserver-netty'
-    testImplementation 'org.mock-server:mockserver-client-java'
-    testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation libs.jetty.servlet
+    testImplementation libs.jetty.server
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
+    testImplementation libs.sqlite.jdbc
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation "com.esotericsoftware:kryo"
-    testImplementation "com.google.guava:guava-testlib"
-    testImplementation 'org.awaitility:awaitility'
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.guava.testlib
+    testImplementation libs.awaitility
   }
 }
 
@@ -378,13 +370,16 @@ project(':iceberg-data') {
     implementation project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    implementation("org.apache.orc:orc-core::nohive") {
+    implementation(libs.orc.core) {
+      artifact {
+        classifier = 'nohive'
+      }
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -392,16 +387,16 @@ project(':iceberg-data') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
       exclude group: 'it.unimi.dsi'
       exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly "org.apache.avro:avro"
+    compileOnly libs.avro.avro
 
-    testImplementation("org.apache.hadoop:hadoop-client") {
+    testImplementation(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -423,26 +418,26 @@ project(':iceberg-aliyun') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
-    compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
-    compileOnly 'javax.xml.bind:jaxb-api'
-    compileOnly 'javax.activation:activation'
-    compileOnly 'org.glassfish.jaxb:jaxb-runtime'
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly libs.aliyun.sdk.oss
+    compileOnly libs.jaxb.api
+    compileOnly libs.activation
+    compileOnly libs.jaxb.runtime
+    compileOnly(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+    testImplementation libs.jackson.dataformat.xml
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation 'org.springframework:spring-web'
-    testImplementation('org.springframework.boot:spring-boot-starter-jetty') {
+    testImplementation libs.spring.web
+    testImplementation(libs.spring.boot.starter.jetty) {
       exclude module: 'logback-classic'
       exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
       exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
     }
-    testImplementation('org.springframework.boot:spring-boot-starter-web') {
+    testImplementation(libs.spring.boot.starter.web) {
       exclude module: 'logback-classic'
       exclude module: 'spring-boot-starter-logging'
     }
@@ -458,46 +453,49 @@ project(':iceberg-aws') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
-    implementation "com.github.ben-manes.caffeine:caffeine"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+    implementation libs.caffeine
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    compileOnly 'software.amazon.awssdk:url-connection-client'
-    compileOnly 'software.amazon.awssdk:apache-client'
-    compileOnly 'software.amazon.awssdk:auth'
-    compileOnly 'software.amazon.awssdk:s3'
-    compileOnly 'software.amazon.awssdk:kms'
-    compileOnly 'software.amazon.awssdk:glue'
-    compileOnly 'software.amazon.awssdk:sts'
-    compileOnly 'software.amazon.awssdk:dynamodb'
-    compileOnly 'software.amazon.awssdk:lakeformation'
+    compileOnly(platform(libs.awssdk.bom))
+    compileOnly("software.amazon.awssdk:url-connection-client")
+    compileOnly("software.amazon.awssdk:apache-client")
+    compileOnly("software.amazon.awssdk:auth")
+    compileOnly("software.amazon.awssdk:s3")
+    compileOnly("software.amazon.awssdk:kms")
+    compileOnly("software.amazon.awssdk:glue")
+    compileOnly("software.amazon.awssdk:sts")
+    compileOnly("software.amazon.awssdk:dynamodb")
+    compileOnly("software.amazon.awssdk:lakeformation")
 
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    compileOnly 'org.apache.httpcomponents.client5:httpclient5'
+    compileOnly libs.httpcomponents.httpclient5
 
-    testImplementation 'software.amazon.awssdk:iam'
-    testImplementation 'software.amazon.awssdk:s3control'
+    testImplementation(platform(libs.awssdk.bom))
+    testImplementation("software.amazon.awssdk:iam")
+    testImplementation("software.amazon.awssdk:s3control")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation("com.adobe.testing:s3mock-junit5") {
+    testImplementation(libs.s3mock.junit5) {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"
       exclude group: 'junit'
     }
-    testImplementation "com.esotericsoftware:kryo"
-    testImplementation "org.xerial:sqlite-jdbc"
-    testImplementation "org.testcontainers:testcontainers"
-    testImplementation "org.apache.httpcomponents.client5:httpclient5"
-    testImplementation 'org.mock-server:mockserver-netty'
-    testImplementation 'org.mock-server:mockserver-client-java'
-    testImplementation 'javax.xml.bind:jaxb-api'
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.sqlite.jdbc
+    testImplementation libs.testcontainers
+    testImplementation libs.httpcomponents.httpclient5
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
+    testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
@@ -539,13 +537,14 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    compileOnly "io.delta:delta-standalone_${scalaVersion}"
+    compileOnly "io.delta:delta-standalone_${scalaVersion}:${libs.versions.delta.standalone.get()}"
 
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
@@ -555,9 +554,9 @@ project(':iceberg-delta-lake') {
     // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
     // not need to include older version of delta-core
     if (sparkVersions.contains("3.3")) {
-      integrationImplementation "io.delta:delta-core_${scalaVersion}"
+      integrationImplementation "io.delta:delta-core_${scalaVersion}:${libs.versions.delta.core.get()}"
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
-      integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
+      integrationImplementation(libs.hadoop2.minicluster) {
         exclude group: 'org.apache.avro', module: 'avro'
         // to make sure netty libs only come from project(':iceberg-arrow')
         exclude group: 'io.netty', module: 'netty-buffer'
@@ -565,7 +564,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.2") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive33.get()}") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
@@ -609,20 +608,20 @@ project(':iceberg-gcp') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
 
-    implementation platform('com.google.cloud:libraries-bom')
-    implementation 'com.google.cloud:google-cloud-storage'
+    implementation platform(libs.google.libraries.bom)
+    implementation "com.google.cloud:google-cloud-storage"
 
-    testImplementation 'com.google.cloud:google-cloud-nio'
+    testImplementation "com.google.cloud:google-cloud-nio"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
 
-    testImplementation("org.apache.hadoop:hadoop-common") {
+    testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
-    testImplementation "com.esotericsoftware:kryo"
+    testImplementation libs.esotericsoftware.kryo
   }
 }
 
@@ -636,14 +635,14 @@ project(':iceberg-hive-metastore') {
     implementation project(':iceberg-core')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation libs.caffeine
 
-    compileOnly "org.apache.avro:avro"
+    compileOnly libs.avro.avro
 
-    compileOnly("org.apache.hive:hive-metastore") {
+    compileOnly(libs.hive2.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -663,7 +662,10 @@ project(':iceberg-hive-metastore') {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation("org.apache.hive:hive-exec::core") {
+    testImplementation(libs.hive2.exec) {
+      artifact {
+        classifier = 'core'
+      }
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -675,7 +677,7 @@ project(':iceberg-hive-metastore') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation("org.apache.hive:hive-metastore") {
+    testImplementation(libs.hive2.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -691,7 +693,7 @@ project(':iceberg-hive-metastore') {
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -709,11 +711,14 @@ project(':iceberg-orc') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation("org.apache.avro:avro") {
+    implementation(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation("org.apache.orc:orc-core::nohive") {
+    implementation(libs.orc.core) {
+      artifact {
+        classifier = 'nohive'
+      }
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -721,19 +726,19 @@ project(':iceberg-orc') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(':iceberg-common')
-    testImplementation 'org.apache.orc:orc-tools'
+    testImplementation libs.orc.tools
   }
 }
 
@@ -747,15 +752,15 @@ project(':iceberg-parquet') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
       exclude group: 'it.unimi.dsi'
       exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly libs.avro.avro
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -773,20 +778,20 @@ project(':iceberg-arrow') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
 
-    implementation("org.apache.arrow:arrow-vector") {
+    implementation(libs.arrow.vector) {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-    implementation("org.apache.arrow:arrow-memory-netty") {
+    implementation(libs.arrow.memory.netty) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'io.netty', module: 'netty-buffer'
     }
 
-    runtimeOnly("io.netty:netty-buffer")
+    runtimeOnly libs.netty.buffer
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
       exclude group: 'it.unimi.dsi'
@@ -797,9 +802,9 @@ project(':iceberg-arrow') {
     // To run ArrowReaderTest test cases, :netty-common is needed.
     // We import :netty-common through :arrow-memory-netty
     // so that the same version as used by the :arrow-memory-netty module is picked.
-    testImplementation("org.apache.arrow:arrow-memory-netty")
-    testImplementation("org.apache.hadoop:hadoop-common")
-    testImplementation("org.apache.hadoop:hadoop-mapreduce-client-core")
+    testImplementation libs.arrow.memory.netty
+    testImplementation libs.hadoop2.common
+    testImplementation libs.hadoop2.mapreduce.client.core
   }
 }
 
@@ -815,22 +820,22 @@ project(':iceberg-pig') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
       exclude group: 'it.unimi.dsi'
       exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly("org.apache.pig:pig") {
+    compileOnly(libs.pig) {
       exclude group: "junit", module: "junit"
     }
-    compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly(libs.hadoop2.mapreduce.client.core)
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testImplementation("org.apache.hadoop:hadoop-minicluster") {
+    testImplementation(libs.hadoop2.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
@@ -861,28 +866,29 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie.nessie:nessie-client"
+    implementation libs.nessie.client
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    compileOnly "org.apache.hadoop:hadoop-common"
+    compileOnly libs.hadoop2.common
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
+    compileOnly libs.microprofile.openapi.api
 
     if (JavaVersion.current().isJava11Compatible()) {
-      testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
-      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-inmemory"
-      testImplementation "org.projectnessie.nessie:nessie-versioned-storage-testextension"
+      testImplementation libs.nessie.jaxrs.testextension
+      testImplementation libs.nessie.versioned.storage.inmemory
+      testImplementation libs.nessie.versioned.storage.testextension
       // Need to "pull in" el-api explicitly :(
-      testImplementation "jakarta.el:jakarta.el-api"
+      testImplementation libs.jakarta.el.api
 
-      testImplementation "org.apache.avro:avro"
+      testImplementation libs.avro.avro
 
       testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
       testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
       // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-      testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
+      testCompileOnly libs.microprofile.openapi.api
     }
   }
 }
@@ -895,12 +901,12 @@ project(':iceberg-dell') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    compileOnly 'com.emc.ecs:object-client-bundle'
+    compileOnly libs.object.client.bundle
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation "javax.xml.bind:jaxb-api"
-    testImplementation "javax.activation:activation"
-    testImplementation "org.glassfish.jaxb:jaxb-runtime"
+    testImplementation libs.jaxb.api
+    testImplementation libs.activation
+    testImplementation libs.jaxb.runtime
   }
 }
 
@@ -913,12 +919,13 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    runtimeOnly("net.snowflake:snowflake-jdbc")
+    runtimeOnly libs.snowflake.jdbc
 
-    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }

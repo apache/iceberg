@@ -50,10 +50,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -62,14 +62,14 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
-import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
+import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -79,12 +79,12 @@ import org.slf4j.LoggerFactory;
 public class SparkScanBuilder
     implements ScanBuilder,
         SupportsPushDownAggregates,
-        SupportsPushDownFilters,
+        SupportsPushDownV2Filters,
         SupportsPushDownRequiredColumns,
         SupportsReportStatistics {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
-  private static final Filter[] NO_FILTERS = new Filter[0];
+  private static final Predicate[] NO_PREDICATES = new Predicate[0];
   private StructType pushedAggregateSchema;
   private Scan localScan;
 
@@ -98,7 +98,7 @@ public class SparkScanBuilder
   private Schema schema = null;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
-  private Filter[] pushedFilters = NO_FILTERS;
+  private Predicate[] pushedPredicates = NO_PREDICATES;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -142,7 +142,7 @@ public class SparkScanBuilder
   }
 
   @Override
-  public Filter[] pushFilters(Filter[] filters) {
+  public Predicate[] pushPredicates(Predicate[] predicates) {
     // there are 3 kinds of filters:
     // (1) filters that can be pushed down completely and don't have to evaluated by Spark
     //     (e.g. filters that select entire partitions)
@@ -153,39 +153,39 @@ public class SparkScanBuilder
     // filters (1) and (2) are used prune files during job planning in Iceberg
     // filters (2) and (3) form a set of post scan filters and must be evaluated by Spark
 
-    List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Expression> expressions = Lists.newArrayListWithExpectedSize(predicates.length);
+    List<Predicate> pushableFilters = Lists.newArrayListWithExpectedSize(predicates.length);
+    List<Predicate> postScanFilters = Lists.newArrayListWithExpectedSize(predicates.length);
 
-    for (Filter filter : filters) {
+    for (Predicate predicate : predicates) {
       try {
-        Expression expr = SparkFilters.convert(filter);
+        Expression expr = SparkV2Filters.convert(predicate);
 
         if (expr != null) {
           // try binding the expression to ensure it can be pushed down
           Binder.bind(schema.asStruct(), expr, caseSensitive);
           expressions.add(expr);
-          pushableFilters.add(filter);
+          pushableFilters.add(predicate);
         }
 
         if (expr == null
             || unpartitioned()
             || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
-          postScanFilters.add(filter);
+          postScanFilters.add(predicate);
         } else {
-          LOG.info("Evaluating completely on Iceberg side: {}", filter);
+          LOG.info("Evaluating completely on Iceberg side: {}", predicate);
         }
 
       } catch (Exception e) {
-        LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
-        postScanFilters.add(filter);
+        LOG.warn("Failed to check if {} can be pushed down: {}", predicate, e.getMessage());
+        postScanFilters.add(predicate);
       }
     }
 
     this.filterExpressions = expressions;
-    this.pushedFilters = pushableFilters.toArray(new Filter[0]);
+    this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
-    return postScanFilters.toArray(new Filter[0]);
+    return postScanFilters.toArray(new Predicate[0]);
   }
 
   private boolean unpartitioned() {
@@ -193,8 +193,8 @@ public class SparkScanBuilder
   }
 
   @Override
-  public Filter[] pushedFilters() {
-    return pushedFilters;
+  public Predicate[] pushedPredicates() {
+    return pushedPredicates;
   }
 
   @Override
