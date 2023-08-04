@@ -59,13 +59,16 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final Identifier backupIdent;
 
   private boolean dropBackup = false;
+  private String backupTableName = "";
+
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
-    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
+    String backupName =
+            backupTableName.isEmpty() ? sourceTableIdent.name() + BACKUP_SUFFIX : backupTableName;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
   }
 
@@ -99,6 +102,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   @Override
   public MigrateTableSparkAction dropBackup() {
     this.dropBackup = true;
+    return this;
+  }
+
+  @Override
+  public MigrateTableSparkAction withBackupTableName(String tableName) {
+    this.backupTableName = tableName;
     return this;
   }
 

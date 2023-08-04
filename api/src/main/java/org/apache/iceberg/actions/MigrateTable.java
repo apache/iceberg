@@ -50,6 +50,10 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Dropping a backup is not supported");
   }
 
+  default MigrateTable withBackupTableName(String tableName) {
+    throw new UnsupportedOperationException("Backup table name cannot be specified");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */
