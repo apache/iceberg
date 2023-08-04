@@ -774,12 +774,6 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
-    org.apache.iceberg:iceberg-core:
-    - code: "java.generics.formalTypeParameterAdded"
-      old: "class org.apache.iceberg.io.ResolvingFileIO"
-      new: "class org.apache.iceberg.io.ResolvingFileIO<T extends org.apache.iceberg.io.FileIO,\
-        \ org.apache.iceberg.io.SupportsPrefixOperations, org.apache.iceberg.io.SupportsBulkOperations>"
-      justification: "Formal type parameter changed"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
