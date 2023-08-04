@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -48,7 +49,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HadoopFileIO
-    implements FileIO, HadoopConfigurable, SupportsPrefixOperations, SupportsBulkOperations {
+    implements FileIO,
+        HadoopConfigurable,
+        SupportsPrefixOperations,
+        SupportsBulkOperations,
+        ResolvingFileIO.DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";

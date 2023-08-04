@@ -44,8 +44,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * FileIO implementation that uses location scheme to choose the correct FileIO implementation.
- * Delegate FileIO implementations must support the mixin interfaces {@link
- * SupportsPrefixOperations} and {@link SupportsBulkOperations}, otherwise initialization will fail.
+ * Delegate FileIO implementations must implement the {@link DelegateFileIO} mixin interface,
+ * otherwise initialization will fail.
  */
 public class ResolvingFileIO
     implements FileIO, SupportsPrefixOperations, SupportsBulkOperations, HadoopConfigurable {
@@ -60,11 +60,14 @@ public class ResolvingFileIO
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL);
 
-  private final Map<String, FileIO> ioInstances = Maps.newHashMap();
+  private final Map<String, DelegateFileIO> ioInstances = Maps.newHashMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
+
+  public interface DelegateFileIO
+      extends FileIO, SupportsPrefixOperations, SupportsBulkOperations {}
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -104,7 +107,7 @@ public class ResolvingFileIO
     }
 
     PeekingIterator<String> iterator = Iterators.peekingIterator(originalIterator);
-    SupportsBulkOperations fileIO = io(iterator.peek());
+    DelegateFileIO fileIO = io(iterator.peek());
     fileIO.deleteFiles(() -> iterator);
   }
 
@@ -133,14 +136,14 @@ public class ResolvingFileIO
   @Override
   public void close() {
     if (isClosed.compareAndSet(false, true)) {
-      List<FileIO> instances = Lists.newArrayList();
+      List<DelegateFileIO> instances = Lists.newArrayList();
 
       synchronized (ioInstances) {
         instances.addAll(ioInstances.values());
         ioInstances.clear();
       }
 
-      for (FileIO io : instances) {
+      for (DelegateFileIO io : instances) {
         io.close();
       }
     }
@@ -162,10 +165,9 @@ public class ResolvingFileIO
     return hadoopConf.get();
   }
 
-  private <T extends FileIO & SupportsPrefixOperations & SupportsBulkOperations> T io(
-      String location) {
+  private DelegateFileIO io(String location) {
     String impl = implFromLocation(location);
-    T io = (T) ioInstances.get(impl);
+    DelegateFileIO io = ioInstances.get(impl);
     if (io != null) {
       return io;
     }
@@ -173,7 +175,7 @@ public class ResolvingFileIO
     synchronized (ioInstances) {
 
       // double check while holding the lock
-      io = (T) ioInstances.get(impl);
+      io = ioInstances.get(impl);
       if (io != null) {
         return io;
       }
@@ -212,13 +214,10 @@ public class ResolvingFileIO
       }
 
       Preconditions.checkState(
-          newFileIO instanceof SupportsPrefixOperations,
-          "FileIO does not implement SupportsPrefixOperations: " + newFileIO.getClass().getName());
-      Preconditions.checkState(
-          newFileIO instanceof SupportsBulkOperations,
-          "FileIO does not implement SupportsBulkOperations: " + newFileIO.getClass().getName());
+          newFileIO instanceof DelegateFileIO,
+          "FileIO does not implement DelegateFileIO: " + newFileIO.getClass().getName());
 
-      io = (T) newFileIO;
+      io = (DelegateFileIO) newFileIO;
       ioInstances.put(impl, io);
     }
 
