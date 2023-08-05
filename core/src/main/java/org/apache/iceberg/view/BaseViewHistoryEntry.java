@@ -19,6 +19,8 @@
 package org.apache.iceberg.view;
 
 import org.immutables.value.Value;
+import org.immutables.value.Value.Style.BuilderVisibility;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 /**
  * View history entry.
@@ -27,8 +29,9 @@ import org.immutables.value.Value;
  * set to the given version ID.
  */
 @Value.Immutable
-// https://github.com/immutables/immutables/issues/291 does not apply here because we're not adding
-// any Immutable-specific class to the classpath
 @SuppressWarnings("ImmutablesStyle")
-@Value.Style(typeImmutable = "ImmutableViewHistoryEntry")
-public interface BaseViewHistoryEntry extends ViewHistoryEntry {}
+@Value.Style(
+    typeImmutable = "ImmutableViewHistoryEntry",
+    visibility = ImplementationVisibility.PUBLIC,
+    builderVisibility = BuilderVisibility.PUBLIC)
+interface BaseViewHistoryEntry extends ViewHistoryEntry {}

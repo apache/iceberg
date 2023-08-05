@@ -38,7 +38,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -142,7 +141,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        new S3FileIO(clientFactory::s3),
         ImmutableMap.of());
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -384,7 +382,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
         properties,
         glue,
         LockManagers.defaultLockManager(),
-        fileIO,
         ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
@@ -597,15 +594,13 @@ public class TestGlueCatalogTable extends GlueTestBase {
   @Test
   public void testTableLevelS3Tags() {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     Map<String, String> properties =
         ImmutableMap.of(
             AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
             "true",
             AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
             "true");
-    glueCatalog.initialize(
-        catalogName, testBucketPath, new AwsProperties(properties), glue, null, fileIO);
+    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(properties), glue, null);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
