@@ -30,6 +30,7 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -115,6 +116,67 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     Assert.assertEquals(expectedMinSnapshotsToKeep, ref.minSnapshotsToKeep().intValue());
     Assert.assertEquals(expectedMaxSnapshotAgeMs, ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(expectedMaxRefAgeMs, ref.maxRefAgeMs().longValue());
+  }
+
+  @Test
+  public void testReplaceBranchUseTag() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    List<SimpleRecord> records =
+        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.writeTo(tableName).append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    long expectedMaxRefAgeMs = 1000;
+    int expectedMinSnapshotsToKeep = 2;
+    long expectedMaxSnapshotAgeMs = 1000;
+    table
+        .manageSnapshots()
+        .createBranch(branchName, first)
+        .setMaxRefAgeMs(branchName, expectedMaxRefAgeMs)
+        .setMinSnapshotsToKeep(branchName, expectedMinSnapshotsToKeep)
+        .setMaxSnapshotAgeMs(branchName, expectedMaxSnapshotAgeMs)
+        .commit();
+
+    df.writeTo(tableName).append();
+    long second = table.currentSnapshot().snapshotId();
+    String tagName = "tag";
+    table.manageSnapshots().createTag(tagName, second).commit();
+
+    sql("ALTER TABLE %s REPLACE BRANCH %s AS OF TAG %s", tableName, branchName, tagName);
+
+    table.refresh();
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertEquals(second, ref.snapshotId());
+    Assert.assertEquals(expectedMinSnapshotsToKeep, ref.minSnapshotsToKeep().intValue());
+    Assert.assertEquals(expectedMaxSnapshotAgeMs, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(expectedMaxRefAgeMs, ref.maxRefAgeMs().longValue());
+  }
+
+  @Test
+  public void testReplaceBranchUseNotExistTag() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    List<SimpleRecord> records =
+        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.writeTo(tableName).append();
+    Table table = validationCatalog.loadTable(tableIdent);
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, first).commit();
+
+    String tagName = "tag";
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE BRANCH %s AS OF TAG %s",
+                    tableName, branchName, tagName),
+            "Cannot perform replace branch on tag which does not exist")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Tag tag does not exist");
   }
 
   @Test
