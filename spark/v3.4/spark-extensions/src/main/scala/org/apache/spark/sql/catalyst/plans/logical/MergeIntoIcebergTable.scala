@@ -74,8 +74,4 @@ case class MergeIntoIcebergTable(
         throw new IllegalArgumentException("MergeIntoIcebergTable expects either two or three children")
     }
   }
-
-  override def withNewCondition(newCondition: Expression): RowLevelCommand = {
-    copy(mergeCondition = newCondition)
-  }
 }
