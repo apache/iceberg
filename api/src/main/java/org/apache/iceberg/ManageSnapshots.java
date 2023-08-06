@@ -84,6 +84,19 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots cherrypick(long snapshotId);
 
   /**
+   * Create a new branch. The branch will point to current snapshot if the current snapshot is not
+   * NULL. Otherwise, the branch will point to a newly created empty snapshot.
+   *
+   * @param name branch name
+   * @return this for method chaining
+   * @throws IllegalArgumentException if a branch with the given name already exists
+   */
+  default ManageSnapshots createBranch(String name) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement createBranch(String)");
+  }
+
+  /**
    * Create a new branch pointing to the given snapshot id.
    *
    * @param name branch name

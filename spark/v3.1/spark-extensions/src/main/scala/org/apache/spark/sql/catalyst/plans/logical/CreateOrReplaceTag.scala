@@ -16,38 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.spark.sql.catalyst.plans.logical
 
-import java.util.List;
-import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.Namespace;
-import org.immutables.value.Value;
+import org.apache.spark.sql.catalyst.expressions.Attribute
 
-@Value.Immutable
-public interface SQLViewRepresentation extends ViewRepresentation {
+case class CreateOrReplaceTag(
+    table: Seq[String],
+    tag: String,
+    tagOptions: TagOptions,
+    create: Boolean,
+    replace: Boolean,
+    ifNotExists: Boolean) extends Command {
 
-  @Override
-  default String type() {
-    return Type.SQL;
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
+  override lazy val output: Seq[Attribute] = Nil
+
+  override def simpleString(maxFields: Int): String = {
+    s"CreateOrReplaceTag tag: ${tag} for table: ${table.quoted}"
   }
-
-  /** The view query SQL text. */
-  String sql();
-
-  /** The view query SQL dialect. */
-  String dialect();
-
-  /** The default catalog when the view is created. */
-  @Nullable
-  String defaultCatalog();
-
-  /** The default namespace when the view is created. */
-  @Nullable
-  Namespace defaultNamespace();
-
-  /** The view field comments. */
-  List<String> fieldComments();
-
-  /** The view field aliases. */
-  List<String> fieldAliases();
 }

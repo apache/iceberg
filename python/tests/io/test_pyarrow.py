@@ -302,6 +302,21 @@ def test_deleting_s3_file_not_found() -> None:
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
 
+def test_deleting_hdfs_file_not_found() -> None:
+    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'No such file or directory'"""
+
+    hdfs_mock = MagicMock()
+    hdfs_mock.delete_file.side_effect = OSError("Path does not exist")
+
+    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+        submocked.return_value = hdfs_mock
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            PyArrowFileIO().delete("hdfs://foo/bar.txt")
+
+        assert "Cannot delete file, does not exist:" in str(exc_info.value)
+
+
 def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string

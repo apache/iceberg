@@ -28,7 +28,6 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -74,27 +73,19 @@ public class GlueTestBase {
               "s3://" + testBucketName + "/writeFolderStorageLoc");
 
   static final String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-  static final S3FileIO fileIO = new S3FileIO(clientFactory::s3);
 
   @BeforeClass
   public static void beforeClass() {
     glueCatalog = new GlueCatalog();
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoDeleteBatchSize(10);
-    glueCatalog.initialize(
-        catalogName, testBucketPath, properties, glue, null, fileIO, ImmutableMap.of());
+    glueCatalog.initialize(catalogName, testBucketPath, properties, glue, null, ImmutableMap.of());
 
     glueCatalogWithSkipNameValidation = new GlueCatalog();
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
     glueCatalogWithSkipNameValidation.initialize(
-        catalogName,
-        testBucketPath,
-        propertiesSkipNameValidation,
-        glue,
-        null,
-        fileIO,
-        ImmutableMap.of());
+        catalogName, testBucketPath, propertiesSkipNameValidation, glue, null, ImmutableMap.of());
   }
 
   @AfterClass

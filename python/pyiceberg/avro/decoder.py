@@ -69,9 +69,10 @@ class BinaryDecoder(ABC):
         datum = (n >> 1) ^ -(n & 1)
         return datum
 
-    def read_ints(self, n: int) -> Tuple[int, ...]:
+    def read_ints(self, n: int, dest: List[int]) -> None:
         """Reads a list of integers."""
-        return tuple(self.read_int() for _ in range(n))
+        for _ in range(n):
+            dest.append(self.read_int())
 
     def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
         """Reads a dictionary of integers for keys and values into a destination dictionary."""
