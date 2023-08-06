@@ -1500,15 +1500,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               sqlFormat(
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
-          Object explain = scalarSql("EXPLAIN EXTENDED %s", updateSql);
+          Dataset<Row> df = spark.sql(updateSql);
           // The applyfunction will be returned as post scan filters because it cannot evaluate on
           // an unpartitioned table
-          Assertions.assertThat((String) explain)
-              .contains(
-                  "Filter (applyfunctionexpression(org.apache.iceberg.spark.functions.BucketFunction");
-          Assertions.assertThat((String) explain).contains("filters=id = 1");
-
-          sql(updateSql);
+          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
+              .contains("Filter (applyfunctionexpression(Wrapper(iceberg.bucket(bigint))");
+          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
+              .contains("filters=id = 1");
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
@@ -1538,15 +1536,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               sqlFormat(
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
-          Object explain = scalarSql("EXPLAIN EXTENDED %s", updateSql);
+          Dataset<Row> df = spark.sql(updateSql);
           // Should not contain applyfunction since filter function could be evaluated completely on
           // Iceberg side and will not return post scan filters
-          Assertions.assertThat((String) explain)
-              .doesNotContain(
-                  "Filter (applyfunctionexpression(org.apache.iceberg.spark.functions.BucketFunction");
-          Assertions.assertThat((String) explain).contains("filters=id = 1");
-
-          sql(updateSql);
+          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
+              .doesNotContain("Filter (applyfunctionexpression(Wrapper(iceberg.bucket(bigint))");
+          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
+              .contains("filters=id = 1");
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);

@@ -18,18 +18,17 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.functions.HoursFunction;
 import org.apache.spark.sql.AnalysisException;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
+public class TestSparkHoursFunction extends SystemFunctionTestBase {
 
-  @Before
-  public void useCatalog() {
-    sql("USE %s", catalogName);
+  public TestSparkHoursFunction(boolean systemFunctionPushDownEnabled) {
+    super(systemFunctionPushDownEnabled);
   }
 
   @Test
@@ -91,5 +90,43 @@ public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'hours' cannot process input: (bigint): Expected value to be timestamp");
+  }
+
+  @Test
+  public void testThatMagicFunctionsAreInvoked() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
+    String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
+    String timestampTransformClass = HoursFunction.TimestampToHoursFunction.class.getName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.hours(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + timestampTransformClass);
+
+    String timestampNtzValue = "TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC'";
+    String timestampNtzTransformClass = HoursFunction.TimestampNtzToHoursFunction.class.getName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.hours(%s)", timestampNtzValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + timestampNtzTransformClass);
+  }
+
+  @Test
+  public void testAnalyzedToApplyFunctionExpression() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isTrue();
+    String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
+    String timestampTransformCanonicalName =
+        new HoursFunction.TimestampToHoursFunction().canonicalName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.hours(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(" + timestampTransformCanonicalName);
+
+    String timestampNtzValue = "TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC'";
+    String timestampNtzTransformCanonicalName =
+        new HoursFunction.TimestampNtzToHoursFunction().canonicalName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.hours(%s)", timestampNtzValue))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(" + timestampNtzTransformCanonicalName);
   }
 }

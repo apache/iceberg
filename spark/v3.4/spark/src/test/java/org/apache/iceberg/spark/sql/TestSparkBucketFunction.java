@@ -23,20 +23,18 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.types.DataTypes;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
-  @Before
-  public void useCatalog() {
-    sql("USE %s", catalogName);
+public class TestSparkBucketFunction extends SystemFunctionTestBase {
+  public TestSparkBucketFunction(boolean systemFunctionPushDownEnabled) {
+    super(systemFunctionPushDownEnabled);
   }
 
   @Test
@@ -287,6 +285,7 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testThatMagicFunctionsAreInvoked() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
     // TinyInt
     Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
         .asString()
@@ -349,6 +348,68 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketBinary");
+  }
+
+  @Test
+  public void testAnalyzedToApplyFunctionExpression() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isTrue();
+    // TinyInt
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(int))");
+
+    // SmallInt
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6S)"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(int))");
+
+    // Int
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6)"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(int))");
+
+    // Date
+    Assertions.assertThat(
+            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, DATE '2022-08-08')"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(date))");
+
+    // Long
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6L)"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(bigint))");
+
+    // Timestamp
+    Assertions.assertThat(
+            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, TIMESTAMP '2022-08-08')"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(timestamp))");
+
+    // String
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 'abcdefg')"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(string))");
+
+    // Decimal
+    Assertions.assertThat(
+            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, CAST('12.34' AS DECIMAL))"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(decimal))");
+
+    // Binary
+    Assertions.assertThat(
+            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(4, X'0102030405060708')"))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(iceberg.bucket(binary))");
   }
 
   private String asBytesLiteral(String value) {

@@ -84,14 +84,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testFilterWithConstantExpression() {
+  public void testConstantExpression() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
-          Object explain =
-              scalarSql(
-                  "EXPLAIN EXTENDED SELECT * FROM %s WHERE system.bucket(2, 5) = 1", tableName);
-          Assertions.assertThat((String) explain).doesNotContain("applyfunctionexpression");
+          Dataset<Row> df = spark.sql("SELECT system.bucket(2, 5) AS bucket");
+          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
+              .doesNotContain("applyfunctionexpression");
         });
   }
 

@@ -19,18 +19,17 @@
 package org.apache.iceberg.spark.sql;
 
 import java.sql.Date;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.functions.DaysFunction;
 import org.apache.spark.sql.AnalysisException;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
+public class TestSparkDaysFunction extends SystemFunctionTestBase {
 
-  @Before
-  public void useCatalog() {
-    sql("USE %s", catalogName);
+  public TestSparkDaysFunction(boolean systemFunctionPushDownEnabled) {
+    super(systemFunctionPushDownEnabled);
   }
 
   @Test
@@ -108,5 +107,42 @@ public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'days' cannot process input: (bigint): Expected value to be date or timestamp");
+  }
+
+  @Test
+  public void testThatMagicFunctionsAreInvoked() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
+    String dateValue = "date('2017-12-01')";
+    String dateTransformClass = DaysFunction.DateToDaysFunction.class.getName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.days(%s)", dateValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + dateTransformClass);
+
+    String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
+    String timestampTransformClass = DaysFunction.TimestampToDaysFunction.class.getName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.days(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + timestampTransformClass);
+  }
+
+  @Test
+  public void testAnalyzedToApplyFunctionExpression() {
+    Assumptions.assumeThat(systemFunctionPushDownEnabled).isTrue();
+    String dateValue = "date('2017-12-01')";
+    String dateTransformCanonicalName = new DaysFunction.DateToDaysFunction().canonicalName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.days(%s)", dateValue))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(" + dateTransformCanonicalName);
+
+    String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
+    String timestampTransformCanonicalName =
+        new DaysFunction.TimestampToDaysFunction().canonicalName();
+    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.days(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("applyfunctionexpression(Wrapper(" + timestampTransformCanonicalName);
   }
 }

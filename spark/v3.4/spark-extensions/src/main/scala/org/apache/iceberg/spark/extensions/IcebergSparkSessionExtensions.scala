@@ -31,7 +31,7 @@ import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
-import org.apache.spark.sql.catalyst.optimizer.RewriteStaticInvoke
+import org.apache.spark.sql.catalyst.optimizer.FoldConstantSystemFunction
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
@@ -59,7 +59,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }
     extensions.injectOptimizerRule { _ => ExtendedReplaceNullWithFalseInPredicate }
-    extensions.injectOptimizerRule { _ => RewriteStaticInvoke }
+    extensions.injectOptimizerRule { _ => FoldConstantSystemFunction }
     // pre-CBO rules run only once and the order of the rules is important
     // - dynamic filters should be added before replacing commands with rewrite plans
     // - scans must be planned before building writes

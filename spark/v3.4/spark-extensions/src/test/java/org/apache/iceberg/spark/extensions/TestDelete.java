@@ -1382,8 +1382,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   tableName, catalogName, catalogName, date);
           Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
           Assertions.assertThat((String) explain)
-              .contains(
-                  "Filter NOT (applyfunctionexpression(org.apache.iceberg.spark.functions.MonthsFunction$TimestampToMonthsFunction");
+              .contains("Filter NOT (applyfunctionexpression(Wrapper(iceberg.months(timestamp))");
           Assertions.assertThat((String) explain).contains("[filters=NOT (ts = " + months(date));
 
           sql(deleteSql);
