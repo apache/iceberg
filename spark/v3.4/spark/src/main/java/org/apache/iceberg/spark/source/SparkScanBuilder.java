@@ -545,7 +545,7 @@ public class SparkScanBuilder
     }
 
     if (endTimestamp != null) {
-      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp, true);
+      endSnapshotId = SnapshotUtil.nullableSnapshotIdAsOfTime(table, endTimestamp);
       if ((startSnapshotId == null && endSnapshotId == null)
           || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
         emptyScan = true;
