@@ -17,7 +17,7 @@
  * under the License.
  */
 
-project(":iceberg-gcp-runtime") {
+project(":iceberg-gcp-bundle") {
 
   apply plugin: 'com.github.johnrengelman.shadow'
 
