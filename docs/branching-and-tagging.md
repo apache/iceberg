@@ -115,7 +115,7 @@ table.manageSnapshots().fastForward("main", "audit-branch").commit()
 
 Creating, querying and writing to branches and tags are supported in the Iceberg Java library, and in Spark and Flink engine integrations.
 
-- [Iceberg Java Library](../../java-api-quickstart/#branching-and-tagging)
+- [Iceberg Java Library](../java-api-quickstart/#branching-and-tagging)
 - [Spark DDLs](../spark-ddl/#branching-and-tagging-ddl)
 - [Spark Reads](../spark-queries/#time-travel)
 - [Spark Branch Writes](../spark-writes/#writing-to-branches)

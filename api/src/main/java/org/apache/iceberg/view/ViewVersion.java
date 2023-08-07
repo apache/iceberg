@@ -78,9 +78,7 @@ public interface ViewVersion {
   }
 
   /** The default namespace to use when the SQL does not contain a namespace. */
-  default Namespace defaultNamespace() {
-    return null;
-  }
+  Namespace defaultNamespace();
 
   default void check() {
     Preconditions.checkArgument(

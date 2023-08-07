@@ -20,17 +20,25 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -48,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
  * Overview</a>
  */
-public class GCSFileIO implements FileIO {
+public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -173,5 +181,45 @@ public class GCSFileIO implements FileIO {
         storage = null;
       }
     }
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    GCSLocation location = new GCSLocation(prefix);
+    return () ->
+        client()
+            .list(location.bucket(), Storage.BlobListOption.prefix(location.prefix()))
+            .streamAll()
+            .map(
+                blob ->
+                    new FileInfo(
+                        String.format("gs://%s/%s", blob.getBucket(), blob.getName()),
+                        blob.getSize(),
+                        createTimeMillis(blob)))
+            .iterator();
+  }
+
+  private long createTimeMillis(Blob blob) {
+    if (blob.getCreateTimeOffsetDateTime() == null) {
+      return 0;
+    }
+    return blob.getCreateTimeOffsetDateTime().toInstant().toEpochMilli();
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    internalDeleteFiles(
+        Streams.stream(listPrefix(prefix))
+            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
+  }
+
+  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+    Streams.stream(Iterators.partition(blobIdsToDelete.iterator(), gcpProperties.deleteBatchSize()))
+        .forEach(batch -> client().delete(batch));
   }
 }

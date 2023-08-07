@@ -45,20 +45,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
-import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
-    implements SupportsRuntimeFiltering {
+    implements SupportsRuntimeV2Filtering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
@@ -119,8 +119,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public void filter(Filter[] filters) {
-    Expression runtimeFilterExpr = convertRuntimeFilters(filters);
+  public void filter(Predicate[] predicates) {
+    Expression runtimeFilterExpr = convertRuntimeFilters(predicates);
 
     if (runtimeFilterExpr != Expressions.alwaysTrue()) {
       Map<Integer, Evaluator> evaluatorsBySpecId = Maps.newHashMap();
@@ -160,11 +160,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
   // at this moment, Spark can only pass IN filters for a single attribute
   // if there are multiple filter attributes, Spark will pass two separate IN filters
-  private Expression convertRuntimeFilters(Filter[] filters) {
+  private Expression convertRuntimeFilters(Predicate[] predicates) {
     Expression runtimeFilterExpr = Expressions.alwaysTrue();
 
-    for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
+    for (Predicate predicate : predicates) {
+      Expression expr = SparkV2Filters.convert(predicate);
       if (expr != null) {
         try {
           Binder.bind(expectedSchema().asStruct(), expr, caseSensitive());
@@ -173,7 +173,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
           LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
         }
       } else {
-        LOG.warn("Unsupported runtime filter {}", filter);
+        LOG.warn("Unsupported runtime filter {}", predicate);
       }
     }
 
