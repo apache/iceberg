@@ -2070,13 +2070,13 @@ testing = ["argcomplete", "attrs (>=19.2.0)", "hypothesis (>=3.56)", "mock", "no
 
 [[package]]
 name = "pytest-checkdocs"
-version = "2.10.0"
+version = "2.10.1"
 description = "check the README when running tests"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pytest-checkdocs-2.10.0.tar.gz", hash = "sha256:0c1320dc88549a95b7482fba6dae37ef5e9bfb42fd7babcc1f8f1be3ae15994f"},
-    {file = "pytest_checkdocs-2.10.0-py3-none-any.whl", hash = "sha256:93ae72cf71d4a3a8d5860a5f42c31131d639257a88796e769d6a008a081b10b0"},
+    {file = "pytest-checkdocs-2.10.1.tar.gz", hash = "sha256:393868583f2d0314f8c5828fd94f7d28699543f6a0a925356d7e274e2952297e"},
+    {file = "pytest_checkdocs-2.10.1-py3-none-any.whl", hash = "sha256:f069d6408633697023298ebf66c9bb1cb915c3ae5f047457b507229a4784e153"},
 ]
 
 [package.dependencies]
@@ -3074,4 +3074,4 @@ zstandard = ["zstandard"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "5d2066d7196f6defe9f350a0e20f46e54753b3b2a2ad8de0e655e6f0901d8fea"
+content-hash = "3bc57dab7b6f6c9e86a978bf58ca83a60e0e85a4d672880dd73b8825bd3a654f"
