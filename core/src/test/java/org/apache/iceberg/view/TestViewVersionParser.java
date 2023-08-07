@@ -43,6 +43,7 @@ public class TestViewVersionParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(12345)
+            .defaultNamespace(Namespace.of("one", "two"))
             .addRepresentations(firstRepresentation, secondRepresentation)
             .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
             .schemaId(1)
@@ -54,7 +55,7 @@ public class TestViewVersionParser {
 
     String serializedViewVersion =
         String.format(
-            "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
+            "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s, \"default-namespace\":[\"one\",\"two\"]}",
             serializedRepresentations);
 
     Assertions.assertThat(ViewVersionParser.fromJson(serializedViewVersion))
@@ -109,7 +110,7 @@ public class TestViewVersionParser {
 
     String viewVersionMissingOperation =
         String.format(
-            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s,\"schema-id\":1}",
+            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s,\"schema-id\":1,\"default-namespace\":[\"one\",\"two\"]}",
             serializedRepresentations);
 
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
@@ -122,6 +123,7 @@ public class TestViewVersionParser {
                     .versionId(1)
                     .timestampMillis(12345)
                     .schemaId(1)
+                    .defaultNamespace(Namespace.of("one", "two"))
                     .summary(ImmutableMap.of("user", "some-user"))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -141,5 +143,16 @@ public class TestViewVersionParser {
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson((String) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse view version from null string");
+  }
+
+  @Test
+  public void missingDefaultCatalog() {
+    Assertions.assertThatThrownBy(
+            () ->
+                ViewVersionParser.fromJson(
+                    "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,"
+                        + "\"summary\":{\"operation\":\"create\"},\"representations\":[]}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing field: default-namespace");
   }
 }

@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
@@ -56,10 +57,11 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
+import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
@@ -601,9 +603,9 @@ public class TestFilteredScan {
   }
 
   private void pushFilters(ScanBuilder scan, Filter... filters) {
-    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownFilters.class);
-    SupportsPushDownFilters filterable = (SupportsPushDownFilters) scan;
-    filterable.pushFilters(filters);
+    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
+    SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
+    filterable.pushPredicates(Arrays.stream(filters).map(Filter::toV2).toArray(Predicate[]::new));
   }
 
   private Table buildPartitionedTable(

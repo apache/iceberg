@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -51,6 +52,7 @@ import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
@@ -220,5 +222,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new ScannedDataFiles(),
       new SkippedDataFiles()
     };
+  }
+
+  protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
+    if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
+      long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
+      int parallelism = sparkContext.defaultParallelism();
+      return TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
+    } else {
+      return splitSize;
+    }
   }
 }

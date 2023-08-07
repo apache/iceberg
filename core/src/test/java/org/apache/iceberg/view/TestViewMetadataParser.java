@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -63,6 +64,7 @@ public class TestViewMetadataParser {
             .summary(ImmutableMap.of("operation", "create"))
             .schemaId(1)
             .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
             .addRepresentations(
                 ImmutableSQLViewRepresentation.builder()
                     .sql("select 'foo' foo")
@@ -80,6 +82,7 @@ public class TestViewMetadataParser {
             .timestampMillis(5555L)
             .summary(ImmutableMap.of("operation", "replace"))
             .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
             .addRepresentations(
                 ImmutableSQLViewRepresentation.builder()
                     .sql("select 1 id, 'abc' data")

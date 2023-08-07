@@ -240,6 +240,20 @@ public class TestTableScanUtil {
         .hasMessageStartingWith("Cannot find field");
   }
 
+  @Test
+  public void testAdaptiveSplitSize() {
+    long scanSize = 500L * 1024 * 1024 * 1024; // 500 GB
+    int parallelism = 500;
+    long smallDefaultSplitSize = 128 * 1024 * 1024; // 128 MB
+    long largeDefaultSplitSize = 2L * 1024 * 1024 * 1024; // 2 GB
+
+    long adjusted1 = TableScanUtil.adjustSplitSize(scanSize, parallelism, smallDefaultSplitSize);
+    assertThat(adjusted1).isEqualTo(smallDefaultSplitSize);
+
+    long adjusted2 = TableScanUtil.adjustSplitSize(scanSize, parallelism, largeDefaultSplitSize);
+    assertThat(adjusted2).isEqualTo(scanSize / parallelism);
+  }
+
   private PartitionScanTask taskWithPartition(
       PartitionSpec spec, StructLike partition, long sizeBytes) {
     PartitionScanTask task = Mockito.mock(PartitionScanTask.class);

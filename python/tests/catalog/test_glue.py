@@ -442,7 +442,7 @@ def test_update_namespace_properties_overlap_update_removal(
 @mock_glue
 def test_passing_profile_name() -> None:
     session_properties = {
-        "aws_secret_key_id": "abc",
+        "aws_access_key_id": "abc",
         "aws_secret_access_key": "def",
         "aws_session_token": "ghi",
         "region_name": "eu-central-1",

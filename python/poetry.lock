@@ -2261,35 +2261,30 @@ files = [
 
 [[package]]
 name = "ray"
-version = "2.6.0"
+version = "2.6.2"
 description = "Ray provides a simple, universal API for building distributed applications."
 optional = true
 python-versions = "*"
 files = [
-    {file = "ray-2.6.0-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:0882288bb05ab861321cbe73c703d8979c1a4374491922bac074ce138f876bf3"},
-    {file = "ray-2.6.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:421aea902953d33432a86b44c760134a864f467d56da609f509e942e599d4be7"},
-    {file = "ray-2.6.0-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:677853c628e5330bafd4de7c0a5bcaa11bf3f82534c3d37eb9fa7c1858627fab"},
-    {file = "ray-2.6.0-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:9872761b7485c71f317097c462e6b94ebb093adfae7927c3bbcc50ddfc266d73"},
-    {file = "ray-2.6.0-cp310-cp310-win_amd64.whl", hash = "sha256:36eeadc6e5525fec3e3bd1e9897aa184ecd2d9abf94bebd55059585dac0c091a"},
-    {file = "ray-2.6.0-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:af0c7684569e836482fa652954a88327a133138e51f3f1d609f24f12531fbd97"},
-    {file = "ray-2.6.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:1aea42755acdfc4d20e17b5ff298864e294eb6a4a2f3c17a860da2540025f9c0"},
-    {file = "ray-2.6.0-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:a562e20d011719b67b020152846e56276a49bb140cc46a51eef219246daedf6b"},
-    {file = "ray-2.6.0-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:dc2717ceab1496735d97313dea069f0c3480db0321da90a81ba4a87b287c4822"},
-    {file = "ray-2.6.0-cp311-cp311-win_amd64.whl", hash = "sha256:9737132ad1b72241a28b6b65d37731bdb237c762262c86d40f21eb8b59c36642"},
-    {file = "ray-2.6.0-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:7c144dcf85f371c5f8b511d5e2fe5f077bba8777a67399a3cc1e44f0e8da228b"},
-    {file = "ray-2.6.0-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:ce77f283e1c6dc581a32ee97492791b035797b1b76c819bfd812ea08390f757c"},
-    {file = "ray-2.6.0-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:d171e2ef0796619deabc79cd80344c6574054aca19c024b2a08e8c3a7d2ab57f"},
-    {file = "ray-2.6.0-cp37-cp37m-win_amd64.whl", hash = "sha256:d704c1b71857adbd8833674c033fd96ca3207f5fa44a3050e183bc6915689ee0"},
-    {file = "ray-2.6.0-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:a28562805970cdfe944b46f40c52be08ce19a838fd3f344809c9732d274809c0"},
-    {file = "ray-2.6.0-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:9e3cfb2f248feebedd23d10258c5771ea5c1badd33353badc10312ed1c59a67e"},
-    {file = "ray-2.6.0-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:21f6386cc1b6fac1dfe9a7c64238beb2a3973dde5772df001151097903c9bb7f"},
-    {file = "ray-2.6.0-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:678c5d7e894f96d68d92eff15854168c2d10185e3cb66e4d00b239719667b309"},
-    {file = "ray-2.6.0-cp38-cp38-win_amd64.whl", hash = "sha256:d1db9a58a828b7b1a7d74f2013967bbfc817af669cf817bc5d52517e36c2f70b"},
-    {file = "ray-2.6.0-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:8279a7bbb3ef1b79423948d731104cc78d87d7856175b217128d888000ed8ed6"},
-    {file = "ray-2.6.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:e79e386b69d49b579ed1f4d27a0f6454f160f187f73431a7e3ee8001e4d428dc"},
-    {file = "ray-2.6.0-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:b7459fea0ecdeba2dadc2620ba6d8092713a4ef3bbdfe94ad5bbea855bf11477"},
-    {file = "ray-2.6.0-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:97e3d7c5d47e3654110c92f567f5a8488d19e7e0bd6af9dd0f48327c5a506f7d"},
-    {file = "ray-2.6.0-cp39-cp39-win_amd64.whl", hash = "sha256:3d4c05dbc54373856aae362c86b7be4772b2e66f9b85882aa25bed1bbecb0796"},
+    {file = "ray-2.6.2-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:b13eb652e5ad9f4b0a4cb5a52da416d7a8f9686d6de317d1e3fe3486aaf78ce0"},
+    {file = "ray-2.6.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:120631ce1e6206ceb0395aeca5c1dcef4b0b65dd0a0cd53053e131254da96f0a"},
+    {file = "ray-2.6.2-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:8aeef75db0d9922f69a6ab31ffd3df3f40fff404c30bfb4ca76e480c53df98ce"},
+    {file = "ray-2.6.2-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:050d3c2ac71a8ca7779c7b590a91400f45e071b298b67727949ffdcc096406e0"},
+    {file = "ray-2.6.2-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:2356454ec63135b6dee3e46b091c76b7daec09bae05aa943a767f884377acda8"},
+    {file = "ray-2.6.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:e924173198e2d37e29baa7b7893221594139442e9a0b0334fa80f1c8a7b5a6ed"},
+    {file = "ray-2.6.2-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:7ee8afffa1c971a71570b6a98de0c69d83c99423a97d29000aeabb706cc1baab"},
+    {file = "ray-2.6.2-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:2fa25cf5071082c386dbc086f917f6a4a9f29980eff2cb94d939fd23dd16735a"},
+    {file = "ray-2.6.2-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:8ecac78203045ef33236ec913775fe9f30d5f3ebe7ee090276c05a3a1fc1ba31"},
+    {file = "ray-2.6.2-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:267b52ed13422f9bc57a7ae89289d2cdb6174fd27c1ea842a2618b2d054cf795"},
+    {file = "ray-2.6.2-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:a0507f49113d98eea24903b5ef384e631997ebfd4934b94ce13c15fbb0adb0c4"},
+    {file = "ray-2.6.2-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:ff3d5ea1057c4d57bae9b921df0bdd98263c91d0fe7a4221a179bb9034005795"},
+    {file = "ray-2.6.2-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:302213def2b0d9fd2039d14b992a2dffa5b4db36ac8d154a219d8bd8e580d694"},
+    {file = "ray-2.6.2-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:8f34ddd7012b5908d19a12e452138e941d83e38a1fbce2db4545c281957bbda5"},
+    {file = "ray-2.6.2-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:9a4cdabff16caaed76e9b7f2a9d94cfbae30073b6dc8956f55d70b99e218d1dc"},
+    {file = "ray-2.6.2-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:86b57fb864a9328971d7e554e0c55608735e94434f13948a58bb07423c783a39"},
+    {file = "ray-2.6.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:21608b9dbc19175fbb1832ec9296e7c93cf416d28b0e21ee7e2667da7af952b7"},
+    {file = "ray-2.6.2-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:4ab10849705f41923ec1ccf597f3881c9f3f304c43da3e6f5b794c2072694f77"},
+    {file = "ray-2.6.2-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:3f359fdb88406528c564e66dbe848ab98679ddb046d44465ebd3933fa1ecdd62"},
 ]
 
 [package.dependencies]
@@ -2314,9 +2309,9 @@ requests = "*"
 
 [package.extras]
 air = ["aiohttp (>=3.7)", "aiohttp-cors", "aiorwlock", "colorful", "fastapi", "fsspec", "gpustat (>=1.0.0)", "numpy (>=1.20)", "opencensus", "pandas", "pandas (>=1.3)", "prometheus-client (>=0.7.1)", "py-spy (>=0.2.0)", "pyarrow (>=6.0.1)", "pydantic (<2)", "requests", "smart-open", "starlette", "tensorboardX (>=1.9)", "uvicorn", "virtualenv (>=20.0.24,<20.21.1)"]
-all = ["aiohttp (>=3.7)", "aiohttp-cors", "aiorwlock", "colorful", "dm-tree", "fastapi", "fsspec", "gpustat (>=1.0.0)", "grpcio (!=1.56.0)", "gymnasium (==0.26.3)", "lz4", "numpy (>=1.20)", "opencensus", "opentelemetry-api", "opentelemetry-exporter-otlp", "opentelemetry-sdk", "pandas", "pandas (>=1.3)", "prometheus-client (>=0.7.1)", "py-spy (>=0.2.0)", "pyarrow (>=6.0.1)", "pydantic (<2)", "pyyaml", "ray-cpp (==2.6.0)", "requests", "rich", "scikit-image", "scipy", "smart-open", "starlette", "tensorboardX (>=1.9)", "typer", "uvicorn", "virtualenv (>=20.0.24,<20.21.1)"]
+all = ["aiohttp (>=3.7)", "aiohttp-cors", "aiorwlock", "colorful", "dm-tree", "fastapi", "fsspec", "gpustat (>=1.0.0)", "grpcio (!=1.56.0)", "gymnasium (==0.26.3)", "lz4", "numpy (>=1.20)", "opencensus", "opentelemetry-api", "opentelemetry-exporter-otlp", "opentelemetry-sdk", "pandas", "pandas (>=1.3)", "prometheus-client (>=0.7.1)", "py-spy (>=0.2.0)", "pyarrow (>=6.0.1)", "pydantic (<2)", "pyyaml", "ray-cpp (==2.6.2)", "requests", "rich", "scikit-image", "scipy", "smart-open", "starlette", "tensorboardX (>=1.9)", "typer", "uvicorn", "virtualenv (>=20.0.24,<20.21.1)"]
 client = ["grpcio (!=1.56.0)"]
-cpp = ["ray-cpp (==2.6.0)"]
+cpp = ["ray-cpp (==2.6.2)"]
 data = ["fsspec", "numpy (>=1.20)", "pandas (>=1.3)", "pyarrow (>=6.0.1)"]
 default = ["aiohttp (>=3.7)", "aiohttp-cors", "colorful", "gpustat (>=1.0.0)", "opencensus", "prometheus-client (>=0.7.1)", "py-spy (>=0.2.0)", "pydantic (<2)", "requests", "smart-open", "virtualenv (>=20.0.24,<20.21.1)"]
 observability = ["opentelemetry-api", "opentelemetry-exporter-otlp", "opentelemetry-sdk"]
@@ -2402,13 +2397,13 @@ tests = ["coverage (>=6.0.0)", "flake8", "mypy", "pytest (>=7.0.0)", "pytest-asy
 
 [[package]]
 name = "rich"
-version = "13.4.2"
+version = "13.5.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
 optional = false
 python-versions = ">=3.7.0"
 files = [
-    {file = "rich-13.4.2-py3-none-any.whl", hash = "sha256:8f87bc7ee54675732fa66a05ebfe489e27264caeeff3728c945d25971b6485ec"},
-    {file = "rich-13.4.2.tar.gz", hash = "sha256:d653d6bccede5844304c605d5aac802c7cf9621efd700b46c7ec2b51ea914898"},
+    {file = "rich-13.5.0-py3-none-any.whl", hash = "sha256:996670a7618ccce27c55ba6fc0142e6e343773e11d34c96566a17b71b0e6f179"},
+    {file = "rich-13.5.0.tar.gz", hash = "sha256:62c81e88dc078d2372858660e3d5566746870133e51321f852ccc20af5c7e7b2"},
 ]
 
 [package.dependencies]

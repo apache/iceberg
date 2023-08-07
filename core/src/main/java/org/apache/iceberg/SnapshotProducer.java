@@ -26,6 +26,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -85,6 +87,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
+  private final long targetManifestSizeBytes;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
@@ -107,6 +110,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   }
                   return addMetadata(ops, file);
                 });
+    this.targetManifestSizeBytes =
+        ops.current()
+            .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
   }
 
   protected abstract ThisT self();
@@ -492,6 +498,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
         ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+  }
+
+  protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
+    return new RollingManifestWriter<>(() -> newManifestWriter(spec), targetManifestSizeBytes);
+  }
+
+  protected RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter(PartitionSpec spec) {
+    return new RollingManifestWriter<>(
+        () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
