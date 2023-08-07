@@ -1363,7 +1363,9 @@ def fill_parquet_file_metadata(
     upper_bounds = {}
 
     for k, agg in col_aggs.items():
-        lower_bounds[k] = agg.min_as_bytes()
+        _min = agg.min_as_bytes()
+        if _min is not None:
+            lower_bounds[k] = _min
         _max = agg.max_as_bytes()
         if _max is not None:
             upper_bounds[k] = _max
