@@ -19,6 +19,19 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.day;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.hour;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.month;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.expressions.Expressions.year;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.days;
@@ -28,11 +41,18 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.functions.UnboundFunctionWrapper;
+import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression;
+import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
@@ -89,25 +109,28 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql("SELECT system.bucket(2, 5) AS bucket");
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain("applyfunctionexpression");
+          List<Expression> expressions =
+              PlanUtils.collectSparkExpressions(
+                  df.queryExecution().optimizedPlan(),
+                  plan -> plan instanceof ApplyFunctionExpression);
+          Assertions.assertThat(expressions).isEmpty();
         });
   }
 
   @Test
   public void testYearsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testYearsFunction();
+    testYearsFunction(false);
   }
 
   @Test
   public void testYearsFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "years(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testYearsFunction();
+    testYearsFunction(true);
   }
 
-  private void testYearsFunction() {
+  private void testYearsFunction(boolean partitioned) {
     String date = "2017-11-22";
     String query =
         sqlFormat(
@@ -121,11 +144,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.YearsFunction$TimestampToYearsFunction");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=ts = " + years(date));
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "years");
+          checkPushedFilters(optimizedPlan, equal(year("ts"), years(date)));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -135,17 +157,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testMonthsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testMonthsFunction();
+    testMonthsFunction(false);
   }
 
   @Test
   public void testMonthsFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "months(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testMonthsFunction();
+    testMonthsFunction(true);
   }
 
-  private void testMonthsFunction() {
+  private void testMonthsFunction(boolean partitioned) {
     String date = "2017-11-22";
     String query =
         sqlFormat(
@@ -158,11 +180,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.MonthsFunction$TimestampToMonthsFunction");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=ts > " + months(date));
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "months");
+          checkPushedFilters(optimizedPlan, greaterThan(month("ts"), months(date)));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -172,17 +193,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testDaysFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testDaysFunction();
+    testDaysFunction(false);
   }
 
   @Test
   public void testDaysFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "days(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testDaysFunction();
+    testDaysFunction(true);
   }
 
-  private void testDaysFunction() {
+  private void testDaysFunction(boolean partitioned) {
     String date = "2018-11-20";
     String query =
         sqlFormat(
@@ -196,11 +217,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.DaysFunction$TimestampToDaysFunction");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=ts < " + days(date));
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "days");
+          checkPushedFilters(optimizedPlan, lessThan(day("ts"), days(date)));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -210,17 +230,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testHoursFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testHoursFunction();
+    testHoursFunction(false);
   }
 
   @Test
   public void testHoursFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "hours(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testHoursFunction();
+    testHoursFunction(true);
   }
 
-  private void testHoursFunction() {
+  private void testHoursFunction(boolean partitioned) {
     String ts = "2017-11-22T06:02:09.243857+00:00";
     String query =
         sqlFormat(
@@ -234,11 +254,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.HoursFunction$TimestampToHoursFunction");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=ts >= " + hours(ts));
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "hours");
+          checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), hours(ts)));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -248,17 +267,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testBucketLongFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testBucketLongFunction();
+    testBucketLongFunction(false);
   }
 
   @Test
   public void testBucketLongFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "bucket(5, id)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testBucketLongFunction();
+    testBucketLongFunction(true);
   }
 
-  private void testBucketLongFunction() {
+  private void testBucketLongFunction(boolean partitioned) {
     int target = 2;
     String query =
         sqlFormat(
@@ -271,11 +290,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=id <= " + target);
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "bucket");
+          checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -285,17 +303,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testBucketStringFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testBucketStringFunction();
+    testBucketStringFunction(false);
   }
 
   @Test
   public void testBucketStringFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "bucket(5, data)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testBucketStringFunction();
+    testBucketStringFunction(true);
   }
 
-  private void testBucketStringFunction() {
+  private void testBucketStringFunction(boolean partitioned) {
     int target = 2;
     String query =
         sqlFormat(
@@ -308,11 +326,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketString");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=NOT (data = " + target + ")");
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "bucket");
+          checkPushedFilters(optimizedPlan, notEqual(bucket("data", 5), target));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
@@ -322,17 +339,17 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   @Test
   public void testTruncateFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testTruncateFunction();
+    testTruncateFunction(false);
   }
 
   @Test
   public void testTruncateFunctionOnPartitionedTable() {
     createPartitionedTable(
         spark, tableName, "truncate(4, data)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
-    testTruncateFunction();
+    testTruncateFunction(true);
   }
 
-  private void testTruncateFunction() {
+  private void testTruncateFunction(boolean partitioned) {
     String target = "data";
     String query =
         sqlFormat(
@@ -346,14 +363,48 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           Dataset<Row> df = spark.sql(query);
-          Assertions.assertThat(df.queryExecution().optimizedPlan().toString())
-              .doesNotContain(
-                  "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateString");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=data = '" + target + "'");
+          LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+          checkExpressions(optimizedPlan, partitioned, "truncate");
+          checkPushedFilters(optimizedPlan, equal(truncate("data", 4), target));
 
           List<Object[]> actual = sql(query);
           assertEquals("Select result should be matched", expected, actual);
         });
+  }
+
+  private String sqlFormat(String query, Object... args) {
+    return String.format(query, args);
+  }
+
+  private void checkExpressions(
+      LogicalPlan optimizedPlan, boolean partitioned, String expectedFunctionName) {
+    List<Expression> staticInvokes =
+        PlanUtils.collectSparkExpressions(
+            optimizedPlan, expression -> expression instanceof StaticInvoke);
+    Assertions.assertThat(staticInvokes).isEmpty();
+
+    List<Expression> applyExpressions =
+        PlanUtils.collectSparkExpressions(
+            optimizedPlan, expression -> expression instanceof ApplyFunctionExpression);
+
+    if (partitioned) {
+      Assertions.assertThat(applyExpressions).isEmpty();
+    } else {
+      Assertions.assertThat(applyExpressions.size()).isEqualTo(1);
+      ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
+      Assertions.assertThat(expression.function())
+          .isInstanceOf(UnboundFunctionWrapper.SystemFunctionWrapper.class);
+      Assertions.assertThat(expression.name()).isEqualTo(expectedFunctionName);
+    }
+  }
+
+  private void checkPushedFilters(
+      LogicalPlan optimizedPlan, org.apache.iceberg.expressions.Expression expected) {
+    List<org.apache.iceberg.expressions.Expression> pushedFilters =
+        PlanUtils.getPushDownFilters(optimizedPlan);
+    Assertions.assertThat(pushedFilters.size()).isEqualTo(1);
+    org.apache.iceberg.expressions.Expression actual = pushedFilters.get(0);
+    Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true)).isTrue();
   }
 }

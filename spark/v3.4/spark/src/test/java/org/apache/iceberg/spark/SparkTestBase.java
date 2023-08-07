@@ -116,12 +116,8 @@ public abstract class SparkTestBase extends SparkTestHelperBase {
     return current;
   }
 
-  protected String sqlFormat(String query, Object... args) {
-    return String.format(query, args);
-  }
-
   protected List<Object[]> sql(String query, Object... args) {
-    List<Row> rows = spark.sql(sqlFormat(query, args)).collectAsList();
+    List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
     if (rows.size() < 1) {
       return ImmutableList.of();
     }

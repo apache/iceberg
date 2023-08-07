@@ -1497,7 +1497,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String updateSql =
-              sqlFormat(
+              String.format(
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
           Dataset<Row> df = spark.sql(updateSql);
@@ -1533,7 +1533,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String updateSql =
-              sqlFormat(
+              String.format(
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
           Dataset<Row> df = spark.sql(updateSql);

@@ -1328,18 +1328,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
 
     String date = "2018-12-21";
-    String remainSql =
-        sqlFormat(
+    List<Object[]> expected =
+        sql(
             "SELECT * FROM %s WHERE %s.system.years(ts) != %s.system.years(date('%s')) ORDER BY id",
             tableName, catalogName, catalogName, date);
-
-    List<Object[]> expected = sql(remainSql);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String deleteSql =
-              sqlFormat(
+              String.format(
                   "DELETE FROM %s WHERE %s.system.years(ts) == %s.system.years(date('%s'))",
                   tableName, catalogName, catalogName, date);
           Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
@@ -1349,7 +1347,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
           sql(deleteSql);
 
-          List<Object[]> actual = sql(remainSql);
+          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
         });
   }
@@ -1366,18 +1364,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createUnpartitionedTable(spark, tableName, tableProperties);
 
     String date = "2018-12-21";
-    String remainSql =
-        sqlFormat(
+    List<Object[]> expected =
+        sql(
             "SELECT * FROM %s WHERE %s.system.months(ts) = %s.system.months(date('%s')) ORDER BY id",
             tableName, catalogName, catalogName, date);
-
-    List<Object[]> expected = sql(remainSql);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String deleteSql =
-              sqlFormat(
+              String.format(
                   "DELETE FROM %s WHERE %s.system.months(ts) != %s.system.months(date('%s'))",
                   tableName, catalogName, catalogName, date);
           Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
@@ -1387,7 +1383,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
           sql(deleteSql);
 
-          List<Object[]> actual = sql(remainSql);
+          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
         });
   }

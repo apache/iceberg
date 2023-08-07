@@ -20,10 +20,17 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
 
 public class SystemFunctionPushDownHelper {
+  public static final Types.StructType STRUCT =
+      Types.StructType.of(
+          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
+          Types.NestedField.optional(3, "data", Types.StringType.get()));
+
   private SystemFunctionPushDownHelper() {}
 
   public static void createUnpartitionedTable(SparkSession spark, String tableName) {
@@ -36,12 +43,12 @@ public class SystemFunctionPushDownHelper {
     if (props.isEmpty()) {
       createUnpartitionedTable(spark, tableName);
     } else {
-      String tblProps = Joiner.on("','").withKeyValueSeparator("'='").join(props);
+      String propsString = Joiner.on("','").withKeyValueSeparator("'='").join(props);
       sql(
           spark,
           "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg TBLPROPERTIES ('%s')",
           tableName,
-          tblProps);
+          propsString);
       insertRecords(spark, tableName);
     }
   }
@@ -61,13 +68,13 @@ public class SystemFunctionPushDownHelper {
     if (props.isEmpty()) {
       createPartitionedTable(spark, tableName, partitionCol);
     } else {
-      String tblProps = Joiner.on("','").withKeyValueSeparator("'='").join(props);
+      String propsString = Joiner.on("','").withKeyValueSeparator("'='").join(props);
       sql(
           spark,
           "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg PARTITIONED BY (%s) TBLPROPERTIES ('%s')",
           tableName,
           partitionCol,
-          tblProps);
+          propsString);
       insertRecords(spark, tableName);
     }
   }

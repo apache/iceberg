@@ -2760,15 +2760,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
     String date = "2017-11-22";
-    String resultSql =
-        sqlFormat("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
-    List<Object[]> expected = sql(resultSql);
+    List<Object[]> expected =
+        sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String mergeSql =
-              sqlFormat(
+              String.format(
                   "MERGE INTO %s AS t USING source AS s "
                       + "ON t.id = s.id AND %s.system.years(t.ts) = %s.system.years(date('%s')) "
                       + "WHEN MATCHED "
@@ -2807,15 +2806,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
     String date = "2017-11-22";
-    String resultSql =
-        sqlFormat("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
-    List<Object[]> expected = sql(resultSql);
+    List<Object[]> expected =
+        sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String mergeSql =
-              sqlFormat(
+              String.format(
                   "MERGE INTO %s AS t USING source AS s "
                       + "ON t.id = s.id AND %s.system.months(t.ts) = %s.system.months(date('%s')) "
                       + "WHEN MATCHED "
