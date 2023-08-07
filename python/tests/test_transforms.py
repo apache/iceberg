@@ -88,7 +88,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import (
     date_str_to_days,
     date_to_days,
-    time_to_micros,
+    time_str_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
@@ -102,7 +102,7 @@ from pyiceberg.utils.datetime import (
         (34, LongType(), 2017239379),
         (date_to_days(date(2017, 11, 16)), DateType(), -653330422),
         (date_str_to_days("2017-11-16"), DateType(), -653330422),
-        (time_to_micros("22:31:08"), TimeType(), -662762989),
+        (time_str_to_micros("22:31:08"), TimeType(), -662762989),
         (
             timestamp_to_micros("2017-11-16T22:31:08"),
             TimestampType(),

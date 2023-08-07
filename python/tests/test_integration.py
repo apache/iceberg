@@ -299,3 +299,19 @@ def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> No
     # Testing the slicing of indices
     arrow_table = test_positional_mor_double_deletes.scan(limit=8).to_arrow()
     assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 7, 8, 10]
+
+
+@pytest.mark.integration
+def test_partitioned_tables(catalog: Catalog) -> None:
+    for table_name, predicate in [
+        ("test_partitioned_by_identity", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_years", "dt >= '2023-03-05'"),
+        ("test_partitioned_by_months", "dt >= '2023-03-05'"),
+        ("test_partitioned_by_days", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_hours", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_truncate", "letter >= 'e'"),
+        ("test_partitioned_by_bucket", "number >= '5'"),
+    ]:
+        table = catalog.load_table(f"default.{table_name}")
+        arrow_table = table.scan(selected_fields=("number",), row_filter=predicate).to_arrow()
+        assert set(arrow_table["number"].to_pylist()) == {5, 6, 7, 8, 9, 10, 11, 12}, f"Table {table_name}, predicate {predicate}"
