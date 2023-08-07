@@ -19,9 +19,12 @@
 package org.apache.iceberg.spark.source;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
@@ -40,9 +43,12 @@ class InternalRowWrapper implements StructLike {
   private InternalRow row = null;
 
   @SuppressWarnings("unchecked")
-  InternalRowWrapper(StructType rowType) {
+  InternalRowWrapper(StructType rowType, Types.StructType icebergStruct) {
     this.types = Stream.of(rowType.fields()).map(StructField::dataType).toArray(DataType[]::new);
-    this.getters = Stream.of(types).map(InternalRowWrapper::getter).toArray(BiFunction[]::new);
+    this.getters = new BiFunction[types.length];
+    for (int i = 0; i < types.length; i++) {
+      getters[i] = getter(icebergStruct.fields().get(i).type(), types[i]);
+    }
   }
 
   InternalRowWrapper wrap(InternalRow internalRow) {
@@ -71,8 +77,12 @@ class InternalRowWrapper implements StructLike {
     row.update(pos, value);
   }
 
-  private static BiFunction<InternalRow, Integer, ?> getter(DataType type) {
+  private static BiFunction<InternalRow, Integer, ?> getter(Type icebergType, DataType type) {
     if (type instanceof StringType) {
+      if (Type.TypeID.UUID == icebergType.typeId()) {
+        return (row, pos) -> UUID.fromString(row.getUTF8String(pos).toString());
+      }
+
       return (row, pos) -> row.getUTF8String(pos).toString();
     } else if (type instanceof DecimalType) {
       DecimalType decimal = (DecimalType) type;
@@ -82,7 +92,8 @@ class InternalRowWrapper implements StructLike {
       return (row, pos) -> ByteBuffer.wrap(row.getBinary(pos));
     } else if (type instanceof StructType) {
       StructType structType = (StructType) type;
-      InternalRowWrapper nestedWrapper = new InternalRowWrapper(structType);
+      InternalRowWrapper nestedWrapper =
+          new InternalRowWrapper(structType, icebergType.asStructType());
       return (row, pos) -> nestedWrapper.wrap(row.getStruct(pos, structType.size()));
     }
 

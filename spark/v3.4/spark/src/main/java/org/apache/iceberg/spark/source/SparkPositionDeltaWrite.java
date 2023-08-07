@@ -391,7 +391,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     protected InternalRowWrapper initPartitionRowWrapper(Types.StructType partitionType) {
       StructType sparkPartitionType = (StructType) SparkSchemaUtil.convert(partitionType);
-      return new InternalRowWrapper(sparkPartitionType);
+      return new InternalRowWrapper(sparkPartitionType, partitionType);
     }
 
     protected Map<Integer, StructProjection> buildPartitionProjections(
@@ -653,7 +653,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       this.dataSpec = table.spec();
       this.dataPartitionKey = new PartitionKey(dataSpec, context.dataSchema());
-      this.internalRowDataWrapper = new InternalRowWrapper(context.dataSparkType());
+      this.internalRowDataWrapper =
+          new InternalRowWrapper(context.dataSparkType(), table.schema().asStruct());
     }
 
     @Override
