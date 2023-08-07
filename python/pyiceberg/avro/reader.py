@@ -258,7 +258,7 @@ class BinaryReader(Reader):
         decoder.skip_bytes()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class DecimalReader(Reader):
     """Reads a value as a decimal.
 
@@ -268,10 +268,15 @@ class DecimalReader(Reader):
 
     precision: int = dataclassfield()
     scale: int = dataclassfield()
+    _length: int
+
+    def __init__(self, precision: int, scale: int):
+        object.__setattr__(self, "precision", precision)
+        object.__setattr__(self, "scale", scale)
+        object.__setattr__(self, "_length", decimal_required_bytes(precision))
 
     def read(self, decoder: BinaryDecoder) -> Decimal:
-        data = decoder.read(decimal_required_bytes(self.precision))
-        return bytes_to_decimal(data, self.scale)
+        return bytes_to_decimal(decoder.read(self._length), self.scale)
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()

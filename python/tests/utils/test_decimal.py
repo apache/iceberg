@@ -29,10 +29,10 @@ def test_decimal_required_bytes() -> None:
     assert decimal_required_bytes(precision=8) == 4
     assert decimal_required_bytes(precision=10) == 5
     assert decimal_required_bytes(precision=32) == 14
-    assert decimal_required_bytes(precision=40) == 17
+    assert decimal_required_bytes(precision=38) == 16
 
     with pytest.raises(ValueError) as exc_info:
-        decimal_required_bytes(precision=41)
+        decimal_required_bytes(precision=40)
     assert "(0, 40]" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:

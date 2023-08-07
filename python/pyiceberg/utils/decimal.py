@@ -18,7 +18,6 @@
 """Helper methods for working with Python Decimals."""
 import math
 from decimal import Decimal
-from functools import lru_cache
 from typing import Optional, Union
 
 
@@ -109,7 +108,10 @@ def truncate_decimal(value: Decimal, width: int) -> Decimal:
     return unscaled_to_decimal(applied_value, abs(int(value.as_tuple().exponent)))
 
 
-@lru_cache
+MAX_PRECISION = tuple(math.floor(math.log10(math.fabs(math.pow(2, 8 * pos - 1) - 1))) for pos in range(24))
+REQUIRED_LENGTH = tuple(next(pos for pos in range(24) if p <= MAX_PRECISION[pos]) for p in range(40))
+
+
 def decimal_required_bytes(precision: int) -> int:
     """Compute the number of bytes required to store a precision.
 
@@ -119,13 +121,7 @@ def decimal_required_bytes(precision: int) -> int:
     Returns:
         The number of bytes required to store a decimal with a certain precision.
     """
-    if precision <= 0 or precision > 40:
+    if precision <= 0 or precision >= 40:
         raise ValueError(f"Unsupported precision, outside of (0, 40]: {precision}")
 
-    for num_bytes, max_precision in enumerate(
-        [math.floor(math.log10(math.fabs(math.pow(2, 8 * pos - 1) - 1))) for pos in range(24)]
-    ):
-        if precision <= max_precision:
-            return num_bytes
-
-    raise ValueError(f"Could not determine the required bytes for preciesion {precision}")
+    return REQUIRED_LENGTH[precision]
