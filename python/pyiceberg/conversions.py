@@ -57,7 +57,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 
 _BOOL_STRUCT = Struct("<?")
@@ -203,7 +203,7 @@ def _(_: DateType, value: Union[date, int]) -> bytes:
 @to_bytes.register(TimeType)
 def _(_: TimeType, value: Union[time, int]) -> bytes:
     if isinstance(value, time):
-        value = time_object_to_micros(value)
+        value = time_to_micros(value)
     return _LONG_STRUCT.pack(value)
 
 
