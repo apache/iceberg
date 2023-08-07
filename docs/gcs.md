@@ -27,60 +27,38 @@ menu:
 # Iceberg GSC Integration
 
 Google Cloud Storage (GCS) is a scalable object storage service known for its durability, throughput, and availability. It is designed to handle large amounts of unstructured data, making it an excellent choice for significant data operations. When GCS's storage capabilities are combined with Apache Iceberg's handling of large tabular datasets, a powerful tool for extensive data management is created. This combination allows for storing vast amounts of data and the execution of complex data operations directly on the data stored in GCS.
-
-## Setting Up Google Cloud Storage (GCS)
-
-### Setting Up a Bucket in GCS
-
-Here's how to create a bucket in GCS:
-
-- **Initialize the Google Cloud CLI**: Run the gcloud init command to start the initialization process of Google Cloud CLI, which sets up the Google Cloud environment on your local machine.
-
-- **Create a Cloud Storage bucket**: Navigate to the Cloud Storage Buckets page in the Google Cloud Console. Click "Create bucket", enter your details, and click "Create".
   
-## Configuring Apache Iceberg to Use GCS
+## Configuring Apache Iceberg to Use GCS with Spark
 
-Apache Iceberg uses the GCSFileIO to read and write data from/to GCS. To configure this:
+To configure Apache Iceberg to use GCS with Spark, you can follow these steps:
 
-- **Initialize `GCSFileIO`**: Create an instance of `GCSFileIO` by calling its constructor and supplying a `com.google.cloud.storage.Storage` instance and `GCPProperties` instance. This Storage instance will be used as the storage service engine, and GCPProperties hold GCP-specific configurations.
+- **Add a catalog**: Iceberg supports multiple catalog back-ends for tracking tables. In this case, we will use the SparkSessionCatalog. You can configure the catalog by setting the following properties:
+- `spark.sql.catalog.spark_catalog`: Set this property to `org.apache.iceberg.spark.SparkSessionCatalog` to use the SparkSessionCatalog.
+- `spark.sql.catalog.spark_catalog.type`: Set this property to `hive` to use the Hive catalog type.
+- `spark.sql.catalog.local`: Set this property to `org.apache.iceberg.spark.SparkCatalog` to use the SparkCatalog.
+- `spark.sql.catalog.local.type`: Set this property to `hadoop` to use the Hadoop catalog type.
+- `spark.sql.catalog.local.warehouse`: Set this property to the path where you want to store the Iceberg tables in GCS.
 
-```java
-GCSFileIO gcsFileIO = new GCSFileIO(storageSupplier, gcpProperties);
+Here is an example of how to configure the catalog using the Spark SQL command line:
+
+```bash
+shell spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:1.3.1
+--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+--conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
+--conf spark.sql.catalog.spark_catalog.type=hive
+--conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog
+--conf spark.sql.catalog.local.type=hadoop
+--conf spark.sql.catalog.local.warehouse=<GCS_PATH>
 ```
 
-- **Configure GCSFileIO**: Once you have the `GCSFileIO` object, you can configure it to use your GCS bucket. You do this by calling the initialize method of `GCSFileIO` and passing a map of properties. This map holds the GCS bucket name and other required GCS settings.
+- **Add Iceberg to Spark**: If you already have a Spark environment, you can add Iceberg by specifying the `--packages` option when starting Spark. This will download the required Iceberg package and make it available in your Spark session. Here is an example:
 
-```java
-Map<String, String> properties = new HashMap<>();
-properties.put("inputDataLocation", "gs://my_bucket/data/");
-properties.put("metadataLocation", "gs://my_bucket/metadata/");
-gcsFileIO.initialize(properties);
-```
-
-Within these property key-value pairs, inputDataLocation and metadataLocation are the locations in your GCS bucket where your data and metadata are stored. Update `"gs://my_bucket/data/" ` and `"gs://my_bucket/metadata/" ` to reflect the corresponding paths of your GCS bucket.
-
-### Example Use of GCSFileIO
-
-Once `GCSFileIO` is initialized and configured, you can interact with the data housed on GCS. Below, we will demonstrate how to create and access an `InputFile` and an `OutputFile`.
-
-- **Creating an InputFile**: To create an `InputFile` for reading data from your GCS bucket, you can use the `newInputFile` method.
-
-```java
-InputFile inputFile = gcsFileIO.newInputFile("gs://my_bucket/data/my_data.parquet");
+```bash
+shell spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:1.3.1
 
 ```
 
-Replace `"gs://my_bucket/data/my_data.parquet"` with the path of the data you want to read.
-
-- **Creating an OutputFile**: To write data to your GCS bucket, you would establish an OutputFile using the newOutputFile method.
-
-```java
-OutputFile outputFile = gcsFileIO.newOutputFile("gs://my_bucket/data/my_output.parquet");
-```
-
-Again, replace `"gs://my_bucket/data/my_output.parquet"` with the path where you'd like to write your data.
-
-These steps will allow you to set up GCS as your storage layer for Apache Iceberg and interact with the data stored in GCS using the `GCSFileIO` class.
+- **Use Iceberg in Spark**: Once Iceberg is configured, you can use it in your Spark application or Spark SQL queries. Check [Spark Configuration](spark-configuration.md) for more details.
 
 ## Loading Data into Iceberg Tables
 
@@ -89,8 +67,8 @@ These steps will allow you to set up GCS as your storage layer for Apache Iceber
 To load data into Iceberg tables using Apache Spark, you must first add Iceberg to your Spark environment. It can be done using the `--packages` option when starting the Spark shell or Spark SQL:
 
 ```bash
-spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:1.3.1
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:1.3.1
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:1.3.1
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:1.3.1
 ```
 
 ### Configure Spark Catalogs
@@ -98,17 +76,18 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:1.3.1
 Catalogs in Iceberg are used to track tables. They can be configured using properties under `spark.sql.catalog.(catalog_name)`. Here is an example of how to configure a catalog:
 
 ```bash
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:1.3.1\
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:1.3.1\
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-    --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
-    --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+    --conf spark.sql.catalog.local.type=hive \
+    --conf spark.sql.catalog.local.io-impl=org.apache.iceberg.gcp.gcs.GCSFileIO \
+    --conf spark.sql.catalog.local.warehouse=gs://your_bucket/warehouse \
     --conf spark.sql.defaultCatalog=local
 ```
 
-This configuration creates a path-based catalog named local for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+Please replace `gs://your_bucket/warehouse` with the actual path of your GCS bucket.
+
+This configuration creates a path-based catalog named local for tables under `gs://your_bucket/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
 
 ### Load data into Iceberg Tables
 
