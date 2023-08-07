@@ -193,23 +193,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
           table(), schema(), context(), Expressions.and(baseTableFilter, expr));
     }
 
-    /**
-     * Sets a filter to use for this scan.
-     *
-     * <p>This must be set exclusively from {@link #baseTableFilter(Expression)}
-     *
-     * @param expr expression filter
-     * @return this for method chaining
-     */
-    @Override
-    public BatchScan filter(Expression expr) {
-      return new PositionDeletesBatchScan(
-          table(),
-          schema(),
-          context().filterRows(Expressions.and(context().rowFilter(), expr)),
-          baseTableFilter);
-    }
-
     @Override
     protected CloseableIterable<ScanTask> doPlanFiles() {
       String schemaString = SchemaParser.toJson(tableSchema());

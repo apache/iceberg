@@ -35,7 +35,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
-import org.apache.iceberg.PositionDeletesTable;
+import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -137,23 +137,16 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
-    Table deletesTable =
-        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
-    PositionDeletesTable.PositionDeletesBatchScan deletesScan =
-        (PositionDeletesTable.PositionDeletesBatchScan) deletesTable.newBatchScan();
-    CloseableIterable<PositionDeletesScanTask> scanTasks =
-        CloseableIterable.transform(
-            deletesScan.baseTableFilter(filter).ignoreResiduals().planFiles(),
-            t -> (PositionDeletesScanTask) t);
+    CloseableIterable<PositionDeletesScanTask> fileTasks = planFiles();
 
     try {
       StructType partitionType = Partitioning.partitionType(table);
       StructLikeMap<List<PositionDeletesScanTask>> fileTasksByPartition =
-          groupByPartition(partitionType, scanTasks);
+          groupByPartition(partitionType, fileTasks);
       return fileGroupsByPartition(fileTasksByPartition);
     } finally {
       try {
-        scanTasks.close();
+        fileTasks.close();
       } catch (IOException io) {
         LOG.error("Cannot properly close file iterable while planning for rewrite", io);
       }
@@ -164,8 +157,9 @@ public class RewritePositionDeleteFilesSparkAction
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
 
+    PositionDeletesBatchScan scan = (PositionDeletesBatchScan) deletesTable.newBatchScan();
     return CloseableIterable.transform(
-        deletesTable.newBatchScan().ignoreResiduals().planFiles(),
+        scan.baseTableFilter(filter).ignoreResiduals().planFiles(),
         task -> (PositionDeletesScanTask) task);
   }
 
