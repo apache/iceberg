@@ -1088,20 +1088,20 @@ class StatsAggregator:
 
         return to_bytes(self.primitive_type, value)
 
-    def add_min(self, val: Any) -> None:
+    def update_min(self, val: Any) -> None:
         self.current_min = val if self.current_min is None else min(val, self.current_min)
 
-    def add_max(self, val: Any) -> None:
+    def update_max(self, val: Any) -> None:
         self.current_max = val if self.current_max is None else max(val, self.current_max)
 
-    def get_min(self) -> bytes:
+    def min_as_bytes(self) -> bytes:
         return self.serialize(
             self.current_min
             if self.trunc_length is None
             else TruncateTransform(width=self.trunc_length).transform(self.primitive_type)(self.current_min)
         )
 
-    def get_max(self) -> Optional[bytes]:
+    def max_as_bytes(self) -> Optional[bytes]:
         if self.current_max is None:
             return None
 
@@ -1138,7 +1138,9 @@ class StatsAggregator:
 
             return self.serialize(b_result)
         else:
-            return self.serialize(self.current_max)[: self.trunc_length]
+            if self.trunc_length is not None:
+                raise ValueError(f"{self.primitive_type} cannot be truncated")
+            return self.serialize(self.current_max)
 
 
 DEFAULT_TRUNCATION_LENGTH = 16
@@ -1162,10 +1164,13 @@ class MetricsMode(Singleton):
     length: Optional[int] = None
 
 
+_DEFAULT_METRICS_MODE = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGTH)
+
+
 def match_metrics_mode(mode: str) -> MetricsMode:
     sanitized_mode = mode.lower()
     if sanitized_mode.startswith("truncate"):
-        m = re.match(TRUNCATION_EXPR, mode, re.IGNORECASE)
+        m = re.match(TRUNCATION_EXPR, sanitized_mode)
         if m:
             length = int(m[1])
             if length < 1:
@@ -1195,10 +1200,12 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
     _field_id: int = 0
     _schema: Schema
     _properties: Dict[str, str]
+    _default_mode: Optional[str]
 
     def __init__(self, schema: Schema, properties: Dict[str, str]):
         self._schema = schema
         self._properties = properties
+        self._default_mode = self._properties.get(DEFAULT_METRICS_MODE_KEY)
 
     def schema(self, schema: Schema, struct_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
         return struct_result()
@@ -1232,13 +1239,12 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
     def primitive(self, primitive: PrimitiveType) -> List[StatisticsCollector]:
         column_name = self._schema.find_column_name(self._field_id)
         if column_name is None:
-            raise ValueError(f"Column for field {self._field_id} not found")
+            return []
 
-        metrics_mode = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGTH)
+        metrics_mode = _DEFAULT_METRICS_MODE
 
-        default_mode = self._properties.get(DEFAULT_METRICS_MODE_KEY)
-        if default_mode:
-            metrics_mode = match_metrics_mode(default_mode)
+        if self._default_mode:
+            metrics_mode = match_metrics_mode(self._default_mode)
 
         col_mode = self._properties.get(f"{COLUMN_METRICS_MODE_KEY_PREFIX}.{column_name}")
         if col_mode:
@@ -1321,7 +1327,8 @@ def fill_parquet_file_metadata(
 
             column = row_group.column(pos)
 
-            column_sizes[field_id] = column_sizes.get(field_id, 0) + column.total_compressed_size
+            column_sizes.setdefault(field_id, 0)
+            column_sizes[field_id] += column.total_compressed_size
 
             if stats_col.mode == MetricsMode(MetricModeTypes.NONE):
                 continue
@@ -1342,8 +1349,8 @@ def fill_parquet_file_metadata(
                             stats_col.iceberg_type, statistics.physical_type, stats_col.mode.length
                         )
 
-                    col_aggs[field_id].add_min(statistics.min)
-                    col_aggs[field_id].add_max(statistics.max)
+                    col_aggs[field_id].update_min(statistics.min)
+                    col_aggs[field_id].update_max(statistics.max)
 
                 except pyarrow.lib.ArrowNotImplementedError as e:
                     logger.warning(e)
@@ -1356,8 +1363,8 @@ def fill_parquet_file_metadata(
     upper_bounds = {}
 
     for k, agg in col_aggs.items():
-        lower_bounds[k] = agg.get_min()
-        _max = agg.get_max()
+        lower_bounds[k] = agg.min_as_bytes()
+        _max = agg.max_as_bytes()
         if _max is not None:
             upper_bounds[k] = _max
 

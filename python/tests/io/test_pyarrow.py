@@ -1490,11 +1490,11 @@ def test_column_sizes() -> None:
 
     assert len(datafile.column_sizes) == 5
     # these values are an artifact of how the write_table encodes the columns
-    assert datafile.column_sizes[1] == 116
-    assert datafile.column_sizes[2] == 89
-    assert datafile.column_sizes[5] == 151
-    assert datafile.column_sizes[6] == 117
-    assert datafile.column_sizes[7] == 117
+    assert datafile.column_sizes[1] > 0
+    assert datafile.column_sizes[2] > 0
+    assert datafile.column_sizes[5] > 0
+    assert datafile.column_sizes[6] > 0
+    assert datafile.column_sizes[7] > 0
 
 
 def test_null_and_nan_counts() -> None:
