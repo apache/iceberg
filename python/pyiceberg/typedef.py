@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from decimal import Decimal
-from functools import cached_property, lru_cache
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -144,6 +144,7 @@ class IcebergRootModel(RootModel[T], Generic[T]):
     """
 
     model_config = ConfigDict(frozen=True)
+
 
 @lru_cache
 def _get_struct_fields(struct_type: StructType) -> Tuple[str, ...]:

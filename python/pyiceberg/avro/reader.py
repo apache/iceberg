@@ -43,7 +43,6 @@ from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.decimal import bytes_to_decimal, decimal_required_bytes
-from pyiceberg.utils.singleton import Singleton
 
 
 def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:

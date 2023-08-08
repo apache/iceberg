@@ -25,11 +25,7 @@ from typing import Literal as LiteralType
 from typing import Optional, TypeVar
 
 import mmh3
-from pydantic import (
-    Field,
-    PositiveInt,
-    PrivateAttr,
-)
+from pydantic import Field, PositiveInt, PrivateAttr
 
 from pyiceberg.expressions import (
     BoundEqualTo,

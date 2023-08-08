@@ -19,12 +19,13 @@ import uuid
 from copy import copy
 from typing import (
     TYPE_CHECKING,
+    Annotated,
     Any,
     Dict,
     List,
     Literal,
     Optional,
-    Union, Annotated,
+    Union,
 )
 
 from pydantic import Field, model_validator
@@ -202,8 +203,6 @@ class TableMetadataCommonFields(IcebergBaseModel):
     and the map values are snapshot reference objects.
     There is always a main branch reference pointing to the
     current-snapshot-id even if the refs map is null."""
-
-
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
@@ -405,4 +404,4 @@ class TableMetadataUtil:
             raise ValidationError(f"Unknown format version: {format_version}")
 
 
-TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator='format_version')]
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]

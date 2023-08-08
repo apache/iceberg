@@ -35,21 +35,20 @@ import re
 from typing import (
     Annotated,
     Any,
-    Callable,
     ClassVar,
-    Dict,
-    Generator,
     Literal,
     Optional,
     Tuple,
-    Type,
 )
 
 from pydantic import (
     BeforeValidator,
     Field,
+    GetCoreSchemaHandler,
+    PlainSerializer,
+    PrivateAttr,
     SerializeAsAny,
-    PlainSerializer, WithJsonSchema, GetCoreSchemaHandler,
+    WithJsonSchema,
 )
 from pydantic_core import core_schema
 
@@ -74,9 +73,7 @@ class IcebergType(IcebergBaseModel):
     """
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, _source_type: Any, _handler: GetCoreSchemaHandler
-    ) -> core_schema.CoreSchema:
+    def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
         return core_schema.no_info_after_validator_function(
             cls.validate,
             core_schema.str_schema(),
@@ -94,8 +91,6 @@ class IcebergType(IcebergBaseModel):
                 return DecimalType.parse(v)
             elif v.startswith("fixed"):
                 return FixedType.parse(v)
-            else:
-                return PRIMITIVE_TYPES[v]
         elif isinstance(v, dict):
             if v.get("type") == "struct":
                 return StructType(**v)
@@ -139,6 +134,15 @@ def _parse_fixed_type(fixed: Any) -> int:
     else:
         return fixed
 
+
+_FixedType = Annotated[
+    str,
+    BeforeValidator(_parse_fixed_type),
+    PlainSerializer(lambda v: f"fixed[{v}]", return_type=str),
+    WithJsonSchema({"type": "string"}, mode="serialization"),
+]
+
+
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
 
@@ -151,15 +155,10 @@ class FixedType(PrimitiveType):
         False
     """
 
-    root: Annotated[
-        int,
-        BeforeValidator(_parse_fixed_type),
-        PlainSerializer(lambda v: f"fixed[{v}]", return_type=str),
-        WithJsonSchema({"type": "string"}, mode="serialization"),
-    ] = Field()
+    root: _FixedType = Field()
 
-    def __init__(self, length: int, **data) -> None:
-        super().__init__(length=length, **data)
+    # def __init__(self, length: int, **data) -> None:
+    #     super().__init__(length=length, **data)
 
     def __len__(self) -> int:
         """Returns the length of an instance of the FixedType class."""
@@ -185,7 +184,6 @@ class _DecimalType(IcebergBaseModel):
     scale: int
 
 
-
 def _parse_decimal_type(decimal: Any) -> _DecimalType:
     if isinstance(decimal, str):
         matches = DECIMAL_REGEX.search(decimal)
@@ -194,7 +192,7 @@ def _parse_decimal_type(decimal: Any) -> _DecimalType:
         else:
             raise ValidationError(f"Could not parse {decimal} into a DecimalType")
     elif isinstance(decimal, dict):
-        return _DecimalType(precision=decimal['precision'], scale=decimal['scale'])
+        return _DecimalType(precision=decimal["precision"], scale=decimal["scale"])
     else:
         return decimal
 
@@ -464,7 +462,10 @@ class BooleanType(PrimitiveType):
         BooleanType()
     """
 
-    root: str = "boolean"
+    def __init__(self) -> None:
+        super().__init__("boolean")
+
+    root: Literal["boolean"] = "boolean"
 
 
 class IntegerType(PrimitiveType):
@@ -484,10 +485,13 @@ class IntegerType(PrimitiveType):
             in Java (returns `-2147483648`)
     """
 
+    def __init__(self) -> None:
+        super().__init__("int")
+
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
 
-    root: str = "int"
+    root: Literal["int"] = "int"
 
 
 class LongType(PrimitiveType):
@@ -511,10 +515,13 @@ class LongType(PrimitiveType):
             in Java (returns `-9223372036854775808`)
     """
 
+    def __init__(self) -> None:
+        super().__init__("long")
+
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
 
-    root: str = "long"
+    root: Literal["long"] = "long"
 
 
 class FloatType(PrimitiveType):
@@ -536,10 +543,13 @@ class FloatType(PrimitiveType):
             in Java (returns `-3.4028235e38`)
     """
 
+    def __init__(self) -> None:
+        super().__init__("float")
+
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
 
-    root: str = "float"
+    root: Literal["float"] = "float"
 
 
 class DoubleType(PrimitiveType):
@@ -555,7 +565,10 @@ class DoubleType(PrimitiveType):
         DoubleType()
     """
 
-    root: str = "double"
+    def __init__(self) -> None:
+        super().__init__("double")
+
+    root: Literal["double"] = "double"
 
 
 class DateType(PrimitiveType):
@@ -571,7 +584,10 @@ class DateType(PrimitiveType):
         DateType()
     """
 
-    root: str = "date"
+    def __init__(self) -> None:
+        super().__init__("date")
+
+    root: Literal["date"] = "date"
 
 
 class TimeType(PrimitiveType):
@@ -587,7 +603,10 @@ class TimeType(PrimitiveType):
         TimeType()
     """
 
-    root: str = "time"
+    def __init__(self) -> None:
+        super().__init__("time")
+
+    root: Literal["time"] = "time"
 
 
 class TimestampType(PrimitiveType):
@@ -603,7 +622,10 @@ class TimestampType(PrimitiveType):
         TimestampType()
     """
 
-    root: str = "timestamp"
+    def __init__(self) -> None:
+        super().__init__("timestamp")
+
+    root: Literal["timestamp"] = "timestamp"
 
 
 class TimestamptzType(PrimitiveType):
@@ -619,7 +641,10 @@ class TimestamptzType(PrimitiveType):
         TimestamptzType()
     """
 
-    root: str = "timestamptz"
+    def __init__(self) -> None:
+        super().__init__("timestamptz")
+
+    root: Literal["timestamptz"] = "timestamptz"
 
 
 class StringType(PrimitiveType):
@@ -635,7 +660,10 @@ class StringType(PrimitiveType):
         StringType()
     """
 
-    root: str = "string"
+    def __init__(self) -> None:
+        super().__init__("string")
+
+    root: Literal["string"] = "string"
 
 
 class UUIDType(PrimitiveType):
@@ -651,7 +679,10 @@ class UUIDType(PrimitiveType):
         UUIDType()
     """
 
-    root: str = "uuid"
+    def __init__(self) -> None:
+        super().__init__("uuid")
+
+    root: Literal["uuid"] = "uuid"
 
 
 class BinaryType(PrimitiveType):
@@ -667,20 +698,7 @@ class BinaryType(PrimitiveType):
         BinaryType()
     """
 
-    root: str = "binary"
+    def __init__(self) -> None:
+        super().__init__("binary")
 
-
-PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
-    "boolean": BooleanType(),
-    "int": IntegerType(),
-    "long": LongType(),
-    "float": FloatType(),
-    "double": DoubleType(),
-    "date": DateType(),
-    "time": TimeType(),
-    "timestamp": TimestampType(),
-    "timestamptz": TimestamptzType(),
-    "string": StringType(),
-    "uuid": UUIDType(),
-    "binary": BinaryType(),
-}
+    root: Literal["binary"] = "binary"

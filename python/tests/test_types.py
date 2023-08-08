@@ -504,9 +504,7 @@ def test_deserialization_nestedfield() -> None:
 
 def test_deserialization_nestedfield_inner() -> None:
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = StringType.parse_raw(
-        '{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}'
-    )
+    actual = StringType.parse_raw('{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}')
     assert expected == actual.__root__
 
 
