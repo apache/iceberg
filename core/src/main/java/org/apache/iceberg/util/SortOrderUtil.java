@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -96,8 +98,16 @@ public class SortOrderUtil {
     // build a sort prefix of partition fields that are not already in the sort order's prefix
     SortOrder.Builder builder = SortOrder.builderFor(schema);
     for (PartitionField field : requiredClusteringFields.values()) {
-      String sourceName = schema.findColumnName(field.sourceId());
-      builder.asc(Expressions.transform(sourceName, field.transform()));
+      if (field.sourceIds().length == 1) {
+        String sourceName = schema.findColumnName(field.sourceId());
+        builder.asc(Expressions.transform(sourceName, field.transform()));
+      } else {
+        List<String> sourceNames =
+            Arrays.stream(field.sourceIds())
+                .mapToObj(schema::findColumnName)
+                .collect(Collectors.toList());
+        builder.asc(Expressions.transform(sourceNames, field.transform()));
+      }
     }
 
     // add the configured sort to the partition spec prefix sort

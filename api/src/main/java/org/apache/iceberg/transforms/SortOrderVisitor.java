@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public interface SortOrderVisitor<T> {
@@ -32,6 +34,26 @@ public interface SortOrderVisitor<T> {
 
   T bucket(
       String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
+
+  default T bucket(
+      String[] sourceNames,
+      int[] sourceIds,
+      int width,
+      SortDirection direction,
+      NullOrder nullOrder) {
+    Preconditions.checkArgument(
+        sourceNames != null
+            && sourceNames.length >= 1
+            && sourceIds != null
+            && sourceIds.length >= 1,
+        "At least one sourceName and sourceId should be provided");
+    if (sourceNames.length == 1 && sourceIds.length == 1) {
+      return bucket(sourceNames[0], sourceIds[0], width, direction, nullOrder);
+    } else {
+      throw new UnsupportedOperationException(
+          String.format("bucket on multiple columns is not supported"));
+    }
+  }
 
   T truncate(
       String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
@@ -76,9 +98,12 @@ public interface SortOrderVisitor<T> {
             visitor.field(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof Bucket) {
         int numBuckets = ((Bucket<?>) transform).numBuckets();
+        int[] sourceIds = field.sourceIds();
+        String[] sourceNames =
+            Arrays.stream(sourceIds).mapToObj(schema::findColumnName).toArray(String[]::new);
         results.add(
             visitor.bucket(
-                sourceName, field.sourceId(), numBuckets, field.direction(), field.nullOrder()));
+                sourceNames, sourceIds, numBuckets, field.direction(), field.nullOrder()));
       } else if (transform instanceof Truncate) {
         int width = ((Truncate<?>) transform).width();
         results.add(

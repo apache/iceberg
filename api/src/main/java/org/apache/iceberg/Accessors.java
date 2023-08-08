@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 
 /**
  * Position2Accessor and Position3Accessor here is an optimization. For a nested schema like:
@@ -53,6 +57,49 @@ public class Accessors {
 
   static Map<Integer, Accessor<StructLike>> forSchema(Schema schema) {
     return TypeUtil.visit(schema, new BuildPositionAccessors());
+  }
+
+  static Accessor<StructLike> projectFields(Schema schema, int[] fieldIds) {
+    Preconditions.checkArgument(
+        fieldIds != null && fieldIds.length > 1, "selected fields must be non-empty");
+    List<Types.NestedField> fields =
+        Arrays.stream(fieldIds).mapToObj(schema::findField).collect(Collectors.toList());
+    Types.StructType projected = Types.StructType.of(fields);
+    // todo: handles all the projected fields are deleted, which should always produce an null
+    //   struct.
+    StructProjection projection = StructProjection.createAllowMissing(schema.asStruct(), projected);
+    return new StructProjectionAccessor(projection, projected);
+  }
+
+  private static class StructProjectionAccessor implements Accessor<StructLike> {
+    private final StructProjection projection;
+    private final Types.StructType type;
+
+    StructProjectionAccessor(StructProjection projection, Types.StructType type) {
+      this.projection = projection;
+      this.type = type;
+    }
+
+    @Override
+    public Object get(StructLike row) {
+      return projection.wrap(row);
+    }
+
+    @Override
+    public Type type() {
+      return type;
+    }
+
+    public Class<?> javaClass() {
+      return type.typeId().javaClass();
+    }
+
+    @Override
+    public String toString() {
+      String[] fieldNames =
+          type.fields().stream().map(Types.NestedField::name).toArray(String[]::new);
+      return "Accessor(fieldNames=" + Arrays.toString(fieldNames) + ", type=" + type + ")";
+    }
   }
 
   private static class PositionAccessor implements Accessor<StructLike> {

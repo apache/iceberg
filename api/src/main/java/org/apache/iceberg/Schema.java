@@ -413,6 +413,13 @@ public class Schema implements Serializable {
     return lazyIdToAccessor().get(id);
   }
 
+  public Accessor<StructLike> accessorForFields(int[] ids) {
+    if (ids.length == 1) {
+      return accessorForField(ids[0]);
+    }
+    return Accessors.projectFields(this, ids);
+  }
+
   /**
    * Creates a projection schema for a subset of columns, selected by name.
    *

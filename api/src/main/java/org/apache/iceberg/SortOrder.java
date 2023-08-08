@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.BoundReference;
@@ -36,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 /** A sort order that defines how data and delete files should be ordered in a table. */
 public class SortOrder implements Serializable {
@@ -127,7 +129,11 @@ public class SortOrder implements Serializable {
 
     for (SortField field : fields) {
       builder.addSortField(
-          field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+          field.transform().toString(),
+          field.sourceId(),
+          field.sourceIds(),
+          field.direction(),
+          field.nullOrder());
     }
 
     return builder.build();
@@ -247,8 +253,13 @@ public class SortOrder implements Serializable {
       // ValidationException is thrown by bind if binding fails so we assume that boundTerm is
       // correct
       BoundTerm<?> boundTerm = ((UnboundTerm<?>) term).bind(schema.asStruct(), caseSensitive);
-      int sourceId = boundTerm.ref().fieldId();
-      SortField sortField = new SortField(toTransform(boundTerm), sourceId, direction, nullOrder);
+      int[] sourceIds =
+          boundTerm.refs().stream()
+              .map(BoundReference::field)
+              .map(Types.NestedField::fieldId)
+              .mapToInt(x -> x)
+              .toArray();
+      SortField sortField = new SortField(toTransform(boundTerm), sourceIds, direction, nullOrder);
       fields.add(sortField);
       return this;
     }
@@ -297,13 +308,20 @@ public class SortOrder implements Serializable {
 
   public static void checkCompatibility(SortOrder sortOrder, Schema schema) {
     for (SortField field : sortOrder.fields) {
-      Type sourceType = schema.findType(field.sourceId());
-      ValidationException.check(
-          sourceType != null, "Cannot find source column for sort field: %s", field);
-      ValidationException.check(
-          sourceType.isPrimitiveType(),
-          "Cannot sort by non-primitive source field: %s",
-          sourceType);
+      int[] sourceIds = field.sourceIds();
+      for (int sourceId : sourceIds) {
+        Type sourceType = schema.findType(sourceId);
+        ValidationException.check(
+            sourceType != null, "Cannot find source column for sort field: %s", field);
+        ValidationException.check(
+            sourceType.isPrimitiveType(),
+            "Cannot sort by non-primitive source field: %s",
+            sourceType);
+      }
+      List<Types.NestedField> sourceFields =
+          Arrays.stream(sourceIds).mapToObj(schema::findField).collect(Collectors.toList());
+      Type sourceType =
+          sourceIds.length == 1 ? sourceFields.get(0).type() : Types.StructType.of(sourceFields);
       ValidationException.check(
           field.transform().canTransform(sourceType),
           "Invalid source type %s for transform: %s",

@@ -35,6 +35,7 @@ public class PartitionSpecParser {
   private static final String SPEC_ID = "spec-id";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
+  private static final String SOURCE_IDS = "source-ids";
   private static final String FIELD_ID = "field-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
@@ -99,6 +100,16 @@ public class PartitionSpecParser {
       generator.writeStringField(NAME, field.name());
       generator.writeStringField(TRANSFORM, field.transformAsString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
+      // only serialize multiple sourceIds
+      if (field.sourceIds().length > 1) {
+        // fieldName: SOURCE_IDS, array: sourceIds.
+        generator.writeFieldName(SOURCE_IDS);
+        generator.writeStartArray();
+        for (int i : field.sourceIds()) {
+          generator.writeNumber(i);
+        }
+        generator.writeEndArray();
+      }
       generator.writeNumberField(FIELD_ID, field.partitionId());
       generator.writeEndObject();
     }
@@ -133,14 +144,17 @@ public class PartitionSpecParser {
       String name = JsonUtil.getString(NAME, element);
       String transform = JsonUtil.getString(TRANSFORM, element);
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
+      int[] sourceIds = JsonUtil.getIntArrayOrNull(SOURCE_IDS, element);
+      // backward compatibility
+      sourceIds = sourceIds == null ? new int[] {sourceId} : sourceIds;
 
       // partition field ids are missing in old PartitionSpec, they always auto-increment from
       // PARTITION_DATA_ID_START
       if (element.has(FIELD_ID)) {
-        builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
+        builder.addField(transform, sourceId, sourceIds, JsonUtil.getInt(FIELD_ID, element), name);
         fieldIdCount++;
       } else {
-        builder.addField(transform, sourceId, name);
+        builder.addField(transform, sourceId, sourceIds, name);
       }
     }
 

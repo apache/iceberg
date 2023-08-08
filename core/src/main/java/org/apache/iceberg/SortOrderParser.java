@@ -36,6 +36,7 @@ public class SortOrderParser {
   private static final String NULL_ORDER = "null-order";
   private static final String TRANSFORM = "transform";
   private static final String SOURCE_ID = "source-id";
+  private static final String SOURCE_IDS = "source-ids";
 
   private SortOrderParser() {}
 
@@ -70,6 +71,15 @@ public class SortOrderParser {
       generator.writeStartObject();
       generator.writeStringField(TRANSFORM, field.transform().toString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
+      if (field.sourceIds().length > 1) {
+        // fieldName: SOURCE_IDS, array: sourceIds.
+        generator.writeFieldName(SOURCE_IDS);
+        generator.writeStartArray();
+        for (int i : field.sourceIds()) {
+          generator.writeNumber(i);
+        }
+        generator.writeEndArray();
+      }
       generator.writeStringField(DIRECTION, toJson(field.direction()));
       generator.writeStringField(NULL_ORDER, toJson(field.nullOrder()));
       generator.writeEndObject();
@@ -152,6 +162,8 @@ public class SortOrderParser {
 
       String transform = JsonUtil.getString(TRANSFORM, element);
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
+      int[] sourceIds = JsonUtil.getIntArrayOrNull(SOURCE_IDS, element);
+      sourceIds = sourceIds == null ? new int[] {sourceId} : sourceIds;
 
       String directionAsString = JsonUtil.getString(DIRECTION, element);
       SortDirection direction = SortDirection.fromString(directionAsString);
@@ -159,7 +171,7 @@ public class SortOrderParser {
       String nullOrderingAsString = JsonUtil.getString(NULL_ORDER, element);
       NullOrder nullOrder = toNullOrder(nullOrderingAsString);
 
-      builder.addSortField(transform, sourceId, direction, nullOrder);
+      builder.addSortField(transform, sourceId, sourceIds, direction, nullOrder);
     }
   }
 

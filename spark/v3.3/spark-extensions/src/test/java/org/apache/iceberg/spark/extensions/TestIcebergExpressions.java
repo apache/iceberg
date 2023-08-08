@@ -102,4 +102,37 @@ public class TestIcebergExpressions extends SparkExtensionsTestBase {
         ImmutableList.of(row(0, 2, 0, 4, 1)),
         sql("SELECT int_c, long_c, dec_c, str_c, binary_c FROM v"));
   }
+
+  @Test
+  public void testMultiArgBucketExpressions() {
+    sql(
+        "CREATE TABLE %s ( "
+            + "  int_c INT, long_c LONG, dec_c DECIMAL(4, 2), str_c STRING, binary_c BINARY "
+            + ") USING iceberg"
+            + " PARTITIONED BY (bucket(4, int_c, long_c))",
+        tableName);
+    sql(
+        "CREATE TEMPORARY VIEW emp "
+            + "AS SELECT * FROM VALUES (101, 10001, 10.65, '101-Employee', CAST('1234' AS BINARY)) "
+            + "AS EMP(int_c, long_c, dec_c, str_c, binary_c)");
+
+    sql("INSERT INTO %s SELECT * FROM emp", tableName);
+    spark.table(tableName).show();
+    spark
+        .sql(String.format("select file_path, partition, sort_order_id from %s.files", tableName))
+        .show(false);
+    Dataset<Row> df = spark.sql("SELECT * FROM " + tableName);
+    df.select(
+            new Column(new IcebergBucketTransform(2, df.col("int_c").expr())).as("int_c"),
+            new Column(new IcebergBucketTransform(3, df.col("long_c").expr())).as("long_c"),
+            new Column(new IcebergBucketTransform(4, df.col("dec_c").expr())).as("dec_c"),
+            new Column(new IcebergBucketTransform(5, df.col("str_c").expr())).as("str_c"),
+            new Column(new IcebergBucketTransform(6, df.col("binary_c").expr())).as("binary_c"))
+        .createOrReplaceTempView("v");
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(0, 2, 0, 4, 1)),
+        sql("SELECT int_c, long_c, dec_c, str_c, binary_c FROM v"));
+  }
 }

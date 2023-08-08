@@ -32,6 +32,15 @@ import org.junit.After;
 import org.junit.Test;
 
 public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase {
+  private static final List<ThreeColumnRecord> simpleData =
+      ImmutableList.of(
+          new ThreeColumnRecord(1, null, "A"),
+          new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+          new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+          new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+          new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+          new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+          new ThreeColumnRecord(7, "BBBBBBBBBB", "A"));
 
   public TestRequiredDistributionAndOrdering(
       String catalogName, String implementation, Map<String, String> config) {
@@ -70,6 +79,31 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         "Row count must match",
         ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testDefaultLocalSortWithMultiColumnBucketTransform() throws NoSuchTableException {
+
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(4, c1, c2))",
+        tableName);
+
+    Dataset<Row> ds = spark.createDataFrame(simpleData, ThreeColumnRecord.class);
+
+    // sort cols doesn't matter as it will be replaced by sort order inferred from bucket transform
+    Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c3", "c2");
+
+    // should insert a local sort by partition columns by default
+    inputDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Row count must match",
+        ImmutableList.of(row(7L)),
+        sql("SELECT count(*) FROM %s", tableName));
+
+    // spark.sql(String.format("select * from %s.files", tableName)).show(false);
   }
 
   @Test

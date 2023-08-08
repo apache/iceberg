@@ -20,8 +20,10 @@ package org.apache.iceberg.spark.functions;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
 import org.apache.iceberg.util.BucketUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
@@ -61,51 +63,80 @@ public class BucketFunction implements UnboundFunction {
   private static final Set<DataType> SUPPORTED_NUM_BUCKETS_TYPES =
       ImmutableSet.of(DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType);
 
+  // DecimalType should be handled separately because it doesn't have a single instance.
+  private static final Set<DataType> SUPPORTED_PRIMITIVE_VALUE_TYPES =
+      ImmutableSet.of(
+          DataTypes.DateType,
+          DataTypes.ByteType,
+          DataTypes.ShortType,
+          DataTypes.IntegerType,
+          DataTypes.LongType,
+          DataTypes.TimestampType,
+          DataTypes.TimestampNTZType,
+          DataTypes.StringType,
+          DataTypes.BinaryType);
+
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public BoundFunction bind(StructType inputType) {
-    if (inputType.size() != 2) {
+    if (inputType.size() < 2) {
       throw new UnsupportedOperationException(
-          "Wrong number of inputs (expected numBuckets and value)");
+          "Wrong number of inputs (expected numBuckets and varg value)");
     }
 
     StructField numBucketsField = inputType.fields()[NUM_BUCKETS_ORDINAL];
-    StructField valueField = inputType.fields()[VALUE_ORDINAL];
+    StructField firstValueField = inputType.fields()[VALUE_ORDINAL];
 
     if (!SUPPORTED_NUM_BUCKETS_TYPES.contains(numBucketsField.dataType())) {
       throw new UnsupportedOperationException(
           "Expected number of buckets to be tinyint, shortint or int");
     }
 
-    DataType type = valueField.dataType();
-    if (type instanceof DateType) {
-      return new BucketInt(type);
-    } else if (type instanceof ByteType
-        || type instanceof ShortType
-        || type instanceof IntegerType) {
-      return new BucketInt(DataTypes.IntegerType);
-    } else if (type instanceof LongType) {
-      return new BucketLong(type);
-    } else if (type instanceof TimestampType) {
-      return new BucketLong(type);
-    } else if (type instanceof TimestampNTZType) {
-      return new BucketLong(type);
-    } else if (type instanceof DecimalType) {
-      return new BucketDecimal(type);
-    } else if (type instanceof StringType) {
-      return new BucketString();
-    } else if (type instanceof BinaryType) {
-      return new BucketBinary();
+    DataType type = firstValueField.dataType();
+    if (inputType.size() == 2) {
+      if (type instanceof DateType) {
+        return new BucketInt(type);
+      } else if (type instanceof ByteType
+          || type instanceof ShortType
+          || type instanceof IntegerType) {
+        return new BucketInt(DataTypes.IntegerType);
+      } else if (type instanceof LongType) {
+        return new BucketLong(type);
+      } else if (type instanceof TimestampType) {
+        return new BucketLong(type);
+      } else if (type instanceof TimestampNTZType) {
+        return new BucketLong(type);
+      } else if (type instanceof DecimalType) {
+        return new BucketDecimal(type);
+      } else if (type instanceof StringType) {
+        return new BucketString();
+      } else if (type instanceof BinaryType) {
+        return new BucketBinary();
+      } else {
+        throw new UnsupportedOperationException(
+            "Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+      }
     } else {
-      throw new UnsupportedOperationException(
-          "Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+      StructField[] tailInputFields = Arrays.copyOfRange(inputType.fields(), 1, inputType.size());
+      boolean isAllPrimitive =
+          Arrays.stream(tailInputFields)
+              .map(StructField::dataType)
+              .allMatch(
+                  x -> SUPPORTED_PRIMITIVE_VALUE_TYPES.contains(x) || (x instanceof DecimalType));
+      if (!isAllPrimitive) {
+        throw new UnsupportedOperationException(
+            "Expected all columns to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+      }
+      DataType[] sqlTypes =
+          Arrays.stream(tailInputFields).map(StructField::dataType).toArray(DataType[]::new);
+      return new BucketMultiple(sqlTypes);
     }
   }
 
   @Override
   public String description() {
     return name()
-        + "(numBuckets, col) - Call Iceberg's bucket transform\n"
+        + "(numBuckets, col...) - Call Iceberg's bucket transform\n"
         + "  numBuckets :: number of buckets to divide the rows into, e.g. bucket(100, 34) -> 79 (must be a tinyint, smallint, or int)\n"
         + "  col :: column to bucket (must be a date, integer, long, timestamp, decimal, string, or binary)";
   }
@@ -322,6 +353,79 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.bucket(decimal)";
+    }
+  }
+
+  public static class BucketMultiple extends BucketBase {
+    private final DataType[] inputTypes;
+
+    // no magic method: `invoke` here. Because the input types are dynamic, we cannot pre generate
+    // the `invoke` method that matches the java type. One possible way to solve this would be
+    // marking this method `Unevaluable` and replace it with an `IcebergBucketExpression` in the
+    // extended resolution rule. We can implement `IcebergBucketExpression` with codegen support.
+
+    public BucketMultiple(DataType[] sqlTypes) {
+      this.inputTypes = new DataType[sqlTypes.length + 1];
+      this.inputTypes[0] = DataTypes.IntegerType;
+      // copies the sqlTypes into the inputTypes array starting at index 1
+      System.arraycopy(sqlTypes, 0, this.inputTypes, 1, sqlTypes.length);
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return inputTypes;
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL)) {
+        return null;
+      } else {
+        int numBuckets = input.getInt(NUM_BUCKETS_ORDINAL);
+        Hasher hasher = BucketUtil.hasher();
+        boolean isNull = true;
+        for (int i = 1; i < inputTypes.length; i++) {
+          if (!input.isNullAt(i)) {
+            isNull = false;
+            // switch type to get the object
+            if (inputTypes[i].equals(DataTypes.ByteType)
+                || inputTypes[i].equals(DataTypes.ShortType)
+                || inputTypes[i].equals(DataTypes.IntegerType)
+                || inputTypes[i].equals(DataTypes.DateType)) {
+              // Byte, Short and Integer are upcasted to int in Spark, Date are treated as int
+              hasher.putLong(input.getInt(i));
+            } else if (inputTypes[i].equals(DataTypes.LongType)) {
+              hasher.putLong(input.getLong(i));
+            } else if (inputTypes[i].equals(DataTypes.StringType)) {
+              // we can hash UTF8String's bytes directly since it should already be UTF-8 encoded.
+              hasher.putBytes(input.getUTF8String(i).getBytes());
+            } else if (inputTypes[i].equals(DataTypes.BinaryType)) {
+              // we can hash BinaryType's bytes directly, there's no need to wrapped it in a
+              // ByteBuffer
+              hasher.putBytes(input.getBinary(i));
+            } else if (inputTypes[i].equals(DataTypes.TimestampType)
+                || inputTypes[i].equals(DataTypes.TimestampNTZType)) {
+              hasher.putLong(input.getLong(i));
+            } else if (inputTypes[i] instanceof DecimalType) {
+              DecimalType decimalType = (DecimalType) inputTypes[i];
+              int precision = decimalType.precision();
+              int scale = decimalType.scale();
+              Decimal value = input.getDecimal(VALUE_ORDINAL, precision, scale);
+              hasher.putBytes(value.toJavaBigDecimal().unscaledValue().toByteArray());
+            } else {
+              throw new UnsupportedOperationException(
+                  "Unsupported type for bucketing: " + inputTypes[i].typeName());
+            }
+          }
+        }
+        return isNull ? null : apply(numBuckets, hasher.hash().asInt());
+      }
+    }
+
+    @Override
+    public String canonicalName() {
+      // todo: specify the exact type names later
+      return "iceberg.bucket(multiple)";
     }
   }
 }

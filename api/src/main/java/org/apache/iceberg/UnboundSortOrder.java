@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -98,8 +99,16 @@ public class UnboundSortOrder {
     }
 
     Builder addSortField(
-        String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
-      fields.add(new UnboundSortField(transformAsString, sourceId, direction, nullOrder));
+        String transformAsString,
+        int sourceId,
+        int[] sourceIds,
+        SortDirection direction,
+        NullOrder nullOrder) {
+      if (sourceIds.length == 1) {
+        fields.add(new UnboundSortField(transformAsString, sourceId, direction, nullOrder));
+      } else {
+        fields.add(new UnboundSortField(transformAsString, sourceIds, direction, nullOrder));
+      }
       return this;
     }
 
@@ -124,6 +133,7 @@ public class UnboundSortOrder {
   static class UnboundSortField {
     private final Transform<?, ?> transform;
     private final int sourceId;
+    private final int[] sourceIds;
     private final SortDirection direction;
     private final NullOrder nullOrder;
 
@@ -131,6 +141,18 @@ public class UnboundSortOrder {
         String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
       this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
+      this.sourceIds = new int[] {sourceId};
+      this.direction = direction;
+      this.nullOrder = nullOrder;
+    }
+
+    private UnboundSortField(
+        String transformAsString, int[] sourceIds, SortDirection direction, NullOrder nullOrder) {
+      Preconditions.checkArgument(
+          sourceIds != null && sourceIds.length >= 1, "at least one source id should be provided");
+      this.transform = Transforms.fromString(transformAsString);
+      this.sourceId = sourceIds.length > 1 ? -1 : sourceIds[0];
+      this.sourceIds = new int[] {sourceId};
       this.direction = direction;
       this.nullOrder = nullOrder;
     }
@@ -141,6 +163,10 @@ public class UnboundSortOrder {
 
     public int sourceId() {
       return sourceId;
+    }
+
+    public int[] sourceIds() {
+      return sourceIds;
     }
 
     public SortDirection direction() {
