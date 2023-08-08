@@ -946,7 +946,7 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead =
         new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
-    Assumptions.assumeThat(shouldRead)
+    Assertions.assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
   }
