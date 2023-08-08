@@ -42,7 +42,6 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -602,13 +601,16 @@ public class ValueReaders {
     }
 
     protected StructReader(
-        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+        List<ValueReader<?>> readers,
+        Types.StructType struct,
+        Map<Integer, ?> idToConstant,
+        Map<Integer, ?> idToDefault) {
       this.readers = readers.toArray(new ValueReader[0]);
 
       List<Types.NestedField> fields = struct.fields();
       List<Integer> constantPositionsList = Lists.newArrayListWithCapacity(fields.size());
       List<Object> constantValuesList = Lists.newArrayListWithCapacity(fields.size());
-      List<Integer> defaultValuesPositionList = Lists.newArrayListWithCapacity(fields.size());
+      List<Integer> defaultPositionList = Lists.newArrayListWithCapacity(fields.size());
       List<Object> defaultValuesList = Lists.newArrayListWithCapacity(fields.size());
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
@@ -622,19 +624,28 @@ public class ValueReaders {
           constantPositionsList.add(pos);
           constantValuesList.add(false);
         } else if (field.initialDefault() != null) {
-          // Add a constant value for fields that have a default value.
-          // In the {@link #read()} method, this will be leveraged only if there is no corresponding
-          // reader.
-          defaultValuesPositionList.add(pos);
-          defaultValuesList.add(
-              IdentityPartitionConverters.convertConstant(field.type(), field.initialDefault()));
+          if (idToDefault.containsKey(field.fieldId())) {
+            // Add a constant value for fields that have a default value.
+            // In the {@link #read()} method, this will be leveraged only if there is no
+            // corresponding
+            // reader.
+            defaultPositionList.add(pos);
+            defaultValuesList.add(idToDefault.get(field.fieldId()));
+          } else {
+            // Throw an exception if the map does not contain a default value for that field.
+            throw new UnsupportedOperationException(
+                "Default value not found for field: "
+                    + field.name()
+                    + " (field ID: "
+                    + field.fieldId()
+                    + ").");
+          }
         }
       }
 
       this.constantPositions = constantPositionsList.stream().mapToInt(Integer::intValue).toArray();
       this.constantValues = constantValuesList.toArray();
-      this.defaultPositions =
-          defaultValuesPositionList.stream().mapToInt(Integer::intValue).toArray();
+      this.defaultPositions = defaultPositionList.stream().mapToInt(Integer::intValue).toArray();
       this.defaultValues = defaultValuesList.toArray();
     }
 
@@ -680,6 +691,7 @@ public class ValueReaders {
           set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
           existingFieldPositionsSet.add(field.pos());
         }
+
         // Set default values
         for (int i = 0; i < defaultPositions.length; i += 1) {
           // Set default values only if the field does not exist in the data.
@@ -687,6 +699,7 @@ public class ValueReaders {
             set(struct, defaultPositions[i], defaultValues[i]);
           }
         }
+
       } else {
         for (int i = 0; i < readers.length; i += 1) {
           Object reusedValue = get(struct, i);

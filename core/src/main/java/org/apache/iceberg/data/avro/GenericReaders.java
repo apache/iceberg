@@ -29,7 +29,10 @@ import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
 
@@ -106,7 +109,7 @@ class GenericReaders {
 
     private GenericRecordReader(
         List<ValueReader<?>> readers, StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+      super(readers, struct, idToConstant, idToDefault(struct));
       this.structType = struct;
     }
 
@@ -127,6 +130,18 @@ class GenericReaders {
     @Override
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
+    }
+
+    private static Map<Integer, ?> idToDefault(StructType struct) {
+      Map<Integer, Object> result = Maps.newHashMap();
+      for (Types.NestedField field : struct.fields()) {
+        if (field.initialDefault() != null) {
+          result.put(
+              field.fieldId(),
+              IdentityPartitionConverters.convertConstant(field.type(), field.initialDefault()));
+        }
+      }
+      return result;
     }
   }
 }
