@@ -432,7 +432,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive, primitive_partner)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive, primitive_partner)
+            return self.visit_timestamptz(primitive, primitive_partner)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive, primitive_partner)
         elif isinstance(primitive, UUIDType):
@@ -481,7 +481,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod
@@ -610,7 +610,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive)
+            return self.visit_timestamptz(primitive)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive)
         elif isinstance(primitive, UUIDType):
@@ -661,7 +661,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod

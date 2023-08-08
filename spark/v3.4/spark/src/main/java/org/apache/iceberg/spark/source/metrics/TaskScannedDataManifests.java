@@ -16,38 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.spark.source.metrics;
 
-import java.util.List;
-import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.Namespace;
-import org.immutables.value.Value;
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-@Value.Immutable
-public interface SQLViewRepresentation extends ViewRepresentation {
+public class TaskScannedDataManifests implements CustomTaskMetric {
+  private final long value;
 
-  @Override
-  default String type() {
-    return Type.SQL;
+  private TaskScannedDataManifests(long value) {
+    this.value = value;
   }
 
-  /** The view query SQL text. */
-  String sql();
+  @Override
+  public String name() {
+    return ScannedDataManifests.NAME;
+  }
 
-  /** The view query SQL dialect. */
-  String dialect();
+  @Override
+  public long value() {
+    return value;
+  }
 
-  /** The default catalog when the view is created. */
-  @Nullable
-  String defaultCatalog();
-
-  /** The default namespace when the view is created. */
-  @Nullable
-  Namespace defaultNamespace();
-
-  /** The view field comments. */
-  List<String> fieldComments();
-
-  /** The view field aliases. */
-  List<String> fieldAliases();
+  public static TaskScannedDataManifests from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().scannedDataManifests();
+    long value = counter != null ? counter.value() : 0L;
+    return new TaskScannedDataManifests(value);
+  }
 }

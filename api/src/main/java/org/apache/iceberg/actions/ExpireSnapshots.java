@@ -22,7 +22,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.io.SupportsBulkOperations;
-import org.immutables.value.Value;
 
 /**
  * An action that expires snapshots in a table.
@@ -30,7 +29,6 @@ import org.immutables.value.Value;
  * <p>Similar to {@link org.apache.iceberg.ExpireSnapshots} but may use a query engine to distribute
  * parts of the work.
  */
-@Value.Enclosing
 public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots.Result> {
   /**
    * Expires a specific {@link Snapshot} identified by id.
@@ -100,7 +98,6 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     /** Returns the number of deleted data files. */
     long deletedDataFilesCount();
@@ -118,7 +115,6 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
     long deletedManifestListsCount();
 
     /** Returns the number of deleted statistics files. */
-    @Value.Default
     default long deletedStatisticsFilesCount() {
       return 0L;
     }

@@ -324,12 +324,14 @@ class StructType(IcebergType):
 
     type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
+    _hash: int = PrivateAttr()
 
     def __init__(self, *fields: NestedField, **data: Any):
         # In case we use positional arguments, instead of keyword args
         if fields:
             data["fields"] = fields
         super().__init__(**data)
+        self._hash = hash(self.fields)
 
     def field(self, field_id: int) -> Optional[NestedField]:
         for field in self.fields:
@@ -352,6 +354,10 @@ class StructType(IcebergType):
     def __getnewargs__(self) -> Tuple[NestedField, ...]:
         """A magic function for pickling the StructType class."""
         return self.fields
+
+    def __hash__(self) -> int:
+        """Used the cache hash value of the StructType class."""
+        return self._hash
 
 
 class ListType(IcebergType):

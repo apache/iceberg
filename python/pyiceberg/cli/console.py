@@ -27,6 +27,7 @@ from typing import (
 import click
 from click import Context
 
+from pyiceberg import __version__
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
@@ -190,6 +191,14 @@ def location(ctx: Context, identifier: str) -> None:
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.text(table.location())
+
+
+@run.command()
+@click.pass_context
+@catch_exception()
+def version(ctx: Context) -> None:
+    """Prints pyiceberg version."""
+    ctx.obj["output"].version(__version__)
 
 
 @run.group()

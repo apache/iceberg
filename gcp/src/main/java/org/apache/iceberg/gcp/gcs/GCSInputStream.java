@@ -117,7 +117,7 @@ class GCSInputStream extends SeekableInputStream {
     readBytes.increment();
     readOperations.increment();
 
-    return singleByteBuffer.array()[0];
+    return singleByteBuffer.array()[0] & 0xFF;
   }
 
   @Override

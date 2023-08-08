@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from itertools import chain
-from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -766,18 +766,20 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
+        metrics_evaluator = _InclusiveMetricsEvaluator(
+            self.table.schema(), self.row_filter, self.case_sensitive, self.options.get("include_empty_files") == "true"
+        ).eval
 
         min_data_sequence_number = _min_data_file_sequence_number(manifests)
 
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPool() as pool:
+        with ThreadPoolExecutor() as executor:
             for manifest_entry in chain(
-                *pool.starmap(
-                    func=_open_manifest,
-                    iterable=[
+                *executor.map(
+                    lambda args: _open_manifest(*args),
+                    [
                         (
                             io,
                             manifest,

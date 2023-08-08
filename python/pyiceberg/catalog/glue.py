@@ -56,7 +56,7 @@ from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
-BOTO_SESSION_CONFIG_KEYS = ["aws_secret_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
+BOTO_SESSION_CONFIG_KEYS = ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
 
 GLUE_CLIENT = "glue"
 
@@ -166,7 +166,7 @@ class GlueCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
+            identifier=(self.name, glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
@@ -444,10 +444,8 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
 
         database = database_response[PROP_GLUE_DATABASE]
-        if PROP_GLUE_DATABASE_PARAMETERS not in database:
-            return {}
 
-        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[LOCATION] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
