@@ -31,6 +31,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,9 +70,9 @@ public class TestResolvingIO {
     resolvingFileIO.initialize(
         ImmutableMap.of("io-impl", "org.apache.iceberg.hadoop.HadoopFileIO"));
     // configure delegation IO
-    HadoopFileIO delegate = new HadoopFileIO(hadoopConf);
     FileSystem fs = FileSystem.getLocal(hadoopConf);
     Path parent = new Path(tempDir.toURI());
+    HadoopFileIO delegate = (HadoopFileIO) resolvingFileIO.io(parent.toString());
     // write
     List<Path> randomFilePaths =
         IntStream.range(1, 10)
@@ -88,6 +89,35 @@ public class TestResolvingIO {
 
     for (String path : randomFilePathString) {
       assertThat(delegate.newInputFile(path).exists()).isFalse();
+    }
+  }
+
+  @Test
+  public void resolveFileIONonBulkDeletion() {
+    // configure resolving fileIO
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    Configuration hadoopConf = new Configuration();
+    resolvingFileIO.setConf(hadoopConf);
+    resolvingFileIO.initialize(
+        ImmutableMap.of("io-impl", "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    String parentPath = "inmemory://foo.db/bar";
+    InMemoryFileIO delegation = (InMemoryFileIO) resolvingFileIO.io(parentPath);
+    // write
+    byte[] someData = "some data".getBytes();
+
+    List<String> randomFilePaths =
+        IntStream.range(1, 10)
+            .mapToObj(i -> parentPath + "-" + i + "-" + UUID.randomUUID())
+            .collect(Collectors.toList());
+    for (String randomFilePath : randomFilePaths) {
+      delegation.addFile(randomFilePath, someData);
+      assertThat(delegation.fileExists(randomFilePath)).isTrue();
+    }
+    // non-bulk deletion
+    resolvingFileIO.deleteFiles(randomFilePaths);
+
+    for (String path : randomFilePaths) {
+      assertThat(delegation.fileExists(path)).isFalse();
     }
   }
 }

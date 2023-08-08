@@ -30,6 +30,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -45,11 +46,17 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
+  private static final String IN_MEMORY_IO_IMPL = "org.apache.iceberg.inmemory.InMemoryFileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO =
       ImmutableMap.of(
-          "s3", S3_FILE_IO_IMPL,
-          "s3a", S3_FILE_IO_IMPL,
-          "s3n", S3_FILE_IO_IMPL);
+          "s3",
+          S3_FILE_IO_IMPL,
+          "s3a",
+          S3_FILE_IO_IMPL,
+          "s3n",
+          S3_FILE_IO_IMPL,
+          "inmemory",
+          IN_MEMORY_IO_IMPL);
 
   private final Map<String, FileIO> ioInstances = Maps.newHashMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -93,14 +100,15 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
             .collect(Collectors.groupingBy(this::io));
     for (Map.Entry<FileIO, List<String>> entries : pathByFileIO.entrySet()) {
       FileIO io = entries.getKey();
+      List<String> filePaths = entries.getValue();
       if (io instanceof SupportsBulkOperations) {
-        ((SupportsBulkOperations) io).deleteFiles(entries.getValue());
+        ((SupportsBulkOperations) io).deleteFiles(filePaths);
       } else {
         LOG.warn(
             "IO {} does not support bulk operations. Using non-bulk deletes.",
             io.getClass().getName());
         Tasks.Builder<String> deleteTasks =
-            Tasks.foreach(entries.getValue())
+            Tasks.foreach(filePaths)
                 .noRetry()
                 .suppressFailureWhenFinished()
                 .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
@@ -153,7 +161,8 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
     return hadoopConf.get();
   }
 
-  private FileIO io(String location) {
+  @VisibleForTesting
+  FileIO io(String location) {
     String impl = implFromLocation(location);
     FileIO io = ioInstances.get(impl);
     if (io != null) {
