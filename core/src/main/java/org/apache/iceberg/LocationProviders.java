@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -78,9 +79,18 @@ public class LocationProviders {
 
   static class DefaultLocationProvider implements LocationProvider {
     private final String dataLocation;
+    private final Boolean useRelativePath;
+    private final String prefix;
+
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
       this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+
+      String strUseRelativePath = properties.getOrDefault(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH, TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
+      useRelativePath = (strUseRelativePath.equalsIgnoreCase("true") ) ? true : false;
+
+      prefix = properties.getOrDefault(TableProperties.PREFIX, tableLocation).toLowerCase();
+
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -103,6 +113,37 @@ public class LocationProviders {
     public String newDataLocation(String filename) {
       return String.format("%s/%s", dataLocation, filename);
     }
+
+
+    @Override
+    public boolean isRelative() {
+      return useRelativePath;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      // TODO : Refine the logic to see if handling malformed path is required?
+      if(useRelativePath) {
+        if(path.toLowerCase().startsWith(prefix)){
+          return path.toLowerCase().replace(prefix, "");
+        }
+        throw new IllegalArgumentException(
+                String.format("Provided value for property prefix as %s is not valid.", prefix)
+        );
+      }
+      else {
+        return path;
+      }
+    }
+
+    @Override
+    public String getAbsolutePath(String relativePath) {
+      /*
+      TODO: to be used for read code-paths
+       */
+      throw new NotImplementedException("TODO: this method is a stub");
+    }
+
   }
 
   static class ObjectStoreLocationProvider implements LocationProvider {
@@ -177,5 +218,31 @@ public class LocationProviders {
       hash.writeBytesTo(bytes, 0, 4);
       return BASE64_ENCODER.encode(bytes);
     }
+
+    @Override
+    public String getRelativePath(String path) {
+      /*
+      TODO: to be used for write code-paths
+       */
+      throw new NotImplementedException("TODO: this method is a stub");
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      /*
+      TODO: to be used for read code-paths
+       */
+      throw new NotImplementedException("TODO: this method is a stub");
+
+    }
+
+    @Override
+    public boolean isRelative() {
+      /*
+      TODO: to be used for read code-paths
+       */
+      throw new NotImplementedException("TODO: this method is a stub");
+    }
+
   }
 }

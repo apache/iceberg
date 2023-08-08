@@ -61,7 +61,22 @@ public class TestLocationProvider extends TableTestBase {
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Test custom provider does not expect any invocation");
     }
-  }
+
+    @Override
+    public boolean isRelative() {
+      return false;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      return null;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      return null;
+    }
+}
 
   // publicly visible for testing to be dynamically loaded
   public static class NoArgDynamicallyLoadedLocationProvider implements LocationProvider {
@@ -75,6 +90,21 @@ public class TestLocationProvider extends TableTestBase {
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Test custom provider does not expect any invocation");
+    }
+
+    @Override
+    public boolean isRelative() {
+      return false;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      return null;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      return null;
     }
   }
 
@@ -91,6 +121,21 @@ public class TestLocationProvider extends TableTestBase {
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Invalid provider should have not been instantiated!");
+    }
+
+    @Override
+    public boolean isRelative() {
+      return false;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      return null;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      return null;
     }
   }
 

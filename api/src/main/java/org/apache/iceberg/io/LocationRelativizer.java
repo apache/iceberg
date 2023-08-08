@@ -19,30 +19,33 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
 
 /**
- * Interface for providing data file locations to write tasks.
+ * Interface for converting absolute paths to relative and vice-versa.
  *
  * <p>Implementations must be {@link Serializable} because instances will be serialized to tasks.
  */
-public interface LocationProvider extends LocationRelativizer, Serializable {
-  /**
-   * Return a fully-qualified data file location for the given filename.
-   *
-   * @param filename a file name
-   * @return a fully-qualified location URI for a data file
+public interface LocationRelativizer extends Serializable {
+
+  /*
+
    */
-  String newDataLocation(String filename);
+  boolean isRelative();
+  /**
+   * Return a relative path for the given path w.r.t. provided prefix.
+   * The writer code-paths should use this method to relativize path (if required).
+   *
+   * @param path of the file
+   * @return relative path of the input path
+   */
+  String getRelativePath(String path);
 
   /**
-   * Return a fully-qualified data file location for the given partition and filename.
+   * Return absolute path for the given path w.r.t. provided prefix.
+   * The reader code-paths should use this method.
    *
-   * @param spec a partition spec
-   * @param partitionData a tuple of partition data for data in the file, matching the given spec
-   * @param filename a file name
-   * @return a fully-qualified location URI for a data file
+   * @param path of the file
+   * @return absolute path of the input path
    */
-  String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename);
+  String getAbsolutePath(String path);
 }
