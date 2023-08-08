@@ -33,6 +33,9 @@ import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.spark.sql.functions.lit;
@@ -59,6 +62,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -67,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -1488,6 +1494,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createUnpartitionedTable(spark, tableName, tableProperties);
 
+    RowLevelOperationMode operationMode =
+        RowLevelOperationMode.fromName(
+            extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
+
     List<Object[]> expected =
         sql(
             "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
@@ -1501,12 +1511,21 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
           Dataset<Row> df = spark.sql(updateSql);
-          // The applyfunction will be returned as post scan filters because it cannot evaluate on
-          // an unpartitioned table
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("Filter (applyfunctionexpression(Wrapper(iceberg.bucket(bigint))");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=id = 1");
+          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+          List<Expression> pushedFilers;
+          if (COPY_ON_WRITE == operationMode) {
+            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+          } else {
+            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+          }
+
+          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+          Expression actualPushed = pushedFilers.get(0);
+          Expression expectedPushed = equal(bucket("id", 5), 1);
+          Assertions.assertThat(
+                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+              .isTrue();
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
@@ -1524,6 +1543,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createPartitionedTable(spark, tableName, "bucket(5, id)", tableProperties);
 
+    RowLevelOperationMode operationMode =
+        RowLevelOperationMode.fromName(
+            extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
+
     List<Object[]> expected =
         sql(
             "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
@@ -1537,12 +1560,21 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
                   tableName, catalogName);
           Dataset<Row> df = spark.sql(updateSql);
-          // Should not contain applyfunction since filter function could be evaluated completely on
-          // Iceberg side and will not return post scan filters
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .doesNotContain("Filter (applyfunctionexpression(Wrapper(iceberg.bucket(bigint))");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("filters=id = 1");
+          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+          List<Expression> pushedFilers;
+          if (COPY_ON_WRITE == operationMode) {
+            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+          } else {
+            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+          }
+
+          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+          Expression actualPushed = pushedFilers.get(0);
+          Expression expectedPushed = equal(bucket("id", 5), 1);
+          Assertions.assertThat(
+                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+              .isTrue();
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);

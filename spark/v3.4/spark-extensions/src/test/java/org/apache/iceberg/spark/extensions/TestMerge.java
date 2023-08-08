@@ -29,6 +29,10 @@ import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.month;
+import static org.apache.iceberg.expressions.Expressions.year;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
@@ -58,12 +62,15 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -2753,13 +2760,17 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
 
+    RowLevelOperationMode operationMode =
+        RowLevelOperationMode.fromName(
+            extraTableProperties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT));
+
     createOrReplaceView(
         "source",
         "id BIGINT, ts TIMESTAMP, data STRING",
         "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
-    String date = "2017-11-22";
+    int targetYears = years("2017-11-22");
     List<Object[]> expected =
         sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
@@ -2769,19 +2780,28 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           String mergeSql =
               String.format(
                   "MERGE INTO %s AS t USING source AS s "
-                      + "ON t.id = s.id AND %s.system.years(t.ts) = %s.system.years(date('%s')) "
+                      + "ON t.id = s.id AND %s.system.years(t.ts) = %s "
                       + "WHEN MATCHED "
                       + "  THEN UPDATE SET t.data = s.data "
                       + "WHEN NOT MATCHED AND s.id != 5 "
                       + "  THEN INSERT *",
-                  tableName, catalogName, catalogName, date);
+                  tableName, catalogName, targetYears);
           Dataset<Row> df = spark.sql(mergeSql);
-          // Should not contain applyfunction since filter function could be evaluated completely on
-          // Iceberg side and will not return post scan filters
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .doesNotContain("Filter (applyfunctionexpression(Wrapper(iceberg.years(timestamp))");
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("[filters=ts = " + years(date));
+          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+          List<Expression> pushedFilers;
+          if (COPY_ON_WRITE == operationMode) {
+            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+          } else {
+            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+          }
+
+          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+          Expression actualPushed = pushedFilers.get(0);
+          Expression expectedPushed = equal(year("ts"), targetYears);
+          Assertions.assertThat(
+                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+              .isTrue();
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
@@ -2799,13 +2819,17 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createUnpartitionedTable(spark, tableName, tableProperties);
 
+    RowLevelOperationMode operationMode =
+        RowLevelOperationMode.fromName(
+            extraTableProperties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT));
+
     createOrReplaceView(
         "source",
         "id BIGINT, ts TIMESTAMP, data STRING",
         "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
-    String date = "2017-11-22";
+    int targetMonths = months("2017-11-22");
     List<Object[]> expected =
         sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
@@ -2815,24 +2839,28 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           String mergeSql =
               String.format(
                   "MERGE INTO %s AS t USING source AS s "
-                      + "ON t.id = s.id AND %s.system.months(t.ts) = %s.system.months(date('%s')) "
+                      + "ON t.id = s.id AND %s.system.months(t.ts) = %s "
                       + "WHEN MATCHED "
                       + "  THEN UPDATE SET t.data = s.data "
                       + "WHEN NOT MATCHED AND s.id != 5 "
                       + "  THEN INSERT *",
-                  tableName, catalogName, catalogName, date);
+                  tableName, catalogName, targetMonths);
           Dataset<Row> df = spark.sql(mergeSql);
-          if (RowLevelOperationMode.MERGE_ON_READ
-              .modeName()
-              .equals(tableProperties.get(TableProperties.MERGE_MODE))) {
-            Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-                .contains("Filter (applyfunctionexpression(Wrapper(iceberg.months(timestamp))");
+          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+          List<Expression> pushedFilers;
+          if (COPY_ON_WRITE == operationMode) {
+            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
           } else {
-            Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-                .contains("Filter ((applyfunctionexpression(Wrapper(iceberg.months(timestamp))");
+            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
           }
-          Assertions.assertThat(df.queryExecution().sparkPlan().toString())
-              .contains("[filters=ts = " + months(date));
+
+          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+          Expression actualPushed = pushedFilers.get(0);
+          Expression expectedPushed = equal(month("ts"), targetMonths);
+          Assertions.assertThat(
+                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+              .isTrue();
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);

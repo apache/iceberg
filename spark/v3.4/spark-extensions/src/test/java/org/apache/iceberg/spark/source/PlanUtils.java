@@ -22,10 +22,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.execution.CommandResultExec;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
+import org.assertj.core.api.Assertions;
 import scala.PartialFunction;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
@@ -33,16 +40,92 @@ import scala.collection.Seq;
 public class PlanUtils {
   private PlanUtils() {}
 
-  public static List<Expression> getPushDownFilters(LogicalPlan logicalPlan) {
+  public static List<Expression> getScanPushDownFilters(LogicalPlan logicalPlan) {
     return JavaConverters.asJavaCollection(logicalPlan.collectLeaves()).stream()
-        .filter(plan -> plan instanceof DataSourceV2ScanRelation)
-        .map(plan -> ((DataSourceV2ScanRelation) plan).scan())
-        .filter(scan -> scan instanceof SparkBatchQueryScan)
+        .flatMap(
+            plan -> {
+              if (!(plan instanceof DataSourceV2ScanRelation)) {
+                return Stream.empty();
+              }
+
+              DataSourceV2ScanRelation scanRelation = (DataSourceV2ScanRelation) plan;
+              if (!(scanRelation.scan() instanceof SparkBatchQueryScan)) {
+                return Stream.empty();
+              }
+
+              SparkBatchQueryScan batchQueryScan = (SparkBatchQueryScan) scanRelation.scan();
+              return batchQueryScan.filterExpressions().stream();
+            })
+        .collect(Collectors.toList());
+  }
+
+  public static List<Expression> getCopyOnWritePushDownFilters(SparkPlan sparkPlan) {
+    return collectCommandScans(sparkPlan).stream()
         .flatMap(
             scan -> {
+              if (!(scan instanceof SparkCopyOnWriteScan)) {
+                return Stream.empty();
+              }
+
+              SparkCopyOnWriteScan copyOnWriteScan = (SparkCopyOnWriteScan) scan;
+              return copyOnWriteScan.filterExpressions().stream();
+            })
+        .collect(Collectors.toList());
+  }
+
+  public static List<Expression> getMergeOnReadPushDownFilters(SparkPlan sparkPlan) {
+    return collectCommandScans(sparkPlan).stream()
+        .flatMap(
+            scan -> {
+              if (!(scan instanceof SparkBatchQueryScan)) {
+                return Stream.empty();
+              }
+
               SparkBatchQueryScan batchQueryScan = (SparkBatchQueryScan) scan;
               return batchQueryScan.filterExpressions().stream();
             })
+        .collect(Collectors.toList());
+  }
+
+  private static List<Scan> collectCommandScans(SparkPlan sparkPlan) {
+    Assertions.assertThat(sparkPlan).isInstanceOf(CommandResultExec.class);
+    CommandResultExec commandResultExec = (CommandResultExec) sparkPlan;
+    return collectLevies(commandResultExec.commandPhysicalPlan()).stream()
+        .flatMap(
+            plan -> {
+              if (!(plan instanceof BatchScanExec)) {
+                return Stream.empty();
+              }
+
+              BatchScanExec batchScanExec = (BatchScanExec) plan;
+              Scan scan = batchScanExec.scan();
+              return Stream.of(scan);
+            })
+        .collect(Collectors.toList());
+  }
+
+  private static List<SparkPlan> collectLevies(SparkPlan sparkPlan) {
+    Seq<List<SparkPlan>> leaves =
+        sparkPlan.collect(
+            new PartialFunction<SparkPlan, List<SparkPlan>>() {
+              @Override
+              public boolean isDefinedAt(SparkPlan plan) {
+                return plan.children().isEmpty();
+              }
+
+              @Override
+              public List<SparkPlan> apply(SparkPlan plan) {
+                if (plan instanceof AdaptiveSparkPlanExec) {
+                  AdaptiveSparkPlanExec adaptiveSparkPlanExec = (AdaptiveSparkPlanExec) plan;
+                  return collectLevies(adaptiveSparkPlanExec.inputPlan());
+                } else {
+                  return Lists.newArrayList(plan);
+                }
+              }
+            });
+
+    return JavaConverters.asJavaCollection(leaves).stream()
+        .flatMap(Collection::stream)
         .collect(Collectors.toList());
   }
 

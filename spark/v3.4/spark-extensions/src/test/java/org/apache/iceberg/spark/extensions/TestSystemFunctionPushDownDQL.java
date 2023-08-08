@@ -39,6 +39,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.hours;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
 
+import java.sql.Date;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -104,16 +105,41 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testConstantExpression() {
+  public void testFoldingConstantExpression() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
-          Dataset<Row> df = spark.sql("SELECT system.bucket(2, 5) AS bucket");
-          List<Expression> expressions =
-              PlanUtils.collectSparkExpressions(
-                  df.queryExecution().optimizedPlan(),
-                  plan -> plan instanceof ApplyFunctionExpression);
-          Assertions.assertThat(expressions).isEmpty();
+          String ts = "2017-11-22T09:20:44.294658+00:00";
+          Dataset<Row> yearsDF =
+              spark.sql(String.format("SELECT system.years(timestamp('%s')) AS value", ts));
+          assertExpressionConstantFold(yearsDF);
+          Assertions.assertThat(rowsToJava(yearsDF.collectAsList()).get(0)[0]).isEqualTo(47);
+
+          Dataset<Row> monthsDF =
+              spark.sql(String.format("SELECT system.months(timestamp('%s')) AS value", ts));
+          assertExpressionConstantFold(monthsDF);
+          Assertions.assertThat(rowsToJava(monthsDF.collectAsList()).get(0)[0]).isEqualTo(574);
+
+          Dataset<Row> daysDF =
+              spark.sql(String.format("SELECT system.days(timestamp('%s')) AS value", ts));
+          assertExpressionConstantFold(daysDF);
+          Assertions.assertThat(rowsToJava(daysDF.collectAsList()).get(0)[0])
+              .isEqualTo(Date.valueOf("2017-11-22"));
+
+          Dataset<Row> hoursDF =
+              spark.sql(String.format("SELECT system.hours(timestamp('%s')) AS value", ts));
+          assertExpressionConstantFold(hoursDF);
+          Assertions.assertThat(rowsToJava(hoursDF.collectAsList()).get(0)[0]).isEqualTo(419817);
+
+          Dataset<Row> bucketDF =
+              spark.sql(String.format("SELECT system.bucket(2, '%s') AS value", ts));
+          assertExpressionConstantFold(bucketDF);
+          Assertions.assertThat(rowsToJava(bucketDF.collectAsList()).get(0)[0]).isEqualTo(0);
+
+          Dataset<Row> truncateDF =
+              spark.sql(String.format("SELECT system.truncate(2, '%s') AS value", ts));
+          assertExpressionConstantFold(truncateDF);
+          Assertions.assertThat(rowsToJava(truncateDF.collectAsList()).get(0)[0]).isEqualTo("20");
         });
   }
 
@@ -131,11 +157,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testYearsFunction(boolean partitioned) {
-    String date = "2017-11-22";
+    int targetYears = years("2017-11-22");
     String query =
-        sqlFormat(
-            "SELECT * FROM %s WHERE system.years(ts) = system.years(date('%s')) ORDER BY id",
-            tableName, date);
+        String.format(
+            "SELECT * FROM %s WHERE system.years(ts) = %s ORDER BY id", tableName, targetYears);
 
     // system function push down disabled
     List<Object[]> expected = sql(query);
@@ -147,9 +172,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
           checkExpressions(optimizedPlan, partitioned, "years");
-          checkPushedFilters(optimizedPlan, equal(year("ts"), years(date)));
+          checkPushedFilters(optimizedPlan, equal(year("ts"), targetYears));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -168,11 +193,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testMonthsFunction(boolean partitioned) {
-    String date = "2017-11-22";
+    int targetMonths = months("2017-11-22");
     String query =
-        sqlFormat(
-            "SELECT * FROM %s WHERE system.months(ts) > system.months(date('%s')) ORDER BY id",
-            tableName, date);
+        String.format(
+            "SELECT * FROM %s WHERE system.months(ts) > %s ORDER BY id", tableName, targetMonths);
     // system function push down disabled
     List<Object[]> expected = sql(query);
 
@@ -183,9 +207,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
           checkExpressions(optimizedPlan, partitioned, "months");
-          checkPushedFilters(optimizedPlan, greaterThan(month("ts"), months(date)));
+          checkPushedFilters(optimizedPlan, greaterThan(month("ts"), targetMonths));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -205,10 +229,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   private void testDaysFunction(boolean partitioned) {
     String date = "2018-11-20";
+    int targetDays = days(date);
     String query =
-        sqlFormat(
-            "SELECT * FROM %s WHERE system.days(ts) < system.days(date('%s')) ORDER BY id",
-            tableName, date);
+        String.format(
+            "SELECT * FROM %s WHERE system.days(ts) < date('%s') ORDER BY id", tableName, date);
 
     // system function push down disabled
     List<Object[]> expected = sql(query);
@@ -220,9 +244,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
           checkExpressions(optimizedPlan, partitioned, "days");
-          checkPushedFilters(optimizedPlan, lessThan(day("ts"), days(date)));
+          checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -241,11 +265,10 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testHoursFunction(boolean partitioned) {
-    String ts = "2017-11-22T06:02:09.243857+00:00";
+    int targetHours = hours("2017-11-22T06:02:09.243857+00:00");
     String query =
-        sqlFormat(
-            "SELECT * FROM %s WHERE system.hours(ts) >= system.hours(timestamp('%s')) ORDER BY id",
-            tableName, ts);
+        String.format(
+            "SELECT * FROM %s WHERE system.hours(ts) >= %s ORDER BY id", tableName, targetHours);
 
     // system function push down disabled
     List<Object[]> expected = sql(query);
@@ -257,9 +280,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
           checkExpressions(optimizedPlan, partitioned, "hours");
-          checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), hours(ts)));
+          checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), targetHours));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -280,7 +303,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   private void testBucketLongFunction(boolean partitioned) {
     int target = 2;
     String query =
-        sqlFormat(
+        String.format(
             "SELECT * FROM %s WHERE system.bucket(5, id) <= %s ORDER BY id", tableName, target);
 
     // system function push down disabled
@@ -295,7 +318,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           checkExpressions(optimizedPlan, partitioned, "bucket");
           checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -316,7 +339,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   private void testBucketStringFunction(boolean partitioned) {
     int target = 2;
     String query =
-        sqlFormat(
+        String.format(
             "SELECT * FROM %s WHERE system.bucket(5, data) != %s ORDER BY id", tableName, target);
 
     // system function push down disabled
@@ -331,7 +354,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           checkExpressions(optimizedPlan, partitioned, "bucket");
           checkPushedFilters(optimizedPlan, notEqual(bucket("data", 5), target));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
   }
@@ -352,7 +375,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   private void testTruncateFunction(boolean partitioned) {
     String target = "data";
     String query =
-        sqlFormat(
+        String.format(
             "SELECT * FROM %s WHERE system.truncate(4, data) = '%s' ORDER BY id",
             tableName, target);
 
@@ -368,13 +391,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
           checkExpressions(optimizedPlan, partitioned, "truncate");
           checkPushedFilters(optimizedPlan, equal(truncate("data", 4), target));
 
-          List<Object[]> actual = sql(query);
+          List<Object[]> actual = rowsToJava(df.collectAsList());
           assertEquals("Select result should be matched", expected, actual);
         });
-  }
-
-  private String sqlFormat(String query, Object... args) {
-    return String.format(query, args);
   }
 
   private void checkExpressions(
@@ -402,9 +421,21 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   private void checkPushedFilters(
       LogicalPlan optimizedPlan, org.apache.iceberg.expressions.Expression expected) {
     List<org.apache.iceberg.expressions.Expression> pushedFilters =
-        PlanUtils.getPushDownFilters(optimizedPlan);
+        PlanUtils.getScanPushDownFilters(optimizedPlan);
     Assertions.assertThat(pushedFilters.size()).isEqualTo(1);
     org.apache.iceberg.expressions.Expression actual = pushedFilters.get(0);
     Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true)).isTrue();
+  }
+
+  private void assertExpressionConstantFold(Dataset<Row> df) {
+    List<Expression> stackInvokes =
+        PlanUtils.collectSparkExpressions(
+            df.queryExecution().optimizedPlan(), plan -> plan instanceof StaticInvoke);
+    Assertions.assertThat(stackInvokes).isEmpty();
+
+    List<Expression> applyFunctions =
+        PlanUtils.collectSparkExpressions(
+            df.queryExecution().optimizedPlan(), plan -> plan instanceof ApplyFunctionExpression);
+    Assertions.assertThat(applyFunctions).isEmpty();
   }
 }

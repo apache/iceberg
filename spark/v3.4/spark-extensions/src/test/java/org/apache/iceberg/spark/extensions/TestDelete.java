@@ -29,6 +29,9 @@ import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.expressions.Expressions.month;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
@@ -61,6 +64,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -70,6 +75,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -80,7 +86,10 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTableWithFilters;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelWrite;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.execution.CommandResultExec;
 import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.DeleteFromTableExec;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -1327,25 +1336,30 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
 
-    String date = "2018-12-21";
+    int targetYears = years("2018-12-21");
     List<Object[]> expected =
         sql(
-            "SELECT * FROM %s WHERE %s.system.years(ts) != %s.system.years(date('%s')) ORDER BY id",
-            tableName, catalogName, catalogName, date);
+            "SELECT * FROM %s WHERE %s.system.years(ts) != %s ORDER BY id",
+            tableName, catalogName, targetYears);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String deleteSql =
               String.format(
-                  "DELETE FROM %s WHERE %s.system.years(ts) == %s.system.years(date('%s'))",
-                  tableName, catalogName, catalogName, date);
-          Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
+                  "DELETE FROM %s WHERE %s.system.years(ts) == %s",
+                  tableName, catalogName, targetYears);
           // Metadata delete
-          Assertions.assertThat((String) explain).contains("DeleteFromTableWithFilters");
-          Assertions.assertThat((String) explain).contains("[years(ts) = " + years(date));
-
-          sql(deleteSql);
+          Dataset<Row> df = spark.sql(deleteSql);
+          CommandResultExec commandResultExec =
+              (CommandResultExec) df.queryExecution().sparkPlan().collectLeaves().apply(0);
+          Assertions.assertThat(commandResultExec.commandPhysicalPlan())
+              .isInstanceOf(DeleteFromTableExec.class);
+          DeleteFromTableExec deleteFromTable =
+              (DeleteFromTableExec) commandResultExec.commandPhysicalPlan();
+          Assertions.assertThat(deleteFromTable.condition().length).isEqualTo(1);
+          Predicate predicate = deleteFromTable.condition()[0];
+          Assertions.assertThat(predicate.toString()).isEqualTo("years(ts) = " + targetYears);
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
@@ -1363,25 +1377,39 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createUnpartitionedTable(spark, tableName, tableProperties);
 
-    String date = "2018-12-21";
+    RowLevelOperationMode operationMode =
+        RowLevelOperationMode.fromName(
+            extraTableProperties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT));
+
+    int targetMonths = months("2018-12-21");
     List<Object[]> expected =
         sql(
-            "SELECT * FROM %s WHERE %s.system.months(ts) = %s.system.months(date('%s')) ORDER BY id",
-            tableName, catalogName, catalogName, date);
+            "SELECT * FROM %s WHERE %s.system.months(ts) = %s ORDER BY id",
+            tableName, catalogName, targetMonths);
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
         () -> {
           String deleteSql =
               String.format(
-                  "DELETE FROM %s WHERE %s.system.months(ts) != %s.system.months(date('%s'))",
-                  tableName, catalogName, catalogName, date);
-          Object explain = scalarSql("EXPLAIN EXTENDED %s", deleteSql);
-          Assertions.assertThat((String) explain)
-              .contains("Filter NOT (applyfunctionexpression(Wrapper(iceberg.months(timestamp))");
-          Assertions.assertThat((String) explain).contains("[filters=NOT (ts = " + months(date));
+                  "DELETE FROM %s WHERE %s.system.months(ts) != %s",
+                  tableName, catalogName, targetMonths);
+          Dataset<Row> df = spark.sql(deleteSql);
+          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
 
-          sql(deleteSql);
+          List<Expression> pushedFilers;
+          if (COPY_ON_WRITE == operationMode) {
+            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+          } else {
+            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+          }
+
+          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+          Expression actualPushed = pushedFilers.get(0);
+          Expression expectedPushed = notEqual(month("ts"), targetMonths);
+          Assertions.assertThat(
+                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+              .isTrue();
 
           List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
           assertEquals("Results should match", expected, actual);
