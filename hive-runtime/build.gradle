@@ -50,6 +50,7 @@ project(':iceberg-hive-runtime') {
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'
       exclude group: 'commons-logging', module: 'commons-logging'
     }
+    implementation project(':iceberg-gcp')
   }
 
   shadowJar {

@@ -51,12 +51,12 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
-BOTO_SESSION_CONFIG_KEYS = ["aws_secret_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
+BOTO_SESSION_CONFIG_KEYS = ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
 
 GLUE_CLIENT = "glue"
 
@@ -166,10 +166,11 @@ class GlueCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
+            identifier=(self.name, glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
     def _create_glue_table(self, database_name: str, table_name: str, table_input: Dict[str, Any]) -> None:
@@ -223,6 +224,20 @@ class GlueCatalog(Catalog):
         self._create_glue_table(database_name=database_name, table_name=table_name, table_input=table_input)
 
         return self.load_table(identifier=identifier)
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
@@ -429,10 +444,8 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
 
         database = database_response[PROP_GLUE_DATABASE]
-        if PROP_GLUE_DATABASE_PARAMETERS not in database:
-            return {}
 
-        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[LOCATION] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):

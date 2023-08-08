@@ -30,6 +30,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -303,11 +304,10 @@ public class TestSchemaUpdate {
         }
 
         String typeChange = fromType.toString() + " -> " + toType.toString();
-        AssertHelpers.assertThrows(
-            "Should reject update: " + typeChange,
-            IllegalArgumentException.class,
-            "change column type: col: " + typeChange,
-            () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType));
+        Assertions.assertThatThrownBy(
+                () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot change column type: col: " + typeChange);
       }
     }
   }
@@ -586,11 +586,10 @@ public class TestSchemaUpdate {
             required(1, "id", Types.IntegerType.get()),
             required(2, "data", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should reject add required column if incompatible changes are not allowed",
-        IllegalArgumentException.class,
-        "Incompatible change: cannot add required column: data",
-        () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()));
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Incompatible change: cannot add required column: data");
 
     Schema result =
         new SchemaUpdate(schema, 1)
@@ -605,16 +604,15 @@ public class TestSchemaUpdate {
   public void testAddRequiredColumnCaseInsensitive() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should reject add required column if same column name different case found",
-        IllegalArgumentException.class,
-        "Cannot add column, name already exists: ID",
-        () ->
-            new SchemaUpdate(schema, 1)
-                .caseSensitive(false)
-                .allowIncompatibleChanges()
-                .addRequiredColumn("ID", Types.StringType.get())
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .caseSensitive(false)
+                    .allowIncompatibleChanges()
+                    .addRequiredColumn("ID", Types.StringType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add column, name already exists: ID");
   }
 
   @Test
@@ -633,11 +631,9 @@ public class TestSchemaUpdate {
     Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
     Schema expected = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should reject change to required if incompatible changes are not allowed",
-        IllegalArgumentException.class,
-        "Cannot change column nullability: id: optional -> required",
-        () -> new SchemaUpdate(schema, 1).requireColumn("id"));
+    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 1).requireColumn("id"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column nullability: id: optional -> required");
 
     // required to required is not an incompatible change
     new SchemaUpdate(expected, 1).requireColumn("id").apply();
@@ -739,34 +735,32 @@ public class TestSchemaUpdate {
   @Test
   public void testAmbiguousAdd() {
     // preferences.booleans could be top-level or a field of preferences
-    AssertHelpers.assertThrows(
-        "Should reject ambiguous column name",
-        IllegalArgumentException.class,
-        "ambiguous name: preferences.booleans",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.addColumn("preferences.booleans", Types.BooleanType.get());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.addColumn("preferences.booleans", Types.BooleanType.get());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add column with ambiguous name: preferences.booleans");
   }
 
   @Test
   public void testAddAlreadyExists() {
-    AssertHelpers.assertThrows(
-        "Should reject column name that already exists",
-        IllegalArgumentException.class,
-        "already exists: preferences.feature1",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.addColumn("preferences", "feature1", Types.BooleanType.get());
-        });
-    AssertHelpers.assertThrows(
-        "Should reject column name that already exists",
-        IllegalArgumentException.class,
-        "already exists: preferences",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.addColumn("preferences", Types.BooleanType.get());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.addColumn("preferences", "feature1", Types.BooleanType.get());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add column, name already exists: preferences.feature1");
+
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.addColumn("preferences", Types.BooleanType.get());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add column, name already exists: preferences");
   }
 
   @Test
@@ -839,153 +833,141 @@ public class TestSchemaUpdate {
 
   @Test
   public void testDeleteMissingColumn() {
-    AssertHelpers.assertThrows(
-        "Should reject delete missing column",
-        IllegalArgumentException.class,
-        "missing column: col",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.deleteColumn("col");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.deleteColumn("col");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete missing column: col");
   }
 
   @Test
   public void testAddDeleteConflict() {
-    AssertHelpers.assertThrows(
-        "Should reject add then delete",
-        IllegalArgumentException.class,
-        "missing column: col",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.addColumn("col", Types.IntegerType.get()).deleteColumn("col");
-        });
-    AssertHelpers.assertThrows(
-        "Should reject add then delete",
-        IllegalArgumentException.class,
-        "column that has additions: preferences",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update
-              .addColumn("preferences", "feature3", Types.IntegerType.get())
-              .deleteColumn("preferences");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.addColumn("col", Types.IntegerType.get()).deleteColumn("col");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete missing column: col");
+
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update
+                  .addColumn("preferences", "feature3", Types.IntegerType.get())
+                  .deleteColumn("preferences");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete a column that has additions: preferences");
   }
 
   @Test
   public void testRenameMissingColumn() {
-    AssertHelpers.assertThrows(
-        "Should reject rename missing column",
-        IllegalArgumentException.class,
-        "missing column: col",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.renameColumn("col", "fail");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.renameColumn("col", "fail");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rename missing column: col");
   }
 
   @Test
   public void testRenameDeleteConflict() {
-    AssertHelpers.assertThrows(
-        "Should reject rename then delete",
-        IllegalArgumentException.class,
-        "column that has updates: id",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.renameColumn("id", "col").deleteColumn("id");
-        });
-    AssertHelpers.assertThrows(
-        "Should reject rename then delete",
-        IllegalArgumentException.class,
-        "missing column: col",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.renameColumn("id", "col").deleteColumn("col");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.renameColumn("id", "col").deleteColumn("id");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete a column that has updates: id");
+
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.renameColumn("id", "col").deleteColumn("col");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete missing column: col");
   }
 
   @Test
   public void testDeleteRenameConflict() {
-    AssertHelpers.assertThrows(
-        "Should reject delete then rename",
-        IllegalArgumentException.class,
-        "column that will be deleted: id",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.deleteColumn("id").renameColumn("id", "identifier");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.deleteColumn("id").renameColumn("id", "identifier");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rename a column that will be deleted: id");
   }
 
   @Test
   public void testUpdateMissingColumn() {
-    AssertHelpers.assertThrows(
-        "Should reject rename missing column",
-        IllegalArgumentException.class,
-        "missing column: col",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.updateColumn("col", Types.DateType.get());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.updateColumn("col", Types.DateType.get());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update missing column: col");
   }
 
   @Test
   public void testUpdateDeleteConflict() {
-    AssertHelpers.assertThrows(
-        "Should reject update then delete",
-        IllegalArgumentException.class,
-        "column that has updates: id",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.updateColumn("id", Types.LongType.get()).deleteColumn("id");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.updateColumn("id", Types.LongType.get()).deleteColumn("id");
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete a column that has updates: id");
   }
 
   @Test
   public void testDeleteUpdateConflict() {
-    AssertHelpers.assertThrows(
-        "Should reject delete then update",
-        IllegalArgumentException.class,
-        "column that will be deleted: id",
-        () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
-          update.deleteColumn("id").updateColumn("id", Types.LongType.get());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.deleteColumn("id").updateColumn("id", Types.LongType.get());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update a column that will be deleted: id");
   }
 
   @Test
   public void testDeleteMapKey() {
-    AssertHelpers.assertThrows(
-        "Should reject delete map key",
-        IllegalArgumentException.class,
-        "Cannot delete map keys",
-        () -> {
-          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).deleteColumn("locations.key").apply();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("locations.key")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot delete map keys");
   }
 
   @Test
   public void testAddFieldToMapKey() {
-    AssertHelpers.assertThrows(
-        "Should reject add sub-field to map key",
-        IllegalArgumentException.class,
-        "Cannot add fields to map keys",
-        () -> {
-          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-              .addColumn("locations.key", "address_line_2", Types.StringType.get())
-              .apply();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .addColumn("locations.key", "address_line_2", Types.StringType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add fields to map keys");
   }
 
   @Test
   public void testAlterMapKey() {
-    AssertHelpers.assertThrows(
-        "Should reject alter sub-field of map key",
-        IllegalArgumentException.class,
-        "Cannot alter map keys",
-        () -> {
-          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-              .updateColumn("locations.key.zip", Types.LongType.get())
-              .apply();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .updateColumn("locations.key.zip", Types.LongType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot alter map keys");
   }
 
   @Test
@@ -996,40 +978,36 @@ public class TestSchemaUpdate {
                 1,
                 "m",
                 Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.DoubleType.get())));
-    AssertHelpers.assertThrows(
-        "Should reject update map key",
-        IllegalArgumentException.class,
-        "Cannot update map keys",
-        () -> {
-          new SchemaUpdate(schema, 3).updateColumn("m.key", Types.LongType.get()).apply();
-        });
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 3).updateColumn("m.key", Types.LongType.get()).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update map keys: map<int, double>");
   }
 
   @Test
   public void testUpdateAddedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
-    AssertHelpers.assertThrows(
-        "Should reject add and update doc",
-        IllegalArgumentException.class,
-        "Cannot update missing column",
-        () -> {
-          new SchemaUpdate(schema, 3)
-              .addColumn("value", Types.LongType.get())
-              .updateColumnDoc("value", "a value")
-              .apply();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 3)
+                    .addColumn("value", Types.LongType.get())
+                    .updateColumnDoc("value", "a value")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update missing column: value");
   }
 
   @Test
   public void testUpdateDeletedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
-    AssertHelpers.assertThrows(
-        "Should reject add and update doc",
-        IllegalArgumentException.class,
-        "Cannot update a column that will be deleted",
-        () -> {
-          new SchemaUpdate(schema, 3).deleteColumn("i").updateColumnDoc("i", "a value").apply();
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 3)
+                    .deleteColumn("i")
+                    .updateColumnDoc("i", "a value")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update a column that will be deleted: i");
   }
 
   @Test
@@ -1454,17 +1432,13 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move id before itself",
-        () -> new SchemaUpdate(schema, 2).moveBefore("id", "id").apply());
+    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveBefore("id", "id").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move id before itself");
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move id after itself",
-        () -> new SchemaUpdate(schema, 2).moveAfter("id", "id").apply());
+    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveAfter("id", "id").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move id after itself");
   }
 
   @Test
@@ -1473,23 +1447,19 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () -> new SchemaUpdate(schema, 2).moveFirst("items").apply());
+    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveFirst("items").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: items");
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () -> new SchemaUpdate(schema, 2).moveBefore("items", "id").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 2).moveBefore("items", "id").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: items");
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () -> new SchemaUpdate(schema, 2).moveAfter("items", "data").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 2).moveAfter("items", "data").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: items");
   }
 
   @Test
@@ -1498,35 +1468,32 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that has not been added yet",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () ->
-            new SchemaUpdate(schema, 2)
-                .moveFirst("ts")
-                .addColumn("ts", Types.TimestampType.withZone())
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 2)
+                    .moveFirst("ts")
+                    .addColumn("ts", Types.TimestampType.withZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: ts");
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that has not been added yet",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () ->
-            new SchemaUpdate(schema, 2)
-                .moveBefore("ts", "id")
-                .addColumn("ts", Types.TimestampType.withZone())
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 2)
+                    .moveBefore("ts", "id")
+                    .addColumn("ts", Types.TimestampType.withZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: ts");
 
-    AssertHelpers.assertThrows(
-        "Should fail move for a field that has not been added yet",
-        IllegalArgumentException.class,
-        "Cannot move missing column",
-        () ->
-            new SchemaUpdate(schema, 2)
-                .moveAfter("ts", "data")
-                .addColumn("ts", Types.TimestampType.withZone())
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 2)
+                    .moveAfter("ts", "data")
+                    .addColumn("ts", Types.TimestampType.withZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: ts");
   }
 
   @Test
@@ -1535,17 +1502,15 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "Should fail move before a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move id before missing column",
-        () -> new SchemaUpdate(schema, 2).moveBefore("id", "items").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 2).moveBefore("id", "items").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move id before missing column: items");
 
-    AssertHelpers.assertThrows(
-        "Should fail move after for a field that is not in the schema",
-        IllegalArgumentException.class,
-        "Cannot move data after missing column",
-        () -> new SchemaUpdate(schema, 2).moveAfter("data", "items").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 2).moveAfter("data", "items").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move data after missing column: items");
   }
 
   @Test
@@ -1559,11 +1524,10 @@ public class TestSchemaUpdate {
                 "map",
                 Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get())));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for map key",
-        IllegalArgumentException.class,
-        "Cannot move fields in non-struct type",
-        () -> new SchemaUpdate(schema, 5).moveBefore("map.key", "map.value").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 5).moveBefore("map.key", "map.value").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in non-struct type: map<string, string>");
   }
 
   @Test
@@ -1577,11 +1541,10 @@ public class TestSchemaUpdate {
                 "map",
                 Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StructType.of())));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for map value",
-        IllegalArgumentException.class,
-        "Cannot move fields in non-struct type",
-        () -> new SchemaUpdate(schema, 5).moveBefore("map.value", "map.key").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 5).moveBefore("map.value", "map.key").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in non-struct type: map<string, struct<>>");
   }
 
   @Test
@@ -1592,11 +1555,10 @@ public class TestSchemaUpdate {
             required(2, "data", Types.StringType.get()),
             optional(3, "list", Types.ListType.ofRequired(4, Types.StringType.get())));
 
-    AssertHelpers.assertThrows(
-        "Should fail move for list element",
-        IllegalArgumentException.class,
-        "Cannot move fields in non-struct type",
-        () -> new SchemaUpdate(schema, 4).moveBefore("list.element", "list").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 4).moveBefore("list.element", "list").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in non-struct type: list<string>");
   }
 
   @Test
@@ -1612,11 +1574,10 @@ public class TestSchemaUpdate {
                     required(4, "x", Types.IntegerType.get()),
                     required(5, "y", Types.IntegerType.get()))));
 
-    AssertHelpers.assertThrows(
-        "Should fail move between separate structs",
-        IllegalArgumentException.class,
-        "Cannot move field a to a different struct",
-        () -> new SchemaUpdate(schema, 5).moveBefore("a", "struct.x").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 5).moveBefore("a", "struct.x").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move field a to a different struct");
   }
 
   @Test
@@ -1636,11 +1597,10 @@ public class TestSchemaUpdate {
                     required(5, "x", Types.IntegerType.get()),
                     required(6, "y", Types.IntegerType.get()))));
 
-    AssertHelpers.assertThrows(
-        "Should fail move between separate structs",
-        IllegalArgumentException.class,
-        "Cannot move field s2.x to a different struct",
-        () -> new SchemaUpdate(schema, 6).moveBefore("s2.x", "s1.a").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 6).moveBefore("s2.x", "s1.a").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move field s2.x to a different struct");
   }
 
   @Test
@@ -1800,69 +1760,71 @@ public class TestSchemaUpdate {
             required(2, "float", Types.FloatType.get()),
             required(3, "double", Types.DoubleType.get()));
 
-    AssertHelpers.assertThrows(
-        "Creating schema with nonexistent identifier fieldId should fail",
-        IllegalArgumentException.class,
-        "Cannot add fieldId 999 as an identifier field: field does not exist",
-        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)));
+    Assertions.assertThatThrownBy(
+            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add fieldId 999 as an identifier field: field does not exist");
 
-    AssertHelpers.assertThrows(
-        "Creating schema with optional identifier field should fail",
-        IllegalArgumentException.class,
-        "Cannot add field id as an identifier field: not a required field",
-        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)));
+    Assertions.assertThatThrownBy(
+            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add field id as an identifier field: not a required field");
 
-    AssertHelpers.assertThrows(
-        "Creating schema with float identifier field should fail",
-        IllegalArgumentException.class,
-        "Cannot add field float as an identifier field: must not be float or double field",
-        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)));
+    Assertions.assertThatThrownBy(
+            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field float as an identifier field: must not be float or double field");
 
-    AssertHelpers.assertThrows(
-        "Creating schema with double identifier field should fail",
-        IllegalArgumentException.class,
-        "Cannot add field double as an identifier field: must not be float or double field",
-        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)));
+    Assertions.assertThatThrownBy(
+            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field double as an identifier field: must not be float or double field");
 
-    AssertHelpers.assertThrows(
-        "add a field with name not exist should fail",
-        IllegalArgumentException.class,
-        "not found in current schema or added columns",
-        () ->
-            new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("unknown").apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .setIdentifierFields("unknown")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field unknown as an identifier field: not found in current schema or added columns");
 
-    AssertHelpers.assertThrows(
-        "add a field of non-primitive type should fail",
-        IllegalArgumentException.class,
-        "not a primitive type field",
-        () ->
-            new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-                .setIdentifierFields("locations")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .setIdentifierFields("locations")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field locations as an identifier field: not a primitive type field");
 
-    AssertHelpers.assertThrows(
-        "add an optional field should fail",
-        IllegalArgumentException.class,
-        "not a required field",
-        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("data").apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("data").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add field data as an identifier field: not a required field");
 
-    AssertHelpers.assertThrows(
-        "add a map key nested field should fail",
-        IllegalArgumentException.class,
-        "must not be nested in " + SCHEMA.findField("locations"),
-        () ->
-            new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-                .setIdentifierFields("locations.key.zip")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .setIdentifierFields("locations.key.zip")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot add field zip as an identifier field: must not be nested in "
+                + SCHEMA.findField("locations"));
 
-    AssertHelpers.assertThrows(
-        "add a nested field in list should fail",
-        IllegalArgumentException.class,
-        "must not be nested in " + SCHEMA.findField("points"),
-        () ->
-            new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-                .setIdentifierFields("points.element.x")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .setIdentifierFields("points.element.x")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot add field x as an identifier field: must not be nested in "
+                + SCHEMA.findField("points"));
 
     Schema newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1903,53 +1865,57 @@ public class TestSchemaUpdate {
 
     int lastColId = SCHEMA_LAST_COLUMN_ID + 15;
 
-    AssertHelpers.assertThrows(
-        "add a nested field in list should fail",
-        IllegalArgumentException.class,
-        "must not be nested in " + newSchema.findField("required_list"),
-        () ->
-            new SchemaUpdate(newSchema, lastColId)
-                .setIdentifierFields("required_list.element.x")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(newSchema, lastColId)
+                    .setIdentifierFields("required_list.element.x")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot add field x as an identifier field: must not be nested in "
+                + newSchema.findField("required_list"));
 
-    AssertHelpers.assertThrows(
-        "add a double field should fail",
-        IllegalArgumentException.class,
-        "must not be float or double field",
-        () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_double").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_double").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field col_double as an identifier field: must not be float or double field");
 
-    AssertHelpers.assertThrows(
-        "add a float field should fail",
-        IllegalArgumentException.class,
-        "must not be float or double field",
-        () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_float").apply());
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_float").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field col_float as an identifier field: must not be float or double field");
 
-    AssertHelpers.assertThrows(
-        "add a map value nested field should fail",
-        IllegalArgumentException.class,
-        "must not be nested in " + newSchema.findField("new_map"),
-        () ->
-            new SchemaUpdate(newSchema, lastColId)
-                .setIdentifierFields("new_map.value.val_col")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(newSchema, lastColId)
+                    .setIdentifierFields("new_map.value.val_col")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot add field val_col as an identifier field: must not be nested in "
+                + newSchema.findField("new_map"));
 
-    AssertHelpers.assertThrows(
-        "add a nested field in struct of a list should fail",
-        IllegalArgumentException.class,
-        "must not be nested in " + newSchema.findField("new.fields"),
-        () ->
-            new SchemaUpdate(newSchema, lastColId)
-                .setIdentifierFields("new.fields.element.nested")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(newSchema, lastColId)
+                    .setIdentifierFields("new.fields.element.nested")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot add field nested as an identifier field: must not be nested in "
+                + newSchema.findField("new.fields"));
 
-    AssertHelpers.assertThrows(
-        "add a nested field in an optional struct should fail",
-        IllegalArgumentException.class,
-        "must not be nested in an optional field " + newSchema.findField("preferences"),
-        () ->
-            new SchemaUpdate(newSchema, lastColId)
-                .setIdentifierFields("preferences.feature1")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(newSchema, lastColId)
+                    .setIdentifierFields("preferences.feature1")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add field feature1 as an identifier field: must not be nested in an optional field "
+                + newSchema.findField("preferences"));
   }
 
   @Test
@@ -1981,15 +1947,14 @@ public class TestSchemaUpdate {
     Schema schemaWithIdentifierFields =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("id").apply();
 
-    AssertHelpers.assertThrows(
-        "delete an identifier column without setting identifier fields should fail",
-        IllegalArgumentException.class,
-        "Cannot delete identifier field 1: id: required int. To force deletion, "
-            + "also call setIdentifierFields to update identifier fields.",
-        () ->
-            new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
-                .deleteColumn("id")
-                .apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("id")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot delete identifier field 1: id: required int. To force deletion, also call setIdentifierFields to update identifier fields.");
   }
 
   @Test
@@ -2005,12 +1970,13 @@ public class TestSchemaUpdate {
             .setIdentifierFields("out.nested")
             .apply();
 
-    AssertHelpers.assertThrows(
-        "delete a struct with a nested identifier column without setting identifier fields should fail",
-        IllegalArgumentException.class,
-        "Cannot delete field 24: out: required struct<25: nested: required string> "
-            + "as it will delete nested identifier field 25: nested: required string",
-        () -> new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply());
+    Assertions.assertThatThrownBy(
+            () ->
+                new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot delete field 24: out: required struct<25: nested: required string> "
+                + "as it will delete nested identifier field 25: nested: required string");
   }
 
   @Test

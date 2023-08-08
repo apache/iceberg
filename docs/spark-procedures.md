@@ -295,6 +295,7 @@ for list of all the supported options for this action.
 | ------------|------|-------------|
 | `rewritten_data_files_count` | int | Number of data which were re-written by this command |
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
+| `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
 
 #### Examples
 
@@ -512,6 +513,10 @@ of the files to determine if they actually match the schema of the Iceberg table
 will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent 
 `expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
 `migrate` or `snapshot` are possible.
+
+{{< hint warning >}}
+Keep in mind the `add_files` procedure will fetch the Parquet metadata from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the underlying, file will be retrieved from the archive, and will remain on a higher tier for a set period of time.
+{{< /hint >}}
 
 #### Usage
 

@@ -254,6 +254,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   @Override
   public ThisT metricsReporter(MetricsReporter reporter) {
-    return newRefinedScan(table(), schema(), context().reportWith(reporter));
+    return newRefinedScan(table, schema, context.reportWith(reporter));
   }
 }

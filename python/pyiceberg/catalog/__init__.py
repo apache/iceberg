@@ -40,7 +40,12 @@ from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table import (
+    CommitTableRequest,
+    CommitTableResponse,
+    Table,
+    TableMetadata,
+)
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -75,6 +80,7 @@ class CatalogType(Enum):
     HIVE = "hive"
     GLUE = "glue"
     DYNAMODB = "dynamodb"
+    SQL = "sql"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -110,11 +116,21 @@ def load_dynamodb(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("AWS DynamoDB support not installed: pip install 'pyiceberg[dynamodb]'") from exc
 
 
+def load_sql(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.sql import SqlCatalog
+
+        return SqlCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("SQLAlchemy support not installed: pip install 'pyiceberg[sql-postgres]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
     CatalogType.GLUE: load_glue,
     CatalogType.DYNAMODB: load_dynamodb,
+    CatalogType.SQL: load_sql,
 }
 
 
@@ -137,6 +153,8 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
                 return CatalogType.REST
             elif uri.startswith("thrift"):
                 return CatalogType.HIVE
+            elif uri.startswith("postgresql"):
+                return CatalogType.SQL
             else:
                 raise ValueError(f"Could not infer the catalog type from the uri: {uri}")
         else:
@@ -323,6 +341,20 @@ class Catalog(ABC):
         """
 
     @abstractmethod
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates one or more tables.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+
+    @abstractmethod
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
@@ -392,7 +424,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 

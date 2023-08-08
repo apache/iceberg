@@ -46,6 +46,7 @@ class DataFileContent(int, Enum):
     EQUALITY_DELETES = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DataFileContent class."""
         return f"DataFileContent.{self.name}"
 
 
@@ -54,6 +55,7 @@ class ManifestContent(int, Enum):
     DELETES = 1
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestContent class."""
         return f"ManifestContent.{self.name}"
 
 
@@ -63,6 +65,7 @@ class ManifestEntryStatus(int, Enum):
     DELETED = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestEntryStatus class."""
         return f"ManifestEntryStatus.{self.name}"
 
 
@@ -72,6 +75,7 @@ class FileFormat(str, Enum):
     ORC = "ORC"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
 
@@ -160,6 +164,25 @@ DATA_FILE_TYPE = StructType(
 
 
 class DataFile(Record):
+    __slots__ = (
+        "content",
+        "file_path",
+        "file_format",
+        "partition",
+        "record_count",
+        "file_size_in_bytes",
+        "column_sizes",
+        "value_counts",
+        "null_value_counts",
+        "nan_value_counts",
+        "lower_bounds",
+        "upper_bounds",
+        "key_metadata",
+        "split_offsets",
+        "equality_ids",
+        "sort_order_id",
+        "spec_id",
+    )
     content: DataFileContent
     file_path: str
     file_format: FileFormat
@@ -179,6 +202,7 @@ class DataFile(Record):
     spec_id: Optional[int]
 
     def __setattr__(self, name: str, value: Any) -> None:
+        """Used for assigning a key/value to a DataFile."""
         # The file_format is written as a string, so we need to cast it to the Enum
         if name == "file_format":
             value = FileFormat[value]
@@ -188,9 +212,14 @@ class DataFile(Record):
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
     def __hash__(self) -> int:
+        """Returns the hash of the file path."""
         return hash(self.file_path)
 
     def __eq__(self, other: Any) -> bool:
+        """Compares the datafile with another object.
+
+        If it is a datafile, it will compare based on the file_path.
+        """
         return self.file_path == other.file_path if isinstance(other, DataFile) else False
 
 
@@ -202,8 +231,11 @@ MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
 )
 
+MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
+
 
 class ManifestEntry(Record):
+    __slots__ = ("status", "snapshot_id", "data_sequence_number", "file_sequence_number", "data_file")
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
     data_sequence_number: Optional[int]
@@ -211,7 +243,7 @@ class ManifestEntry(Record):
     data_file: DataFile
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA_STRUCT, **named_data})
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -223,6 +255,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 
 
 class PartitionFieldSummary(Record):
+    __slots__ = ("contains_null", "contains_nan", "lower_bound", "upper_bound")
     contains_null: bool
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
@@ -250,12 +283,31 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
+
 POSITIONAL_DELETE_SCHEMA = Schema(
     NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
 )
 
 
 class ManifestFile(Record):
+    __slots__ = (
+        "manifest_path",
+        "manifest_length",
+        "partition_spec_id",
+        "content",
+        "sequence_number",
+        "min_sequence_number",
+        "added_snapshot_id",
+        "added_files_count",
+        "existing_files_count",
+        "deleted_files_count",
+        "added_rows_count",
+        "existing_rows_count",
+        "deleted_rows_count",
+        "partitions",
+        "key_metadata",
+    )
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
@@ -273,7 +325,7 @@ class ManifestFile(Record):
     key_metadata: Optional[bytes]
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA_STRUCT, **named_data})
 
     def has_added_files(self) -> bool:
         return self.added_files_count is None or self.added_files_count > 0

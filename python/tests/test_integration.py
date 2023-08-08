@@ -24,6 +24,7 @@ import pytest
 from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
+from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import (
     And,
     GreaterThanOrEqual,
@@ -34,6 +35,13 @@ from pyiceberg.expressions import (
 from pyiceberg.io.pyarrow import pyarrow_to_schema
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
+from pyiceberg.types import (
+    BooleanType,
+    IntegerType,
+    NestedField,
+    StringType,
+    TimestampType,
+)
 
 
 @pytest.fixture()
@@ -68,6 +76,50 @@ def table_test_limit(catalog: Catalog) -> Table:
 @pytest.fixture()
 def table_test_all_types(catalog: Catalog) -> Table:
     return catalog.load_table("default.test_all_types")
+
+
+TABLE_NAME = ("default", "t1")
+
+
+@pytest.fixture()
+def table(catalog: Catalog) -> Table:
+    try:
+        catalog.drop_table(TABLE_NAME)
+    except NoSuchTableError:
+        pass  # Just to make sure that the table doesn't exist
+
+    schema = Schema(
+        NestedField(field_id=1, name="str", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="int", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="bool", field_type=BooleanType(), required=False),
+        NestedField(field_id=4, name="datetime", field_type=TimestampType(), required=False),
+        schema_id=1,
+    )
+
+    return catalog.create_table(identifier=TABLE_NAME, schema=schema)
+
+
+@pytest.mark.integration
+def test_table_properties(table: Table) -> None:
+    assert table.properties == {}
+
+    with table.transaction() as transaction:
+        transaction.set_properties(abc="🤪")
+
+    assert table.properties == {"abc": "🤪"}
+
+    with table.transaction() as transaction:
+        transaction.remove_properties("abc")
+
+    assert table.properties == {}
+
+    table = table.transaction().set_properties(abc="def").commit_transaction()
+
+    assert table.properties == {"abc": "def"}
+
+    table = table.transaction().remove_properties("abc").commit_transaction()
+
+    assert table.properties == {}
 
 
 @pytest.fixture()
@@ -247,3 +299,19 @@ def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> No
     # Testing the slicing of indices
     arrow_table = test_positional_mor_double_deletes.scan(limit=8).to_arrow()
     assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 7, 8, 10]
+
+
+@pytest.mark.integration
+def test_partitioned_tables(catalog: Catalog) -> None:
+    for table_name, predicate in [
+        ("test_partitioned_by_identity", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_years", "dt >= '2023-03-05'"),
+        ("test_partitioned_by_months", "dt >= '2023-03-05'"),
+        ("test_partitioned_by_days", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_hours", "ts >= '2023-03-05T00:00:00+00:00'"),
+        ("test_partitioned_by_truncate", "letter >= 'e'"),
+        ("test_partitioned_by_bucket", "number >= '5'"),
+    ]:
+        table = catalog.load_table(f"default.{table_name}")
+        arrow_table = table.scan(selected_fields=("number",), row_filter=predicate).to_arrow()
+        assert set(arrow_table["number"].to_pylist()) == {5, 6, 7, 8, 9, 10, 11, 12}, f"Table {table_name}, predicate {predicate}"

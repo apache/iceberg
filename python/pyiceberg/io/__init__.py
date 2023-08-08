@@ -50,6 +50,11 @@ S3_ACCESS_KEY_ID = "s3.access-key-id"
 S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
+S3_PROXY_URI = "s3.proxy-uri"
+HDFS_HOST = "hdfs.host"
+HDFS_PORT = "hdfs.port"
+HDFS_USER = "hdfs.user"
+HDFS_KERB_TICKET = "hdfs.kerberos_ticket"
 
 
 @runtime_checkable
@@ -77,13 +82,13 @@ class InputStream(Protocol):
         ...
 
     def __enter__(self) -> InputStream:
-        ...
+        """Provides setup when opening an InputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        ...
+        """Performs cleanup when exiting the scope of a 'with' statement."""
 
 
 @runtime_checkable
@@ -104,13 +109,13 @@ class OutputStream(Protocol):  # pragma: no cover
 
     @abstractmethod
     def __enter__(self) -> OutputStream:
-        ...
+        """Provides setup when opening an OutputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        ...
+        """Performs cleanup when exiting the scope of a 'with' statement."""
 
 
 class InputFile(ABC):
@@ -280,7 +285,7 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
         class_ = getattr(module, class_name)
         return class_(properties)
     except ModuleNotFoundError:
-        warnings.warn(f"Could not initialize FileIO: {io_impl}")
+        logger.warning("Could not initialize FileIO: %s", io_impl)
         return None
 
 

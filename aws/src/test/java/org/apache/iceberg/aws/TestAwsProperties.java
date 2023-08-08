@@ -28,8 +28,7 @@ import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -72,7 +71,7 @@ public class TestAwsProperties {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_ACL, ObjectCannedACL.AUTHENTICATED_READ.toString());
     AwsProperties properties = new AwsProperties(map);
-    Assert.assertEquals(ObjectCannedACL.AUTHENTICATED_READ, properties.s3FileIoAcl());
+    Assertions.assertThat(properties.s3FileIoAcl()).isEqualTo(ObjectCannedACL.AUTHENTICATED_READ);
   }
 
   @Test
@@ -148,9 +147,9 @@ public class TestAwsProperties {
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 
-    Assert.assertTrue(
-        "Should use default credentials if nothing is set",
-        capturedAwsCredentialsProvider instanceof DefaultCredentialsProvider);
+    Assertions.assertThat(capturedAwsCredentialsProvider)
+        .as("Should use default credentials if nothing is set")
+        .isInstanceOf(DefaultCredentialsProvider.class);
   }
 
   @Test
@@ -168,17 +167,16 @@ public class TestAwsProperties {
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 
-    Assert.assertTrue(
-        "Should use basic credentials if access key ID and secret access key are set",
-        capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsBasicCredentials);
-    Assert.assertEquals(
-        "The access key id should be the same as the one set by tag S3FILEIO_ACCESS_KEY_ID",
-        "key",
-        capturedAwsCredentialsProvider.resolveCredentials().accessKeyId());
-    Assert.assertEquals(
-        "The secret access key should be the same as the one set by tag S3FILEIO_SECRET_ACCESS_KEY",
-        "secret",
-        capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey());
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials())
+        .as("Should use basic credentials if access key ID and secret access key are set")
+        .isInstanceOf(AwsBasicCredentials.class);
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
+        .as("The access key id should be the same as the one set by tag S3FILEIO_ACCESS_KEY_ID")
+        .isEqualTo("key");
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
+        .as(
+            "The secret access key should be the same as the one set by tag S3FILEIO_SECRET_ACCESS_KEY")
+        .isEqualTo("secret");
   }
 
   @Test
@@ -197,17 +195,16 @@ public class TestAwsProperties {
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 
-    Assert.assertTrue(
-        "Should use session credentials if session token is set",
-        capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsSessionCredentials);
-    Assert.assertEquals(
-        "The access key id should be the same as the one set by tag S3FILEIO_ACCESS_KEY_ID",
-        "key",
-        capturedAwsCredentialsProvider.resolveCredentials().accessKeyId());
-    Assert.assertEquals(
-        "The secret access key should be the same as the one set by tag S3FILEIO_SECRET_ACCESS_KEY",
-        "secret",
-        capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey());
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials())
+        .as("Should use session credentials if session token is set")
+        .isInstanceOf(AwsSessionCredentials.class);
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
+        .as("The access key id should be the same as the one set by tag S3FILEIO_ACCESS_KEY_ID")
+        .isEqualTo("key");
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
+        .as(
+            "The secret access key should be the same as the one set by tag S3FILEIO_SECRET_ACCESS_KEY")
+        .isEqualTo("secret");
   }
 
   @Test
@@ -223,9 +220,9 @@ public class TestAwsProperties {
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
 
-    Assert.assertTrue(
-        "Should use url connection http client",
-        capturedHttpClientBuilder instanceof UrlConnectionHttpClient.Builder);
+    Assertions.assertThat(capturedHttpClientBuilder)
+        .as("Should use url connection http client")
+        .isInstanceOf(UrlConnectionHttpClient.Builder.class);
   }
 
   @Test
@@ -240,9 +237,9 @@ public class TestAwsProperties {
     awsProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
-    Assert.assertTrue(
-        "Should use apache http client",
-        capturedHttpClientBuilder instanceof ApacheHttpClient.Builder);
+    Assertions.assertThat(capturedHttpClientBuilder)
+        .as("Should use apache http client")
+        .isInstanceOf(ApacheHttpClient.Builder.class);
   }
 
   @Test
@@ -263,29 +260,26 @@ public class TestAwsProperties {
     AwsProperties awsProperties = new AwsProperties();
     AwsProperties deSerializedAwsProperties =
         TestHelpers.KryoHelpers.roundTripSerialize(awsProperties);
-    Assert.assertEquals(
-        awsProperties.s3BucketToAccessPointMapping(),
-        deSerializedAwsProperties.s3BucketToAccessPointMapping());
-    Assert.assertEquals(
-        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
+    Assertions.assertThat(deSerializedAwsProperties.s3BucketToAccessPointMapping())
+        .isEqualTo(awsProperties.s3BucketToAccessPointMapping());
+    Assertions.assertThat(deSerializedAwsProperties.httpClientProperties())
+        .isEqualTo(awsProperties.httpClientProperties());
 
     AwsProperties awsPropertiesWithProps = new AwsProperties(ImmutableMap.of("a", "b"));
     AwsProperties deSerializedAwsPropertiesWithProps =
         TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
-    Assert.assertEquals(
-        awsPropertiesWithProps.s3BucketToAccessPointMapping(),
-        deSerializedAwsPropertiesWithProps.s3BucketToAccessPointMapping());
-    Assert.assertEquals(
-        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
+    Assertions.assertThat(deSerializedAwsPropertiesWithProps.s3BucketToAccessPointMapping())
+        .isEqualTo(awsPropertiesWithProps.s3BucketToAccessPointMapping());
+    Assertions.assertThat(deSerializedAwsPropertiesWithProps.httpClientProperties())
+        .isEqualTo(awsProperties.httpClientProperties());
 
     AwsProperties awsPropertiesWithEmptyProps = new AwsProperties(Collections.emptyMap());
     AwsProperties deSerializedAwsPropertiesWithEmptyProps =
         TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
-    Assert.assertEquals(
-        awsPropertiesWithEmptyProps.s3BucketToAccessPointMapping(),
-        deSerializedAwsPropertiesWithEmptyProps.s3BucketToAccessPointMapping());
-    Assert.assertEquals(
-        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
+    Assertions.assertThat(deSerializedAwsPropertiesWithEmptyProps.s3BucketToAccessPointMapping())
+        .isEqualTo(awsPropertiesWithEmptyProps.s3BucketToAccessPointMapping());
+    Assertions.assertThat(deSerializedAwsPropertiesWithEmptyProps.httpClientProperties())
+        .isEqualTo(awsProperties.httpClientProperties());
   }
 
   @Test

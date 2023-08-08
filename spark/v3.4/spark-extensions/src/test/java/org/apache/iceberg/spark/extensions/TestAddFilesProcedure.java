@@ -32,7 +32,6 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -44,6 +43,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -708,23 +708,21 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding of partitioned data to unpartitioned table",
-        IllegalArgumentException.class,
-        "Cannot use partition filter with an unpartitioned table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot use partition filter with an unpartitioned table");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding of partitioned data to unpartitioned table",
-        IllegalArgumentException.class,
-        "Cannot add partitioned files to an unpartitioned table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add partitioned files to an unpartitioned table");
   }
 
   @Test
@@ -736,23 +734,24 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding with a mismatching partition spec",
-        IllegalArgumentException.class,
-        "is greater than the number of partitioned columns",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add data files to target table")
+        .hasMessageContaining("is greater than the number of partitioned columns");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding with partition spec with incorrect columns",
-        IllegalArgumentException.class,
-        "specified partition filter refers to columns that are not partitioned",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add files to target table")
+        .hasMessageContaining(
+            "specified partition filter refers to columns that are not partitioned");
   }
 
   @Test
@@ -808,18 +807,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows(
-        "Should not allow adding duplicate files",
-        IllegalStateException.class,
-        "Cannot complete import because data files to be imported already"
-            + " exist within the target table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files("
-                    + "table => '%s', "
-                    + "source_table => '%s', "
-                    + "partition_filter => map('id', 1))",
-                catalogName, tableName, sourceTableName));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s', "
+                        + "partition_filter => map('id', 1))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot complete import because data files to be imported already"
+                + " exist within the target table");
   }
 
   @Test
@@ -872,14 +871,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows(
-        "Should not allow adding duplicate files",
-        IllegalStateException.class,
-        "Cannot complete import because data files to be imported already"
-            + " exist within the target table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s')",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot complete import because data files to be imported already"
+                + " exist within the target table");
   }
 
   @Test

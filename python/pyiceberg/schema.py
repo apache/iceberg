@@ -88,15 +88,19 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self) -> str:
+        """Returns the string representation of the Schema class."""
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Schema class."""
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __len__(self) -> int:
+        """Returns the length of an instance of the Literal class."""
         return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
+        """Returns the equality of two instances of the Schema class."""
         if not other:
             return False
 
@@ -428,7 +432,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive, primitive_partner)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive, primitive_partner)
+            return self.visit_timestamptz(primitive, primitive_partner)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive, primitive_partner)
         elif isinstance(primitive, UUIDType):
@@ -477,7 +481,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod
@@ -606,7 +610,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive)
+            return self.visit_timestamptz(primitive)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive)
         elif isinstance(primitive, UUIDType):
@@ -657,7 +661,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> T:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> T:
         """Visit a TimestamptzType."""
 
     @abstractmethod
@@ -681,9 +685,11 @@ class Accessor:
     inner: Optional["Accessor"] = None
 
     def __str__(self) -> str:
+        """Returns the string representation of the Accessor class."""
         return f"Accessor(position={self.position},inner={self.inner})"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the Accessor class."""
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:

@@ -46,6 +46,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
+  private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
   private static final String IN_MEMORY_IO_IMPL = "org.apache.iceberg.inmemory.InMemoryFileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO =
       ImmutableMap.of(
@@ -55,6 +56,8 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
           S3_FILE_IO_IMPL,
           "s3n",
           S3_FILE_IO_IMPL,
+          "gs", 
+          GCS_FILE_IO_IMPL,
           "inmemory",
           IN_MEMORY_IO_IMPL);
 

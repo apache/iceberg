@@ -64,9 +64,11 @@ class PackingIterator(Generic[T]):
         self.bins = []
 
     def __iter__(self) -> PackingIterator[T]:
+        """Returns an iterator for the PackingIterator class."""
         return self
 
     def __next__(self) -> List[T]:
+        """Returns the next item when iterating over the PackingIterator class."""
         while True:
             try:
                 item = next(self.items)

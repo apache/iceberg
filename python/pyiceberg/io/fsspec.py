@@ -39,6 +39,7 @@ from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
+    S3_PROXY_URI,
     S3_REGION,
     S3_SECRET_ACCESS_KEY,
     S3_SESSION_TOKEN,
@@ -111,6 +112,9 @@ def _s3(properties: Properties) -> AbstractFileSystem:
             config_kwargs["signature_version"] = UNSIGNED
         else:
             raise ValueError(f"Signer not available: {signer}")
+
+    if proxy_uri := properties.get(S3_PROXY_URI):
+        config_kwargs["proxies"] = {"http": proxy_uri, "https": proxy_uri}
 
     fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 

@@ -27,6 +27,7 @@ import pytest
 from pyarrow.fs import FileType, LocalFileSystem
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -297,6 +298,21 @@ def test_deleting_s3_file_not_found() -> None:
 
         with pytest.raises(FileNotFoundError) as exc_info:
             PyArrowFileIO().delete("s3://foo/bar.txt")
+
+        assert "Cannot delete file, does not exist:" in str(exc_info.value)
+
+
+def test_deleting_hdfs_file_not_found() -> None:
+    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'No such file or directory'"""
+
+    hdfs_mock = MagicMock()
+    hdfs_mock.delete_file.side_effect = OSError("Path does not exist")
+
+    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+        submocked.return_value = hdfs_mock
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            PyArrowFileIO().delete("hdfs://foo/bar.txt")
 
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
@@ -821,6 +837,7 @@ def project(
             ),
             metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         expr or AlwaysTrue(),
         schema,
@@ -1232,6 +1249,7 @@ def test_delete(deletes_file: str, example_task: FileScanTask, table_schema_simp
             ),
             metadata_location=metadata_location,
             io=load_file_io(),
+            catalog=NoopCatalog("noop"),
         ),
         row_filter=AlwaysTrue(),
         projected_schema=table_schema_simple,
@@ -1274,6 +1292,7 @@ def test_delete_duplicates(deletes_file: str, example_task: FileScanTask, table_
             ),
             metadata_location=metadata_location,
             io=load_file_io(),
+            catalog=NoopCatalog("noop"),
         ),
         row_filter=AlwaysTrue(),
         projected_schema=table_schema_simple,
@@ -1308,6 +1327,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
             ),
             metadata_location=metadata_location,
             io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,
         projected_schema=table_schema_simple,

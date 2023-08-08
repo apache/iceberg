@@ -22,7 +22,6 @@ import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -32,6 +31,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -161,43 +161,36 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
   public void testCherrypickInvalidSnapshot() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows(
-        "Should reject invalid snapshot id",
-        ValidationException.class,
-        "Cannot cherry-pick unknown snapshot ID",
-        () -> sql("CALL %s.system.cherrypick_snapshot('%s', -1L)", catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.cherrypick_snapshot('%s', -1L)", catalogName, tableIdent))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot cherry-pick unknown snapshot ID: -1");
   }
 
   @Test
   public void testInvalidCherrypickSnapshotCases() {
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.cherrypick_snapshot('n', table => 't', 1L)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.cherrypick_snapshot('n', table => 't', 1L)", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName))
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.cherrypick_snapshot not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [snapshot_id]");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.cherrypick_snapshot('', 1L)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.cherrypick_snapshot('', 1L)", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot handle an empty identifier for argument table");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type for snapshot_id: cannot cast",
-        () -> sql("CALL %s.system.cherrypick_snapshot('t', 2.2)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.cherrypick_snapshot('t', 2.2)", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Wrong arg type for snapshot_id: cannot cast");
   }
 }

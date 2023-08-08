@@ -210,7 +210,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](../../tables/branching)
+For more information on branches please refer to [branches](../tables/branching)
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -397,25 +397,26 @@ so you may want to understand the type conversion in Iceberg in prior to design 
 
 This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
 
-| Spark           | Iceberg                 | Notes |
-|-----------------|-------------------------|-------|
-| boolean         | boolean                 |       |
-| short           | integer                 |       |
-| byte            | integer                 |       |
-| integer         | integer                 |       |
-| long            | long                    |       |
-| float           | float                   |       |
-| double          | double                  |       |
-| date            | date                    |       |
-| timestamp       | timestamp with timezone |       |
-| char            | string                  |       |
-| varchar         | string                  |       |
-| string          | string                  |       |
-| binary          | binary                  |       |
-| decimal         | decimal                 |       |
-| struct          | struct                  |       |
-| array           | list                    |       |
-| map             | map                     |       |
+| Spark           | Iceberg                    | Notes |
+|-----------------|----------------------------|-------|
+| boolean         | boolean                    |       |
+| short           | integer                    |       |
+| byte            | integer                    |       |
+| integer         | integer                    |       |
+| long            | long                       |       |
+| float           | float                      |       |
+| double          | double                     |       |
+| date            | date                       |       |
+| timestamp       | timestamp with timezone    |       |
+| timestamp_ntz    | timestamp without timezone |       |
+| char            | string                     |       |
+| varchar         | string                     |       |
+| string          | string                     |       |
+| binary          | binary                     |       |
+| decimal         | decimal                    |       |
+| struct          | struct                     |       |
+| array           | list                       |       |
+| map             | map                        |       |
 
 {{< hint info >}}
 The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
@@ -438,7 +439,7 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | date                       | date                    |               |
 | time                       |                         | Not supported |
 | timestamp with timezone    | timestamp               |               |
-| timestamp without timezone |                         | Not supported |
+| timestamp without timezone | timestamp_ntz            |               |
 | string                     | string                  |               |
 | uuid                       | string                  |               |
 | fixed                      | binary                  |               |

@@ -16,8 +16,9 @@
 #  under the License.
 
 """Helper methods for working with Python Decimals."""
+import math
 from decimal import Decimal
-from typing import Union
+from typing import Optional, Union
 
 
 def decimal_to_unscaled(value: Decimal) -> int:
@@ -64,16 +65,33 @@ def bytes_required(value: Union[int, Decimal]) -> int:
     raise ValueError(f"Unsupported value: {value}")
 
 
-def decimal_to_bytes(value: Decimal) -> bytes:
+def decimal_to_bytes(value: Decimal, byte_length: Optional[int] = None) -> bytes:
     """Returns a byte representation of a decimal.
 
     Args:
         value (Decimal): a decimal value.
+        byte_length (int): The number of bytes.
     Returns:
         bytes: the unscaled value of the Decimal as bytes.
     """
     unscaled_value = decimal_to_unscaled(value)
-    return unscaled_value.to_bytes(bytes_required(unscaled_value), byteorder="big", signed=True)
+    if byte_length is None:
+        byte_length = bytes_required(unscaled_value)
+    return unscaled_value.to_bytes(byte_length, byteorder="big", signed=True)
+
+
+def bytes_to_decimal(value: bytes, scale: int) -> Decimal:
+    """Returns a decimal from the bytes.
+
+    Args:
+        value (bytes): tbe bytes to be converted into a decimal.
+        scale (int): the scale of the decimal.
+
+    Returns:
+        Decimal: the scaled decimal.
+    """
+    unscaled_datum = int.from_bytes(value, byteorder="big", signed=True)
+    return unscaled_to_decimal(unscaled_datum, scale)
 
 
 def truncate_decimal(value: Decimal, width: int) -> Decimal:
@@ -88,3 +106,22 @@ def truncate_decimal(value: Decimal, width: int) -> Decimal:
     unscaled_value = decimal_to_unscaled(value)
     applied_value = unscaled_value - (((unscaled_value % width) + width) % width)
     return unscaled_to_decimal(applied_value, abs(int(value.as_tuple().exponent)))
+
+
+MAX_PRECISION = tuple(math.floor(math.log10(math.fabs(math.pow(2, 8 * pos - 1) - 1))) for pos in range(24))
+REQUIRED_LENGTH = tuple(next(pos for pos in range(24) if p <= MAX_PRECISION[pos]) for p in range(40))
+
+
+def decimal_required_bytes(precision: int) -> int:
+    """Compute the number of bytes required to store a precision.
+
+    Args:
+        precision: The number of digits to store.
+
+    Returns:
+        The number of bytes required to store a decimal with a certain precision.
+    """
+    if precision <= 0 or precision >= 40:
+        raise ValueError(f"Unsupported precision, outside of (0, 40]: {precision}")
+
+    return REQUIRED_LENGTH[precision]
