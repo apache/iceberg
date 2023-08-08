@@ -67,6 +67,11 @@ public class StandardEncryptionManagerFactory implements EncryptionManagerFactor
             "Iceberg encryption currently supports only parquet format for data files");
       }
 
+      if (tableMetadata.formatVersion() < 2) {
+        throw new UnsupportedOperationException(
+            "Iceberg encryption works only with table format 2 or higher");
+      }
+
       int dataKeyLength =
           PropertyUtil.propertyAsInt(
               encryptionProperties,
