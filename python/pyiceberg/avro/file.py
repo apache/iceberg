@@ -275,4 +275,4 @@ class AvroOutputFile(Generic[D]):
         self.encoder.write_int(len(objects))
         self.encoder.write_int(len(block_content))
         self.encoder.write(block_content)
-        self.encoder.write_bytes_fixed(self.sync_bytes)
+        self.encoder.write(self.sync_bytes)

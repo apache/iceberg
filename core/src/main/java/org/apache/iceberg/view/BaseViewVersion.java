@@ -19,8 +19,9 @@
 package org.apache.iceberg.view;
 
 import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
+import org.immutables.value.Value.Style.BuilderVisibility;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 /**
  * A version of the view at a point in time.
@@ -30,11 +31,12 @@ import org.immutables.value.Value;
  * <p>Versions are created by view operations, like Create and Replace.
  */
 @Value.Immutable
-// https://github.com/immutables/immutables/issues/291 does not apply here because we're not adding
-// any Immutable-specific class to the classpath
 @SuppressWarnings("ImmutablesStyle")
-@Value.Style(typeImmutable = "ImmutableViewVersion")
-public interface BaseViewVersion extends ViewVersion {
+@Value.Style(
+    typeImmutable = "ImmutableViewVersion",
+    visibility = ImplementationVisibility.PUBLIC,
+    builderVisibility = BuilderVisibility.PUBLIC)
+interface BaseViewVersion extends ViewVersion {
 
   @Override
   @Value.Lazy
@@ -45,10 +47,6 @@ public interface BaseViewVersion extends ViewVersion {
   @Override
   @Nullable
   String defaultCatalog();
-
-  @Override
-  @Nullable
-  Namespace defaultNamespace();
 
   @Override
   @Value.Check

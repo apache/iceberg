@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -112,6 +113,7 @@ public class TestViewMetadata {
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
+                            .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .addHistory(
                         ImmutableViewHistoryEntry.builder()
@@ -138,6 +140,7 @@ public class TestViewMetadata {
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
+                            .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .addHistory(
                         ImmutableViewHistoryEntry.builder()
@@ -164,6 +167,7 @@ public class TestViewMetadata {
                         ImmutableViewVersion.builder()
                             .schemaId(1)
                             .versionId(1)
+                            .defaultNamespace(Namespace.of("ns"))
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
                             .build())
@@ -195,6 +199,7 @@ public class TestViewMetadata {
                     .versionId(1)
                     .timestampMillis(23L)
                     .putSummary("operation", "a")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addVersions(
                 ImmutableViewVersion.builder()
@@ -202,6 +207,7 @@ public class TestViewMetadata {
                     .versionId(2)
                     .timestampMillis(24L)
                     .putSummary("operation", "b")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addVersions(
                 ImmutableViewVersion.builder()
@@ -209,6 +215,7 @@ public class TestViewMetadata {
                     .versionId(3)
                     .timestampMillis(25L)
                     .putSummary("operation", "c")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addHistory(
                 ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(23L).build())
@@ -236,6 +243,7 @@ public class TestViewMetadata {
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
+                            .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .addVersions(
                         ImmutableViewVersion.builder()
@@ -243,6 +251,7 @@ public class TestViewMetadata {
                             .versionId(2)
                             .timestampMillis(24L)
                             .putSummary("operation", "op")
+                            .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .addSchemas(
                         new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
@@ -266,6 +275,7 @@ public class TestViewMetadata {
                     .versionId(1)
                     .timestampMillis(23L)
                     .putSummary("operation", "a")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addVersions(
                 ImmutableViewVersion.builder()
@@ -273,6 +283,7 @@ public class TestViewMetadata {
                     .versionId(2)
                     .timestampMillis(24L)
                     .putSummary("operation", "b")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addVersions(
                 ImmutableViewVersion.builder()
@@ -280,6 +291,7 @@ public class TestViewMetadata {
                     .versionId(3)
                     .timestampMillis(25L)
                     .putSummary("operation", "c")
+                    .defaultNamespace(Namespace.of("ns"))
                     .build())
             .addHistory(
                 ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(23L).build())

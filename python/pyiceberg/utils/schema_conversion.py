@@ -64,9 +64,7 @@ PRIMITIVE_FIELD_TYPE_MAPPING: Dict[str, PrimitiveType] = {
 
 LOGICAL_FIELD_TYPE_MAPPING: Dict[Tuple[str, str], PrimitiveType] = {
     ("date", "int"): DateType(),
-    ("time-millis", "int"): TimeType(),
-    ("timestamp-millis", "long"): TimestampType(),
-    ("time-micros", "int"): TimeType(),
+    ("time-micros", "long"): TimeType(),
     ("timestamp-micros", "long"): TimestampType(),
     ("uuid", "fixed"): UUIDType(),
 }
@@ -369,6 +367,11 @@ class AvroSchemaConversion:
             return self._convert_logical_decimal_type(avro_logical_type)
         elif logical_type == "map":
             return self._convert_logical_map_type(avro_logical_type)
+        elif logical_type == "timestamp-micros":
+            if avro_logical_type.get("adjust-to-utc", False) is True:
+                return TimestamptzType()
+            else:
+                return TimestampType()
         elif (logical_type, physical_type) in LOGICAL_FIELD_TYPE_MAPPING:
             return LOGICAL_FIELD_TYPE_MAPPING[(logical_type, physical_type)]
         else:
@@ -542,6 +545,8 @@ class ConvertSchemaToAvro(SchemaVisitorPerPrimitiveType[AvroType]):
             return {
                 "type": "map",
                 "values": value_result,
+                "key-id": self.last_map_key_field_id,
+                "value-id": self.last_map_value_field_id,
             }
         else:
             # Creates a logical map that's a list of schema's
@@ -588,17 +593,17 @@ class ConvertSchemaToAvro(SchemaVisitorPerPrimitiveType[AvroType]):
 
     def visit_timestamp(self, timestamp_type: TimestampType) -> AvroType:
         # Iceberg only supports micro's
-        return {"type": "long", "logicalType": "timestamp-micros"}
+        return {"type": "long", "logicalType": "timestamp-micros", "adjust-to-utc": False}
 
     def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> AvroType:
         # Iceberg only supports micro's
-        return {"type": "long", "logicalType": "timestamp-micros"}
+        return {"type": "long", "logicalType": "timestamp-micros", "adjust-to-utc": True}
 
     def visit_string(self, string_type: StringType) -> AvroType:
         return "string"
 
     def visit_uuid(self, uuid_type: UUIDType) -> AvroType:
-        return {"type": "string", "logicalType": "uuid"}
+        return {"type": "fixed", "size": "16", "logicalType": "uuid"}
 
     def visit_binary(self, binary_type: BinaryType) -> AvroType:
         return "bytes"

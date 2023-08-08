@@ -81,7 +81,6 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
   }
 
@@ -94,7 +93,6 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
@@ -119,7 +117,6 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
@@ -163,7 +160,6 @@ public class TestGlueCatalog {
         awsProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
 
     Mockito.doReturn(
@@ -598,7 +594,6 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         catalogProps);
     Map<String, String> properties = glueCatalog.properties();
     Assertions.assertThat(properties)
@@ -620,7 +615,6 @@ public class TestGlueCatalog {
         props,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Assertions.assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")))
         .isEqualTo(true);
@@ -641,7 +635,6 @@ public class TestGlueCatalog {
         awsProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         properties);
     GlueTableOperations glueTableOperations =
         (GlueTableOperations)

@@ -20,12 +20,16 @@ package org.apache.iceberg.deletes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -320,5 +324,106 @@ public class TestPositionFilter {
     assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
         .as("Filter should produce expected rows")
         .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
+  }
+
+  @Test
+  public void testClosePositionStreamRowDeleteMarker() {
+    List<Long> deletes = Lists.newArrayList(1L, 2L);
+
+    List<StructLike> records =
+        Lists.newArrayList(
+            Row.of(29, "a", 1L), Row.of(43, "b", 2L), Row.of(61, "c", 3L), Row.of(89, "d", 4L));
+
+    CheckingClosableIterable<StructLike> data = new CheckingClosableIterable<>(records);
+    CheckingClosableIterable<Long> deletePositions = new CheckingClosableIterable<>(deletes);
+
+    CloseableIterable<StructLike> posDeletesIterable =
+        Deletes.streamingFilter(data, row -> row.get(2, Long.class), deletePositions);
+
+    // end iterator is always wrapped with FilterIterator
+    CloseableIterable<StructLike> eqDeletesIterable =
+        Deletes.filterDeleted(posDeletesIterable, i -> false, new DeleteCounter());
+    List<StructLike> result = Lists.newArrayList(eqDeletesIterable.iterator());
+
+    // as first two records deleted, expect only last two records
+    assertThat(Iterables.transform(result, row -> row.get(2, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(3L, 4L));
+
+    assertThat(data.isClosed).isTrue();
+    assertThat(deletePositions.isClosed).isTrue();
+  }
+
+  @Test
+  public void testDeleteMarkerFileClosed() {
+
+    List<Long> deletes = Lists.newArrayList(1L, 2L);
+
+    List<StructLike> records =
+        Lists.newArrayList(
+            Row.of(29, "a", 1L, false),
+            Row.of(43, "b", 2L, false),
+            Row.of(61, "c", 3L, false),
+            Row.of(89, "d", 4L, false));
+
+    CheckingClosableIterable<StructLike> data = new CheckingClosableIterable<>(records);
+    CheckingClosableIterable<Long> deletePositions = new CheckingClosableIterable<>(deletes);
+
+    CloseableIterable<StructLike> resultIterable =
+        Deletes.streamingMarker(
+            data, row -> row.get(2, Long.class), deletePositions, row -> row.set(3, true));
+
+    // end iterator is always wrapped with FilterIterator
+    CloseableIterable<StructLike> eqDeletesIterable =
+        Deletes.filterDeleted(resultIterable, i -> false, new DeleteCounter());
+    List<StructLike> result = Lists.newArrayList(eqDeletesIterable.iterator());
+
+    // as first two records deleted, expect only those two records marked
+    assertThat(Iterables.transform(result, row -> row.get(3, Boolean.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(true, true, false, false));
+
+    assertThat(data.isClosed).isTrue();
+    assertThat(deletePositions.isClosed).isTrue();
+  }
+
+  private static class CheckingClosableIterable<E> implements CloseableIterable<E> {
+    AtomicBoolean isClosed = new AtomicBoolean(false);
+    final Iterable<E> iterable;
+
+    CheckingClosableIterable(Iterable<E> iterable) {
+      this.iterable = iterable;
+    }
+
+    public boolean isClosed() {
+      return isClosed.get();
+    }
+
+    @Override
+    public void close() throws IOException {
+      isClosed.set(true);
+    }
+
+    @Override
+    public CloseableIterator<E> iterator() {
+      Iterator<E> it = iterable.iterator();
+      return new CloseableIterator<E>() {
+
+        @Override
+        public boolean hasNext() {
+          return it.hasNext();
+        }
+
+        @Override
+        public E next() {
+          return it.next();
+        }
+
+        @Override
+        public void close() {
+          isClosed.set(true);
+        }
+      };
+    }
   }
 }

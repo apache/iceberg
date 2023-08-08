@@ -50,7 +50,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import (
     date_str_to_days,
     micros_to_days,
-    time_to_micros,
+    time_str_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
@@ -558,7 +558,7 @@ class StringLiteral(Literal[str]):
     @to.register(TimeType)
     def _(self, type_var: TimeType) -> Literal[int]:
         try:
-            return TimeLiteral(time_to_micros(self.value))
+            return TimeLiteral(time_str_to_micros(self.value))
         except (TypeError, ValueError) as e:
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
