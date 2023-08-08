@@ -18,35 +18,23 @@
  */
 package org.apache.iceberg.flink.source;
 
-import org.apache.avro.generic.GenericRecord;
+import java.io.Serializable;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.io.CloseableIterator;
 
-public class AvroGenericRecordFileScanTaskReader implements ScanTaskReader<GenericRecord> {
-  private final RowDataFileScanTaskReader rowDataReader;
-  private final RowDataToAvroGenericRecordConverter converter;
-  private ScanTaskGroup<? extends ScanTask> taskGroup;
+/**
+ * Read a {@link ScanTask} into a {@link CloseableIterator}
+ *
+ * @param <T> is the output data type returned by this iterator.
+ */
+@Internal
+public interface ScanTaskReader<T> extends Serializable {
 
-  public AvroGenericRecordFileScanTaskReader(
-      RowDataFileScanTaskReader rowDataReader, RowDataToAvroGenericRecordConverter converter) {
-    this.rowDataReader = rowDataReader;
-    this.converter = converter;
-  }
+  CloseableIterator<T> open(ScanTask scanTask);
 
-  @Override
-  public CloseableIterator<GenericRecord> open(ScanTask fileScanTask) {
-    return CloseableIterator.transform(rowDataReader.open(fileScanTask), converter);
-  }
+  ScanTaskGroup<? extends ScanTask> taskGroup();
 
-  @Override
-  public ScanTaskGroup<? extends ScanTask> taskGroup() {
-    return taskGroup;
-  }
-
-  @Override
-  public void taskGroup(ScanTaskGroup<? extends ScanTask> newTaskGroup) {
-    this.taskGroup = newTaskGroup;
-    rowDataReader.taskGroup(newTaskGroup);
-  }
+  void taskGroup(ScanTaskGroup<? extends ScanTask> taskGroup);
 }

@@ -20,9 +20,9 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
@@ -85,10 +85,14 @@ public class ReaderUtil {
   public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
     return new DataIterator<>(
         new RowDataFileScanTaskReader(
-            TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
-        combinedTask,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+            TestFixtures.SCHEMA,
+            TestFixtures.SCHEMA,
+            null,
+            true,
+            combinedTask,
+            new HadoopFileIO(new Configuration()),
+            new PlaintextEncryptionManager(),
+            null));
   }
 
   public static List<List<Record>> createRecordBatchList(

@@ -109,4 +109,7 @@ public class FlinkReadOptions {
   public static final String MAX_ALLOWED_PLANNING_FAILURES = "max-allowed-planning-failures";
   public static final ConfigOption<Integer> MAX_ALLOWED_PLANNING_FAILURES_OPTION =
       ConfigOptions.key(PREFIX + MAX_ALLOWED_PLANNING_FAILURES).intType().defaultValue(3);
+
+  public static final ConfigOption<String> SCAN_MODE =
+      ConfigOptions.key("scan-mode").stringType().noDefaultValue();
 }

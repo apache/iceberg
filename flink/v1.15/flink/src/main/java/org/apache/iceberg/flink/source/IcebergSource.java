@@ -62,6 +62,7 @@ import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
+import org.apache.iceberg.flink.source.reader.RowChangeLogReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
@@ -359,6 +360,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder<T> scanMode(String newScanMode) {
+      readOptions.put(FlinkReadOptions.SCAN_MODE.key(), newScanMode);
+      return this;
+    }
+
     public Builder<T> nameMapping(String newNameMapping) {
       readOptions.put(TableProperties.DEFAULT_NAME_MAPPING, newNameMapping);
       return this;
@@ -457,21 +463,35 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (readerFunction == null) {
         if (table instanceof BaseMetadataTable) {
           MetaDataReaderFunction rowDataReaderFunction =
-              new MetaDataReaderFunction(
-                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
+              new MetaDataReaderFunction(flinkConfig, table.schema(), context.project());
           this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
         } else {
-          RowDataReaderFunction rowDataReaderFunction =
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption(),
-                  context.filters());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
+          ScanMode scanMode = ScanMode.checkScanMode(context);
+          if (scanMode == ScanMode.CHANGELOG_SCAN) {
+            this.readerFunction =
+                (ReaderFunction<T>)
+                    new RowChangeLogReaderFunction(
+                        flinkConfig,
+                        table.schema(),
+                        context.project(),
+                        context.nameMapping(),
+                        context.caseSensitive(),
+                        table.io(),
+                        table.encryption(),
+                        context.filters());
+          } else {
+            this.readerFunction =
+                (ReaderFunction<T>)
+                    new RowDataReaderFunction(
+                        flinkConfig,
+                        table.schema(),
+                        context.project(),
+                        context.nameMapping(),
+                        context.caseSensitive(),
+                        table.io(),
+                        table.encryption(),
+                        context.filters());
+          }
         }
       }
 
@@ -485,7 +505,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
-      return new IcebergSource<T>(
+      return new IcebergSource<>(
           tableLoader, context, readerFunction, splitAssignerFactory, splitComparator, table);
     }
 

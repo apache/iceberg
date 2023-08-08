@@ -22,43 +22,36 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import org.apache.flink.annotation.Internal;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Flink data iterator that reads {@link CombinedScanTask} into a {@link CloseableIterator}
+ * Flink data iterator that reads {@link ScanTask} into a {@link CloseableIterator}
  *
  * @param <T> is the output data type returned by this iterator.
  */
 @Internal
 public class DataIterator<T> implements CloseableIterator<T> {
 
-  private final FileScanTaskReader<T> fileScanTaskReader;
+  private final ScanTaskReader<T> fileScanTaskReader;
 
-  private final InputFilesDecryptor inputFilesDecryptor;
-  private final CombinedScanTask combinedTask;
+  private final ScanTaskGroup<? extends ScanTask> taskGroup;
+  private Iterator<? extends ScanTask> tasks;
 
-  private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
   private int fileOffset;
   private long recordOffset;
 
   public DataIterator(
-      FileScanTaskReader<T> fileScanTaskReader,
-      CombinedScanTask task,
-      FileIO io,
-      EncryptionManager encryption) {
+      ScanTaskReader<T> fileScanTaskReader, ScanTaskGroup<? extends ScanTask> taskGroup) {
+    fileScanTaskReader.taskGroup(taskGroup);
     this.fileScanTaskReader = fileScanTaskReader;
 
-    this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
-    this.combinedTask = task;
+    this.taskGroup = taskGroup;
 
-    this.tasks = task.files().iterator();
+    this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
 
     // fileOffset starts at -1 because we started
@@ -66,6 +59,10 @@ public class DataIterator<T> implements CloseableIterator<T> {
     this.fileOffset = -1;
     // record offset points to the record that next() should return when called
     this.recordOffset = 0L;
+  }
+
+  public DataIterator(ScanTaskReader<T> fileScanTaskReader) {
+    this(fileScanTaskReader, fileScanTaskReader.taskGroup());
   }
 
   /**
@@ -78,11 +75,11 @@ public class DataIterator<T> implements CloseableIterator<T> {
         fileOffset == -1, "Seek should be called before any other iterator actions");
     // skip files
     Preconditions.checkState(
-        startingFileOffset < combinedTask.files().size(),
+        startingFileOffset < taskGroup.tasks().size(),
         "Invalid starting file offset %s for combined scan task with %s files: %s",
         startingFileOffset,
-        combinedTask.files().size(),
-        combinedTask);
+        taskGroup.tasks().size(),
+        taskGroup);
     for (long i = 0L; i < startingFileOffset; ++i) {
       tasks.next();
     }
@@ -96,7 +93,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
         throw new IllegalStateException(
             String.format(
                 "Invalid starting record offset %d for file %d from CombinedScanTask: %s",
-                startingRecordOffset, startingFileOffset, combinedTask));
+                startingRecordOffset, startingFileOffset, taskGroup));
       }
     }
 
@@ -135,8 +132,8 @@ public class DataIterator<T> implements CloseableIterator<T> {
     }
   }
 
-  private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) {
-    return fileScanTaskReader.open(scanTask, inputFilesDecryptor);
+  private CloseableIterator<T> openTaskIterator(ScanTask scanTask) {
+    return fileScanTaskReader.open(scanTask);
   }
 
   @Override

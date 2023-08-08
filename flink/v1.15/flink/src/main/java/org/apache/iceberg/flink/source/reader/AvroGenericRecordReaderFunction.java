@@ -38,8 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<GenericRecord> {
   private final String tableName;
   private final Schema readSchema;
-  private final FileIO io;
-  private final EncryptionManager encryption;
   private final RowDataFileScanTaskReader rowDataReader;
 
   private transient RowDataToAvroGenericRecordConverter converter;
@@ -73,19 +71,15 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
     super(new ListDataIteratorBatcher<>(config));
     this.tableName = tableName;
     this.readSchema = readSchema(tableSchema, projectedSchema);
-    this.io = io;
-    this.encryption = encryption;
     this.rowDataReader =
-        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters);
+        new RowDataFileScanTaskReader(
+            tableSchema, readSchema, nameMapping, caseSensitive, null, io, encryption, filters);
   }
 
   @Override
   protected DataIterator<GenericRecord> createDataIterator(IcebergSourceSplit split) {
     return new DataIterator<>(
-        new AvroGenericRecordFileScanTaskReader(rowDataReader, lazyConverter()),
-        split.task(),
-        io,
-        encryption);
+        new AvroGenericRecordFileScanTaskReader(rowDataReader, lazyConverter()), split.task());
   }
 
   private RowDataToAvroGenericRecordConverter lazyConverter() {

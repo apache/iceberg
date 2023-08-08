@@ -49,15 +49,17 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataReaderFunction(
-        new Configuration(),
-        TestFixtures.SCHEMA,
-        TestFixtures.SCHEMA,
-        null,
-        true,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager(),
-        Collections.emptyList());
+    DataIteratorReaderFunction rowDataReaderFunction =
+        new RowDataReaderFunction(
+            new Configuration(),
+            TestFixtures.SCHEMA,
+            TestFixtures.SCHEMA,
+            null,
+            true,
+            new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
+            new PlaintextEncryptionManager(),
+            Collections.emptyList());
+    return rowDataReaderFunction;
   }
 
   @Override

@@ -21,21 +21,21 @@ package org.apache.iceberg.flink.source.split;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceSplit;
 import org.apache.flink.util.InstantiationUtil;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 @Internal
-public class IcebergSourceSplit implements SourceSplit, Serializable {
+public abstract class IcebergSourceSplit implements SourceSplit, Serializable {
   private static final long serialVersionUID = 1L;
 
-  private final CombinedScanTask task;
+  private final ScanTaskGroup<? extends ScanTask> task;
 
   private int fileOffset;
   private long recordOffset;
@@ -44,22 +44,14 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   // Caching the byte representation makes repeated serialization cheap.
   @Nullable private transient byte[] serializedBytesCache;
 
-  private IcebergSourceSplit(CombinedScanTask task, int fileOffset, long recordOffset) {
+  protected IcebergSourceSplit(
+      ScanTaskGroup<? extends ScanTask> task, int fileOffset, long recordOffset) {
     this.task = task;
     this.fileOffset = fileOffset;
     this.recordOffset = recordOffset;
   }
 
-  public static IcebergSourceSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
-    return fromCombinedScanTask(combinedScanTask, 0, 0L);
-  }
-
-  public static IcebergSourceSplit fromCombinedScanTask(
-      CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
-    return new IcebergSourceSplit(combinedScanTask, fileOffset, recordOffset);
-  }
-
-  public CombinedScanTask task() {
+  public ScanTaskGroup<? extends ScanTask> task() {
     return task;
   }
 
@@ -73,7 +65,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   @Override
   public String splitId() {
-    return MoreObjects.toStringHelper(this).add("files", toString(task.files())).toString();
+    return MoreObjects.toStringHelper(this).add("files", toString(task.tasks())).toString();
   }
 
   public void updatePosition(int newFileOffset, long newRecordOffset) {
@@ -83,27 +75,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     recordOffset = newRecordOffset;
   }
 
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("files", toString(task.files()))
-        .add("fileOffset", fileOffset)
-        .add("recordOffset", recordOffset)
-        .toString();
-  }
-
-  private String toString(Collection<FileScanTask> files) {
-    return Iterables.toString(
-        files.stream()
-            .map(
-                fileScanTask ->
-                    MoreObjects.toStringHelper(fileScanTask)
-                        .add("file", fileScanTask.file().path().toString())
-                        .add("start", fileScanTask.start())
-                        .add("length", fileScanTask.length())
-                        .toString())
-            .collect(Collectors.toList()));
-  }
+  protected abstract String toString(Collection<? extends ScanTask> files);
 
   byte[] serializeV1() throws IOException {
     if (serializedBytesCache == null) {
@@ -119,5 +91,24 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     } catch (ClassNotFoundException e) {
       throw new RuntimeException("Failed to deserialize the split.", e);
     }
+  }
+
+  public static IcebergSourceCombinedSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
+    return fromCombinedScanTask(combinedScanTask, 0, 0L);
+  }
+
+  public static IcebergSourceCombinedSplit fromCombinedScanTask(
+      CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
+    return new IcebergSourceCombinedSplit(combinedScanTask, fileOffset, recordOffset);
+  }
+
+  public static IcebergSourceChangeLogSplit fromChangeLogScanTask(
+      ScanTaskGroup<ChangelogScanTask> changelogTaskGroup) {
+    return fromChangeLogScanTask(changelogTaskGroup, 0, 0L);
+  }
+
+  public static IcebergSourceChangeLogSplit fromChangeLogScanTask(
+      ScanTaskGroup<ChangelogScanTask> changelogTaskGroup, int fileOffset, long recordOffset) {
+    return new IcebergSourceChangeLogSplit(changelogTaskGroup, fileOffset, recordOffset);
   }
 }

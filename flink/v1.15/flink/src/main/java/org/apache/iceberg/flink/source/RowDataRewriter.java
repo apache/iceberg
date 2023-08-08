@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -104,11 +103,6 @@ public class RowDataRewriter {
     private int subTaskId;
     private int attemptId;
 
-    private final Schema schema;
-    private final String nameMapping;
-    private final FileIO io;
-    private final boolean caseSensitive;
-    private final EncryptionManager encryptionManager;
     private final TaskWriterFactory<RowData> taskWriterFactory;
     private final RowDataFileScanTaskReader rowDataReader;
 
@@ -119,15 +113,10 @@ public class RowDataRewriter {
         boolean caseSensitive,
         EncryptionManager encryptionManager,
         TaskWriterFactory<RowData> taskWriterFactory) {
-      this.schema = schema;
-      this.nameMapping = nameMapping;
-      this.io = io;
-      this.caseSensitive = caseSensitive;
-      this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
       this.rowDataReader =
           new RowDataFileScanTaskReader(
-              schema, schema, nameMapping, caseSensitive, Collections.emptyList());
+              schema, schema, nameMapping, caseSensitive, null, io, encryptionManager, null);
     }
 
     @Override
@@ -142,8 +131,7 @@ public class RowDataRewriter {
     public List<DataFile> map(CombinedScanTask task) throws Exception {
       // Initialize the task writer.
       this.writer = taskWriterFactory.create();
-      try (DataIterator<RowData> iterator =
-          new DataIterator<>(rowDataReader, task, io, encryptionManager)) {
+      try (DataIterator<RowData> iterator = new DataIterator<>(rowDataReader, task)) {
         while (iterator.hasNext()) {
           RowData rowData = iterator.next();
           writer.write(rowData);

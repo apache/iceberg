@@ -65,6 +65,7 @@ public class ScanContext implements Serializable {
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
   private final int maxAllowedPlanningFailures;
+  private final String scanMode;
 
   private ScanContext(
       boolean caseSensitive,
@@ -91,7 +92,8 @@ public class ScanContext implements Serializable {
       String branch,
       String tag,
       String startTag,
-      String endTag) {
+      String endTag,
+      String scanMode) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.tag = tag;
@@ -118,6 +120,7 @@ public class ScanContext implements Serializable {
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
     this.maxAllowedPlanningFailures = maxAllowedPlanningFailures;
+    this.scanMode = scanMode;
 
     validate();
   }
@@ -244,6 +247,10 @@ public class ScanContext implements Serializable {
     return limit;
   }
 
+  public String scanMode() {
+    return scanMode;
+  }
+
   public boolean includeColumnStats() {
     return includeColumnStats;
   }
@@ -284,6 +291,7 @@ public class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
+        .scanMode(scanMode)
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
@@ -312,6 +320,7 @@ public class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
+        .scanMode(scanMode)
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
@@ -347,6 +356,7 @@ public class ScanContext implements Serializable {
     private Schema projectedSchema;
     private List<Expression> filters;
     private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
+    private String scanMode = FlinkReadOptions.SCAN_MODE.defaultValue();
     private boolean includeColumnStats =
         FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
     private boolean exposeLocality;
@@ -459,6 +469,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder scanMode(String newScanMode) {
+      this.scanMode = newScanMode;
+      return this;
+    }
+
     public Builder includeColumnStats(boolean newIncludeColumnStats) {
       this.includeColumnStats = newIncludeColumnStats;
       return this;
@@ -509,7 +524,8 @@ public class ScanContext implements Serializable {
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
-          .maxAllowedPlanningFailures(maxAllowedPlanningFailures);
+          .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
+          .scanMode(flinkReadConf.scanMode());
     }
 
     public ScanContext build() {
@@ -538,7 +554,8 @@ public class ScanContext implements Serializable {
           branch,
           tag,
           startTag,
-          endTag);
+          endTag,
+          scanMode);
     }
   }
 }
