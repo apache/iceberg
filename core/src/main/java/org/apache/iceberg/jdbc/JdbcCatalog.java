@@ -67,6 +67,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private FileIO io;
   private String catalogName = "jdbc";
@@ -112,9 +113,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     if (null != ioBuilder) {
       this.io = ioBuilder.apply(properties);
     } else {
-      String ioImpl =
-          properties.getOrDefault(
-              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+      String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
 
