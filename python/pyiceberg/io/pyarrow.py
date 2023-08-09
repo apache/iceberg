@@ -1256,6 +1256,11 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         ):
             metrics_mode = MetricsMode(MetricModeTypes.FULL)
 
+        is_nested = column_name.find(".") >= 0
+
+        if is_nested and metrics_mode.type in [MetricModeTypes.TRUNCATE, MetricModeTypes.FULL]:
+            metrics_mode = MetricsMode(MetricModeTypes.COUNTS)
+
         return [StatisticsCollector(field_id=self._field_id, iceberg_type=primitive, mode=metrics_mode, column_name=column_name)]
 
 

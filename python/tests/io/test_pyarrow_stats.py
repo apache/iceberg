@@ -213,19 +213,13 @@ def test_bounds() -> None:
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), table_metadata)
 
-    assert len(datafile.lower_bounds) == 5
+    assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaa"
     assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
-    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
-    assert len(datafile.upper_bounds) == 5
+    assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzz{"
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
-    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
 def test_metrics_mode_parsing() -> None:
@@ -308,19 +302,13 @@ def test_metrics_mode_full() -> None:
     assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 5
+    assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaaaaaa"
     assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
-    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
-    assert len(datafile.upper_bounds) == 5
+    assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "zzzzzzzzzzzzzzzzzzzz"
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
-    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
 def test_metrics_mode_non_default_trunc() -> None:
@@ -339,19 +327,13 @@ def test_metrics_mode_non_default_trunc() -> None:
     assert len(datafile.null_value_counts) == 5
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 5
+    assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aa"
     assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
-    assert datafile.lower_bounds[5] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
 
-    assert len(datafile.upper_bounds) == 5
+    assert len(datafile.upper_bounds) == 2
     assert datafile.upper_bounds[1].decode() == "z{"
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
-    assert datafile.upper_bounds[5] == STRUCT_INT64.pack(9)
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
 
 
 def test_column_metrics_mode() -> None:
@@ -360,7 +342,6 @@ def test_column_metrics_mode() -> None:
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
-    table_metadata.properties["write.metadata.metrics.column.list.element"] = "counts"
     fill_parquet_file_metadata(
         datafile,
         metadata,
@@ -372,17 +353,13 @@ def test_column_metrics_mode() -> None:
     assert len(datafile.null_value_counts) == 4
     assert len(datafile.nan_value_counts) == 0
 
-    assert len(datafile.lower_bounds) == 3
+    assert len(datafile.lower_bounds) == 1
     assert datafile.lower_bounds[2] == STRUCT_FLOAT.pack(1.69)
-    assert 5 not in datafile.lower_bounds
-    assert datafile.lower_bounds[6] == STRUCT_INT64.pack(1)
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(2)
+    assert 1 not in datafile.lower_bounds
 
-    assert len(datafile.upper_bounds) == 3
+    assert len(datafile.upper_bounds) == 1
     assert datafile.upper_bounds[2] == STRUCT_FLOAT.pack(100)
-    assert 5 not in datafile.upper_bounds
-    assert datafile.upper_bounds[6] == STRUCT_INT64.pack(5)
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(6)
+    assert 1 not in datafile.upper_bounds
 
 
 def construct_test_table_primitive_types() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetadataV2]]:
