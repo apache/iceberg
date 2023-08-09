@@ -58,6 +58,7 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
     if (rowDataWrapper == null) {
       rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }
+
     return rowDataWrapper;
   }
 
