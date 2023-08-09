@@ -19,6 +19,9 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,10 +72,12 @@ public class TestResolvingIO {
     resolvingFileIO.setConf(hadoopConf);
     resolvingFileIO.initialize(
         ImmutableMap.of("io-impl", "org.apache.iceberg.hadoop.HadoopFileIO"));
+    ResolvingFileIO spy = spy(resolvingFileIO);
     // configure delegation IO
     FileSystem fs = FileSystem.getLocal(hadoopConf);
     Path parent = new Path(tempDir.toURI());
-    HadoopFileIO delegate = (HadoopFileIO) resolvingFileIO.io(parent.toString());
+    HadoopFileIO delegate = new HadoopFileIO(hadoopConf);
+    when(spy.io(anyString())).thenReturn(delegate);
     // write
     List<Path> randomFilePaths =
         IntStream.range(1, 10)
@@ -85,7 +90,7 @@ public class TestResolvingIO {
     // bulk deletion
     List<String> randomFilePathString =
         randomFilePaths.stream().map(p -> p.toUri().toString()).collect(Collectors.toList());
-    resolvingFileIO.deleteFiles(randomFilePathString);
+    spy.deleteFiles(randomFilePathString);
 
     for (String path : randomFilePathString) {
       assertThat(delegate.newInputFile(path).exists()).isFalse();
@@ -100,8 +105,11 @@ public class TestResolvingIO {
     resolvingFileIO.setConf(hadoopConf);
     resolvingFileIO.initialize(
         ImmutableMap.of("io-impl", "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    ResolvingFileIO spy = spy(resolvingFileIO);
+    // configure delegation IO
     String parentPath = "inmemory://foo.db/bar";
-    InMemoryFileIO delegation = (InMemoryFileIO) resolvingFileIO.io(parentPath);
+    InMemoryFileIO delegation = new InMemoryFileIO();
+    when(spy.io(anyString())).thenReturn(delegation);
     // write
     byte[] someData = "some data".getBytes();
 
@@ -114,7 +122,7 @@ public class TestResolvingIO {
       assertThat(delegation.fileExists(randomFilePath)).isTrue();
     }
     // non-bulk deletion
-    resolvingFileIO.deleteFiles(randomFilePaths);
+    spy.deleteFiles(randomFilePaths);
 
     for (String path : randomFilePaths) {
       assertThat(delegation.fileExists(path)).isFalse();
