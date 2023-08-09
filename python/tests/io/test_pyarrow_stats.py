@@ -19,6 +19,7 @@
 import math
 import tempfile
 import uuid
+from dataclasses import asdict, dataclass
 from datetime import (
     date,
     datetime,
@@ -67,6 +68,12 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 
 
+@dataclass(frozen=True)
+class TestStruct:
+    x: Optional[int]
+    y: Optional[float]
+
+
 def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetadataV2]]:
     table_metadata = {
         "format-version": 2,
@@ -84,7 +91,7 @@ def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetada
                         "id": 3,
                         "name": "list",
                         "required": False,
-                        "type": {"type": "list", "element-id": 5, "element": "long", "element-required": False},
+                        "type": {"type": "list", "element-id": 6, "element": "long", "element-required": False},
                     },
                     {
                         "id": 4,
@@ -92,11 +99,23 @@ def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetada
                         "required": False,
                         "type": {
                             "type": "map",
-                            "key-id": 6,
+                            "key-id": 7,
                             "key": "long",
-                            "value-id": 7,
+                            "value-id": 8,
                             "value": "long",
                             "value-required": False,
+                        },
+                    },
+                    {
+                        "id": 5,
+                        "name": "structs",
+                        "required": False,
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {"id": 9, "name": "x", "required": False, "type": "long"},
+                                {"id": 10, "name": "y", "required": False, "type": "float", "doc": "comment"},
+                            ],
                         },
                     },
                 ],
@@ -123,12 +142,20 @@ def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetada
         {},
     ]
 
+    _structs = [
+        asdict(TestStruct(1, 0.2)),
+        asdict(TestStruct(None, -1.34)),
+        None,
+        asdict(TestStruct(54, None)),
+    ]
+
     table = pa.Table.from_pydict(
         {
             "strings": _strings,
             "floats": _floats,
             "list": _list,
             "maps": _maps,
+            "structs": _structs,
         },
         schema=arrow_schema,
     )
@@ -146,7 +173,6 @@ def test_record_count() -> None:
 
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
-
     assert datafile.record_count == 4
 
 
@@ -165,12 +191,14 @@ def test_value_counts() -> None:
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.value_counts) == 5
+    assert len(datafile.value_counts) == 7
     assert datafile.value_counts[1] == 4
     assert datafile.value_counts[2] == 4
-    assert datafile.value_counts[5] == 10  # 3 lists with 3 items and a None value
-    assert datafile.value_counts[6] == 5
+    assert datafile.value_counts[6] == 10  # 3 lists with 3 items and a None value
     assert datafile.value_counts[7] == 5
+    assert datafile.value_counts[8] == 5
+    assert datafile.value_counts[9] == 4
+    assert datafile.value_counts[10] == 4
 
 
 def test_column_sizes() -> None:
@@ -179,13 +207,13 @@ def test_column_sizes() -> None:
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.column_sizes) == 5
+    assert len(datafile.column_sizes) == 7
     # these values are an artifact of how the write_table encodes the columns
     assert datafile.column_sizes[1] > 0
     assert datafile.column_sizes[2] > 0
-    assert datafile.column_sizes[5] > 0
     assert datafile.column_sizes[6] > 0
     assert datafile.column_sizes[7] > 0
+    assert datafile.column_sizes[8] > 0
 
 
 def test_null_and_nan_counts() -> None:
@@ -194,12 +222,14 @@ def test_null_and_nan_counts() -> None:
     datafile = DataFile()
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.null_value_counts) == 5
+    assert len(datafile.null_value_counts) == 7
     assert datafile.null_value_counts[1] == 1
     assert datafile.null_value_counts[2] == 0
-    assert datafile.null_value_counts[5] == 1
-    assert datafile.null_value_counts[6] == 2
+    assert datafile.null_value_counts[6] == 1
     assert datafile.null_value_counts[7] == 2
+    assert datafile.null_value_counts[8] == 2
+    assert datafile.null_value_counts[9] == 2
+    assert datafile.null_value_counts[10] == 2
 
     # #arrow does not include this in the statistics
     # assert len(datafile.nan_value_counts)  == 3
@@ -267,8 +297,8 @@ def test_metrics_mode_counts() -> None:
     table_metadata.properties["write.metadata.metrics.default"] = "counts"
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.value_counts) == 5
-    assert len(datafile.null_value_counts) == 5
+    assert len(datafile.value_counts) == 7
+    assert len(datafile.null_value_counts) == 7
     assert len(datafile.nan_value_counts) == 0
     assert len(datafile.lower_bounds) == 0
     assert len(datafile.upper_bounds) == 0
@@ -281,8 +311,8 @@ def test_metrics_mode_full() -> None:
     table_metadata.properties["write.metadata.metrics.default"] = "full"
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.value_counts) == 5
-    assert len(datafile.null_value_counts) == 5
+    assert len(datafile.value_counts) == 7
+    assert len(datafile.null_value_counts) == 7
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 2
@@ -301,8 +331,8 @@ def test_metrics_mode_non_default_trunc() -> None:
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.value_counts) == 5
-    assert len(datafile.null_value_counts) == 5
+    assert len(datafile.value_counts) == 7
+    assert len(datafile.null_value_counts) == 7
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 2
@@ -322,8 +352,8 @@ def test_column_metrics_mode() -> None:
     table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
     fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
 
-    assert len(datafile.value_counts) == 4
-    assert len(datafile.null_value_counts) == 4
+    assert len(datafile.value_counts) == 6
+    assert len(datafile.null_value_counts) == 6
     assert len(datafile.nan_value_counts) == 0
 
     assert len(datafile.lower_bounds) == 1
