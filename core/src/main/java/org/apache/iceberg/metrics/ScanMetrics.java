@@ -19,6 +19,8 @@
 package org.apache.iceberg.metrics;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.immutables.value.Value;
 
 /** Carries all metrics for a particular scan */
@@ -125,6 +127,16 @@ public abstract class ScanMetrics {
   @Value.Derived
   public Counter positionalDeleteFiles() {
     return metricsContext().counter(POSITIONAL_DELETE_FILES);
+  }
+
+  public void indexedDeleteFile(DeleteFile deleteFile) {
+    indexedDeleteFiles().increment();
+
+    if (deleteFile.content() == FileContent.POSITION_DELETES) {
+      positionalDeleteFiles().increment();
+    } else if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+      equalityDeleteFiles().increment();
+    }
   }
 
   public static ScanMetrics of(MetricsContext metricsContext) {
