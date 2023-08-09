@@ -235,7 +235,7 @@ def test_invalid_format_version() -> None:
     with pytest.raises(ValidationError) as exc_info:
         TableMetadataUtil.parse_obj(table_metadata_invalid_format_version)
 
-    assert "Unknown format version: -1" in str(exc_info.value)
+    assert "No match for discriminator 'format_version' and value -1 (allowed values: 1, 2)" in str(exc_info.value)
 
 
 def test_current_schema_not_found() -> None:

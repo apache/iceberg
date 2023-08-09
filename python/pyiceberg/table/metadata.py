@@ -26,7 +26,9 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, root_validator
+from typing_extensions import Annotated
+
+from pydantic import Field, root_validator, ValidationError as PydanticValidationError
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
@@ -303,7 +305,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         metadata["format_version"] = 2
         return TableMetadataV2(**metadata)
 
-    format_version: Literal[1] = Field(alias="format-version")
+    format_version: Literal[1] = Field(alias="format-version", default=1)
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
@@ -353,7 +355,7 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     increasing long that tracks the order of snapshots in a table."""
 
 
-TableMetadata = Union[TableMetadataV1, TableMetadataV2]
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]
 
 
 def new_table_metadata(
@@ -380,19 +382,14 @@ def new_table_metadata(
 class TableMetadataUtil:
     """Helper class for parsing TableMetadata."""
 
-    # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
-    # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]
+    class _TableMetadata(IcebergBaseModel):
+        metadata: TableMetadata
 
     @staticmethod
     def parse_obj(data: Dict[str, Any]) -> TableMetadata:
-        if "format-version" not in data:
-            raise ValidationError(f"Missing format-version in TableMetadata: {data}")
+        try:
+            metadata_util = TableMetadataUtil._TableMetadata(**{"metadata": data})
+            return metadata_util.metadata
+        except PydanticValidationError as e:
+            raise ValidationError(e)
 
-        format_version = data["format-version"]
-
-        if format_version == 1:
-            return TableMetadataV1(**data)
-        elif format_version == 2:
-            return TableMetadataV2(**data)
-        else:
-            raise ValidationError(f"Unknown format version: {format_version}")

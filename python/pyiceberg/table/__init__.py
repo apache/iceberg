@@ -370,13 +370,13 @@ class CommitTableRequest(IcebergBaseModel):
 
 
 class CommitTableResponse(IcebergBaseModel):
-    metadata: TableMetadata = Field()
+    metadata: TableMetadata
     metadata_location: str = Field(alias="metadata-location")
 
 
 class Table:
     identifier: Identifier = Field()
-    metadata: TableMetadata = Field()
+    metadata: TableMetadata
     metadata_location: str = Field()
     io: FileIO
     catalog: Catalog
