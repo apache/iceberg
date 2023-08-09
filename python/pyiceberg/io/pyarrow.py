@@ -1264,11 +1264,33 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
         return [StatisticsCollector(field_id=self._field_id, iceberg_type=primitive, mode=metrics_mode, column_name=column_name)]
 
 
+def compute_statistics_plan(
+    table_metadata: TableMetadata,
+) -> List[StatisticsCollector]:
+    """
+    Computes the statistics plan for all columns.
+
+    The resulting list is assumed to have the same lenght and same order as the columns in the pyarrow table.
+    This allows the list to map from the column index to the Iceberg column ID.
+    For each element, the desired metrics collection that was provided by the user in the configuration
+    is computed and then adjusted according to the data type of the column. For nested columns the minimum
+    and maximum values are not computed. And truncation is only applied to text of binary strings.
+
+    Args:
+        table_metadata (pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata. It is required to
+            compute the mapping of column position to iceberg schema type id. It's also used to set the mode
+            for column metrics collection
+    """
+    schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
+
+    return pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
+
+
 def fill_parquet_file_metadata(
     df: DataFile,
     parquet_metadata: pq.FileMetaData,
     file_size: int,
-    table_metadata: TableMetadata,
+    stats_columns: List[StatisticsCollector],
 ) -> None:
     """
     Computes and fills the following fields of the DataFile object.
@@ -1290,14 +1312,10 @@ def fill_parquet_file_metadata(
         file_size (int): The total compressed file size cannot be retrieved from the metadata and hence has to
             be passed here. Depending on the kind of file system and pyarrow library call used, different
             ways to obtain this value might be appropriate.
-        table_metadata (pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata. It is required to
-            compute the mapping if column position to iceberg schema type id. It's also used to set the mode
+        stats_columns (List[StatisticsCollector]): The statistics gathering plan. It is required to
+            map from column position to iceberg schema type id. It's also used to set the mode
             for column metrics collection
     """
-    schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
-
-    stats_columns = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
-
     if parquet_metadata.num_columns != len(stats_columns):
         raise ValueError(
             f"Number of columns in metadata ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
