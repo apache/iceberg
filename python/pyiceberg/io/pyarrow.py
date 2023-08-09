@@ -1168,7 +1168,7 @@ _DEFAULT_METRICS_MODE = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION
 
 
 def match_metrics_mode(mode: str) -> MetricsMode:
-    sanitized_mode = mode.lower()
+    sanitized_mode = mode.strip().lower()
     if sanitized_mode.startswith("truncate"):
         m = re.match(TRUNCATION_EXPR, sanitized_mode)
         if m:
@@ -1178,11 +1178,11 @@ def match_metrics_mode(mode: str) -> MetricsMode:
             return MetricsMode(MetricModeTypes.TRUNCATE, int(m[1]))
         else:
             raise ValueError(f"Malformed truncate: {mode}")
-    elif sanitized_mode.startswith("none"):
+    elif sanitized_mode == "none":
         return MetricsMode(MetricModeTypes.NONE)
-    elif sanitized_mode.startswith("counts"):
+    elif sanitized_mode == "counts":
         return MetricsMode(MetricModeTypes.COUNTS)
-    elif sanitized_mode.startswith("full"):
+    elif sanitized_mode == "full":
         return MetricsMode(MetricModeTypes.FULL)
     else:
         raise ValueError(f"Unsupported metrics mode: {mode}")

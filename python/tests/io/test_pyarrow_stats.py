@@ -230,10 +230,7 @@ def test_metrics_mode_parsing() -> None:
     assert match_metrics_mode("Counts") == MetricsMode(MetricModeTypes.COUNTS)
     assert match_metrics_mode("full") == MetricsMode(MetricModeTypes.FULL)
     assert match_metrics_mode("FuLl") == MetricsMode(MetricModeTypes.FULL)
-
-    with pytest.raises(ValueError) as exc_info:
-        match_metrics_mode(" Full")
-    assert "Unsupported metrics mode:  Full" in str(exc_info.value)
+    assert match_metrics_mode(" FuLl") == MetricsMode(MetricModeTypes.FULL)
 
     assert match_metrics_mode("truncate(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
     assert match_metrics_mode("trUncatE(16)") == MetricsMode(MetricModeTypes.TRUNCATE, 16)
