@@ -64,7 +64,7 @@ META_SCHEMA = StructType(
         field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=StringType(), value_required=True),
         required=True,
     ),
-    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), required=True),
+    NestedField(field_id=300, name="sync", field_type=FixedType(SYNC_SIZE), required=True),
 )
 
 _CODEC_KEY = "avro.codec"

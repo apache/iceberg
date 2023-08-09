@@ -36,6 +36,7 @@ from typing import (
     Annotated,
     Any,
     ClassVar,
+    Dict,
     Literal,
     Optional,
     Tuple,
@@ -46,9 +47,8 @@ from pydantic import (
     Field,
     GetCoreSchemaHandler,
     PlainSerializer,
-    PrivateAttr,
     SerializeAsAny,
-    WithJsonSchema,
+    WithJsonSchema, PrivateAttr,
 )
 from pydantic_core import core_schema
 
@@ -73,25 +73,13 @@ class IcebergType(IcebergBaseModel):
     """
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls.validate,
-            core_schema.str_schema(),
-        )
-
-    @classmethod
     def validate(cls, v: Any) -> IcebergType:
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the
         # primitive type ourselves, or pointing it at the correct
         # complex type by looking at the type field
 
-        if isinstance(v, str):
-            if v.startswith("decimal"):
-                return DecimalType.parse(v)
-            elif v.startswith("fixed"):
-                return FixedType.parse(v)
-        elif isinstance(v, dict):
+        if isinstance(v, dict):
             if v.get("type") == "struct":
                 return StructType(**v)
             elif v.get("type") == "list":
@@ -135,14 +123,6 @@ def _parse_fixed_type(fixed: Any) -> int:
         return fixed
 
 
-_FixedType = Annotated[
-    str,
-    BeforeValidator(_parse_fixed_type),
-    PlainSerializer(lambda v: f"fixed[{v}]", return_type=str),
-    WithJsonSchema({"type": "string"}, mode="serialization"),
-]
-
-
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
 
@@ -155,44 +135,44 @@ class FixedType(PrimitiveType):
         False
     """
 
-    root: _FixedType = Field()
+    root: str = Field()
+    _length = PrivateAttr()
 
-    # def __init__(self, length: int, **data) -> None:
-    #     super().__init__(length=length, **data)
+    def __init__(self, a: Any, **data) -> None:
+        self._length = _parse_fixed_type(a)
+        super().__init__(f"fixed[{a}]", **data)
 
     def __len__(self) -> int:
         """Returns the length of an instance of the FixedType class."""
-        return self.root
+        return self._length
 
     def __str__(self) -> str:
-        return f"fixed[{self.root}]"
+        return f"fixed[{self._length}]"
 
     def __repr__(self) -> str:
         """Returns the string representation of the FixedType class."""
-        return f"FixedType(length={self.root})"
+        return f"FixedType({self._length})"
 
     def __getnewargs__(self) -> Tuple[int]:
         """A magic function for pickling the FixedType class."""
-        return (self.root,)
+        return (self._length,)
+
+    def __hash__(self) -> int:
+        return hash(self._length)
 
     def __eq__(self, other: Any) -> bool:
         return len(other) == len(self) if isinstance(other, FixedType) else False
 
 
-class _DecimalType(IcebergBaseModel):
-    precision: int
-    scale: int
-
-
-def _parse_decimal_type(decimal: Any) -> _DecimalType:
+def _parse_decimal_type(decimal: Any) -> Tuple[int, int]:
     if isinstance(decimal, str):
         matches = DECIMAL_REGEX.search(decimal)
         if matches:
-            return _DecimalType(precision=int(matches.group(1)), scale=int(matches.group(2)))
+            return int(matches.group(1)), int(matches.group(2))
         else:
             raise ValidationError(f"Could not parse {decimal} into a DecimalType")
     elif isinstance(decimal, dict):
-        return _DecimalType(precision=decimal["precision"], scale=decimal["scale"])
+        return decimal["precision"], decimal["scale"]
     else:
         return decimal
 
@@ -207,23 +187,23 @@ class DecimalType(PrimitiveType):
         True
     """
 
-    root: Annotated[
-        _DecimalType,
-        BeforeValidator(_parse_decimal_type),
-        PlainSerializer(lambda v: f"decimal({v.precision}, {v.scale})", return_type=str),
-        WithJsonSchema({"type": "string"}, mode="serialization"),
-    ] = Field()
+    root: str = Field()
+    _precision: int = PrivateAttr()
+    _scale: int = PrivateAttr()
 
-    def __init__(self, precision: int, scale: int, **data):
-        super().__init__(root=_DecimalType(precision=precision, scale=scale))
+    def __init__(self, precision: int, scale: int, **data) -> None:
+        self._precision = precision
+        self._scale = scale
+        super().__init__(f"Decimal({self._precision}, {self._scale})", **data)
+
 
     @property
     def precision(self) -> int:
-        return self.root.precision
+        return self._precision
 
     @property
     def scale(self) -> int:
-        return self.root.scale
+        return self._scale
 
     def __repr__(self) -> str:
         """Returns the string representation of the DecimalType class."""
@@ -232,9 +212,9 @@ class DecimalType(PrimitiveType):
     def __str__(self) -> str:
         return f"decimal({self.precision}, {self.scale})"
 
-    def __getnewargs__(self) -> Tuple[_DecimalType]:
+    def __getnewargs__(self) -> Tuple[int, int]:
         """A magic function for pickling the DecimalType class."""
-        return (self.root,)
+        return self._precision, self._scale
 
     def __eq__(self, other: Any) -> bool:
         return self.root == other.root if isinstance(other, DecimalType) else False
@@ -288,11 +268,8 @@ class NestedField(IcebergType):
         data["required"] = required
         data["doc"] = doc
         data["initial-default"] = initial_default
+        super().__init__(**data)
 
-        try:
-            super().__init__(**data)
-        except Exception as e:
-            raise e
 
     def __str__(self) -> str:
         """Returns the string representation of the NestedField class."""
@@ -302,7 +279,7 @@ class NestedField(IcebergType):
 
     def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
         """A magic function for pickling the NestedField class."""
-        return (self.field_id, self.name, self.field_type, self.required, self.doc)
+        return self.field_id, self.name, self.field_type, self.required, self.doc
 
     @property
     def optional(self) -> bool:
@@ -374,6 +351,7 @@ class ListType(IcebergType):
     element_type: SerializeAsAny[IcebergType] = Field(alias="element")
     element_required: bool = Field(alias="element-required", default=True)
     element_field: NestedField = Field(init=False, repr=False)
+    _hash: int = PrivateAttr()
 
     def __init__(
         self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data: Any
@@ -388,6 +366,7 @@ class ListType(IcebergType):
             required=data["element-required"],
         )
         super().__init__(**data)
+        self._hash = hash(data.values())
 
     def __str__(self) -> str:
         """Returns the string representation of the ListType class."""
@@ -395,7 +374,11 @@ class ListType(IcebergType):
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
         """A magic function for pickling the ListType class."""
-        return (self.element_id, self.element_type, self.element_required)
+        return self.element_id, self.element_type, self.element_required
+
+    def __hash__(self) -> int:
+        """Used the cache hash value of the StructType class."""
+        return self._hash
 
     def __eq__(self, other: Any) -> bool:
         return self.element_field == other.element_field if isinstance(other, ListType) else False
@@ -702,3 +685,4 @@ class BinaryType(PrimitiveType):
         super().__init__("binary")
 
     root: Literal["binary"] = "binary"
+
