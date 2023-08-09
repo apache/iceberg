@@ -1324,6 +1324,8 @@ def fill_parquet_file_metadata(
         else:
             split_offsets.append(data_offset)
 
+        invalidate_col: Set[int] = set()
+
         for pos, stats_col in enumerate(stats_columns):
             field_id = stats_col.field_id
 
@@ -1356,8 +1358,10 @@ def fill_parquet_file_metadata(
                     col_aggs[field_id].update_max(statistics.max)
 
                 except pyarrow.lib.ArrowNotImplementedError as e:
+                    invalidate_col.add(field_id)
                     logger.warning(e)
             else:
+                invalidate_col.add(field_id)
                 logger.warning("PyArrow statistics missing for column %d when writing file", pos)
 
     split_offsets.sort()
@@ -1372,6 +1376,11 @@ def fill_parquet_file_metadata(
         _max = agg.max_as_bytes()
         if _max is not None:
             upper_bounds[k] = _max
+
+    for field_id in invalidate_col:
+        del lower_bounds[field_id]
+        del upper_bounds[field_id]
+        del null_value_counts[field_id]
 
     df.file_format = FileFormat.PARQUET
     df.record_count = parquet_metadata.num_rows
