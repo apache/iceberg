@@ -56,10 +56,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
-  private Identifier backupIdent;
+  private final Identifier backupIdent;
 
   private boolean dropBackup = false;
-  private String backupTableName = "";
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -104,12 +103,6 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
-  public MigrateTableSparkAction withBackupTableName(String tableName) {
-    this.backupTableName = tableName;
-    return this;
-  }
-
-  @Override
   public MigrateTable.Result execute() {
     String desc = String.format("Migrating table %s", destTableIdent().toString());
     JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
@@ -118,10 +111,6 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private MigrateTable.Result doExecute() {
     LOG.info("Starting the migration of {} to Iceberg", sourceTableIdent());
-
-    if (!backupTableName.isEmpty()) {
-      backupIdent = Identifier.of(destTableIdent.namespace(), backupTableName);
-    }
 
     // move the source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
