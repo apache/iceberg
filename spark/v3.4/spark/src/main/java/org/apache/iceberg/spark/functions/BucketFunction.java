@@ -81,7 +81,7 @@ public class BucketFunction implements UnboundFunction {
   public BoundFunction bind(StructType inputType) {
     if (inputType.size() < 2) {
       throw new UnsupportedOperationException(
-          "Wrong number of inputs (expected numBuckets and varg value)");
+          "Wrong number of inputs (expected numBuckets and values)");
     }
 
     StructField numBucketsField = inputType.fields()[NUM_BUCKETS_ORDINAL];
@@ -376,6 +376,7 @@ public class BucketFunction implements UnboundFunction {
       return inputTypes;
     }
 
+    @SuppressWarnings("CyclomaticComplexity")
     @Override
     public Integer produceResult(InternalRow input) {
       if (input.isNullAt(NUM_BUCKETS_ORDINAL)) {

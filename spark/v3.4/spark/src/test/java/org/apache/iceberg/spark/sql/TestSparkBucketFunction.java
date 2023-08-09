@@ -200,17 +200,12 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
     Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'bucket' cannot process input: (): Wrong number of inputs (expected numBuckets and value)");
+            "Function 'bucket' cannot process input: (): Wrong number of inputs (expected numBuckets and values)");
 
     Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'bucket' cannot process input: (int): Wrong number of inputs (expected numBuckets and value)");
-
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1, 1L, 1)"))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith(
-            "Function 'bucket' cannot process input: (int, bigint, int): Wrong number of inputs (expected numBuckets and value)");
+            "Function 'bucket' cannot process input: (int): Wrong number of inputs (expected numBuckets and values)");
   }
 
   @Test
