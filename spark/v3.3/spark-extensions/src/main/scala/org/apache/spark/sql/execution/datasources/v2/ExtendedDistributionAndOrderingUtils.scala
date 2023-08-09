@@ -63,13 +63,13 @@ object ExtendedDistributionAndOrderingUtils {
           case _ => false
         }
 
-        val strictDistributionMode = conf.getConfString(SparkSQLProperties.STRICT_TABLE_DISTRIBUTION,
-          SparkSQLProperties.STRICT_TABLE_DISTRIBUTION_DEFAULT).toBoolean
+        val writeDistributionAqeEnabled = conf.getConfString(SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED,
+          SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED_DEFAULT).toBoolean
 
-        if (!strictDistributionMode && isHashDistributionMode) {
-          // if strict distribution mode is not enabled, then we fallback to spark AQE
-          // to determine the number of partitions by coalescing and un-skewing partitions
-          // Also to note, Rebalance is only supported for hash distribution mode in spark 3.3
+        if (writeDistributionAqeEnabled && isHashDistributionMode) {
+          // If write-distribution-AQE property is enabled, then we fallback to spark AQE
+          // to determine the number of partitions by coalescing and un-skewing partitions.
+          // Also to note, Rebalance is only supported for hash distribution mode in spark 3.3.
           // By default the strictDistributionMode is set to true, to not disrupt regular
           // plan of RepartitionByExpression
           RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)

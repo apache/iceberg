@@ -30,7 +30,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
-import static org.apache.iceberg.spark.SparkSQLProperties.STRICT_TABLE_DISTRIBUTION;
+import static org.apache.iceberg.spark.SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -107,7 +107,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   @Test
   public void testCoalesceUpdate() {
     createAndInitTable("id INT, dep STRING");
-    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
+    spark.conf().set(WRITE_DISTRIBUTION_AQE_ENABLED, "true");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {
@@ -172,7 +172,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public void testSkewUpdate() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
-    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
+    spark.conf().set(WRITE_DISTRIBUTION_AQE_ENABLED, "true");
 
     String[] records = new String[100];
     for (int index = 0; index < 100; index++) {

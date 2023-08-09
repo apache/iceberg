@@ -26,7 +26,7 @@ import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.spark.SparkSQLProperties.STRICT_TABLE_DISTRIBUTION;
+import static org.apache.iceberg.spark.SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -113,7 +113,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testCoalesceDelete() throws Exception {
     createAndInitUnpartitionedTable();
-    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
+    spark.conf().set(WRITE_DISTRIBUTION_AQE_ENABLED, "true");
 
     Employee[] employees = new Employee[100];
     for (int index = 0; index < 100; index++) {
@@ -175,7 +175,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @Test
   public void testSkewDelete() throws Exception {
     createAndInitPartitionedTable();
-    spark.conf().set(STRICT_TABLE_DISTRIBUTION, "false");
+    spark.conf().set(WRITE_DISTRIBUTION_AQE_ENABLED, "true");
     Employee[] employees = new Employee[100];
     for (int index = 0; index < 100; index++) {
       employees[index] = new Employee(index, "hr");
