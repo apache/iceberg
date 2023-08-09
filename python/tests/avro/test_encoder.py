@@ -16,10 +16,9 @@
 # under the License.
 from __future__ import annotations
 
-import datetime
 import io
 import struct
-from decimal import Decimal
+import uuid
 
 from pyiceberg.avro.encoder import BinaryEncoder
 
@@ -101,28 +100,6 @@ def test_write_double() -> None:
     assert output.getbuffer() == struct.pack("<d", _input)
 
 
-def test_write_decimal_bytes() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = Decimal("3.14159265359")
-
-    encoder.write_decimal_bytes(_input)
-
-    assert output.getbuffer() == b"\x0a\x49\x25\x59\xf6\x4f"
-
-
-def test_write_decimal_fixed() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = Decimal("3.14159265359")
-
-    encoder.write_decimal_fixed(_input, 8)
-
-    assert output.getbuffer() == b"\x00\x00\x00\x49\x25\x59\xf6\x4f"
-
-
 def test_write_bytes() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
@@ -132,17 +109,6 @@ def test_write_bytes() -> None:
     encoder.write_bytes(_input)
 
     assert output.getbuffer() == b"".join([b"\x06", _input])
-
-
-def test_write_bytes_fixed() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = b"\x12\x34\x56"
-
-    encoder.write_bytes_fixed(_input)
-
-    assert output.getbuffer() == _input
 
 
 def test_write_utf8() -> None:
@@ -156,52 +122,13 @@ def test_write_utf8() -> None:
     assert output.getbuffer() == b"".join([b"\x7a", bin_input])
 
 
-def test_write_date_int() -> None:
+def test_write_uuid() -> None:
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
-    _input = datetime.date(1970, 1, 2)
-    encoder.write_date_int(_input)
+    _input = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    encoder.write_uuid(_input)
 
-    assert output.getbuffer() == b"\x02"
-
-
-def test_write_time_millis_int() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.time(1, 2, 3, 456000)
-    encoder.write_time_millis_int(_input)
-
-    assert output.getbuffer() == b"\x80\xc3\xc6\x03"
-
-
-def test_write_time_micros_long() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.time(1, 2, 3, 456000)
-
-    encoder.write_time_micros_long(_input)
-
-    assert output.getbuffer() == b"\x80\xb8\xfb\xde\x1b"
-
-
-def test_write_timestamp_millis_long() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
-    encoder.write_timestamp_millis_long(_input)
-
-    assert output.getbuffer() == b"\xf0\xdb\xcc\xad\xad\x61"
-
-
-def test_write_timestamp_micros_long() -> None:
-    output = io.BytesIO()
-    encoder = BinaryEncoder(output)
-
-    _input = datetime.datetime(2023, 1, 1, 1, 2, 3)
-    encoder.write_timestamp_micros_long(_input)
-
-    assert output.getbuffer() == b"\x80\xe3\xad\x9f\xac\xca\xf8\x05"
+    buf = output.getbuffer()
+    assert len(buf) == 16
+    assert buf.tobytes() == b"\x124Vx\x124Vx\x124Vx\x124Vx"

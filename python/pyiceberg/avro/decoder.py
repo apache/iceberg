@@ -14,21 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import decimal
 from abc import ABC, abstractmethod
-from datetime import datetime, time
 from io import SEEK_CUR
 from typing import Dict, List
-from uuid import UUID
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
-from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
-from pyiceberg.utils.decimal import unscaled_to_decimal
 
 
 class BinaryDecoder(ABC):
-    """Read leaf values."""
+    """Decodes bytes into Python physical primitives."""
 
     @abstractmethod
     def __init__(self, input_stream: InputStream) -> None:
@@ -106,76 +101,18 @@ class BinaryDecoder(ABC):
         """
         return float(STRUCT_DOUBLE.unpack(self.read(8))[0])
 
-    def read_decimal_from_bytes(self, precision: int, scale: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
-
-        Decimal bytes are decoded as signed short, int or long depending on the
-        size of bytes.
-        """
-        size = self.read_int()
-        return self.read_decimal_from_fixed(precision, scale, size)
-
-    def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
-
-        Decimal is encoded as fixed. Fixed instances are encoded using the
-        number of bytes declared in the schema.
-        """
-        data = self.read(size)
-        unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
-        return unscaled_to_decimal(unscaled_datum, scale)
-
     def read_bytes(self) -> bytes:
         """Bytes are encoded as a long followed by that many bytes of data."""
         num_bytes = self.read_int()
         return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
-        """Reads a utf-8 encoded string from the stream.
+        """Reads an utf-8 encoded string from the stream.
 
         A string is encoded as a long followed by
         that many bytes of UTF-8 encoded character data.
         """
         return self.read_bytes().decode("utf-8")
-
-    def read_uuid_from_fixed(self) -> UUID:
-        """Reads a UUID as a fixed[16]."""
-        return UUID(bytes=self.read(16))
-
-    def read_time_millis(self) -> time:
-        """Reads a milliseconds granularity time from the stream.
-
-        Int is decoded as python time object which represents
-        the number of milliseconds after midnight, 00:00:00.000.
-        """
-        millis = self.read_int()
-        return micros_to_time(millis * 1000)
-
-    def read_time_micros(self) -> time:
-        """Reads a microseconds granularity time from the stream.
-
-        Long is decoded as python time object which represents
-        the number of microseconds after midnight, 00:00:00.000000.
-        """
-        return micros_to_time(self.read_int())
-
-    def read_timestamp_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamp from the stream.
-
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
-        """
-        return micros_to_timestamp(self.read_int())
-
-    def read_timestamptz_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamptz from the stream.
-
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
-
-        Adjusted to UTC.
-        """
-        return micros_to_timestamptz(self.read_int())
 
     def skip_boolean(self) -> None:
         self.skip(1)
@@ -199,7 +136,7 @@ class BinaryDecoder(ABC):
 
 
 class StreamingBinaryDecoder(BinaryDecoder):
-    """Read leaf values."""
+    """Decodes bytes into Python physical primitives."""
 
     __slots__ = "_input_stream"
     _input_stream: InputStream
