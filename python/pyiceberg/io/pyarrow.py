@@ -142,6 +142,7 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
 from pyiceberg.utils.singleton import Singleton
+from pyiceberg.utils.truncate import truncate_upper_bound_binary_string, truncate_upper_bound_text_string
 
 if TYPE_CHECKING:
     from pyiceberg.table import FileScanTask, Table
@@ -1108,35 +1109,13 @@ class StatsAggregator:
         if self.primitive_type == StringType():
             if type(self.current_max) != str:
                 raise ValueError("Expected the current_max to be a string")
-
-            s_result = self.current_max[: self.trunc_length]
-            if s_result != self.current_max:
-                chars = [*s_result]
-
-                for i in range(-1, -len(s_result) - 1, -1):
-                    try:
-                        to_inc = ord(chars[i])
-                        # will raise exception if the highest unicode code is reached
-                        _next = chr(to_inc + 1)
-                        chars[i] = _next
-                        return self.serialize("".join(chars))
-                    except ValueError:
-                        pass
-                return None  # didn't find a valid upper bound
-            return self.serialize(s_result)
+            s_result = truncate_upper_bound_text_string(self.current_max, self.trunc_length)
+            return self.serialize(s_result) if s_result is not None else None
         elif self.primitive_type == BinaryType():
             if type(self.current_max) != bytes:
                 raise ValueError("Expected the current_max to be bytes")
-            b_result = self.current_max[: self.trunc_length]
-            if b_result != self.current_max:
-                _bytes = [*b_result]
-                for i in range(-1, -len(b_result) - 1, -1):
-                    if _bytes[i] < 255:
-                        _bytes[i] += 1
-                        return b"".join([i.to_bytes(1, byteorder="little") for i in _bytes])
-                return None
-
-            return self.serialize(b_result)
+            b_result = truncate_upper_bound_binary_string(self.current_max, self.trunc_length)
+            return self.serialize(b_result) if b_result is not None else None
         else:
             if self.trunc_length is not None:
                 raise ValueError(f"{self.primitive_type} cannot be truncated")
@@ -1362,7 +1341,8 @@ def fill_parquet_file_metadata(
                 try:
                     statistics = column.statistics
 
-                    null_value_counts[field_id] = null_value_counts.get(field_id, 0) + statistics.null_count
+                    if statistics.has_null_count:
+                        null_value_counts[field_id] = null_value_counts.get(field_id, 0) + statistics.null_count
 
                     if stats_col.mode == MetricsMode(MetricModeTypes.COUNTS):
                         continue
