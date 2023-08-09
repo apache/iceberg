@@ -213,7 +213,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot('t')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("snapshot_id and ref cannot both be null");
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
 
     Assertions.assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -227,7 +227,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot(table => 't')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("snapshot_id and ref cannot both be null");
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName))
@@ -238,6 +238,14 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
             () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.set_current_snapshot(table => 't', snapshot_id => 1L, ref => 's1')",
+                    catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
   }
 
   @Test

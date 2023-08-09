@@ -86,7 +86,8 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
     Long snapshotId = args.isNullAt(1) ? null : args.getLong(1);
     String ref = args.isNullAt(2) ? null : args.getString(2);
     Preconditions.checkArgument(
-        snapshotId != null || ref != null, "snapshot_id and ref cannot both be null");
+        (snapshotId != null && ref == null) || (snapshotId == null && ref != null),
+        "Either snapshot_id or ref must be provided, not both");
 
     return modifyIcebergTable(
         tableIdent,
@@ -94,10 +95,10 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
           Snapshot previousSnapshot = table.currentSnapshot();
           Long previousSnapshotId = previousSnapshot != null ? previousSnapshot.snapshotId() : null;
 
-          long sid = snapshotId != null ? snapshotId : getSnapshotIdFromRef(table, ref);
-          table.manageSnapshots().setCurrentSnapshot(sid).commit();
+          long targetSnapshotId = snapshotId != null ? snapshotId : toSnapshotId(table, ref);
+          table.manageSnapshots().setCurrentSnapshot(targetSnapshotId).commit();
 
-          InternalRow outputRow = newInternalRow(previousSnapshotId, sid);
+          InternalRow outputRow = newInternalRow(previousSnapshotId, targetSnapshotId);
           return new InternalRow[] {outputRow};
         });
   }
@@ -107,7 +108,7 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
     return "SetCurrentSnapshotProcedure";
   }
 
-  private long getSnapshotIdFromRef(Table table, String refName) {
+  private long toSnapshotId(Table table, String refName) {
     SnapshotRef ref = table.refs().get(refName);
     ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref " + refName);
     return ref.snapshotId();
