@@ -81,6 +81,7 @@ public class PopulateData {
         System.out.println("------------------\n------------------\n------------------\n------------------\n");
         insertData(table, "device_data"); // seq=1
         System.out.println("------------------\n------------------\n------------------\n------------------\n");
+        markTableForRelativePath(table);
 
     }
     private void initializeHadoopCatalog(String catalogName, String warehouseLocation) {
@@ -148,4 +149,10 @@ public class PopulateData {
         }
     }
 
+    private void markTableForRelativePath(Table table) {
+        table.updateProperties()
+                .set("write.metadata.use.relative-path", "true")
+                .set("prefix", "file:/opt/warehouse")
+                .commit();
+    }
 }

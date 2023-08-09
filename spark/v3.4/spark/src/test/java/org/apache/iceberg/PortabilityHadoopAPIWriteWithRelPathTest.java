@@ -57,8 +57,6 @@ public class PortabilityHadoopAPIWriteWithRelPathTest {
         TableIdentifier name = TableIdentifier.of("profile", "opportunity");
         Table table = catalog.loadTable(name);
 
-        // change 1
-        //markTableForRelativePath(table);
         write(table);
     }
 
@@ -74,13 +72,6 @@ public class PortabilityHadoopAPIWriteWithRelPathTest {
         return hadoopCatalog;
     }
 
-    private void markTableForRelativePath(Table table) {
-        table.updateProperties()
-                .set("write.metadata.use.relative-path", "true")
-                .set("prefix", "file:/opt/warehouse")
-                .commit();
-
-    }
     private void write(Table table) {
         UnboundPredicate predicate = Expressions.equal("device_id", 5);
         DeleteFiles deleteFiles1 = table.newDelete();
