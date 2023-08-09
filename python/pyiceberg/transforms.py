@@ -182,11 +182,12 @@ class BucketTransform(Transform[S, int]):
       num_buckets (int): The number of buckets.
     """
 
+    root: str = Field()
     _num_buckets: PositiveInt = PrivateAttr()
 
     def __init__(self, num_buckets: int, **data: Any) -> None:
-        super().__init__(root=f"bucket[{num_buckets}]", **data)
         self._num_buckets = num_buckets
+        super().__init__(f"bucket[{num_buckets}]", **data)
 
     @property
     def num_buckets(self) -> int:
@@ -520,6 +521,9 @@ class IdentityTransform(Transform[S, S]):
     """
 
     root: LiteralType["identity"] = Field(default="identity")  # noqa: F821
+
+    def __init__(self) -> None:
+        super().__init__("identity")
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v

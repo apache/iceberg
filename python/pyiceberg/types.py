@@ -33,24 +33,18 @@ from __future__ import annotations
 
 import re
 from typing import (
-    Annotated,
     Any,
     ClassVar,
-    Dict,
     Literal,
     Optional,
     Tuple,
 )
 
 from pydantic import (
-    BeforeValidator,
     Field,
-    GetCoreSchemaHandler,
-    PlainSerializer,
     SerializeAsAny,
-    WithJsonSchema, PrivateAttr,
+    PrivateAttr,
 )
-from pydantic_core import core_schema
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.typedef import IcebergBaseModel, IcebergRootModel
@@ -138,9 +132,9 @@ class FixedType(PrimitiveType):
     root: str = Field()
     _length = PrivateAttr()
 
-    def __init__(self, a: Any, **data) -> None:
-        self._length = _parse_fixed_type(a)
-        super().__init__(f"fixed[{a}]", **data)
+    def __init__(self, length: Any, **data) -> None:
+        self._length = _parse_fixed_type(length)
+        super().__init__(f"fixed[{length}]", **data)
 
     def __len__(self) -> int:
         """Returns the length of an instance of the FixedType class."""
@@ -151,7 +145,7 @@ class FixedType(PrimitiveType):
 
     def __repr__(self) -> str:
         """Returns the string representation of the FixedType class."""
-        return f"FixedType({self._length})"
+        return f"FixedType(length={self._length})"
 
     def __getnewargs__(self) -> Tuple[int]:
         """A magic function for pickling the FixedType class."""
@@ -448,7 +442,7 @@ class BooleanType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("boolean")
 
-    root: Literal["boolean"] = "boolean"
+    root: Literal["boolean"] = Field(default="boolean")
 
 
 class IntegerType(PrimitiveType):
@@ -471,11 +465,10 @@ class IntegerType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("int")
 
+    root: Literal["int"] = Field(default="int")
+
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
-
-    root: Literal["int"] = "int"
-
 
 class LongType(PrimitiveType):
     """A Long data type in Iceberg can be represented using an instance of this class.
@@ -501,10 +494,11 @@ class LongType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("long")
 
+    root: Literal["long"] = Field(default="long")
+
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
 
-    root: Literal["long"] = "long"
 
 
 class FloatType(PrimitiveType):
@@ -532,7 +526,7 @@ class FloatType(PrimitiveType):
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
 
-    root: Literal["float"] = "float"
+    root: Literal["float"] = Field(default="float")
 
 
 class DoubleType(PrimitiveType):
@@ -551,7 +545,7 @@ class DoubleType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("double")
 
-    root: Literal["double"] = "double"
+    root: Literal["double"] = Field(default="double")
 
 
 class DateType(PrimitiveType):
@@ -570,7 +564,7 @@ class DateType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("date")
 
-    root: Literal["date"] = "date"
+    root: Literal["date"] = Field(default="date")
 
 
 class TimeType(PrimitiveType):
@@ -589,7 +583,7 @@ class TimeType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("time")
 
-    root: Literal["time"] = "time"
+    root: Literal["time"] =  Field(default="time")
 
 
 class TimestampType(PrimitiveType):
@@ -608,7 +602,7 @@ class TimestampType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("timestamp")
 
-    root: Literal["timestamp"] = "timestamp"
+    root: Literal["timestamp"] = Field(default="timestamp")
 
 
 class TimestamptzType(PrimitiveType):
@@ -627,7 +621,7 @@ class TimestamptzType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("timestamptz")
 
-    root: Literal["timestamptz"] = "timestamptz"
+    root: Literal["timestamptz"] = Field(default="timestamptz")
 
 
 class StringType(PrimitiveType):
@@ -643,10 +637,10 @@ class StringType(PrimitiveType):
         StringType()
     """
 
+    root: Literal["string"] = Field(default="string")
+
     def __init__(self) -> None:
         super().__init__("string")
-
-    root: Literal["string"] = "string"
 
 
 class UUIDType(PrimitiveType):
@@ -665,7 +659,7 @@ class UUIDType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("uuid")
 
-    root: Literal["uuid"] = "uuid"
+    root: Literal["uuid"] = Field(default="uuid")
 
 
 class BinaryType(PrimitiveType):
@@ -684,5 +678,5 @@ class BinaryType(PrimitiveType):
     def __init__(self) -> None:
         super().__init__("binary")
 
-    root: Literal["binary"] = "binary"
+    root: Literal["binary"] = Field(default="binary")
 
