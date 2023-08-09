@@ -32,6 +32,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.function.Function;
 import org.apache.iceberg.PartitionSpec;
@@ -45,8 +46,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestResiduals {
   @Test
@@ -71,24 +71,24 @@ public class TestResiduals {
     // equal to the upper date bound
     Expression residual = resEval.residualFor(Row.of(20170815));
     UnboundPredicate<?> unbound = assertAndUnwrapUnbound(residual);
-    Assert.assertEquals("Residual should be hour < 12", LT, unbound.op());
-    Assert.assertEquals("Residual should be hour < 12", "hour", unbound.ref().name());
-    Assert.assertEquals("Residual should be hour < 12", 12, unbound.literal().value());
+    assertThat(unbound.op()).as("Residual should be hour < 12").isEqualTo(LT);
+    assertThat(unbound.ref().name()).as("Residual should be hour < 12").isEqualTo("hour");
+    assertThat(unbound.literal().value()).as("Residual should be hour < 12").isEqualTo(12);
 
     // equal to the lower date bound
     residual = resEval.residualFor(Row.of(20170801));
     unbound = assertAndUnwrapUnbound(residual);
-    Assert.assertEquals("Residual should be hour > 11", GT, unbound.op());
-    Assert.assertEquals("Residual should be hour > 11", "hour", unbound.ref().name());
-    Assert.assertEquals("Residual should be hour > 11", 11, unbound.literal().value());
+    assertThat(unbound.op()).as("Residual should be hour > 11").isEqualTo(GT);
+    assertThat(unbound.ref().name()).as("Residual should be hour > 11").isEqualTo("hour");
+    assertThat(unbound.literal().value()).as("Residual should be hour > 11").isEqualTo(11);
 
     // inside the date range
     residual = resEval.residualFor(Row.of(20170812));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     // outside the date range
     residual = resEval.residualFor(Row.of(20170817));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -113,24 +113,24 @@ public class TestResiduals {
     // equal to the upper date bound
     Expression residual = resEval.residualFor(Row.of(20170815));
     UnboundPredicate<?> unbound = assertAndUnwrapUnbound(residual);
-    Assert.assertEquals("Residual should be hour < 12", LT, unbound.op());
-    Assert.assertEquals("Residual should be hour < 12", "HOUR", unbound.ref().name());
-    Assert.assertEquals("Residual should be hour < 12", 12, unbound.literal().value());
+    assertThat(unbound.op()).as("Residual should be hour < 12").isEqualTo(LT);
+    assertThat(unbound.ref().name()).as("Residual should be hour < 12").isEqualTo("HOUR");
+    assertThat(unbound.literal().value()).as("Residual should be hour < 12").isEqualTo(12);
 
     // equal to the lower date bound
     residual = resEval.residualFor(Row.of(20170801));
     unbound = assertAndUnwrapUnbound(residual);
-    Assert.assertEquals("Residual should be hour > 11", GT, unbound.op());
-    Assert.assertEquals("Residual should be hour > 11", "hOUr", unbound.ref().name());
-    Assert.assertEquals("Residual should be hour > 11", 11, unbound.literal().value());
+    assertThat(unbound.op()).as("Residual should be hour > 11").isEqualTo(GT);
+    assertThat(unbound.ref().name()).as("Residual should be hour > 11").isEqualTo("hOUr");
+    assertThat(unbound.literal().value()).as("Residual should be hour > 11").isEqualTo(11);
 
     // inside the date range
     residual = resEval.residualFor(Row.of(20170812));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     // outside the date range
     residual = resEval.residualFor(Row.of(20170817));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -170,8 +170,9 @@ public class TestResiduals {
     for (Expression expr : expressions) {
       ResidualEvaluator residualEvaluator =
           ResidualEvaluator.of(PartitionSpec.unpartitioned(), expr, true);
-      Assert.assertEquals(
-          "Should return expression", expr, residualEvaluator.residualFor(Row.of()));
+      assertThat(residualEvaluator.residualFor(Row.of()))
+          .as("Should return expression")
+          .isEqualTo(expr);
     }
   }
 
@@ -188,10 +189,10 @@ public class TestResiduals {
         ResidualEvaluator.of(spec, in("dateint", 20170815, 20170816, 20170817), true);
 
     Expression residual = resEval.residualFor(Row.of(20170815));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     residual = resEval.residualFor(Row.of(20180815));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -217,10 +218,10 @@ public class TestResiduals {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, pred, true);
 
     Expression residual = resEval.residualFor(Row.of(tsDay));
-    Assert.assertEquals("Residual should be the original in predicate", pred, residual);
+    assertThat(residual).as("Residual should be the original in predicate").isEqualTo(pred);
 
     residual = resEval.residualFor(Row.of(tsDay + 3));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -236,10 +237,10 @@ public class TestResiduals {
         ResidualEvaluator.of(spec, notIn("dateint", 20170815, 20170816, 20170817), true);
 
     Expression residual = resEval.residualFor(Row.of(20180815));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     residual = resEval.residualFor(Row.of(20170815));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -255,10 +256,10 @@ public class TestResiduals {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, isNaN("double"), true);
 
     Expression residual = resEval.residualFor(Row.of(Double.NaN));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     residual = resEval.residualFor(Row.of(2D));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
 
     // test float field
     spec = PartitionSpec.builderFor(schema).identity("float").build();
@@ -266,10 +267,10 @@ public class TestResiduals {
     resEval = ResidualEvaluator.of(spec, isNaN("float"), true);
 
     residual = resEval.residualFor(Row.of(Float.NaN));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     residual = resEval.residualFor(Row.of(3F));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -285,10 +286,10 @@ public class TestResiduals {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, notNaN("double"), true);
 
     Expression residual = resEval.residualFor(Row.of(Double.NaN));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
 
     residual = resEval.residualFor(Row.of(2D));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
 
     // test float field
     spec = PartitionSpec.builderFor(schema).identity("float").build();
@@ -296,10 +297,10 @@ public class TestResiduals {
     resEval = ResidualEvaluator.of(spec, notNaN("float"), true);
 
     residual = resEval.residualFor(Row.of(Float.NaN));
-    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+    assertThat(residual).isEqualTo(alwaysFalse());
 
     residual = resEval.residualFor(Row.of(3F));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
   }
 
   @Test
@@ -325,9 +326,9 @@ public class TestResiduals {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, pred, true);
 
     Expression residual = resEval.residualFor(Row.of(tsDay));
-    Assert.assertEquals("Residual should be the original notIn predicate", pred, residual);
+    assertThat(residual).as("Residual should be the original notIn predicate").isEqualTo(pred);
 
     residual = resEval.residualFor(Row.of(tsDay + 3));
-    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+    assertThat(residual).isEqualTo(alwaysTrue());
   }
 }

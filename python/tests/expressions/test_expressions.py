@@ -16,6 +16,7 @@
 # under the License.
 # pylint:disable=redefined-outer-name,eval-used
 
+import pickle
 import uuid
 from decimal import Decimal
 from typing import Any
@@ -679,6 +680,7 @@ def test_bound_reference(field: NestedField, accessor: Accessor) -> None:
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert repr(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert bound_ref == eval(repr(bound_ref))
+    assert bound_ref == pickle.loads(pickle.dumps(bound_ref))
 
 
 def test_reference() -> None:
@@ -687,6 +689,7 @@ def test_reference() -> None:
     assert str(ref) == "Reference(name='abc')"
     assert repr(ref) == "Reference(name='abc')"
     assert ref == eval(repr(ref))
+    assert ref == pickle.loads(pickle.dumps(ref))
 
 
 def test_and() -> None:
@@ -696,6 +699,7 @@ def test_and() -> None:
     assert str(and_) == f"And(left={str(null)}, right={str(nan)})"
     assert repr(and_) == f"And(left={repr(null)}, right={repr(nan)})"
     assert and_ == eval(repr(and_))
+    assert and_ == pickle.loads(pickle.dumps(and_))
 
 
 def test_or() -> None:
@@ -705,14 +709,16 @@ def test_or() -> None:
     assert str(or_) == f"Or(left={str(null)}, right={str(nan)})"
     assert repr(or_) == f"Or(left={repr(null)}, right={repr(nan)})"
     assert or_ == eval(repr(or_))
+    assert or_ == pickle.loads(pickle.dumps(or_))
 
 
 def test_not() -> None:
     null = IsNull(Reference("a"))
-    or_ = Not(null)
-    assert str(or_) == f"Not(child={str(null)})"
-    assert repr(or_) == f"Not(child={repr(null)})"
-    assert or_ == eval(repr(or_))
+    not_ = Not(null)
+    assert str(not_) == f"Not(child={str(null)})"
+    assert repr(not_) == f"Not(child={repr(null)})"
+    assert not_ == eval(repr(not_))
+    assert not_ == pickle.loads(pickle.dumps(not_))
 
 
 def test_always_true() -> None:
@@ -720,6 +726,7 @@ def test_always_true() -> None:
     assert str(always_true) == "AlwaysTrue()"
     assert repr(always_true) == "AlwaysTrue()"
     assert always_true == eval(repr(always_true))
+    assert always_true == pickle.loads(pickle.dumps(always_true))
 
 
 def test_always_false() -> None:
@@ -727,6 +734,7 @@ def test_always_false() -> None:
     assert str(always_false) == "AlwaysFalse()"
     assert repr(always_false) == "AlwaysFalse()"
     assert always_false == eval(repr(always_false))
+    assert always_false == pickle.loads(pickle.dumps(always_false))
 
 
 def test_bound_reference_field_property() -> None:
@@ -756,6 +764,7 @@ def test_is_null() -> None:
     assert str(is_null) == f"IsNull(term={str(ref)})"
     assert repr(is_null) == f"IsNull(term={repr(ref)})"
     assert is_null == eval(repr(is_null))
+    assert is_null == pickle.loads(pickle.dumps(is_null))
 
 
 def test_not_null() -> None:
@@ -764,6 +773,7 @@ def test_not_null() -> None:
     assert str(non_null) == f"NotNull(term={str(ref)})"
     assert repr(non_null) == f"NotNull(term={repr(ref)})"
     assert non_null == eval(repr(non_null))
+    assert non_null == pickle.loads(pickle.dumps(non_null))
 
 
 def test_bound_is_nan(accessor: Accessor) -> None:
@@ -776,6 +786,7 @@ def test_bound_is_nan(accessor: Accessor) -> None:
     assert str(bound_is_nan) == f"BoundIsNaN(term={str(term)})"
     assert repr(bound_is_nan) == f"BoundIsNaN(term={repr(term)})"
     assert bound_is_nan == eval(repr(bound_is_nan))
+    assert bound_is_nan == pickle.loads(pickle.dumps(bound_is_nan))
 
 
 def test_bound_is_not_nan(accessor: Accessor) -> None:
@@ -788,6 +799,7 @@ def test_bound_is_not_nan(accessor: Accessor) -> None:
     assert str(bound_not_nan) == f"BoundNotNaN(term={str(term)})"
     assert repr(bound_not_nan) == f"BoundNotNaN(term={repr(term)})"
     assert bound_not_nan == eval(repr(bound_not_nan))
+    assert bound_not_nan == pickle.loads(pickle.dumps(bound_not_nan))
 
 
 def test_is_nan() -> None:
@@ -796,6 +808,7 @@ def test_is_nan() -> None:
     assert str(is_nan) == f"IsNaN(term={str(ref)})"
     assert repr(is_nan) == f"IsNaN(term={repr(ref)})"
     assert is_nan == eval(repr(is_nan))
+    assert is_nan == pickle.loads(pickle.dumps(is_nan))
 
 
 def test_not_nan() -> None:
@@ -804,6 +817,7 @@ def test_not_nan() -> None:
     assert str(not_nan) == f"NotNaN(term={str(ref)})"
     assert repr(not_nan) == f"NotNaN(term={repr(ref)})"
     assert not_nan == eval(repr(not_nan))
+    assert not_nan == pickle.loads(pickle.dumps(not_nan))
 
 
 def test_bound_in(term: BoundReference[Any]) -> None:
@@ -811,6 +825,7 @@ def test_bound_in(term: BoundReference[Any]) -> None:
     assert str(bound_in) == f"BoundIn({str(term)}, {{a, b, c}})"
     assert repr(bound_in) == f"BoundIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
     assert bound_in == eval(repr(bound_in))
+    assert bound_in == pickle.loads(pickle.dumps(bound_in))
 
 
 def test_bound_not_in(term: BoundReference[Any]) -> None:
@@ -818,6 +833,7 @@ def test_bound_not_in(term: BoundReference[Any]) -> None:
     assert str(bound_not_in) == f"BoundNotIn({str(term)}, {{a, b, c}})"
     assert repr(bound_not_in) == f"BoundNotIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
     assert bound_not_in == eval(repr(bound_not_in))
+    assert bound_not_in == pickle.loads(pickle.dumps(bound_not_in))
 
 
 def test_in() -> None:
@@ -826,6 +842,7 @@ def test_in() -> None:
     assert str(unbound_in) == f"In({str(ref)}, {{a, b, c}})"
     assert repr(unbound_in) == f"In({repr(ref)}, {{literal('a'), literal('b'), literal('c')}})"
     assert unbound_in == eval(repr(unbound_in))
+    assert unbound_in == pickle.loads(pickle.dumps(unbound_in))
 
 
 def test_not_in() -> None:
@@ -834,6 +851,7 @@ def test_not_in() -> None:
     assert str(not_in) == f"NotIn({str(ref)}, {{a, b, c}})"
     assert repr(not_in) == f"NotIn({repr(ref)}, {{literal('a'), literal('b'), literal('c')}})"
     assert not_in == eval(repr(not_in))
+    assert not_in == pickle.loads(pickle.dumps(not_in))
 
 
 def test_bound_equal_to(term: BoundReference[Any]) -> None:
@@ -841,6 +859,7 @@ def test_bound_equal_to(term: BoundReference[Any]) -> None:
     assert str(bound_equal_to) == f"BoundEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_equal_to) == f"BoundEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_equal_to == eval(repr(bound_equal_to))
+    assert bound_equal_to == pickle.loads(pickle.dumps(bound_equal_to))
 
 
 def test_bound_not_equal_to(term: BoundReference[Any]) -> None:
@@ -848,6 +867,7 @@ def test_bound_not_equal_to(term: BoundReference[Any]) -> None:
     assert str(bound_not_equal_to) == f"BoundNotEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_not_equal_to) == f"BoundNotEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_not_equal_to == eval(repr(bound_not_equal_to))
+    assert bound_not_equal_to == pickle.loads(pickle.dumps(bound_not_equal_to))
 
 
 def test_bound_greater_than_or_equal_to(term: BoundReference[Any]) -> None:
@@ -855,6 +875,7 @@ def test_bound_greater_than_or_equal_to(term: BoundReference[Any]) -> None:
     assert str(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than_or_equal_to == eval(repr(bound_greater_than_or_equal_to))
+    assert bound_greater_than_or_equal_to == pickle.loads(pickle.dumps(bound_greater_than_or_equal_to))
 
 
 def test_bound_greater_than(term: BoundReference[Any]) -> None:
@@ -862,6 +883,7 @@ def test_bound_greater_than(term: BoundReference[Any]) -> None:
     assert str(bound_greater_than) == f"BoundGreaterThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than) == f"BoundGreaterThan(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than == eval(repr(bound_greater_than))
+    assert bound_greater_than == pickle.loads(pickle.dumps(bound_greater_than))
 
 
 def test_bound_less_than(term: BoundReference[Any]) -> None:
@@ -869,6 +891,7 @@ def test_bound_less_than(term: BoundReference[Any]) -> None:
     assert str(bound_less_than) == f"BoundLessThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than) == f"BoundLessThan(term={repr(term)}, literal=literal('a'))"
     assert bound_less_than == eval(repr(bound_less_than))
+    assert bound_less_than == pickle.loads(pickle.dumps(bound_less_than))
 
 
 def test_bound_less_than_or_equal(term: BoundReference[Any]) -> None:
@@ -876,6 +899,7 @@ def test_bound_less_than_or_equal(term: BoundReference[Any]) -> None:
     assert str(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={repr(term)}, literal=literal('a'))"
     assert bound_less_than_or_equal == eval(repr(bound_less_than_or_equal))
+    assert bound_less_than_or_equal == pickle.loads(pickle.dumps(bound_less_than_or_equal))
 
 
 def test_equal_to() -> None:
@@ -883,6 +907,7 @@ def test_equal_to() -> None:
     assert str(equal_to) == "EqualTo(term=Reference(name='a'), literal=literal('a'))"
     assert repr(equal_to) == "EqualTo(term=Reference(name='a'), literal=literal('a'))"
     assert equal_to == eval(repr(equal_to))
+    assert equal_to == pickle.loads(pickle.dumps(equal_to))
 
 
 def test_not_equal_to() -> None:
@@ -890,6 +915,7 @@ def test_not_equal_to() -> None:
     assert str(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=literal('a'))"
     assert repr(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=literal('a'))"
     assert not_equal_to == eval(repr(not_equal_to))
+    assert not_equal_to == pickle.loads(pickle.dumps(not_equal_to))
 
 
 def test_greater_than_or_equal_to() -> None:
@@ -897,6 +923,7 @@ def test_greater_than_or_equal_to() -> None:
     assert str(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=literal('a'))"
     assert repr(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=literal('a'))"
     assert greater_than_or_equal_to == eval(repr(greater_than_or_equal_to))
+    assert greater_than_or_equal_to == pickle.loads(pickle.dumps(greater_than_or_equal_to))
 
 
 def test_greater_than() -> None:
@@ -904,6 +931,7 @@ def test_greater_than() -> None:
     assert str(greater_than) == "GreaterThan(term=Reference(name='a'), literal=literal('a'))"
     assert repr(greater_than) == "GreaterThan(term=Reference(name='a'), literal=literal('a'))"
     assert greater_than == eval(repr(greater_than))
+    assert greater_than == pickle.loads(pickle.dumps(greater_than))
 
 
 def test_less_than() -> None:
@@ -911,6 +939,7 @@ def test_less_than() -> None:
     assert str(less_than) == "LessThan(term=Reference(name='a'), literal=literal('a'))"
     assert repr(less_than) == "LessThan(term=Reference(name='a'), literal=literal('a'))"
     assert less_than == eval(repr(less_than))
+    assert less_than == pickle.loads(pickle.dumps(less_than))
 
 
 def test_less_than_or_equal() -> None:
@@ -918,6 +947,7 @@ def test_less_than_or_equal() -> None:
     assert str(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=literal('a'))"
     assert repr(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=literal('a'))"
     assert less_than_or_equal == eval(repr(less_than_or_equal))
+    assert less_than_or_equal == pickle.loads(pickle.dumps(less_than_or_equal))
 
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:

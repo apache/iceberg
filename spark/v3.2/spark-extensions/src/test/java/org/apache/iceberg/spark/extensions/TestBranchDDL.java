@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +33,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -94,6 +97,15 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
       Assert.assertEquals(
           TimeUnit.valueOf(timeUnit).toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
     }
+  }
+
+  @Test
+  public void testCreateBranchOnEmptyTable() {
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot complete create or replace branch operation on %s, main has no snapshot",
+            tableName);
   }
 
   @Test
@@ -500,6 +512,71 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
     Assert.assertEquals(first, ref.snapshotId());
+  }
+
+  @Test
+  public void createOrReplace() throws NoSuchTableException {
+    Table table = insertRows();
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    insertRows();
+    long second = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch(branchName, second).commit();
+
+    sql(
+        "ALTER TABLE %s CREATE OR REPLACE BRANCH %s AS OF VERSION %d",
+        tableName, branchName, first);
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId()).isEqualTo(second);
+  }
+
+  @Test
+  public void createOrReplaceWithNonExistingBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    String branchName = "b1";
+    insertRows();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    sql(
+        "ALTER TABLE %s CREATE OR REPLACE BRANCH %s AS OF VERSION %d",
+        tableName, branchName, snapshotId);
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId()).isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void replaceBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    long expectedMaxRefAgeMs = 1000;
+    table
+        .manageSnapshots()
+        .createBranch(branchName, first)
+        .setMaxRefAgeMs(branchName, expectedMaxRefAgeMs)
+        .commit();
+
+    insertRows();
+    long second = table.currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d", tableName, branchName, second);
+    table.refresh();
+    SnapshotRef ref = table.refs().get(branchName);
+    assertThat(ref.snapshotId()).isEqualTo(second);
+    assertThat(ref.maxRefAgeMs()).isEqualTo(expectedMaxRefAgeMs);
+  }
+
+  @Test
+  public void replaceBranchDoesNotExist() throws NoSuchTableException {
+    Table table = insertRows();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
+                    tableName, "someBranch", table.currentSnapshot().snapshotId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: someBranch");
   }
 
   private Table insertRows() throws NoSuchTableException {

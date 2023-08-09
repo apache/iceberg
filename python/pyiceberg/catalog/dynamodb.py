@@ -52,7 +52,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -126,7 +126,7 @@ class DynamoDbCatalog(Catalog):
         properties: Properties = EMPTY_DICT,
     ) -> Table:
         """
-        Create an Iceberg table
+        Create an Iceberg table.
 
         Args:
             identifier: Table identifier.
@@ -137,11 +137,11 @@ class DynamoDbCatalog(Catalog):
             properties: Table properties that can be a string based dictionary.
 
         Returns:
-            Table: the created table instance
+            Table: the created table instance.
 
         Raises:
-            AlreadyExistsError: If a table with the name already exists
-            ValueError: If the identifier is invalid, or no path is given to store metadata
+            AlreadyExistsError: If a table with the name already exists.
+            ValueError: If the identifier is invalid, or no path is given to store metadata.
 
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
@@ -168,21 +168,35 @@ class DynamoDbCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        raise NotImplementedError
+
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """
         Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
 
         Args:
             identifier: Table identifier.
 
         Returns:
-            Table: the table instance with its metadata
+            Table: the table instance with its metadata.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         dynamo_table_item = self._get_iceberg_table_item(database_name=database_name, table_name=table_name)
@@ -195,7 +209,7 @@ class DynamoDbCatalog(Catalog):
             identifier: Table identifier.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
 
@@ -209,23 +223,23 @@ class DynamoDbCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}") from e
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        """Rename a fully classified table name
+        """Rename a fully classified table name.
 
-        This method can only rename Iceberg tables in AWS Glue
+        This method can only rename Iceberg tables in AWS Glue.
 
         Args:
             from_identifier: Existing table identifier.
             to_identifier: New table identifier.
 
         Returns:
-            Table: the updated table instance with its metadata
+            Table: the updated table instance with its metadata.
 
         Raises:
-            ValueError: When from table identifier is invalid
-            NoSuchTableError: When a table with the name does not exist
-            NoSuchIcebergTableError: When from table is not a valid iceberg table
-            NoSuchPropertyException: When from table miss some required properties
-            NoSuchNamespaceError: When the destination namespace doesn't exist
+            ValueError: When from table identifier is invalid.
+            NoSuchTableError: When a table with the name does not exist.
+            NoSuchIcebergTableError: When from table is not a valid iceberg table.
+            NoSuchPropertyException: When from table miss some required properties.
+            NoSuchNamespaceError: When the destination namespace doesn't exist.
         """
         from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
         to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
@@ -278,12 +292,12 @@ class DynamoDbCatalog(Catalog):
         """Create a namespace in the catalog.
 
         Args:
-            namespace: Namespace identifier
-            properties: A string dictionary of properties for the given namespace
+            namespace: Namespace identifier.
+            properties: A string dictionary of properties for the given namespace.
 
         Raises:
-            ValueError: If the identifier is invalid
-            AlreadyExistsError: If a namespace with the given name already exists
+            ValueError: If the identifier is invalid.
+            AlreadyExistsError: If a namespace with the given name already exists.
         """
         database_name = self.identifier_to_database(namespace)
 
@@ -298,14 +312,14 @@ class DynamoDbCatalog(Catalog):
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         """Drop a namespace.
 
-        A Glue namespace can only be dropped if it is empty
+        A Glue namespace can only be dropped if it is empty.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
-            NamespaceNotEmptyError: If the namespace is not empty
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid.
+            NamespaceNotEmptyError: If the namespace is not empty.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         table_identifiers = self.list_tables(namespace=database_name)
@@ -323,7 +337,7 @@ class DynamoDbCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database does not exist: {database_name}") from e
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        """List tables under the given namespace in the catalog (including non-Iceberg tables)
+        """List tables under the given namespace in the catalog (including non-Iceberg tables).
 
         Args:
             namespace (str | Identifier): Namespace identifier to search.
@@ -331,7 +345,6 @@ class DynamoDbCatalog(Catalog):
         Returns:
             List[Identifier]: list of table identifiers.
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
 
         paginator = self.dynamodb.get_paginator("query")
@@ -368,14 +381,13 @@ class DynamoDbCatalog(Catalog):
         return table_identifiers
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        """
-        List top-level namespaces from the catalog.
+        """List top-level namespaces from the catalog.
+
         We do not support hierarchical namespace.
 
         Returns:
-            List[Identifier]: a List of namespace identifiers
+            List[Identifier]: a List of namespace identifiers.
         """
-
         # Hierarchical namespace is not supported. Return an empty list
         if namespace:
             return []
@@ -415,13 +427,13 @@ class DynamoDbCatalog(Catalog):
         Get properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Returns:
-            Properties: Properties for the given namespace
+            Properties: Properties for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         namespace_item = self._get_iceberg_namespace_item(database_name=database_name)
@@ -440,10 +452,9 @@ class DynamoDbCatalog(Catalog):
             updates: Properties to be updated for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid.
             ValueError: If removals and updates have overlapping keys.
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         namespace_item = self._get_iceberg_namespace_item(database_name=database_name)
         namespace_dict = _convert_dynamo_item_to_regular_dict(namespace_item)
@@ -580,6 +591,7 @@ class DynamoDbCatalog(Catalog):
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
 
@@ -718,8 +730,9 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Converts a dynamo json to a regular json. Example of a dynamo json:
+    """Converts a dynamo json to a regular json.
+
+    Example of a dynamo json:
     {
         "AlbumTitle": {
             "S": "Songs About Life",
@@ -741,7 +754,6 @@ def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[st
 
     Only "S" and "N" data types are supported since those are the only ones that Iceberg is utilizing.
     """
-
     regular_json = {}
     for column_name, val_dict in dynamo_json.items():
         keys = list(val_dict.keys())

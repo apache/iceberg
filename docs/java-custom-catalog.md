@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: "API"
+        identifier: java_custom_catalog
         weight: 300
 ---
 <!--

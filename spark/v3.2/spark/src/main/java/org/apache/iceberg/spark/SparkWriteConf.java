@@ -30,6 +30,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
@@ -121,6 +122,20 @@ public class SparkWriteConf {
 
   public String wapId() {
     return sessionConf.get("spark.wap.id", null);
+  }
+
+  public int outputSpecId() {
+    int outputSpecId =
+        confParser
+            .intConf()
+            .option(SparkWriteOptions.OUTPUT_SPEC_ID)
+            .defaultValue(table.spec().specId())
+            .parse();
+    Preconditions.checkArgument(
+        table.specs().containsKey(outputSpecId),
+        "Output spec id %s is not a valid spec id for table",
+        outputSpecId);
+    return outputSpecId;
   }
 
   public boolean mergeSchema() {

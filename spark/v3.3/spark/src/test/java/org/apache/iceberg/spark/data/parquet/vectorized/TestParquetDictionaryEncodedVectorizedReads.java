@@ -63,8 +63,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     Iterable<GenericData.Record> dictionaryEncodableData =
         RandomData.generateDictionaryEncodableData(
             schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
-    try (FileAppender<GenericData.Record> writer =
-        getParquetWriter(schema, dictionaryEncodedFile)) {
+    try (FileAppender<GenericData.Record> writer = parquetWriter(schema, dictionaryEncodedFile)) {
       writer.addAll(dictionaryEncodableData);
     }
 
@@ -72,7 +71,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     Assert.assertTrue("Delete should succeed", plainEncodingFile.delete());
     Iterable<GenericData.Record> nonDictionaryData =
         RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, plainEncodingFile)) {
+    try (FileAppender<GenericData.Record> writer = parquetWriter(schema, plainEncodingFile)) {
       writer.addAll(nonDictionaryData);
     }
 
@@ -90,7 +89,6 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         30000,
         FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData),
         mixedFile,
-        false,
         true,
         BATCH_SIZE);
   }

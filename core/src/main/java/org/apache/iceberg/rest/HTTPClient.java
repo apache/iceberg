@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -52,7 +53,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
@@ -106,7 +106,7 @@ public class HTTPClient implements RESTClient {
       }
 
       // EntityUtils.toString returns null when HttpEntity.getContent returns null.
-      return EntityUtils.toString(response.getEntity(), "UTF-8");
+      return EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
     } catch (IOException | ParseException e) {
       throw new RESTException(e, "Failed to convert HTTP response body to string");
     }
@@ -421,15 +421,6 @@ public class HTTPClient implements RESTClient {
     return instance;
   }
 
-  /**
-   * @return http client builder
-   * @deprecated will be removed in 1.3.0; use {@link HTTPClient#builder(Map)}
-   */
-  @Deprecated
-  public static Builder builder() {
-    return new Builder(ImmutableMap.of());
-  }
-
   public static Builder builder(Map<String, String> properties) {
     return new Builder(properties);
   }
@@ -481,13 +472,13 @@ public class HTTPClient implements RESTClient {
 
   private StringEntity toJson(Object requestBody) {
     try {
-      return new StringEntity(mapper.writeValueAsString(requestBody));
+      return new StringEntity(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8);
     } catch (JsonProcessingException e) {
       throw new RESTException(e, "Failed to write request body: %s", requestBody);
     }
   }
 
   private StringEntity toFormEncoding(Map<?, ?> formData) {
-    return new StringEntity(RESTUtil.encodeFormData(formData));
+    return new StringEntity(RESTUtil.encodeFormData(formData), StandardCharsets.UTF_8);
   }
 }

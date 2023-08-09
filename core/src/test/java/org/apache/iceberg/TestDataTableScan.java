@@ -25,6 +25,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -124,11 +125,10 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a ref for scanning when a snapshot is set",
-        IllegalArgumentException.class,
-        "Cannot override ref, already set snapshot id=1",
-        () -> table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).useRef("tagB"));
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).useRef("tagB"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override ref, already set snapshot id=1");
   }
 
   @Test
@@ -138,11 +138,10 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a snapshot for scanning when a ref is set",
-        IllegalArgumentException.class,
-        "Cannot override snapshot, already set snapshot id=2",
-        () -> table.newScan().useRef("tagB").useSnapshot(snapshotA.snapshotId()));
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useRef("tagB").useSnapshot(snapshotA.snapshotId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override snapshot, already set snapshot id=2");
   }
 
   @Test
@@ -152,11 +151,11 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
         .manageSnapshots()
         .createBranch("testBranch", table.currentSnapshot().snapshotId())
         .commit();
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use a snapshot for scanning when a ref is set",
-        IllegalArgumentException.class,
-        "Cannot override snapshot, already set snapshot id=1",
-        () -> table.newScan().useRef("testBranch").asOfTime(System.currentTimeMillis()));
+
+    Assertions.assertThatThrownBy(
+            () -> table.newScan().useRef("testBranch").asOfTime(System.currentTimeMillis()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override snapshot, already set snapshot id=1");
   }
 
   @Test
@@ -166,20 +165,16 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use multiple refs",
-        IllegalArgumentException.class,
-        "Cannot override ref, already set snapshot id=2",
-        () -> table.newScan().useRef("tagB").useRef("tagA"));
+    Assertions.assertThatThrownBy(() -> table.newScan().useRef("tagB").useRef("tagA"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot override ref, already set snapshot id=2");
   }
 
   @Test
   public void testSettingInvalidRefFails() {
-    AssertHelpers.assertThrows(
-        "Should throw when attempting to use an invalid ref for scanning",
-        IllegalArgumentException.class,
-        "Cannot find ref nonexisting",
-        () -> table.newScan().useRef("nonexisting"));
+    Assertions.assertThatThrownBy(() -> table.newScan().useRef("nonexisting"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref nonexisting");
   }
 
   private void validateExpectedFileScanTasks(
@@ -189,6 +184,63 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
       List<CharSequence> actualFiles = Lists.newArrayList();
       scanTasks.forEach(task -> actualFiles.add(task.file().path()));
       Assert.assertTrue(actualFiles.containsAll(expectedFileScanPaths));
+    }
+  }
+
+  @Test
+  public void testSequenceNumbersThroughPlanFiles() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    DataFile dataFile1 = newDataFile("data_bucket=0");
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    DataFile dataFile2 = newDataFile("data_bucket=1");
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    DeleteFile deleteFile1 = newDeleteFile("data_bucket=0");
+    table.newRowDelta().addDeletes(deleteFile1).commit();
+
+    DeleteFile deleteFile2 = newDeleteFile("data_bucket=1");
+    table.newRowDelta().addDeletes(deleteFile2).commit();
+
+    TableScan scan = table.newScan();
+
+    List<FileScanTask> fileScanTasks = Lists.newArrayList(scan.planFiles());
+    Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
+    for (FileScanTask task : fileScanTasks) {
+      DataFile file = task.file();
+      long expectedDataSequenceNumber = 0L;
+      long expectedDeleteSequenceNumber = 0L;
+      if (file.path().equals(dataFile1.path())) {
+        expectedDataSequenceNumber = 1L;
+        expectedDeleteSequenceNumber = 3L;
+      }
+
+      if (file.path().equals(dataFile2.path())) {
+        expectedDataSequenceNumber = 2L;
+        expectedDeleteSequenceNumber = 4L;
+      }
+
+      Assert.assertEquals(
+          "Data sequence number mismatch",
+          expectedDataSequenceNumber,
+          file.dataSequenceNumber().longValue());
+      Assert.assertEquals(
+          "File sequence number mismatch",
+          expectedDataSequenceNumber,
+          file.fileSequenceNumber().longValue());
+
+      List<DeleteFile> deleteFiles = task.deletes();
+      Assert.assertEquals("Must have 1 delete file", 1, Iterables.size(deleteFiles));
+      DeleteFile deleteFile = Iterables.getOnlyElement(deleteFiles);
+      Assert.assertEquals(
+          "Data sequence number mismatch",
+          expectedDeleteSequenceNumber,
+          deleteFile.dataSequenceNumber().longValue());
+      Assert.assertEquals(
+          "File sequence number mismatch",
+          expectedDeleteSequenceNumber,
+          deleteFile.fileSequenceNumber().longValue());
     }
   }
 }

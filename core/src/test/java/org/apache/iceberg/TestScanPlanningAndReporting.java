@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
@@ -32,6 +33,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.Test;
 
 public class TestScanPlanningAndReporting extends TableTestBase {
@@ -40,6 +42,65 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
   public TestScanPlanningAndReporting() {
     super(2);
+  }
+
+  @Test
+  public void noDuplicatesInScanContext() {
+    TableScanContext context = TableScanContext.empty();
+    assertThat(context.metricsReporter()).isInstanceOf(LoggingMetricsReporter.class);
+
+    MetricsReporter first = report -> {};
+    MetricsReporter second = report -> {};
+
+    context = context.reportWith(first).reportWith(first);
+    assertThat(context.metricsReporter()).isSameAs(first);
+
+    context = context.reportWith(second);
+    assertThat(context.metricsReporter())
+        .as("should be a CompositeMetricsReporter")
+        .extracting("reporters")
+        .asInstanceOf(InstanceOfAssertFactories.collection(MetricsReporter.class))
+        .hasSize(2)
+        .containsExactlyInAnyOrder(first, second);
+
+    context = context.reportWith(LoggingMetricsReporter.instance()).reportWith(second);
+    assertThat(context.metricsReporter())
+        .as("should be a CompositeMetricsReporter")
+        .extracting("reporters")
+        .asInstanceOf(InstanceOfAssertFactories.collection(MetricsReporter.class))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(LoggingMetricsReporter.instance(), first, second);
+  }
+
+  @Test
+  public void scanningWithMultipleReporters() throws IOException {
+    String tableName = "scan-with-multiple-reporters";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+
+    AtomicInteger reportedCount = new AtomicInteger();
+    TableScan tableScan =
+        table
+            .newScan()
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement())
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement());
+    try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    // verify if metrics are reported to default reporter
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.snapshotId()).isEqualTo(1L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+
+    assertThat(reportedCount.get()).isEqualTo(2);
   }
 
   @Test

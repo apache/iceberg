@@ -25,6 +25,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.StringJoiner;
@@ -36,6 +37,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -44,9 +46,13 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -154,12 +160,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
 
-    List<Row> actual =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "entries"))
-            .collectAsList();
+    Dataset<Row> entriesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries"));
+    List<Row> actual = TestHelpers.selectNonDerived(entriesTableDs).collectAsList();
 
     Snapshot snapshot = table.currentSnapshot();
 
@@ -183,7 +186,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(0), actual.get(0));
   }
 
   @Test
@@ -350,13 +354,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // ensure table data isn't stale
     table.refresh();
 
-    List<Row> actual =
+    Dataset<Row> entriesTableDs =
         spark
             .read()
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "all_entries"))
-            .orderBy("snapshot_id")
-            .collectAsList();
+            .orderBy("snapshot_id");
+    List<Row> actual = TestHelpers.selectNonDerived(entriesTableDs).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest :
@@ -382,7 +386,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Actual results should have 3 rows", 3, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
-          entriesTable.schema().asStruct(), expected.get(i), actual.get(i));
+          TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(i), actual.get(i));
     }
   }
 
@@ -1015,16 +1019,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
-    DataFile dataFile =
-        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
-    PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
-    StructLike dataFilePartition = dataFile.partition();
-
-    PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.path(), 0L, null);
-
-    DeleteFile deleteFile =
-        writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
+    DeleteFile deleteFile = writePosDeleteFile(table);
 
     table.newRowDelta().addDeletes(deleteFile).commit();
 
@@ -1187,16 +1182,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
-    DataFile dataFile =
-        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
-    PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
-    StructLike dataFilePartition = dataFile.partition();
-
-    PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.path(), 0L, null);
-
-    DeleteFile deleteFile =
-        writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
+    DeleteFile deleteFile = writePosDeleteFile(table);
 
     table.newRowDelta().addDeletes(deleteFile).commit();
 
@@ -1238,7 +1224,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testUnpartitionedPartitionsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_partitions_test");
-    createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     Dataset<Row> df =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -1251,8 +1237,43 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
-            required(2, "record_count", Types.LongType.get()),
-            required(3, "file_count", Types.IntegerType.get()));
+            required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
+            required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
+            required(
+                11,
+                "total_data_file_size_in_bytes",
+                Types.LongType.get(),
+                "Total size in bytes of data files"),
+            required(
+                5,
+                "position_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in position delete files"),
+            required(
+                6,
+                "position_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of position delete files"),
+            required(
+                7,
+                "equality_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in equality delete files"),
+            required(
+                8,
+                "equality_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of equality delete files"),
+            optional(
+                9,
+                "last_updated_at",
+                Types.TimestampType.withZone(),
+                "Commit time of snapshot that last updated this partition"),
+            optional(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Id of snapshot that last updated this partition"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1263,7 +1284,20 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
-    GenericData.Record expectedRow = builder.set("record_count", 1L).set("file_count", 1).build();
+    GenericData.Record expectedRow =
+        builder
+            .set("last_updated_at", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .build();
 
     List<Row> actual =
         spark
@@ -1302,6 +1336,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
+    table.refresh();
+    long secondCommitId = table.currentSnapshot().snapshotId();
+
     List<Row> actual =
         spark
             .read()
@@ -1322,14 +1359,32 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
         builder
             .set("partition", partitionBuilder.set("id", 2).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
@@ -1372,7 +1427,275 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2 or record_count=1")
             .collectAsList();
-    Assert.assertEquals("Actual results should have one row", 2, nonFiltered.size());
+    Assert.assertEquals("Actual results should have two row", 2, nonFiltered.size());
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(
+          partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+  }
+
+  @Test
+  public void testPartitionsTableLastUpdatedSnapshot() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+    Table partitionsTable = loadTable(tableIdentifier, "partitions");
+    Dataset<Row> df1 =
+        spark.createDataFrame(
+            Lists.newArrayList(new SimpleRecord(1, "1"), new SimpleRecord(2, "2")),
+            SimpleRecord.class);
+    Dataset<Row> df2 =
+        spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "20")), SimpleRecord.class);
+
+    df1.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long firstCommitId = table.currentSnapshot().snapshotId();
+
+    // add a second file
+    df2.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long secondCommitId = table.currentSnapshot().snapshotId();
+
+    // check if rewrite manifest does not override metadata about data file's creating snapshot
+    RewriteManifests.Result rewriteManifestResult =
+        SparkActions.get().rewriteManifests(table).execute();
+    Assert.assertEquals(
+        "rewrite replaced 2 manifests",
+        2,
+        Iterables.size(rewriteManifestResult.rewrittenManifests()));
+    Assert.assertEquals(
+        "rewrite added 1 manifests", 1, Iterables.size(rewriteManifestResult.addedManifests()));
+
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .orderBy("partition.id")
+            .collectAsList();
+
+    GenericRecordBuilder builder =
+        new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
+    GenericRecordBuilder partitionBuilder =
+        new GenericRecordBuilder(
+            AvroSchemaUtil.convert(
+                partitionsTable.schema().findType("partition").asStructType(), "partition"));
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
+
+    List<GenericData.Record> expected = Lists.newArrayList();
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 1).build())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
+            .build());
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 2).build())
+            .set("record_count", 2L)
+            .set("file_count", 2)
+            .set(
+                "total_data_file_size_in_bytes",
+                dataFiles.get(1).fileSizeInBytes() + dataFiles.get(2).fileSizeInBytes())
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", secondCommitId)
+            .build());
+
+    Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(
+          partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+
+    // check predicate push down
+    List<Row> filtered =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .filter("partition.id < 2")
+            .collectAsList();
+    Assert.assertEquals("Actual results should have one row", 1, filtered.size());
+    TestHelpers.assertEqualsSafe(
+        partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
+
+    // check for snapshot expiration
+    // if snapshot with firstCommitId is expired,
+    // we expect the partition of id=1 will no longer have last updated timestamp and snapshotId
+    SparkActions.get().expireSnapshots(table).expireSnapshotId(firstCommitId).execute();
+    GenericData.Record newPartitionRecord =
+        builder
+            .set("partition", partitionBuilder.set("id", 1).build())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("spec_id", 0)
+            .set("last_updated_at", null)
+            .set("last_updated_snapshot_id", null)
+            .build();
+    expected.remove(0);
+    expected.add(0, newPartitionRecord);
+
+    List<Row> actualAfterSnapshotExpiration =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .collectAsList();
+    Assert.assertEquals(
+        "Actual results should have two row", 2, actualAfterSnapshotExpiration.size());
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(
+          partitionsTable.schema().asStruct(),
+          expected.get(i),
+          actualAfterSnapshotExpiration.get(i));
+    }
+  }
+
+  @Test
+  public void testPartitionsTableDeleteStats() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+    Table partitionsTable = loadTable(tableIdentifier, "partitions");
+    Dataset<Row> df1 =
+        spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 =
+        spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long firstCommitId = table.currentSnapshot().snapshotId();
+
+    // add a second file
+    df2.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    // test position deletes
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    DeleteFile deleteFile = writePosDeleteFile(table);
+    table.newRowDelta().addDeletes(deleteFile).commit();
+    table.refresh();
+    long posDeleteCommitId = table.currentSnapshot().snapshotId();
+
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .orderBy("partition.id")
+            .collectAsList();
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+
+    GenericRecordBuilder builder =
+        new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
+    GenericRecordBuilder partitionBuilder =
+        new GenericRecordBuilder(
+            AvroSchemaUtil.convert(
+                partitionsTable.schema().findType("partition").asStructType(), "partition"));
+    List<GenericData.Record> expected = Lists.newArrayList();
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 1).build())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
+            .build());
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 2).build())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 1L) // should be incremented now
+            .set("position_delete_file_count", 1) // should be incremented now
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", posDeleteCommitId)
+            .build());
+
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(
+          partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+
+    // test equality delete
+    DeleteFile eqDeleteFile = writeEqDeleteFile(table);
+    table.newRowDelta().addDeletes(eqDeleteFile).commit();
+    table.refresh();
+    long eqDeleteCommitId = table.currentSnapshot().snapshotId();
+    actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .orderBy("partition.id")
+            .collectAsList();
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    expected.remove(0);
+    expected.add(
+        0,
+        builder
+            .set("partition", partitionBuilder.set("id", 1).build())
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 1L) // should be incremented now
+            .set("equality_delete_file_count", 1) // should be incremented now
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", eqDeleteCommitId)
+            .build());
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1836,5 +2159,53 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
 
     return positionDeleteWriter.toDeleteFile();
+  }
+
+  private DeleteFile writePosDeleteFile(Table table) {
+    DataFile dataFile =
+        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
+    PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
+    StructLike dataFilePartition = dataFile.partition();
+
+    PositionDelete<InternalRow> delete = PositionDelete.create();
+    delete.set(dataFile.path(), 0L, null);
+
+    return writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
+  }
+
+  private DeleteFile writeEqDeleteFile(Table table) {
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = SCHEMA.select("id");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    deletes.add(delete.copy("id", 1));
+    try {
+      return FileHelpers.writeDeleteFile(
+          table,
+          Files.localOutput(temp.newFile()),
+          org.apache.iceberg.TestHelpers.Row.of(1),
+          deletes,
+          deleteRowSchema);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
+    return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
+  }
+
+  private void assertDataFilePartitions(
+      List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
+    Assert.assertEquals(
+        "Table should have " + expectedPartitionIds.size() + " data files",
+        expectedPartitionIds.size(),
+        dataFiles.size());
+
+    for (int i = 0; i < dataFiles.size(); ++i) {
+      Assert.assertEquals(
+          "Data file should have partition of id " + expectedPartitionIds.get(i),
+          expectedPartitionIds.get(i).intValue(),
+          dataFiles.get(i).partition().get(0, Integer.class).intValue());
+    }
   }
 }

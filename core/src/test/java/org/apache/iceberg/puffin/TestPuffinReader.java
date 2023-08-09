@@ -30,13 +30,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.apache.iceberg.io.InMemoryInputFile;
+import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPuffinReader {
   @Test

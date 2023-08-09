@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +64,8 @@ abstract class BaseFile<F>
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
+  private Long dataSequenceNumber = null;
+  private Long fileSequenceNumber = null;
 
   // optional fields
   private Map<Integer, Long> columnSizes = null;
@@ -208,6 +211,8 @@ abstract class BaseFile<F>
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
     this.sortOrderId = toCopy.sortOrderId;
+    this.dataSequenceNumber = toCopy.dataSequenceNumber;
+    this.fileSequenceNumber = toCopy.fileSequenceNumber;
   }
 
   /** Constructor for Java serialization. */
@@ -220,6 +225,24 @@ abstract class BaseFile<F>
 
   void setSpecId(int specId) {
     this.partitionSpecId = specId;
+  }
+
+  @Override
+  public Long dataSequenceNumber() {
+    return dataSequenceNumber;
+  }
+
+  public void setDataSequenceNumber(Long dataSequenceNumber) {
+    this.dataSequenceNumber = dataSequenceNumber;
+  }
+
+  @Override
+  public Long fileSequenceNumber() {
+    return fileSequenceNumber;
+  }
+
+  public void setFileSequenceNumber(Long fileSequenceNumber) {
+    this.fileSequenceNumber = fileSequenceNumber;
   }
 
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
@@ -422,12 +445,12 @@ abstract class BaseFile<F>
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    return toReadableMap(lowerBounds);
+    return toReadableByteBufferMap(lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    return toReadableMap(upperBounds);
+    return toReadableByteBufferMap(upperBounds);
   }
 
   @Override
@@ -451,10 +474,22 @@ abstract class BaseFile<F>
   }
 
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
-    if (map instanceof SerializableMap) {
+    if (map == null) {
+      return null;
+    } else if (map instanceof SerializableMap) {
       return ((SerializableMap<K, V>) map).immutableMap();
     } else {
-      return map;
+      return Collections.unmodifiableMap(map);
+    }
+  }
+
+  private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
+    if (map == null) {
+      return null;
+    } else if (map instanceof SerializableByteBufferMap) {
+      return ((SerializableByteBufferMap) map).immutableMap();
+    } else {
+      return Collections.unmodifiableMap(map);
     }
   }
 
@@ -478,6 +513,8 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
         .toString();
   }
 }

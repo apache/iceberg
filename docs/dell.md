@@ -4,6 +4,7 @@ url: dell
 menu:
     main:
         parent: Integrations
+        identifier: dell_integration
         weight: 0
 ---
 <!--

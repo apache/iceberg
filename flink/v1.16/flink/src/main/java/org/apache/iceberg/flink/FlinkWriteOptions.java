@@ -61,4 +61,7 @@ public class FlinkWriteOptions {
   // Branch to write to
   public static final ConfigOption<String> BRANCH =
       ConfigOptions.key("branch").stringType().defaultValue(SnapshotRef.MAIN_BRANCH);
+
+  public static final ConfigOption<Integer> WRITE_PARALLELISM =
+      ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 }

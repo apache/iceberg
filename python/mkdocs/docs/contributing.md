@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 <!--
   - Licensed to the Apache Software Foundation (ASF) under one
   - or more contributor license agreements.  See the NOTICE file
@@ -88,19 +93,35 @@ make test-adlfs
 
 To pass additional arguments to pytest, you can use `PYTEST_ARGS`.
 
-*Run pytest in verbose mode*
+_Run pytest in verbose mode_
 
 ```sh
 make test PYTEST_ARGS="-v"
 ```
 
-*Run pytest with pdb enabled*
+_Run pytest with pdb enabled_
 
 ```sh
 make test PYTEST_ARGS="--pdb"
 ```
 
 To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.
+
+### Integration tests
+
+PyIceberg has integration tests with Apache Spark. Spark will create a new database and provision some tables that PyIceberg can query against.
+
+```sh
+make test-integration
+```
+
+This will restart the containers, to get to a clean state, and then run the PyTest suite. In case something changed in the Dockerfile or the provision script, you can run:
+
+```sh
+make test-integration-rebuild
+```
+
+To rebuild the containers from scratch.
 
 ## Code standards
 

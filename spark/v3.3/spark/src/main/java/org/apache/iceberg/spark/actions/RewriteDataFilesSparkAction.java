@@ -20,8 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,14 +37,11 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
-import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
-import org.apache.iceberg.actions.BinPackStrategy;
+import org.apache.iceberg.actions.FileRewriter;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.actions.RewriteStrategy;
-import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -86,6 +82,9 @@ public class RewriteDataFilesSparkAction
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER);
 
+  private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
+      ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
+
   private final Table table;
 
   private Expression filter = Expressions.alwaysTrue();
@@ -94,7 +93,7 @@ public class RewriteDataFilesSparkAction
   private boolean partialProgressEnabled;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
-  private RewriteStrategy strategy = null;
+  private FileRewriter<FileScanTask, DataFile> rewriter = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -111,40 +110,32 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFilesSparkAction binPack() {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to binpack, it has already been set",
-        this.strategy);
-    this.strategy = binPackStrategy();
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkBinPackDataRewriter(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to sort, it has already been set to %s",
-        this.strategy);
-    this.strategy = sortStrategy().sortOrder(sortOrder);
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkSortDataRewriter(spark(), table, sortOrder);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort() {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to sort, it has already been set to %s",
-        this.strategy);
-    this.strategy = sortStrategy();
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkSortDataRewriter(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to zorder, it has already been set to %s",
-        this.strategy);
-    this.strategy = zOrderStrategy(columnNames);
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkZOrderDataRewriter(spark(), table, Arrays.asList(columnNames));
     return this;
   }
 
@@ -157,38 +148,37 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
-      return new BaseRewriteDataFilesResult(ImmutableList.of());
+      return EMPTY_RESULT;
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
 
     // Default to BinPack if no strategy selected
-    if (this.strategy == null) {
-      this.strategy = binPackStrategy();
+    if (this.rewriter == null) {
+      this.rewriter = new SparkBinPackDataRewriter(spark(), table);
     }
 
     validateAndInitOptions();
 
-    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
+    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
         planFileGroups(startingSnapshotId);
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
-      return new BaseRewriteDataFilesResult(Collections.emptyList());
+      return EMPTY_RESULT;
     }
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager);
+      return doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
     } else {
-      return doExecute(ctx, groupStream, commitManager);
+      return doExecute(ctx, groupStream, commitManager(startingSnapshotId));
     }
   }
 
-  Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
+  StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks =
         table
             .newScan()
@@ -199,44 +189,9 @@ public class RewriteDataFilesSparkAction
 
     try {
       StructType partitionType = table.spec().partitionType();
-      StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
-      StructLike emptyStruct = GenericRecord.create(partitionType);
-
-      fileScanTasks.forEach(
-          task -> {
-            // If a task uses an incompatible partition spec the data inside could contain values
-            // which
-            // belong to multiple partitions in the current spec. Treating all such files as
-            // un-partitioned and
-            // grouping them together helps to minimize new files made.
-            StructLike taskPartition =
-                task.file().specId() == table.spec().specId()
-                    ? task.file().partition()
-                    : emptyStruct;
-
-            List<FileScanTask> files = filesByPartition.get(taskPartition);
-            if (files == null) {
-              files = Lists.newArrayList();
-            }
-
-            files.add(task);
-            filesByPartition.put(taskPartition, files);
-          });
-
-      StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-          StructLikeMap.create(partitionType);
-
-      filesByPartition.forEach(
-          (partition, tasks) -> {
-            Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
-            Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
-            List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
-            if (fileGroups.size() > 0) {
-              fileGroupsByPartition.put(partition, fileGroups);
-            }
-          });
-
-      return fileGroupsByPartition;
+      StructLikeMap<List<FileScanTask>> filesByPartition =
+          groupByPartition(partitionType, fileScanTasks);
+      return fileGroupsByPartition(filesByPartition);
     } finally {
       try {
         fileScanTasks.close();
@@ -246,13 +201,45 @@ public class RewriteDataFilesSparkAction
     }
   }
 
+  private StructLikeMap<List<FileScanTask>> groupByPartition(
+      StructType partitionType, Iterable<FileScanTask> tasks) {
+    StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
+    StructLike emptyStruct = GenericRecord.create(partitionType);
+
+    for (FileScanTask task : tasks) {
+      // If a task uses an incompatible partition spec the data inside could contain values
+      // which belong to multiple partitions in the current spec. Treating all such files as
+      // un-partitioned and grouping them together helps to minimize new files made.
+      StructLike taskPartition =
+          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
+
+      List<FileScanTask> files = filesByPartition.get(taskPartition);
+      if (files == null) {
+        files = Lists.newArrayList();
+      }
+
+      files.add(task);
+      filesByPartition.put(taskPartition, files);
+    }
+    return filesByPartition;
+  }
+
+  private StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition(
+      StructLikeMap<List<FileScanTask>> filesByPartition) {
+    return filesByPartition.transformValues(this::planFileGroups);
+  }
+
+  private List<List<FileScanTask>> planFileGroups(List<FileScanTask> tasks) {
+    return ImmutableList.copyOf(rewriter.planFileGroups(tasks));
+  }
+
   @VisibleForTesting
   RewriteFileGroup rewriteFiles(RewriteExecutionContext ctx, RewriteFileGroup fileGroup) {
     String desc = jobDesc(fileGroup, ctx);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
             newJobGroupInfo("REWRITE-DATA-FILES", desc),
-            () -> strategy.rewriteFiles(fileGroup.fileScans()));
+            () -> rewriter.rewrite(fileGroup.fileScans()));
 
     fileGroup.setOutputFiles(addedFiles);
     LOG.info("Rewrite Files Ready to be Committed - {}", desc);
@@ -311,7 +298,7 @@ public class RewriteDataFilesSparkAction
 
       Tasks.foreach(rewrittenGroups)
           .suppressFailureWhenFinished()
-          .run(group -> commitManager.abortFileGroup(group));
+          .run(commitManager::abortFileGroup);
       throw e;
     } finally {
       rewriteService.shutdown();
@@ -334,7 +321,7 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return new BaseRewriteDataFilesResult(rewriteResults);
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
   }
 
   private Result doExecuteWithPartialProgress(
@@ -343,13 +330,13 @@ public class RewriteDataFilesSparkAction
       RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
-    // Start Commit Service
+    // start commit service
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
     RewriteDataFilesCommitManager.CommitService commitService =
         commitManager.service(groupsPerCommit);
     commitService.start();
 
-    // Start rewrite tasks
+    // start rewrite tasks
     Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
@@ -360,7 +347,7 @@ public class RewriteDataFilesSparkAction
         .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
     rewriteService.shutdown();
 
-    // Stop Commit service
+    // stop commit service
     commitService.close();
     List<RewriteFileGroup> commitResults = commitService.results();
     if (commitResults.size() == 0) {
@@ -374,50 +361,37 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return new BaseRewriteDataFilesResult(rewriteResults);
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
   }
 
   Stream<RewriteFileGroup> toGroupStream(
-      RewriteExecutionContext ctx,
-      Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
-    Stream<RewriteFileGroup> rewriteFileGroupStream =
-        fileGroupsByPartition.entrySet().stream()
-            .flatMap(
-                e -> {
-                  StructLike partition = e.getKey();
-                  List<List<FileScanTask>> fileGroups = e.getValue();
-                  return fileGroups.stream()
-                      .map(
-                          tasks -> {
-                            int globalIndex = ctx.currentGlobalIndex();
-                            int partitionIndex = ctx.currentPartitionIndex(partition);
-                            FileGroupInfo info =
-                                new BaseRewriteDataFilesFileGroupInfo(
-                                    globalIndex, partitionIndex, partition);
-                            return new RewriteFileGroup(info, tasks);
-                          });
-                });
-
-    return rewriteFileGroupStream.sorted(rewriteGroupComparator());
+      RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
+    return groupsByPartition.entrySet().stream()
+        .filter(e -> e.getValue().size() != 0)
+        .flatMap(
+            e -> {
+              StructLike partition = e.getKey();
+              List<List<FileScanTask>> scanGroups = e.getValue();
+              return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
+            })
+        .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
   }
 
-  private Comparator<RewriteFileGroup> rewriteGroupComparator() {
-    switch (rewriteJobOrder) {
-      case BYTES_ASC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
-      case BYTES_DESC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
-      case FILES_ASC:
-        return Comparator.comparing(RewriteFileGroup::numFiles);
-      case FILES_DESC:
-        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
-      default:
-        return (fileGroupOne, fileGroupTwo) -> 0;
-    }
+  private RewriteFileGroup newRewriteGroup(
+      RewriteExecutionContext ctx, StructLike partition, List<FileScanTask> tasks) {
+    int globalIndex = ctx.currentGlobalIndex();
+    int partitionIndex = ctx.currentPartitionIndex(partition);
+    FileGroupInfo info =
+        ImmutableRewriteDataFiles.FileGroupInfo.builder()
+            .globalIndex(globalIndex)
+            .partitionIndex(partitionIndex)
+            .partition(partition)
+            .build();
+    return new RewriteFileGroup(info, tasks);
   }
 
   void validateAndInitOptions() {
-    Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
+    Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
     Set<String> invalidKeys = Sets.newHashSet(options().keySet());
@@ -425,11 +399,11 @@ public class RewriteDataFilesSparkAction
 
     Preconditions.checkArgument(
         invalidKeys.isEmpty(),
-        "Cannot use options %s, they are not supported by the action or the strategy %s",
+        "Cannot use options %s, they are not supported by the action or the rewriter %s",
         invalidKeys,
-        strategy.name());
+        rewriter.description());
 
-    strategy = strategy.options(options());
+    rewriter.init(options());
 
     maxConcurrentFileGroupRewrites =
         PropertyUtil.propertyAsInt(
@@ -473,7 +447,7 @@ public class RewriteDataFilesSparkAction
       return String.format(
           "Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenFiles().size(),
-          strategy.name(),
+          rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
           partition,
@@ -484,36 +458,22 @@ public class RewriteDataFilesSparkAction
       return String.format(
           "Rewriting %d files (%s, file group %d/%d) in %s",
           group.rewrittenFiles().size(),
-          strategy.name(),
+          rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
           table.name());
     }
   }
 
-  private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, spark());
-  }
-
-  private SortStrategy sortStrategy() {
-    return new SparkSortStrategy(table, spark());
-  }
-
-  private SortStrategy zOrderStrategy(String... columnNames) {
-    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
-  }
-
   @VisibleForTesting
   static class RewriteExecutionContext {
-    private final Map<StructLike, Integer> numGroupsByPartition;
+    private final StructLikeMap<Integer> numGroupsByPartition;
     private final int totalGroupCount;
     private final Map<StructLike, Integer> partitionIndexMap;
     private final AtomicInteger groupIndex;
 
-    RewriteExecutionContext(Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
-      this.numGroupsByPartition =
-          fileGroupsByPartition.entrySet().stream()
-              .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+    RewriteExecutionContext(StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition) {
+      this.numGroupsByPartition = fileGroupsByPartition.transformValues(List::size);
       this.totalGroupCount = numGroupsByPartition.values().stream().reduce(Integer::sum).orElse(0);
       this.partitionIndexMap = Maps.newConcurrentMap();
       this.groupIndex = new AtomicInteger(1);

@@ -120,12 +120,6 @@ public class SparkReadConf {
     return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
   }
 
-  /** @deprecated will be removed in 1.3.0, use {@link #scanTaskSetId()} instead */
-  @Deprecated
-  public String fileScanTaskSetId() {
-    return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
-  }
-
   public String scanTaskSetId() {
     return confParser.stringConf().option(SparkReadOptions.SCAN_TASK_SET_ID).parseOptional();
   }
@@ -245,7 +239,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public Long streamFromTimestamp() {
+  public long streamFromTimestamp() {
     return confParser
         .longConf()
         .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
@@ -259,6 +253,22 @@ public class SparkReadConf {
 
   public Long endTimestamp() {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
+  }
+
+  public int maxFilesPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
+  }
+
+  public int maxRecordsPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
   }
 
   public boolean preserveDataGrouping() {

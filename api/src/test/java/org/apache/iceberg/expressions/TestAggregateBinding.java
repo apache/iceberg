@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
   private static final List<UnboundAggregate<Integer>> list =
@@ -38,8 +39,10 @@ public class TestAggregateBinding {
     for (UnboundAggregate<Integer> unbound : list) {
       Expression expr = unbound.bind(struct, true);
       BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
-      Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-      Assert.assertEquals("Should not change the comparison operation", unbound.op(), bound.op());
+      assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
+      assertThat(bound.op())
+          .as("Should not change the comparison operation")
+          .isEqualTo(unbound.op());
     }
   }
 
@@ -49,8 +52,9 @@ public class TestAggregateBinding {
     Expression expr = unbound.bind(null, false);
     BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
 
-    Assert.assertEquals(
-        "Should not change the comparison operation", Expression.Operation.COUNT_STAR, bound.op());
+    assertThat(bound.op())
+        .as("Should not change the comparison operation")
+        .isEqualTo(Expression.Operation.COUNT_STAR);
   }
 
   @Test
@@ -66,9 +70,10 @@ public class TestAggregateBinding {
     Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
     BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
-    Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-    Assert.assertEquals(
-        "Should not change the comparison operation", Expression.Operation.MAX, bound.op());
+    assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
+    assertThat(bound.op())
+        .as("Should not change the comparison operation")
+        .isEqualTo(Expression.Operation.MAX);
   }
 
   @Test

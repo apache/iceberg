@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -170,5 +171,11 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
     public R setValue(R value) {
       throw new UnsupportedOperationException("Does not support setValue.");
     }
+  }
+
+  public <U> StructLikeMap<U> transformValues(Function<T, U> func) {
+    StructLikeMap<U> result = create(type);
+    wrapperMap.forEach((key, value) -> result.put(key.get(), func.apply(value)));
+    return result;
   }
 }

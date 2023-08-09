@@ -17,18 +17,44 @@
 ---
 site_name: PyIceberg
 site_url: https://py.iceberg.apache.org/
-nav:
-    - Home: index.md
-    - Configuration: configuration.md
-    - CLI: cli.md
-    - API: api.md
-    - Contributing:
-        - Contributing: contributing.md
-    - Feature support: feature-support.md
-    - Releases:
-        - Verify a release: verify-release.md
-        - How to release: how-to-release.md
+repo_url: "https://github.com/apache/iceberg/tree/master/python"
+repo_name: "apache/iceberg/python"
+
+plugins:
+  - gen-files:
+      scripts:
+        - gen_doc_stubs.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - search
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [..]
+
 theme:
-    name: readthedocs
+  name: material
+  logo: assets/images/iceberg-logo-icon.png
+  favicon: assets/images/iceberg-logo-icon.png
+  font:
+    text: Lato
+  features:
+    - navigation.top
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 markdown_extensions:
-    - admonition
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences

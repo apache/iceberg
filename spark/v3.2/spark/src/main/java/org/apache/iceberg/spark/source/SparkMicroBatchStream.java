@@ -70,14 +70,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
+  private final long splitSize;
+  private final int splitLookback;
+  private final long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
   private final boolean skipOverwrite;
-  private final Long fromTimestamp;
+  private final long fromTimestamp;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -206,6 +206,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       } else {
         Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
         currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
+      }
+
+      Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
+
+      if (snapshot == null) {
+        throw new IllegalStateException(
+            String.format(
+                "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
+                currentOffset.snapshotId()));
       }
 
       if (!shouldProcess(table.snapshot(currentOffset.snapshotId()))) {

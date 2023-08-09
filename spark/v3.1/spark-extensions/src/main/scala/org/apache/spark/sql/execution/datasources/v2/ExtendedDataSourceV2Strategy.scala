@@ -34,9 +34,11 @@ import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -71,11 +73,18 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case CreateOrReplaceBranch(
-    IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
-      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
+    IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, create, replace, ifNotExists) :: Nil
 
     case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
       DropBranchExec(catalog, ident, branch, ifExists) :: Nil
+
+    case CreateOrReplaceTag(
+    IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, create, replace, ifNotExists) :: Nil
+
+    case DropTag(IcebergCatalogAndIdentifier(catalog, ident), tag, ifExists) =>
+      DropTagExec(catalog, ident, tag, ifExists) :: Nil
 
     case SetIdentifierFields(IcebergCatalogAndIdentifier(catalog, ident), fields) =>
       SetIdentifierFieldsExec(catalog, ident, fields) :: Nil

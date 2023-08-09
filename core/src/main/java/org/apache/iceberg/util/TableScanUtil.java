@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -42,9 +43,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.Types;
 
 public class TableScanUtil {
+
+  private static final long MIN_SPLIT_SIZE = 16 * 1024 * 1024; // 16 MB
 
   private TableScanUtil() {}
 
@@ -244,6 +248,15 @@ public class TableScanUtil {
     }
 
     return mergedTasks;
+  }
+
+  public static long adjustSplitSize(long scanSize, int parallelism, long splitSize) {
+    // use the configured split size if it produces at least one split per slot
+    // otherwise, adjust the split size to target parallelism with a reasonable minimum
+    // increasing the split size may cause expensive spills and is not done automatically
+    long splitCount = LongMath.divide(scanSize, splitSize, RoundingMode.CEILING);
+    long adjustedSplitSize = Math.max(scanSize / parallelism, Math.min(MIN_SPLIT_SIZE, splitSize));
+    return splitCount < parallelism ? adjustedSplitSize : splitSize;
   }
 
   private static void validatePlanningArguments(long splitSize, int lookback, long openFileCost) {

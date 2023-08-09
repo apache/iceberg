@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.transforms;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
@@ -27,22 +29,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestBucketing {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
   private static Constructor<UUID> uuidBytesConstructor;
 
-  @BeforeClass
+  @BeforeAll
   public static void getUUIDConstructor() {
     try {
       uuidBytesConstructor = UUID.class.getDeclaredConstructor(byte[].class);
@@ -54,7 +55,7 @@ public class TestBucketing {
 
   private Random testRandom = null;
 
-  @Before
+  @BeforeEach
   public void initRandom() {
     // reinitialize random for each test to avoid dependence on run order
     this.testRandom = new Random(314358);
@@ -62,72 +63,82 @@ public class TestBucketing {
 
   @Test
   public void testSpecValues() {
-    Assert.assertEquals("Spec example: hash(true) = 1392991556", 1392991556, BucketUtil.hash(1));
-    Assert.assertEquals("Spec example: hash(34) = 2017239379", 2017239379, BucketUtil.hash(34));
-    Assert.assertEquals("Spec example: hash(34L) = 2017239379", 2017239379, BucketUtil.hash(34L));
+    assertThat(BucketUtil.hash(1))
+        .as("Spec example: hash(true) = 1392991556")
+        .isEqualTo(1392991556);
+    assertThat(BucketUtil.hash(34)).as("Spec example: hash(34) = 2017239379").isEqualTo(2017239379);
+    assertThat(BucketUtil.hash(34L))
+        .as("Spec example: hash(34L) = 2017239379")
+        .isEqualTo(2017239379);
 
-    Assert.assertEquals(
-        "Spec example: hash(17.11F) = -142385009", -142385009, BucketUtil.hash(1.0F));
-    Assert.assertEquals(
-        "Spec example: hash(17.11D) = -142385009", -142385009, BucketUtil.hash(1.0D));
-    Assert.assertEquals("Spec example: hash(0.0F) = 1669671676", 1669671676, BucketUtil.hash(0.0F));
-    Assert.assertEquals(
-        "Spec example: hash(-0.0F) = 1669671676", 1669671676, BucketUtil.hash(-0.0F));
-    Assert.assertEquals("Spec example: hash(0.0) = 1669671676", 1669671676, BucketUtil.hash(0.0));
-    Assert.assertEquals("Spec example: hash(-0.0) = 1669671676", 1669671676, BucketUtil.hash(-0.0));
+    assertThat(BucketUtil.hash(1.0F))
+        .as("Spec example: hash(17.11F) = -142385009")
+        .isEqualTo(-142385009);
+    assertThat(BucketUtil.hash(1.0D))
+        .as("Spec example: hash(17.11D) = -142385009")
+        .isEqualTo(-142385009);
+    assertThat(BucketUtil.hash(0.0F))
+        .as("Spec example: hash(0.0F) = 1669671676")
+        .isEqualTo(1669671676);
+    assertThat(BucketUtil.hash(-0.0F))
+        .as("Spec example: hash(-0.0F) = 1669671676")
+        .isEqualTo(1669671676);
+    assertThat(BucketUtil.hash(0.0))
+        .as("Spec example: hash(0.0) = 1669671676")
+        .isEqualTo(1669671676);
+    assertThat(BucketUtil.hash(-0.0))
+        .as("Spec example: hash(-0.0) = 1669671676")
+        .isEqualTo(1669671676);
 
-    Assert.assertEquals(
-        "Spec example: hash(decimal2(14.20)) = -500754589",
-        -500754589,
-        BucketUtil.hash(new BigDecimal("14.20")));
-    Assert.assertEquals(
-        "Spec example: hash(decimal2(14.20)) = -500754589",
-        -500754589,
-        BucketUtil.hash(new BigDecimal("14.20")));
+    assertThat(BucketUtil.hash(new BigDecimal("14.20")))
+        .as("Spec example: hash(decimal2(14.20)) = -500754589")
+        .isEqualTo(-500754589)
+        .as("Spec example: hash(decimal2(14.20)) = -500754589")
+        .isEqualTo(-500754589);
 
     Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16) = -653330422", -653330422, BucketUtil.hash(date.value()));
+    assertThat(BucketUtil.hash(date.value()))
+        .as("Spec example: hash(2017-11-16) = -653330422")
+        .isEqualTo(-653330422);
 
     Literal<Long> timeValue = Literal.of("22:31:08").to(Types.TimeType.get());
-    Assert.assertEquals(
-        "Spec example: hash(22:31:08) = -662762989",
-        -662762989,
-        BucketUtil.hash(timeValue.value()));
+    assertThat(BucketUtil.hash(timeValue.value()))
+        .as("Spec example: hash(22:31:08) = -662762989")
+        .isEqualTo(-662762989);
 
     Literal<Long> timestampVal =
         Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
-        -2047944441,
-        BucketUtil.hash(timestampVal.value()));
+    assertThat(BucketUtil.hash(timestampVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08) = -2047944441")
+        .isEqualTo(-2047944441);
 
     Literal<Long> timestamptzVal =
         Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.withZone());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441",
-        -2047944441,
-        BucketUtil.hash(timestamptzVal.value()));
+    assertThat(BucketUtil.hash(timestamptzVal.value()))
+        .as("Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441")
+        .isEqualTo(-2047944441);
 
-    Assert.assertEquals(
-        "Spec example: hash(\"iceberg\") = 1210000089", 1210000089, BucketUtil.hash("iceberg"));
-    Assert.assertEquals(
-        "Spec example: hash(\"iceberg\") = 1210000089",
-        1210000089,
-        BucketUtil.hash(new Utf8("iceberg")));
+    assertThat(BucketUtil.hash("iceberg"))
+        .as("Spec example: hash(\"iceberg\") = 1210000089")
+        .isEqualTo(1210000089);
+    assertThat(BucketUtil.hash(new Utf8("iceberg")))
+        .as("Spec example: hash(\"iceberg\") = 1210000089")
+        .isEqualTo(1210000089);
 
     Literal<UUID> uuid =
         Literal.of("f79c3e09-677c-4bbd-a479-3f349cb785e7").to(Types.UUIDType.get());
-    Assert.assertEquals(
-        "Spec example: hash(f79c3e09-677c-4bbd-a479-3f349cb785e7) = 1488055340",
-        1488055340,
-        BucketUtil.hash(uuid.value()));
+    assertThat(BucketUtil.hash(uuid.value()))
+        .as("Spec example: hash(f79c3e09-677c-4bbd-a479-3f349cb785e7) = 1488055340")
+        .isEqualTo(1488055340);
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
-    Assert.assertEquals(
-        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
-    Assert.assertEquals(
-        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
+    assertThat(BucketUtil.hash(bytes))
+        .as("Spec example: hash([00 01 02 03]) = -188683207")
+        .isEqualTo(-188683207);
+    // another assertion for confirming that hashing a ByteBuffer again doesnt modify its value.
+    assertThat(BucketUtil.hash(bytes))
+        .as("Spec example: hash([00 01 02 03]) = -188683207")
+        .isEqualTo(-188683207);
   }
 
   @Test
@@ -137,10 +148,9 @@ public class TestBucketing {
     buffer.order(ByteOrder.LITTLE_ENDIAN);
     buffer.putLong(num);
 
-    Assert.assertEquals(
-        "Integer hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()),
-        BucketUtil.hash(num));
+    assertThat(BucketUtil.hash(num))
+        .as("Integer hash should match hash of little-endian bytes")
+        .isEqualTo(hashBytes(buffer.array()));
   }
 
   @Test
@@ -150,46 +160,41 @@ public class TestBucketing {
     buffer.order(ByteOrder.LITTLE_ENDIAN);
     buffer.putLong(num);
 
-    Assert.assertEquals(
-        "Long hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()),
-        BucketUtil.hash(num));
+    assertThat(BucketUtil.hash(num))
+        .as("Long hash should match hash of little-endian bytes")
+        .isEqualTo(hashBytes(buffer.array()));
   }
 
   @Test
   public void testIntegerTypePromotion() {
     int randomInt = testRandom.nextInt();
 
-    Assert.assertEquals(
-        "Integer and Long bucket results should match",
-        BucketUtil.hash(randomInt),
-        BucketUtil.hash((long) randomInt));
+    assertThat(BucketUtil.hash((long) randomInt))
+        .as("Integer and Long bucket results should match")
+        .isEqualTo(BucketUtil.hash(randomInt));
   }
 
   @Test
   public void testFloatTypePromotion() {
     float randomFloat = testRandom.nextFloat();
 
-    Assert.assertEquals(
-        "Float and Double bucket results should match",
-        BucketUtil.hash(randomFloat),
-        BucketUtil.hash((double) randomFloat));
+    assertThat(BucketUtil.hash((double) randomFloat))
+        .as("Float and Double bucket results should match")
+        .isEqualTo(BucketUtil.hash(randomFloat));
   }
 
   @Test
   public void testFloatNegativeZero() {
-    Assert.assertEquals(
-        "Positive and negative 0.0f should have the same hash",
-        BucketUtil.hash(-0.0f),
-        BucketUtil.hash(0.0f));
+    assertThat(BucketUtil.hash(0.0f))
+        .as("Positive and negative 0.0f should have the same hash")
+        .isEqualTo(BucketUtil.hash(-0.0f));
   }
 
   @Test
   public void testDoubleNegativeZero() {
-    Assert.assertEquals(
-        "Positive and negative 0.0 should have the same hash",
-        BucketUtil.hash(-0.0),
-        BucketUtil.hash(0.0));
+    assertThat(BucketUtil.hash(0.0))
+        .as("Positive and negative 0.0 should have the same hash")
+        .isEqualTo(BucketUtil.hash(-0.0));
   }
 
   @Test
@@ -211,11 +216,10 @@ public class TestBucketing {
     };
 
     for (float value : testNaNs) {
-      Assert.assertTrue("Bit pattern is expected to be NaN.", Float.isNaN(value));
-      Assert.assertEquals(
-          "All NaN representations should result in the same hash",
-          BucketUtil.hash(value),
-          BucketUtil.hash(canonicalNaN));
+      assertThat(Float.isNaN(value)).as("Bit pattern is expected to be NaN.").isTrue();
+      assertThat(BucketUtil.hash(canonicalNaN))
+          .as("All NaN representations should result in the same hash")
+          .isEqualTo(BucketUtil.hash(value));
     }
   }
 
@@ -238,11 +242,10 @@ public class TestBucketing {
     };
 
     for (double value : testNaNs) {
-      Assert.assertTrue("Bit pattern is expected to be NaN.", Double.isNaN(value));
-      Assert.assertEquals(
-          "All NaN representations should result in the same hash",
-          BucketUtil.hash(value),
-          BucketUtil.hash(canonicalNaN));
+      assertThat(Double.isNaN(value)).as("Bit pattern is expected to be NaN.").isTrue();
+      assertThat(BucketUtil.hash(canonicalNaN))
+          .as("All NaN representations should result in the same hash")
+          .isEqualTo(BucketUtil.hash(value));
     }
   }
 
@@ -252,10 +255,9 @@ public class TestBucketing {
     BigDecimal decimal = BigDecimal.valueOf(num);
     byte[] unscaledBytes = decimal.unscaledValue().toByteArray();
 
-    Assert.assertEquals(
-        "Decimal hash should match hash of backing bytes",
-        hashBytes(unscaledBytes),
-        BucketUtil.hash(decimal));
+    assertThat(BucketUtil.hash(decimal))
+        .as("Decimal hash should match hash of backing bytes")
+        .isEqualTo(hashBytes(unscaledBytes));
   }
 
   @Test
@@ -263,23 +265,22 @@ public class TestBucketing {
     String string = "string to test murmur3 hash";
     byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
 
-    Assert.assertEquals(
-        "String hash should match hash of UTF-8 bytes",
-        hashBytes(asBytes),
-        BucketUtil.hash(string));
+    assertThat(BucketUtil.hash(string))
+        .as("String hash should match hash of UTF-8 bytes")
+        .isEqualTo(hashBytes(asBytes));
   }
 
   @Test
   public void testStringWithSurrogatePair() {
     String string = "string with a surrogate pair: 💰";
-    Assert.assertNotEquals(
-        "string has no surrogate pairs", string.length(), string.codePoints().count());
+    assertThat(string.codePoints().count())
+        .as("string has no surrogate pairs")
+        .isNotEqualTo(string.length());
     byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
 
-    Assert.assertEquals(
-        "String hash should match hash of UTF-8 bytes",
-        hashBytes(asBytes),
-        BucketUtil.hash(string));
+    assertThat(BucketUtil.hash(string))
+        .as("String hash should match hash of UTF-8 bytes")
+        .isEqualTo(hashBytes(asBytes));
   }
 
   @Test
@@ -287,8 +288,9 @@ public class TestBucketing {
     Utf8 utf8 = new Utf8("string to test murmur3 hash");
     byte[] asBytes = utf8.toString().getBytes(StandardCharsets.UTF_8);
 
-    Assert.assertEquals(
-        "String hash should match hash of UTF-8 bytes", hashBytes(asBytes), BucketUtil.hash(utf8));
+    assertThat(BucketUtil.hash(utf8))
+        .as("String hash should match hash of UTF-8 bytes")
+        .isEqualTo(hashBytes(asBytes));
   }
 
   @Test
@@ -296,14 +298,13 @@ public class TestBucketing {
     byte[] bytes = randomBytes(128);
     ByteBuffer buffer = ByteBuffer.wrap(bytes, 5, 100);
 
-    Assert.assertEquals(
-        "HeapByteBuffer hash should match hash for correct slice",
-        hashBytes(bytes, 5, 100),
-        BucketUtil.hash(buffer));
+    assertThat(BucketUtil.hash(buffer))
+        .as("HeapByteBuffer hash should match hash for correct slice")
+        .isEqualTo(hashBytes(bytes, 5, 100));
 
     // verify that the buffer was not modified
-    Assert.assertEquals("Buffer position should not change", 5, buffer.position());
-    Assert.assertEquals("Buffer limit should not change", 105, buffer.limit());
+    assertThat(buffer.position()).as("Buffer position should not change").isEqualTo(5);
+    assertThat(buffer.limit()).as("Buffer limit should not change").isEqualTo(105);
   }
 
   @Test
@@ -311,16 +312,15 @@ public class TestBucketing {
     byte[] bytes = randomBytes(128);
     ByteBuffer raw = ByteBuffer.wrap(bytes, 5, 100);
     ByteBuffer buffer = raw.slice();
-    Assert.assertEquals("Buffer arrayOffset should be 5", 5, buffer.arrayOffset());
+    assertThat(buffer.arrayOffset()).as("Buffer arrayOffset should be 5").isEqualTo(5);
 
-    Assert.assertEquals(
-        "HeapByteBuffer hash should match hash for correct slice",
-        hashBytes(bytes, 5, 100),
-        BucketUtil.hash(buffer));
+    assertThat(BucketUtil.hash(buffer))
+        .as("HeapByteBuffer hash should match hash for correct slice")
+        .isEqualTo(hashBytes(bytes, 5, 100));
 
     // verify that the buffer was not modified
-    Assert.assertEquals("Buffer position should be 0", 0, buffer.position());
-    Assert.assertEquals("Buffer limit should not change", 100, buffer.limit());
+    assertThat(buffer.position()).as("Buffer position should be 0").isEqualTo(0);
+    assertThat(buffer.limit()).as("Buffer limit should not change").isEqualTo(100);
   }
 
   @Test
@@ -335,14 +335,13 @@ public class TestBucketing {
     buffer.put(bytes, 5, 100);
     buffer.reset();
 
-    Assert.assertEquals(
-        "DirectByteBuffer hash should match hash for correct slice",
-        hashBytes(bytes, 5, 100),
-        BucketUtil.hash(buffer));
+    assertThat(BucketUtil.hash(buffer))
+        .as("DirectByteBuffer hash should match hash for correct slice")
+        .isEqualTo(hashBytes(bytes, 5, 100));
 
     // verify that the buffer was not modified
-    Assert.assertEquals("Buffer position should not change", 5, buffer.position());
-    Assert.assertEquals("Buffer limit should not change", 105, buffer.limit());
+    assertThat(buffer.position()).as("Buffer position should not change").isEqualTo(5);
+    assertThat(buffer.limit()).as("Buffer limit should not change").isEqualTo(105);
   }
 
   @Test
@@ -350,19 +349,16 @@ public class TestBucketing {
     byte[] uuidBytes = randomBytes(16);
     UUID uuid = newUUID(uuidBytes);
 
-    Assert.assertEquals(
-        "UUID hash should match hash of backing bytes",
-        hashBytes(uuidBytes),
-        BucketUtil.hash(uuid));
+    assertThat(BucketUtil.hash(uuid))
+        .as("UUID hash should match hash of backing bytes")
+        .isEqualTo(hashBytes(uuidBytes));
   }
 
   @Test
   public void testVerifiedIllegalNumBuckets() {
-    AssertHelpers.assertThrows(
-        "Should fail if numBucket is less than or equal to zero",
-        IllegalArgumentException.class,
-        "Invalid number of buckets: 0 (must be > 0)",
-        () -> Bucket.get(0));
+    Assertions.assertThatThrownBy(() -> Bucket.get(0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
 
   private byte[] randomBytes(int length) {

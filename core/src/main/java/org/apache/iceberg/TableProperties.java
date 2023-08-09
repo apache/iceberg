@@ -216,6 +216,9 @@ public class TableProperties {
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
+  public static final String ADAPTIVE_SPLIT_SIZE_ENABLED = "read.split.adaptive-size.enabled";
+  public static final boolean ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT = true;
+
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
   public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;
 
@@ -303,6 +306,9 @@ public class TableProperties {
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 
+  public static final String HIVE_LOCK_ENABLED = "engine.hive.lock-enabled";
+  public static final boolean HIVE_LOCK_ENABLED_DEFAULT = true;
+
   public static final String WRITE_DISTRIBUTION_MODE = "write.distribution-mode";
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
@@ -359,7 +365,4 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
-
-  /** @deprecated will be removed in 1.3.0, use the HMS_TABLE_OWNER constant from HiveCatalog */
-  @Deprecated public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
 }

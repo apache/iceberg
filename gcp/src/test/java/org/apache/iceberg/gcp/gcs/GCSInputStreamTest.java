@@ -18,9 +18,8 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
@@ -30,11 +29,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class GCSInputStreamTest {
 
@@ -79,17 +78,33 @@ public class GCSInputStreamTest {
     }
   }
 
+  @Test
+  public void testReadSingle() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read.dat");
+    int i0 = 1;
+    int i1 = 255;
+    byte[] data = {(byte) i0, (byte) i1};
+
+    writeGCSData(uri, data);
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, gcpProperties, MetricsContext.nullMetrics())) {
+      assertThat(in.read()).isEqualTo(i0);
+      assertThat(in.read()).isEqualTo(i1);
+    }
+  }
+
   private void readAndCheck(
       SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
     in.seek(rangeStart);
-    assertEquals(rangeStart, in.getPos());
+    assertThat(rangeStart).isEqualTo(in.getPos());
 
     long rangeEnd = rangeStart + size;
     byte[] actual = new byte[size];
 
     if (buffered) {
-      IOUtils.readFully(in, actual);
+      IOUtil.readFully(in, actual, 0, actual.length);
     } else {
       int read = 0;
       while (read < size) {
@@ -97,8 +112,8 @@ public class GCSInputStreamTest {
       }
     }
 
-    assertEquals(rangeEnd, in.getPos());
-    assertArrayEquals(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd), actual);
+    assertThat(in.getPos()).isEqualTo(rangeEnd);
+    assertThat(actual).isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
   }
 
   @Test
@@ -107,7 +122,7 @@ public class GCSInputStreamTest {
     SeekableInputStream closed =
         new GCSInputStream(storage, blobId, gcpProperties, MetricsContext.nullMetrics());
     closed.close();
-    assertThrows(IllegalStateException.class, () -> closed.seek(0));
+    assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
   }
 
   @Test
@@ -122,10 +137,10 @@ public class GCSInputStreamTest {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 
-      IOUtils.readFully(in, actual, 0, data.length / 2);
+      IOUtil.readFully(in, actual, 0, data.length / 2);
 
       byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
-      assertArrayEquals(expected, actual);
+      assertThat(actual).isEqualTo(expected);
     }
   }
 

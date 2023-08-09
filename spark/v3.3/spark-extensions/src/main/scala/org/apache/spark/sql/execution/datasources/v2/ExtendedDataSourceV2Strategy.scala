@@ -66,11 +66,12 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
 
     case CreateOrReplaceBranch(
-        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
-      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
+        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, create, replace, ifNotExists) :: Nil
 
-    case CreateOrReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, replace, ifNotExists) =>
-      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, replace, ifNotExists) :: Nil
+    case CreateOrReplaceTag(
+        IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, create, replace, ifNotExists) :: Nil
 
     case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
       DropBranchExec(catalog, ident, branch, ifExists) :: Nil
@@ -103,11 +104,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
     case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, child) =>
 
       MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
     case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _), condition, None) =>

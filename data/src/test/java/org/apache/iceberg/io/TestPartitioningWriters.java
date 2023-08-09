@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -31,6 +30,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -137,11 +137,11 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(4, "bbb"), spec, partitionKey(spec, "bbb"));
     writer.write(toRow(5, "ccc"), spec, partitionKey(spec, "ccc"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")));
+    Assertions.assertThatThrownBy(
+            () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=aaa' in spec " + spec);
 
     writer.close();
   }
@@ -263,17 +263,16 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(5, "ccc"), identitySpec, partitionKey(identitySpec, "ccc"));
     writer.write(toRow(6, "ddd"), identitySpec, partitionKey(identitySpec, "ddd"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")));
+    Assertions.assertThatThrownBy(
+            () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order specs",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null));
+    Assertions.assertThatThrownBy(() -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("spec []");
 
     writer.close();
   }
@@ -399,23 +398,23 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         identitySpec,
         partitionKey(identitySpec, "ddd"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> {
-          PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
-          writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
+              writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
+            })
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order specs",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> {
-          PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
-          writer.write(positionDelete, unpartitionedSpec, null);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
+              writer.write(positionDelete, unpartitionedSpec, null);
+            })
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("spec []");
 
     writer.close();
   }
@@ -461,6 +460,101 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     List<T> expectedRows =
         ImmutableList.of(
             toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"), toRow(4, "bbb"), toRow(5, "ccc"));
+    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterNoRecords() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    FanoutPositionOnlyDeleteWriter<T> writer =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+
+    writer.close();
+    Assert.assertEquals(0, writer.result().deleteFiles().size());
+    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
+    Assert.assertFalse(writer.result().referencesDataFiles());
+
+    writer.close();
+    Assert.assertEquals(0, writer.result().deleteFiles().size());
+    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
+    Assert.assertFalse(writer.result().referencesDataFiles());
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterOutOfOrderRecords() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add an unpartitioned data file
+    ImmutableList<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    // partition by bucket
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+
+    // add a data file partitioned by bucket
+    ImmutableList<T> rows2 = ImmutableList.of(toRow(3, "bbb"), toRow(4, "bbb"), toRow(12, "bbb"));
+    DataFile dataFile2 =
+        writeData(
+            writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    // partition by data
+    table
+        .updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file partitioned by data
+    ImmutableList<T> rows3 = ImmutableList.of(toRow(5, "ccc"), toRow(13, "ccc"));
+    DataFile dataFile3 =
+        writeData(
+            writerFactory, fileFactory, rows3, table.spec(), partitionKey(table.spec(), "ccc"));
+    table.newFastAppend().appendFile(dataFile3).commit();
+
+    FanoutPositionOnlyDeleteWriter<T> writer =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+
+    PartitionSpec unpartitionedSpec = table.specs().get(0);
+    PartitionSpec bucketSpec = table.specs().get(1);
+    PartitionSpec identitySpec = table.specs().get(2);
+
+    writer.write(positionDelete(dataFile1.path(), 1L, null), unpartitionedSpec, null);
+    writer.write(
+        positionDelete(dataFile2.path(), 1L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+    writer.write(
+        positionDelete(dataFile2.path(), 0L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+    writer.write(
+        positionDelete(dataFile3.path(), 1L, null),
+        identitySpec,
+        partitionKey(identitySpec, "ccc"));
+    writer.write(
+        positionDelete(dataFile3.path(), 2L, null),
+        identitySpec,
+        partitionKey(identitySpec, "ccc"));
+    writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
+    writer.write(
+        positionDelete(dataFile3.path(), 0L, null),
+        identitySpec,
+        partitionKey(identitySpec, "ccc"));
+    writer.write(positionDelete(dataFile1.path(), 2L, null), unpartitionedSpec, null);
+
+    writer.close();
+
+    DeleteWriteResult result = writer.result();
+    Assert.assertEquals("Must be 3 delete files", 3, result.deleteFiles().size());
+    Assert.assertEquals(
+        "Must reference 3 data files", 3, writer.result().referencedDataFiles().size());
+    Assert.assertTrue("Must reference data files", writer.result().referencesDataFiles());
+
+    RowDelta rowDelta = table.newRowDelta();
+    result.deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    List<T> expectedRows = ImmutableList.of(toRow(12, "bbb"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 }

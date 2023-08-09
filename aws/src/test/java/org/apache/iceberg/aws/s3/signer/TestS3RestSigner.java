@@ -18,24 +18,26 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.s3.MinioContainer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.assertj.core.api.Assertions;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.jetbrains.annotations.NotNull;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -66,30 +68,20 @@ public class TestS3RestSigner {
   static final AwsCredentialsProvider CREDENTIALS_PROVIDER =
       StaticCredentialsProvider.create(
           AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
-
-  private static Server httpServer;
-  private S3Client s3;
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Rule
-  public MinioContainer minioContainer =
+  private static final MinioContainer MINIO_CONTAINER =
       new MinioContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
-  @AfterClass
-  public static void afterClass() throws Exception {
-    if (null != httpServer) {
-      httpServer.stop();
-    }
-  }
+  private static Server httpServer;
+  private static ValidatingSigner validatingSigner;
+  private S3Client s3;
 
-  @Before
-  public void before() throws Exception {
+  @BeforeAll
+  public static void beforeClass() throws Exception {
     if (null == httpServer) {
       httpServer = initHttpServer();
     }
 
-    ValidatingSigner validatingSigner =
+    validatingSigner =
         new ValidatingSigner(
             ImmutableS3V4RestSignerClient.builder()
                 .properties(
@@ -100,7 +92,35 @@ public class TestS3RestSigner {
                         "catalog:12345"))
                 .build(),
             new CustomAwsS3V4Signer());
+  }
 
+  @AfterAll
+  public static void afterClass() throws Exception {
+    assertThat(validatingSigner.icebergSigner.tokenRefreshExecutor())
+        .isInstanceOf(ScheduledThreadPoolExecutor.class);
+
+    ScheduledThreadPoolExecutor executor =
+        ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
+    // token expiration is set to 100s so there should be exactly one token scheduled for refresh
+    assertThat(executor.getPoolSize()).isEqualTo(1);
+    assertThat(executor.getQueue())
+        .as("should only have a single token scheduled for refresh")
+        .hasSize(1);
+    assertThat(executor.getActiveCount())
+        .as("should not have any token being refreshed")
+        .isEqualTo(0);
+    assertThat(executor.getCompletedTaskCount())
+        .as("should not have any expired token that required a refresh")
+        .isEqualTo(0);
+
+    if (null != httpServer) {
+      httpServer.stop();
+    }
+  }
+
+  @BeforeEach
+  public void before() throws Exception {
+    MINIO_CONTAINER.start();
     s3 =
         S3Client.builder()
             .region(REGION)
@@ -109,7 +129,8 @@ public class TestS3RestSigner {
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
                         software.amazon.awssdk.http.apache.ApacheHttpClient.builder()))
-            .endpointOverride(minioContainer.getURI())
+            .endpointOverride(MINIO_CONTAINER.getURI())
+            .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(
                 c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, validatingSigner))
             .build();
@@ -126,7 +147,7 @@ public class TestS3RestSigner {
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
   }
 
-  private Server initHttpServer() throws Exception {
+  private static Server initHttpServer() throws Exception {
     S3SignerServlet servlet = new S3SignerServlet(S3ObjectMapper.mapper());
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
@@ -172,6 +193,11 @@ public class TestS3RestSigner {
   public void validatedCreateMultiPartUpload() {
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("some/multipart-key").build());
+  }
+
+  @AfterEach
+  public void after() {
+    MINIO_CONTAINER.stop();
   }
 
   @Test
@@ -258,10 +284,10 @@ public class TestS3RestSigner {
 
       SdkHttpFullRequest awsResult = signWithAwsSigner(request, signerParams);
 
-      Assertions.assertThat(awsResult.headers().get("Authorization"))
+      assertThat(awsResult.headers().get("Authorization"))
           .isEqualTo(icebergResult.headers().get("Authorization"));
 
-      Assertions.assertThat(awsResult.headers()).isEqualTo(icebergResult.headers());
+      assertThat(awsResult.headers()).isEqualTo(icebergResult.headers());
       return awsResult;
     }
 

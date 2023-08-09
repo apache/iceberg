@@ -23,6 +23,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * An action for rewriting data files according to a rewrite strategy. Generally used for optimizing
@@ -76,7 +77,7 @@ public interface RewriteDataFiles
    */
   String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
 
-  int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 1;
+  int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 5;
 
   /**
    * The output file size that this rewrite strategy will attempt to generate when rewriting files.
@@ -178,6 +179,10 @@ public interface RewriteDataFiles
   interface Result {
     List<FileGroupRewriteResult> rewriteResults();
 
+    default List<FileGroupFailureResult> rewriteFailures() {
+      return ImmutableList.of();
+    }
+
     default int addedDataFilesCount() {
       return rewriteResults().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
     }
@@ -190,6 +195,10 @@ public interface RewriteDataFiles
 
     default long rewrittenBytesCount() {
       return rewriteResults().stream().mapToLong(FileGroupRewriteResult::rewrittenBytesCount).sum();
+    }
+
+    default int failedDataFilesCount() {
+      return rewriteFailures().stream().mapToInt(FileGroupFailureResult::dataFilesCount).sum();
     }
   }
 
@@ -207,6 +216,13 @@ public interface RewriteDataFiles
     default long rewrittenBytesCount() {
       return 0L;
     }
+  }
+
+  /** For a file group that failed to rewrite. */
+  interface FileGroupFailureResult {
+    FileGroupInfo info();
+
+    int dataFilesCount();
   }
 
   /**

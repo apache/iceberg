@@ -27,14 +27,14 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class SnowflakeCatalogTest {
 
@@ -45,7 +45,7 @@ public class SnowflakeCatalogTest {
   private SnowflakeCatalog.FileIOFactory fakeFileIOFactory;
   private Map<String, String> properties;
 
-  @Before
+  @BeforeEach
   public void before() {
     catalog = new SnowflakeCatalog();
 

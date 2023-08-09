@@ -26,6 +26,7 @@ import static org.apache.iceberg.avro.AvroTestHelpers.record;
 import static org.apache.iceberg.avro.AvroTestHelpers.requiredField;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.avro.LogicalTypes;
@@ -35,8 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSchemaConversions {
   @Test
@@ -81,8 +81,12 @@ public class TestSchemaConversions {
     for (int i = 0; i < primitives.size(); i += 1) {
       Type type = primitives.get(i);
       Schema avro = avroPrimitives.get(i);
-      Assert.assertEquals("Avro schema to primitive: " + avro, type, AvroSchemaUtil.convert(avro));
-      Assert.assertEquals("Primitive to avro schema: " + type, avro, AvroSchemaUtil.convert(type));
+      assertThat(AvroSchemaUtil.convert(avro))
+          .as("Avro schema to primitive: " + avro)
+          .isEqualTo(type);
+      assertThat(AvroSchemaUtil.convert(type))
+          .as("Primitive to avro schema: " + type)
+          .isEqualTo(avro);
     }
   }
 
@@ -95,7 +99,7 @@ public class TestSchemaConversions {
     Type expectedIcebergType = Types.TimestampType.withoutZone();
     Schema avroType = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
 
-    Assert.assertEquals(expectedIcebergType, AvroSchemaUtil.convert(avroType));
+    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
   }
 
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
@@ -159,9 +163,12 @@ public class TestSchemaConversions {
                 LogicalTypes.decimal(14, 2)
                     .addToSchema(Schema.createFixed("decimal_14_2", null, null, 6))));
 
-    Assert.assertEquals("Test conversion from Avro schema", struct, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals(
-        "Test conversion to Avro schema", schema, AvroSchemaUtil.convert(struct, "primitives"));
+    assertThat(AvroSchemaUtil.convert(schema))
+        .as("Test conversion from Avro schema")
+        .isEqualTo(struct);
+    assertThat(AvroSchemaUtil.convert(struct, "primitives"))
+        .as("Test conversion to Avro schema")
+        .isEqualTo(schema);
   }
 
   @Test
@@ -175,8 +182,8 @@ public class TestSchemaConversions {
                     LogicalTypes.uuid()
                         .addToSchema(Schema.createFixed("uuid_fixed", null, null, 16))));
 
-    Assert.assertEquals("Avro schema to list", list, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("List to Avro schema", schema, AvroSchemaUtil.convert(list));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to list").isEqualTo(list);
+    assertThat(AvroSchemaUtil.convert(list)).as("List to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -198,8 +205,8 @@ public class TestSchemaConversions {
                         requiredField(35, "lat", Schema.create(Schema.Type.FLOAT)),
                         requiredField(36, "long", Schema.create(Schema.Type.FLOAT)))));
 
-    Assert.assertEquals("Avro schema to list", list, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("List to Avro schema", schema, AvroSchemaUtil.convert(list));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to list").isEqualTo(list);
+    assertThat(AvroSchemaUtil.convert(list)).as("List to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -210,8 +217,8 @@ public class TestSchemaConversions {
             33, Schema.create(Schema.Type.LONG),
             34, Schema.create(Schema.Type.BYTES));
 
-    Assert.assertEquals("Avro schema to map", map, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("Map to Avro schema", schema, AvroSchemaUtil.convert(map));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to map").isEqualTo(map);
+    assertThat(AvroSchemaUtil.convert(map)).as("Map to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -220,8 +227,8 @@ public class TestSchemaConversions {
     Schema schema =
         addKeyId(33, addValueId(34, SchemaBuilder.map().values(Schema.create(Schema.Type.BYTES))));
 
-    Assert.assertEquals("Avro schema to map", map, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("Map to Avro schema", schema, AvroSchemaUtil.convert(map));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to map").isEqualTo(map);
+    assertThat(AvroSchemaUtil.convert(map)).as("Map to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -243,8 +250,8 @@ public class TestSchemaConversions {
                     requiredField(36, "a", Schema.create(Schema.Type.INT)),
                     optionalField(37, "b", Schema.create(Schema.Type.INT))));
 
-    Assert.assertEquals("Avro schema to map", map, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("Map to Avro schema", schema, AvroSchemaUtil.convert(map));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to map").isEqualTo(map);
+    assertThat(AvroSchemaUtil.convert(map)).as("Map to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -269,8 +276,8 @@ public class TestSchemaConversions {
                             requiredField(35, "a", Schema.create(Schema.Type.INT)),
                             optionalField(36, "b", Schema.create(Schema.Type.INT))))));
 
-    Assert.assertEquals("Avro schema to map", map, AvroSchemaUtil.convert(schema));
-    Assert.assertEquals("Map to Avro schema", schema, AvroSchemaUtil.convert(map));
+    assertThat(AvroSchemaUtil.convert(schema)).as("Avro schema to map").isEqualTo(map);
+    assertThat(AvroSchemaUtil.convert(map)).as("Map to Avro schema").isEqualTo(schema);
   }
 
   @Test
@@ -332,7 +339,7 @@ public class TestSchemaConversions {
         Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::name));
     List<String> expectedSanitizedNames =
         Lists.newArrayList("_9x", "x_", "a_x2Eb", "_x2603", "a_x23b");
-    Assert.assertEquals(expectedSanitizedNames, sanitizedNames);
+    assertThat(sanitizedNames).isEqualTo(expectedSanitizedNames);
 
     List<String> origNames =
         Lists.newArrayList(
@@ -340,7 +347,7 @@ public class TestSchemaConversions {
                 avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP)));
     List<String> expectedOrigNames = Lists.newArrayList(names);
     expectedOrigNames.set(1, null); // Name at pos 1 is valid so ICEBERG_FIELD_NAME_PROP is not set
-    Assert.assertEquals(expectedOrigNames, origNames);
+    assertThat(origNames).isEqualTo(expectedOrigNames);
   }
 
   @Test
@@ -354,11 +361,11 @@ public class TestSchemaConversions {
     Schema avroSchema = AvroSchemaUtil.convert(icebergSchema.asStruct());
     List<String> avroFieldDocs =
         Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::doc));
-    Assert.assertEquals(avroFieldDocs, fieldDocs);
+    assertThat(fieldDocs).isEqualTo(avroFieldDocs);
 
     org.apache.iceberg.Schema origSchema = AvroSchemaUtil.toIceberg(avroSchema);
     List<String> origFieldDocs =
         Lists.newArrayList(Iterables.transform(origSchema.columns(), Types.NestedField::doc));
-    Assert.assertEquals(origFieldDocs, fieldDocs);
+    assertThat(fieldDocs).isEqualTo(origFieldDocs);
   }
 }

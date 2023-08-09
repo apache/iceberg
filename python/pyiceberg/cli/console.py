@@ -27,6 +27,7 @@ from typing import (
 import click
 from click import Context
 
+from pyiceberg import __version__
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
@@ -83,9 +84,7 @@ def run(ctx: Context, catalog: Optional[str], verbose: bool, output: str, uri: O
 
 
 def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
-    """
-    Small helper to set the types
-    """
+    """Small helper to set the types."""
     return ctx.obj["catalog"], ctx.obj["output"]
 
 
@@ -94,7 +93,7 @@ def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
 @click.argument("parent", required=False)
 @catch_exception()
 def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefined-builtin
-    """Lists tables or namespaces"""
+    """Lists tables or namespaces."""
     catalog, output = _catalog_and_output(ctx)
 
     identifiers = catalog.list_namespaces(parent or ())
@@ -109,7 +108,7 @@ def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefi
 @click.pass_context
 @catch_exception()
 def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str) -> None:
-    """Describes a namespace or a table"""
+    """Describes a namespace or a table."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -143,7 +142,7 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 @click.pass_context
 @catch_exception()
 def files(ctx: Context, identifier: str, history: bool) -> None:
-    """Lists all the files of the table"""
+    """Lists all the files of the table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog_table = catalog.load_table(identifier)
@@ -155,7 +154,7 @@ def files(ctx: Context, identifier: str, history: bool) -> None:
 @click.pass_context
 @catch_exception()
 def schema(ctx: Context, identifier: str) -> None:
-    """Gets the schema of the table"""
+    """Gets the schema of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.schema(table.schema())
@@ -166,7 +165,7 @@ def schema(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def spec(ctx: Context, identifier: str) -> None:
-    """Returns the partition spec of the table"""
+    """Returns the partition spec of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.spec(table.spec())
@@ -177,7 +176,7 @@ def spec(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def uuid(ctx: Context, identifier: str) -> None:
-    """Returns the UUID of the table"""
+    """Returns the UUID of the table."""
     catalog, output = _catalog_and_output(ctx)
     metadata = catalog.load_table(identifier).metadata
     output.uuid(metadata.table_uuid)
@@ -188,15 +187,23 @@ def uuid(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def location(ctx: Context, identifier: str) -> None:
-    """Returns the location of the table"""
+    """Returns the location of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.text(table.location())
 
 
+@run.command()
+@click.pass_context
+@catch_exception()
+def version(ctx: Context) -> None:
+    """Prints pyiceberg version."""
+    ctx.obj["output"].version(__version__)
+
+
 @run.group()
 def drop() -> None:
-    """Operations to drop a namespace or table"""
+    """Operations to drop a namespace or table."""
 
 
 @drop.command()
@@ -204,7 +211,7 @@ def drop() -> None:
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str) -> None:  # noqa: F811
-    """Drops a table"""
+    """Drops a table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_table(identifier)
@@ -216,7 +223,7 @@ def table(ctx: Context, identifier: str) -> None:  # noqa: F811
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str) -> None:
-    """Drops a namespace"""
+    """Drops a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_namespace(identifier)
@@ -229,7 +236,7 @@ def namespace(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def rename(ctx: Context, from_identifier: str, to_identifier: str) -> None:
-    """Renames a table"""
+    """Renames a table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.rename_table(from_identifier, to_identifier)
@@ -238,12 +245,12 @@ def rename(ctx: Context, from_identifier: str, to_identifier: str) -> None:
 
 @run.group()
 def properties() -> None:
-    """Properties on tables/namespaces"""
+    """Properties on tables/namespaces."""
 
 
 @properties.group()
 def get() -> None:
-    """Fetch properties on tables/namespaces"""
+    """Fetch properties on tables/namespaces."""
 
 
 @get.command("namespace")
@@ -252,7 +259,7 @@ def get() -> None:
 @click.pass_context
 @catch_exception()
 def get_namespace(ctx: Context, identifier: str, property_name: str) -> None:
-    """Fetch properties on a namespace"""
+    """Fetch properties on a namespace."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -274,7 +281,7 @@ def get_namespace(ctx: Context, identifier: str, property_name: str) -> None:
 @click.pass_context
 @catch_exception()
 def get_table(ctx: Context, identifier: str, property_name: str) -> None:
-    """Fetch properties on a table"""
+    """Fetch properties on a table."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -292,7 +299,7 @@ def get_table(ctx: Context, identifier: str, property_name: str) -> None:
 
 @properties.group()
 def set() -> None:
-    """Sets a property on tables/namespaces"""
+    """Sets a property on tables/namespaces."""
 
 
 @set.command()  # type: ignore
@@ -302,7 +309,7 @@ def set() -> None:
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
-    """Sets a property on a namespace"""
+    """Sets a property on a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.update_namespace_properties(identifier, updates={property_name: property_value})
@@ -316,7 +323,7 @@ def namespace(ctx: Context, identifier: str, property_name: str, property_value:
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
-    """Sets a property on a table"""
+    """Sets a property on a table."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -327,7 +334,7 @@ def table(ctx: Context, identifier: str, property_name: str, property_value: str
 
 @properties.group()
 def remove() -> None:
-    """Removes a property from tables/namespaces"""
+    """Removes a property from tables/namespaces."""
 
 
 @remove.command()  # type: ignore
@@ -336,7 +343,7 @@ def remove() -> None:
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
-    """Removes a property from a namespace"""
+    """Removes a property from a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     result = catalog.update_namespace_properties(identifier, removals={property_name})
@@ -353,7 +360,7 @@ def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noq
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
-    """Removes a property from a table"""
+    """Removes a property from a table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     if property_name in table.metadata.properties:

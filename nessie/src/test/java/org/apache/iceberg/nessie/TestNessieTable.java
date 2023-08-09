@@ -25,18 +25,25 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -55,6 +62,7 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNamespaceAlreadyExistsException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
@@ -93,8 +101,7 @@ public class TestNessieTable extends BaseTestIceberg {
   public void beforeEach(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws IOException {
     super.beforeEach(clientFactory, nessieUri);
-    this.tableLocation =
-        catalog.createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
+    this.tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
   }
 
   @Override
@@ -102,7 +109,9 @@ public class TestNessieTable extends BaseTestIceberg {
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
-      FileUtils.deleteDirectory(new File(tableLocation));
+      try (Stream<Path> walk = Files.walk(Paths.get(tableLocation))) {
+        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      }
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -326,6 +335,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(log)
         .isNotNull()
         .isNotEmpty()
+        .filteredOn(e -> !e.getCommitMeta().getMessage().startsWith("create namespace "))
         .allSatisfy(
             logEntry -> {
               CommitMeta commit = logEntry.getCommitMeta();
@@ -429,12 +439,17 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testRegisterTableWithGivenBranch() {
+  public void testRegisterTableWithGivenBranch() throws Exception {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    try {
+      api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
+    } catch (NessieNamespaceAlreadyExistsException ignore) {
+      // ignore
+    }
     validateRegister(identifier, metadataVersionFiles.get(0));
   }
 
@@ -494,12 +509,17 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testRegisterTableMoreThanOneBranch() {
+  public void testRegisterTableMoreThanOneBranch() throws Exception {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    try {
+      api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
+    } catch (NessieNamespaceAlreadyExistsException ignore) {
+      // ignore
+    }
     validateRegister(identifier, metadataVersionFiles.get(0));
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
@@ -526,7 +546,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
     IcebergTable table = getTable(BRANCH, KEY);
 
-    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, "cid");
+    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, table.getId());
     api.commitMultipleOperations()
         .branch(branch)
         .operation(Operation.Put.of(KEY, value))
@@ -566,6 +586,58 @@ public class TestNessieTable extends BaseTestIceberg {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
+  }
+
+  @Test
+  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+
+    // Forceful setting of property also should get override with false
+    icebergTable
+        .updateProperties()
+        .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
+        .commit();
+    Assertions.assertThat(
+            icebergTable.properties().get(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED))
+        .isNotNull()
+        .isEqualTo("false");
+
+    icebergTable
+        .updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
+        .commit();
+
+    String hash = api.getReference().refName(BRANCH).get().getHash();
+    String metadataFileLocation =
+        ((BaseTable) icebergTable).operations().current().metadataFileLocation();
+    Path metadataFileLocationPath = Paths.get(metadataFileLocation.replaceFirst("file:", ""));
+
+    Assertions.assertThat(metadataFileLocationPath).exists();
+
+    icebergTable.updateSchema().addColumn("x1", Types.LongType.get()).commit();
+    icebergTable.updateSchema().addColumn("x2", Types.LongType.get()).commit();
+
+    // old table metadata file should still exist after commits.
+    Assertions.assertThat(metadataFileLocationPath).exists();
+
+    // load the table from the specific hash which reads the mapping metadataFileLocation
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference(BRANCH).hash(hash).name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    Assertions.assertThat(
+            ((BaseTable) catalog.loadTable(identifier))
+                .operations()
+                .current()
+                .metadataFileLocation())
+        .isEqualTo(metadataFileLocation);
+
+    // table at the latest hash should not contain `metadataFileLocation` in previousFiles.
+    Set<String> tableMetadataFiles =
+        ((BaseTable) icebergTable)
+            .operations().current().previousFiles().stream()
+                .map(TableMetadata.MetadataLogEntry::file)
+                .collect(Collectors.toSet());
+    Assertions.assertThat(tableMetadataFiles).hasSize(1).doesNotContain(metadataFileLocation);
   }
 
   private String getTableBasePath(String tableName) {

@@ -55,6 +55,9 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   /** Track enumeration result history for split discovery throttling. */
   private final EnumerationHistory enumerationHistory;
 
+  /** Count the consecutive failures and throw exception if the max allowed failres are reached */
+  private transient int consecutiveFailures = 0;
+
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
       SplitAssigner assigner,
@@ -122,6 +125,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   /** This method is executed in a single coordinator thread. */
   private void processDiscoveredSplits(ContinuousEnumerationResult result, Throwable error) {
     if (error == null) {
+      consecutiveFailures = 0;
       if (!Objects.equals(result.fromPosition(), enumeratorPosition.get())) {
         // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O
         // thread pool. E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit
@@ -161,7 +165,13 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
-      LOG.error("Failed to discover new splits", error);
+      consecutiveFailures++;
+      if (scanContext.maxAllowedPlanningFailures() < 0
+          || consecutiveFailures <= scanContext.maxAllowedPlanningFailures()) {
+        LOG.error("Failed to discover new splits", error);
+      } else {
+        throw new RuntimeException("Failed to discover new splits", error);
+      }
     }
   }
 }

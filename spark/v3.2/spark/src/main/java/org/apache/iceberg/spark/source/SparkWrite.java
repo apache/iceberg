@@ -90,6 +90,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final int outputSpecId;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -125,6 +126,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+    this.outputSpecId = writeConf.outputSpecId();
   }
 
   @Override
@@ -174,6 +176,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         tableBroadcast,
         queryId,
         format,
+        outputSpecId,
         targetFileSize,
         writeSchema,
         dsSchema,
@@ -584,6 +587,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
+    private final int outputSpecId;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
@@ -594,12 +598,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Broadcast<Table> tableBroadcast,
         String queryId,
         FileFormat format,
+        int outputSpecId,
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
         boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
+      this.outputSpecId = outputSpecId;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -615,7 +621,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
-      PartitionSpec spec = table.spec();
+      PartitionSpec spec = table.specs().get(outputSpecId);
       FileIO io = table.io();
 
       OutputFileFactory fileFactory =

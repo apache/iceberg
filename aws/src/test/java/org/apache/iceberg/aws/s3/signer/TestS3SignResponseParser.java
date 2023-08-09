@@ -23,7 +23,7 @@ import java.net.URI;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestS3SignResponseParser {
 
