@@ -115,7 +115,7 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
-from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_object_to_micros
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 
 
 def test_pyarrow_input_file() -> None:
@@ -1795,7 +1795,7 @@ def test_metrics_primitive_types() -> None:
     assert datafile.lower_bounds[4] == STRUCT_FLOAT.pack(454.1223)
     assert datafile.lower_bounds[5] == STRUCT_DOUBLE.pack(-43.9)
     assert datafile.lower_bounds[6] == STRUCT_INT32.pack(date_to_days(date(2022, 1, 2)))
-    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(time_object_to_micros(time(13, 21, 4)))
+    assert datafile.lower_bounds[7] == STRUCT_INT64.pack(time_to_micros(time(13, 21, 4)))
     assert datafile.lower_bounds[8] == STRUCT_INT64.pack(datetime_to_micros(datetime(2022, 1, 2, 17, 30, 34, 399)))
     assert datafile.lower_bounds[9] == STRUCT_INT64.pack(datetime_to_micros(datetime(2022, 1, 2, 17, 30, 34, 399, tz)))
     assert datafile.lower_bounds[10] == b"he"
@@ -1809,7 +1809,7 @@ def test_metrics_primitive_types() -> None:
     assert datafile.upper_bounds[4] == STRUCT_FLOAT.pack(24342.29)
     assert datafile.upper_bounds[5] == STRUCT_DOUBLE.pack(8542.12)
     assert datafile.upper_bounds[6] == STRUCT_INT32.pack(date_to_days(date(2023, 2, 4)))
-    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(time_object_to_micros(time(17, 30, 34)))
+    assert datafile.upper_bounds[7] == STRUCT_INT64.pack(time_to_micros(time(17, 30, 34)))
     assert datafile.upper_bounds[8] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354)))
     assert datafile.upper_bounds[9] == STRUCT_INT64.pack(datetime_to_micros(datetime(2023, 2, 4, 13, 21, 4, 354, tz)))
     assert datafile.upper_bounds[10] == b"wp"
