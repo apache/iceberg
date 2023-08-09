@@ -137,10 +137,9 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.migrate(table => '%s', backup_table_name => '%s')",
             catalogName, tableName, backupTableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
-
+    Assertions.assertThat(result).isEqualTo(1L);
     String dbName = tableName.split("\\.")[0];
-    Assert.assertTrue(spark.catalog().tableExists(dbName + "." + backupTableName));
+    Assertions.assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
   }
 
   @Test

@@ -56,7 +56,6 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
-  private Identifier backupIdent;
 
   private boolean dropBackup = false;
 
@@ -67,8 +66,6 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
-    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
-    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
   }
 
   @Override
@@ -120,13 +117,18 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private MigrateTable.Result doExecute() {
     LOG.info("Starting the migration of {} to Iceberg", sourceTableIdent());
 
-    if (!backupTableName.isEmpty()) {
-      backupIdent = Identifier.of(destTableIdent.namespace(), backupTableName);
+    String backupName;
+    if (backupTableName.isEmpty()) {
+      backupName = this.destTableIdent.name() + BACKUP_SUFFIX;
+    } else {
+      backupName = this.backupTableName;
     }
+
+    Identifier backupIdent = Identifier.of(destTableIdent.namespace(), backupName);
 
     // move the source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
-    renameAndBackupSourceTable();
+    renameAndBackupSourceTable(backupIdent);
 
     StagedSparkTable stagedTable = null;
     Table icebergTable;
@@ -153,7 +155,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
         LOG.error(
             "Failed to perform the migration, aborting table creation and restoring the original table");
 
-        restoreSourceTable();
+        restoreSourceTable(backupIdent);
 
         if (stagedTable != null) {
           try {
@@ -163,7 +165,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
           }
         }
       } else if (dropBackup) {
-        dropBackupTable();
+        dropBackupTable(backupIdent);
       }
     }
 
@@ -212,7 +214,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     return (TableCatalog) catalog;
   }
 
-  private void renameAndBackupSourceTable() {
+  private void renameAndBackupSourceTable(Identifier backupIdent) {
     try {
       LOG.info("Renaming {} as {} for backup", sourceTableIdent(), backupIdent);
       destCatalog().renameTable(sourceTableIdent(), backupIdent);
@@ -227,7 +229,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     }
   }
 
-  private void restoreSourceTable() {
+  private void restoreSourceTable(Identifier backupIdent) {
     try {
       LOG.info("Restoring {} from {}", sourceTableIdent(), backupIdent);
       destCatalog().renameTable(backupIdent, sourceTableIdent());
@@ -245,7 +247,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     }
   }
 
-  private void dropBackupTable() {
+  private void dropBackupTable(Identifier backupIdent) {
     try {
       destCatalog().dropTable(backupIdent);
     } catch (Exception e) {
