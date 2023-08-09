@@ -373,7 +373,7 @@ def test_string_to_uuid_literal() -> None:
     uuid_str = literal(str(expected))
     uuid_lit = uuid_str.to(UUIDType())
 
-    assert expected == uuid_lit.value
+    assert expected.bytes == uuid_lit.value
 
 
 def test_string_to_decimal_literal() -> None:
@@ -843,6 +843,13 @@ def test_decimal_literal_dencrement() -> None:
     assert dec.decrement().value.as_tuple() == Decimal("10.122").as_tuple()
 
 
+def test_uuid_literal_initialization() -> None:
+    test_uuid = uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")
+    uuid_literal = literal(test_uuid)
+    assert isinstance(uuid_literal, Literal)
+    assert test_uuid.bytes == uuid_literal.value
+
+
 #   __  __      ___
 #  |  \/  |_  _| _ \_  _
 #  | |\/| | || |  _/ || |
@@ -853,7 +860,6 @@ assert_type(literal("str"), Literal[str])
 assert_type(literal(True), Literal[bool])
 assert_type(literal(123), Literal[int])
 assert_type(literal(123.4), Literal[float])
-assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
 assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
 assert_type(literal(Decimal("19.25")), Literal[Decimal])
 assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])

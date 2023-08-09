@@ -65,6 +65,8 @@ RUN chmod u+x /opt/spark/sbin/* && \
 
 RUN pip3 install -q ipython
 
+RUN pip3 install 'pyiceberg[pyarrow,duckdb,pandas]==0.4.0'
+
 COPY entrypoint.sh .
 COPY provision.py .
 
