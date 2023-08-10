@@ -37,6 +37,7 @@ import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -110,23 +111,28 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
 
-  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, true);
+  public static void overwrite(
+      TableMetadata metadata, OutputFile outputFile, LocationRelativizer locationRelativizer) {
+    internalWrite(metadata, outputFile, true, locationRelativizer);
   }
 
-  public static void write(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, false);
+  public static void write(
+      TableMetadata metadata, OutputFile outputFile, LocationRelativizer locationRelativizer) {
+    internalWrite(metadata, outputFile, false, locationRelativizer);
   }
 
   public static void internalWrite(
-      TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
+      TableMetadata metadata,
+      OutputFile outputFile,
+      boolean overwrite,
+      LocationRelativizer locationRelativizer) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      toJson(metadata, generator);
+      toJson(metadata, generator, locationRelativizer);
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
@@ -146,10 +152,10 @@ public class TableMetadataParser {
     return ".metadata.json" + codec.extension;
   }
 
-  public static String toJson(TableMetadata metadata) {
+  public static String toJson(TableMetadata metadata, LocationRelativizer locationRelativizer) {
     try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
+      toJson(metadata, generator, locationRelativizer);
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
@@ -158,12 +164,14 @@ public class TableMetadataParser {
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(
+      TableMetadata metadata, JsonGenerator generator, LocationRelativizer locationRelativizer)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
-    generator.writeStringField(LOCATION, metadata.location());
+    generator.writeStringField(LOCATION, locationRelativizer.getRelativePath(metadata.location()));
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
@@ -221,7 +229,8 @@ public class TableMetadataParser {
 
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
-      SnapshotParser.toJson(snapshot, generator);
+      // TODO : Do it only in new snapshot
+      SnapshotParser.toJson(snapshot, generator, locationRelativizer);
     }
     generator.writeEndArray();
 

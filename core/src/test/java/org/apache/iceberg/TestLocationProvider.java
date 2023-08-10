@@ -76,7 +76,7 @@ public class TestLocationProvider extends TableTestBase {
     public String getAbsolutePath(String path) {
       return null;
     }
-}
+  }
 
   // publicly visible for testing to be dynamically loaded
   public static class NoArgDynamicallyLoadedLocationProvider implements LocationProvider {

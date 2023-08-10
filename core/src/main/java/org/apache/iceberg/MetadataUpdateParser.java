@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -133,15 +134,20 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
           .buildOrThrow();
 
-  public static String toJson(MetadataUpdate metadataUpdate) {
-    return toJson(metadataUpdate, false);
+  public static String toJson(
+      MetadataUpdate metadataUpdate, LocationRelativizer locationRelativizer) {
+    return toJson(metadataUpdate, false, locationRelativizer);
   }
 
-  public static String toJson(MetadataUpdate metadataUpdate, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(metadataUpdate, gen), pretty);
+  public static String toJson(
+      MetadataUpdate metadataUpdate, boolean pretty, LocationRelativizer locationRelativizer) {
+    return JsonUtil.generate(gen -> toJson(metadataUpdate, gen, locationRelativizer), pretty);
   }
 
-  public static void toJson(MetadataUpdate metadataUpdate, JsonGenerator generator)
+  public static void toJson(
+      MetadataUpdate metadataUpdate,
+      JsonGenerator generator,
+      LocationRelativizer locationRelativizer)
       throws IOException {
     String updateAction = ACTIONS.get(metadataUpdate.getClass());
 
@@ -188,7 +194,8 @@ public class MetadataUpdateParser {
         writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
         break;
       case ADD_SNAPSHOT:
-        writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
+        writeAddSnapshot(
+            (MetadataUpdate.AddSnapshot) metadataUpdate, generator, locationRelativizer);
         break;
       case REMOVE_SNAPSHOTS:
         writeRemoveSnapshots((MetadataUpdate.RemoveSnapshot) metadataUpdate, generator);
@@ -333,10 +340,11 @@ public class MetadataUpdateParser {
     gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
   }
 
-  private static void writeAddSnapshot(MetadataUpdate.AddSnapshot update, JsonGenerator gen)
+  private static void writeAddSnapshot(
+      MetadataUpdate.AddSnapshot update, JsonGenerator gen, LocationRelativizer locationRelativizer)
       throws IOException {
     gen.writeFieldName(SNAPSHOT);
-    SnapshotParser.toJson(update.snapshot(), gen);
+    SnapshotParser.toJson(update.snapshot(), gen, locationRelativizer);
   }
 
   // TODO - Reconcile the spec's set-based removal with the current class implementation that only

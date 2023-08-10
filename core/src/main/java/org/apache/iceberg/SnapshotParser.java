@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,7 +50,9 @@ public class SnapshotParser {
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
 
-  static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
+  public static void toJson(
+      Snapshot snapshot, JsonGenerator generator, LocationRelativizer locationRelativizer)
+      throws IOException {
     generator.writeStartObject();
     if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
       generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
@@ -79,7 +82,7 @@ public class SnapshotParser {
     String manifestList = snapshot.manifestListLocation();
     if (manifestList != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
-      generator.writeStringField(MANIFEST_LIST, manifestList);
+      generator.writeStringField(MANIFEST_LIST, locationRelativizer.getRelativePath(manifestList));
     } else {
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
@@ -96,13 +99,14 @@ public class SnapshotParser {
     generator.writeEndObject();
   }
 
-  public static String toJson(Snapshot snapshot) {
+  public static String toJson(Snapshot snapshot, LocationRelativizer locationRelativizer) {
     // Use true as default value of pretty for backwards compatibility
-    return toJson(snapshot, true);
+    return toJson(snapshot, true, locationRelativizer);
   }
 
-  public static String toJson(Snapshot snapshot, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(snapshot, gen), pretty);
+  public static String toJson(
+      Snapshot snapshot, boolean pretty, LocationRelativizer locationRelativizer) {
+    return JsonUtil.generate(gen -> toJson(snapshot, gen, locationRelativizer), pretty);
   }
 
   static Snapshot fromJson(JsonNode node) {

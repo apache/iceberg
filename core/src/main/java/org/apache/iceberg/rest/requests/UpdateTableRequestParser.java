@@ -65,7 +65,7 @@ public class UpdateTableRequestParser {
 
     gen.writeArrayFieldStart(UPDATES);
     for (MetadataUpdate metadataUpdate : request.updates()) {
-      MetadataUpdateParser.toJson(metadataUpdate, gen);
+      MetadataUpdateParser.toJson(metadataUpdate, gen, null);
     }
     gen.writeEndArray();
 

@@ -50,6 +50,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -170,7 +171,8 @@ public class TestTableMetadata {
             statisticsFiles,
             ImmutableList.of());
 
-    String asJson = TableMetadataParser.toJson(expected);
+    String asJson =
+        TableMetadataParser.toJson(expected, (LocationRelativizer) ops.locationProvider());
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
 
     Assert.assertEquals(
@@ -547,7 +549,8 @@ public class TestTableMetadata {
 
       generator.writeArrayFieldStart(SNAPSHOTS);
       for (Snapshot snapshot : metadata.snapshots()) {
-        SnapshotParser.toJson(snapshot, generator);
+        SnapshotParser.toJson(
+            snapshot, generator, new LocationProviders.NoActionLocationProvider());
       }
       generator.writeEndArray();
       // skip the snapshot log
@@ -619,7 +622,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of());
 
-    String asJson = TableMetadataParser.toJson(base);
+    String asJson = TableMetadataParser.toJson(base, ops.locationProvider());
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
 
     Assert.assertEquals(

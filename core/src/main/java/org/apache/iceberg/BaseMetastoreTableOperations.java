@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -167,7 +168,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     // write the new metadata
     // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
     // always unique because it includes a UUID.
-    TableMetadataParser.overwrite(metadata, newMetadataLocation);
+    TableMetadataParser.overwrite(
+        metadata, newMetadataLocation, (LocationRelativizer) locationProvider());
 
     return newMetadataLocation.location();
   }
@@ -240,6 +242,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public LocationProvider locationProvider() {
+    if (current() == null) {
+      return new LocationProviders.NoActionLocationProvider();
+    }
     return LocationProviders.locationsFor(current().location(), current().properties());
   }
 

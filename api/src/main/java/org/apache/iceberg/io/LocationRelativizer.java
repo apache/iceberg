@@ -29,11 +29,11 @@ public interface LocationRelativizer extends Serializable {
 
   /*
 
-   */
+  */
   boolean isRelative();
   /**
-   * Return a relative path for the given path w.r.t. provided prefix.
-   * The writer code-paths should use this method to relativize path (if required).
+   * Return a relative path for the given path w.r.t. provided prefix. The writer code-paths should
+   * use this method to relativize path (if required).
    *
    * @param path of the file
    * @return relative path of the input path
@@ -41,8 +41,8 @@ public interface LocationRelativizer extends Serializable {
   String getRelativePath(String path);
 
   /**
-   * Return absolute path for the given path w.r.t. provided prefix.
-   * The reader code-paths should use this method.
+   * Return absolute path for the given path w.r.t. provided prefix. The reader code-paths should
+   * use this method.
    *
    * @param path of the file
    * @return absolute path of the input path
