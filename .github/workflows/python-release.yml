@@ -1,0 +1,64 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: "Python release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        type: string
+
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-20.04, windows-2019, macos-11 ]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install poetry
+        run: pip3 install poetry
+
+      - name: Set version
+        run: poetry version $PYTHON_VERSION
+        if: "${{ github.event.inputs.version != '' }}"
+        env:
+          PYTHON_VERSION: ${{ inputs.version }}
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.15.0
+        with:
+          package-dir: python/
+          output-dir: wheelhouse
+          config-file: "python/pyproject.toml"
+        env:
+          CIBW_PROJECT_REQUIRES_PYTHON: ">=3.8,<3.12"
+
+      - name: Add source distribution
+        run: poetry build --format=sdist && cp dist/* wheelhouse/
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
