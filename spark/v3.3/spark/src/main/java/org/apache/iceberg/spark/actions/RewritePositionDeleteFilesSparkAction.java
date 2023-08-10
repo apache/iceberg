@@ -35,6 +35,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -46,6 +47,7 @@ import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -84,6 +86,7 @@ public class RewritePositionDeleteFilesSparkAction
 
   private final Table table;
   private final SparkBinPackPositionDeletesRewriter rewriter;
+  private Expression filter = Expressions.alwaysTrue();
 
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
@@ -103,11 +106,12 @@ public class RewritePositionDeleteFilesSparkAction
 
   @Override
   public RewritePositionDeleteFilesSparkAction filter(Expression expression) {
-    throw new UnsupportedOperationException("Regular filters not supported yet.");
+    filter = Expressions.and(filter, expression);
+    return this;
   }
 
   @Override
-  public Result execute() {
+  public RewritePositionDeleteFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       LOG.info("Nothing found to rewrite in empty table {}", table.name());
       return EMPTY_RESULT;
@@ -153,8 +157,9 @@ public class RewritePositionDeleteFilesSparkAction
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
 
+    PositionDeletesBatchScan scan = (PositionDeletesBatchScan) deletesTable.newBatchScan();
     return CloseableIterable.transform(
-        deletesTable.newBatchScan().ignoreResiduals().planFiles(),
+        scan.baseTableFilter(filter).ignoreResiduals().planFiles(),
         task -> (PositionDeletesScanTask) task);
   }
 
