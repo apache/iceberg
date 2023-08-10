@@ -503,6 +503,22 @@ def test_binary_to_smaller_fixed_none() -> None:
     assert "Cannot convert BinaryLiteral into fixed[2], different length: 2 <> 3" in str(e.value)
 
 
+def test_binary_to_uuid() -> None:
+    test_uuid = uuid.uuid4()
+    lit = literal(test_uuid.bytes)
+    uuid_lit = lit.to(UUIDType())
+    assert uuid_lit is not None
+    assert lit.value == uuid_lit.value
+    assert uuid_lit.value == test_uuid.bytes
+
+
+def test_incompatible_binary_to_uuid() -> None:
+    lit = literal(bytes([0x00, 0x01, 0x02]))
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(UUIDType())
+        assert "Cannot convert BinaryLiteral into uuid, different length: 16 <> 3" in str(e.value)
+
+
 def test_fixed_to_binary() -> None:
     lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
     binary_lit = lit.to(BinaryType())
@@ -515,6 +531,22 @@ def test_fixed_to_smaller_fixed_none() -> None:
     with pytest.raises(ValueError) as e:
         lit.to(lit.to(FixedType(2)))
     assert "Could not convert b'\\x00\\x01\\x02' into a fixed[2]" in str(e.value)
+
+
+def test_fixed_to_uuid() -> None:
+    test_uuid = uuid.uuid4()
+    lit = literal(test_uuid.bytes).to(FixedType(16))
+    uuid_lit = lit.to(UUIDType())
+    assert uuid_lit is not None
+    assert lit.value == uuid_lit.value
+    assert uuid_lit.value == test_uuid.bytes
+
+
+def test_incompatible_fixed_to_uuid() -> None:
+    lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(UUIDType())
+        assert "Cannot convert BinaryLiteral into uuid, different length: 16 <> 3" in str(e.value)
 
 
 def test_above_max_float() -> None:
