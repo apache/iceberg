@@ -57,6 +57,8 @@ from pyiceberg.utils.datetime import (
 from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
+UUID_BYTES_LENGTH = 16
+
 
 class Literal(Generic[L], ABC):
     """Literal which has a value and can be converted between types."""
@@ -139,7 +141,7 @@ def literal(value: L) -> Literal[L]:
     elif isinstance(value, str):
         return StringLiteral(value)
     elif isinstance(value, UUID):
-        return UUIDLiteral(value)
+        return UUIDLiteral(value.bytes)  # type: ignore
     elif isinstance(value, bytes):
         return BinaryLiteral(value)
     elif isinstance(value, Decimal):
@@ -571,8 +573,8 @@ class StringLiteral(Literal[str]):
         return TimestampLiteral(timestamptz_to_micros(self.value))
 
     @to.register(UUIDType)
-    def _(self, _: UUIDType) -> Literal[UUID]:
-        return UUIDLiteral(UUID(self.value))
+    def _(self, _: UUIDType) -> Literal[bytes]:
+        return UUIDLiteral(UUID(self.value).bytes)
 
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> Literal[Decimal]:
@@ -596,16 +598,16 @@ class StringLiteral(Literal[str]):
         return f"literal({repr(self.value)})"
 
 
-class UUIDLiteral(Literal[UUID]):
-    def __init__(self, value: UUID) -> None:
-        super().__init__(value, UUID)
+class UUIDLiteral(Literal[bytes]):
+    def __init__(self, value: bytes) -> None:
+        super().__init__(value, bytes)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert UUIDLiteral into {type_var}")
 
     @to.register(UUIDType)
-    def _(self, _: UUIDType) -> Literal[UUID]:
+    def _(self, _: UUIDType) -> Literal[bytes]:
         return self
 
 
@@ -630,6 +632,15 @@ class FixedLiteral(Literal[bytes]):
     def _(self, _: BinaryType) -> Literal[bytes]:
         return BinaryLiteral(self.value)
 
+    @to.register(UUIDType)
+    def _(self, type_var: UUIDType) -> Literal[bytes]:
+        if len(self.value) == UUID_BYTES_LENGTH:
+            return UUIDLiteral(self.value)
+        else:
+            raise TypeError(
+                f"Could not convert {self.value!r} into a {type_var}, lengths differ {len(self.value)} <> {UUID_BYTES_LENGTH}"
+            )
+
 
 class BinaryLiteral(Literal[bytes]):
     def __init__(self, value: bytes) -> None:
@@ -650,4 +661,13 @@ class BinaryLiteral(Literal[bytes]):
         else:
             raise TypeError(
                 f"Cannot convert BinaryLiteral into {type_var}, different length: {len(type_var)} <> {len(self.value)}"
+            )
+
+    @to.register(UUIDType)
+    def _(self, type_var: UUIDType) -> Literal[bytes]:
+        if len(self.value) == UUID_BYTES_LENGTH:
+            return UUIDLiteral(self.value)
+        else:
+            raise TypeError(
+                f"Cannot convert BinaryLiteral into {type_var}, different length: {UUID_BYTES_LENGTH} <> {len(self.value)}"
             )

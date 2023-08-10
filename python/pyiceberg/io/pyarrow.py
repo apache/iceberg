@@ -451,7 +451,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
 def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
     if not isinstance(iceberg_type, PrimitiveType):
         raise ValueError(f"Expected primitive type, got: {iceberg_type}")
-    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
+    return pa.scalar(value=value, type=schema_to_pyarrow(iceberg_type))
 
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):

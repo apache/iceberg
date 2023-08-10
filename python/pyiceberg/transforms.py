@@ -28,6 +28,7 @@ from typing import (
 )
 from typing import Literal as LiteralType
 from typing import Optional, TypeVar
+from uuid import UUID
 
 import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
@@ -269,13 +270,9 @@ class BucketTransform(Transform[S, int]):
         elif source_type == UUIDType:
 
             def hash_func(v: Any) -> int:
-                return mmh3.hash(
-                    struct.pack(
-                        ">QQ",
-                        (v.int >> 64) & 0xFFFFFFFFFFFFFFFF,
-                        v.int & 0xFFFFFFFFFFFFFFFF,
-                    )
-                )
+                if isinstance(v, UUID):
+                    return mmh3.hash(v.bytes)
+                return mmh3.hash(v)
 
         else:
             raise ValueError(f"Unknown type {source}")
