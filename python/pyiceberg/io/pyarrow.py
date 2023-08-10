@@ -27,7 +27,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Executor
 from dataclasses import dataclass
@@ -1084,9 +1083,6 @@ class StatsAggregator:
         self.primitive_type = iceberg_type
 
     def serialize(self, value: Any) -> bytes:
-        if self.primitive_type == UUIDType():
-            value = uuid.UUID(bytes=value)
-
         return to_bytes(self.primitive_type, value)
 
     def update_min(self, val: Any) -> None:
