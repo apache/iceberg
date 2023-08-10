@@ -801,6 +801,14 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.io.FileAppender<org.apache.iceberg.ManifestEntry<F>>\
+        \ org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::newAppender(org.apache.iceberg.PartitionSpec,\
+        \ org.apache.iceberg.io.OutputFile, java.util.Map<java.lang.String, java.lang.String>)"
+      justification: "{Adding a new method to support set file appender config for\
+        \ ManifestWriter}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

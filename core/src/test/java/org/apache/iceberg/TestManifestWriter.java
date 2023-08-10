@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -51,32 +55,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testManifestStats() throws IOException {
-    ManifestFile manifest =
-        writeManifest(
-            "manifest.avro",
-            manifestEntry(Status.ADDED, null, newFile(10)),
-            manifestEntry(Status.ADDED, null, newFile(20)),
-            manifestEntry(Status.ADDED, null, newFile(5)),
-            manifestEntry(Status.ADDED, null, newFile(5)),
-            manifestEntry(Status.EXISTING, null, newFile(15)),
-            manifestEntry(Status.EXISTING, null, newFile(10)),
-            manifestEntry(Status.EXISTING, null, newFile(1)),
-            manifestEntry(Status.DELETED, null, newFile(5)),
-            manifestEntry(Status.DELETED, null, newFile(2)));
-
-    Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
-    Assert.assertEquals("Added files count should match", 4, (int) manifest.addedFilesCount());
-    Assert.assertEquals("Added rows count should match", 40L, (long) manifest.addedRowsCount());
-
-    Assert.assertTrue("Existing files should be present", manifest.hasExistingFiles());
-    Assert.assertEquals(
-        "Existing files count should match", 3, (int) manifest.existingFilesCount());
-    Assert.assertEquals(
-        "Existing rows count should match", 26L, (long) manifest.existingRowsCount());
-
-    Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
-    Assert.assertEquals("Deleted files count should match", 2, (int) manifest.deletedFilesCount());
-    Assert.assertEquals("Deleted rows count should match", 7L, (long) manifest.deletedRowsCount());
+    testManifestWritesWithGivenCodec("GZIP");
   }
 
   @Test
@@ -357,6 +336,51 @@ public class TestManifestWriter extends TableTestBase {
         addedRowCounts,
         existingRowCounts,
         deletedRowCounts);
+  }
+
+  @Test
+  public void testManifestWritesCompressedWithUncompressed() throws IOException {
+    testManifestWritesWithGivenCodec("UNCOMPRESSED");
+  }
+
+  @Test
+  public void testManifestWritesCompressedWithSnappy() throws IOException {
+    testManifestWritesWithGivenCodec("SNAPPY");
+  }
+
+  @Test
+  public void testManifestWritesCompressedWithZSTD() throws IOException {
+    testManifestWritesWithGivenCodec("ZSTD");
+  }
+
+  public void testManifestWritesWithGivenCodec(String codec) throws IOException {
+    Map<String, String> config = ImmutableMap.of(AVRO_COMPRESSION, codec);
+    ManifestFile manifest =
+        writeManifest(
+            null,
+            "manifest.avro",
+            config,
+            manifestEntry(Status.ADDED, null, newFile(10)),
+            manifestEntry(Status.ADDED, null, newFile(20)),
+            manifestEntry(Status.ADDED, null, newFile(5)),
+            manifestEntry(Status.ADDED, null, newFile(5)),
+            manifestEntry(Status.EXISTING, null, newFile(15)),
+            manifestEntry(Status.EXISTING, null, newFile(10)),
+            manifestEntry(Status.EXISTING, null, newFile(1)),
+            manifestEntry(Status.DELETED, null, newFile(5)),
+            manifestEntry(Status.DELETED, null, newFile(2)));
+
+    Assertions.assertThat(manifest.hasAddedFiles()).isTrue();
+    Assertions.assertThat((int) manifest.addedFilesCount()).isEqualTo(4);
+    Assertions.assertThat((long) manifest.addedRowsCount()).isEqualTo(40L);
+
+    Assertions.assertThat(manifest.hasExistingFiles()).isTrue();
+    Assertions.assertThat((int) manifest.existingFilesCount()).isEqualTo(3);
+    Assertions.assertThat((long) manifest.existingRowsCount()).isEqualTo(26L);
+
+    Assertions.assertThat(manifest.hasDeletedFiles()).isTrue();
+    Assertions.assertThat((int) manifest.deletedFilesCount()).isEqualTo(2);
+    Assertions.assertThat((long) manifest.deletedRowsCount()).isEqualTo(7L);
   }
 
   private void checkManifests(

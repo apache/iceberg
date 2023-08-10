@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -41,6 +43,7 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -59,14 +62,20 @@ public class ManifestReadBenchmark {
   private static final int NUM_ROWS = 100000;
   private static final int NUM_COLS = 10;
 
-  private String baseDir;
+  private String rootPath;
   private String manifestListFile;
+
+  @Param({"UNCOMPRESSED", "SNAPPY", "ZSTD", "GZIP"})
+  private String codec;
 
   @Setup
   public void before() {
-    baseDir =
+    String tmpDir =
         Paths.get(new File(System.getProperty("java.io.tmpdir")).getAbsolutePath()).toString();
-    manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
+    File baseDirectory = new File(tmpDir, codec);
+    baseDirectory.mkdir();
+    rootPath = baseDirectory.getAbsolutePath();
+    manifestListFile = String.format("%s/%s.avro", rootPath, UUID.randomUUID());
 
     Random random = new Random(System.currentTimeMillis());
     ManifestListWriter listWriter =
@@ -76,10 +85,15 @@ public class ManifestReadBenchmark {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
-                String.format("%s/%s.avro", baseDir, UUID.randomUUID()));
+                String.format("%s/%s.avro", rootPath, UUID.randomUUID()));
 
         ManifestWriter<DataFile> writer =
-            ManifestFiles.write(1, PartitionSpec.unpartitioned(), manifestFile, 1L);
+            ManifestFiles.write(
+                1,
+                PartitionSpec.unpartitioned(),
+                manifestFile,
+                1L,
+                ImmutableMap.of(AVRO_COMPRESSION, codec));
         try (ManifestWriter<DataFile> finalWriter = writer) {
           for (int j = 0; j < NUM_ROWS; j++) {
             DataFile dataFile =
@@ -107,11 +121,11 @@ public class ManifestReadBenchmark {
 
   @TearDown
   public void after() throws IOException {
-    if (baseDir != null) {
-      try (Stream<Path> walk = Files.walk(Paths.get(baseDir))) {
+    if (rootPath != null) {
+      try (Stream<Path> walk = Files.walk(Paths.get(rootPath))) {
         walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
       }
-      baseDir = null;
+      rootPath = null;
     }
 
     manifestListFile = null;
