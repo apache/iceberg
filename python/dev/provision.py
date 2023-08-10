@@ -18,12 +18,45 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_date, date_add, expr
 
+from pyiceberg.catalog import load_catalog
+from pyiceberg.schema import Schema
+from pyiceberg.types import FixedType, NestedField, UUIDType
+
 spark = SparkSession.builder.getOrCreate()
 
 spark.sql(
     """
   CREATE DATABASE IF NOT EXISTS default;
 """
+)
+
+schema = Schema(
+    NestedField(field_id=1, name="uuid_col", field_type=UUIDType(), required=False),
+    NestedField(field_id=2, name="fixed_col", field_type=FixedType(25), required=False),
+)
+
+catalog = load_catalog(
+    "local",
+    **{
+        "type": "rest",
+        "uri": "http://rest:8181",
+        "s3.endpoint": "http://minio:9000",
+        "s3.access-key-id": "admin",
+        "s3.secret-access-key": "password",
+    },
+)
+
+catalog.create_table(identifier="default.test_uuid_and_fixed_unpartitioned", schema=schema)
+
+spark.sql(
+    """
+    INSERT INTO default.test_uuid_and_fixed_unpartitioned VALUES
+    ('102cb62f-e6f8-4eb0-9973-d9b012ff0967', CAST('1234567890123456789012345' AS BINARY)),
+    ('ec33e4b2-a834-4cc3-8c4a-a1d3bfc2f226', CAST('1231231231231231231231231' AS BINARY)),
+    ('639cccce-c9d2-494a-a78c-278ab234f024', CAST('12345678901234567ass12345' AS BINARY)),
+    ('c1b0d8e0-0b0e-4b1e-9b0a-0e0b0d0c0a0b', CAST('asdasasdads12312312312111' AS BINARY)),
+    ('923dae77-83d6-47cd-b4b0-d383e64ee57e', CAST('qweeqwwqq1231231231231111' AS BINARY));
+    """
 )
 
 spark.sql(
