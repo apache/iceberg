@@ -76,12 +76,12 @@ def example_table_metadata_v1() -> Dict[str, Any]:
 
 def test_from_dict_v1(example_table_metadata_v1: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
-    TableMetadataUtil.parse_obj(example_table_metadata_v1)
+    TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v1))
 
 
 def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
-    TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
 
 
 def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -93,7 +93,7 @@ def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test retrieving values from a TableMetadata instance of version 2"""
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata = TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1")
@@ -233,7 +233,7 @@ def test_invalid_format_version() -> None:
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        TableMetadataUtil.parse_obj(table_metadata_invalid_format_version)
+        TableMetadataUtil.parse_raw(json.dumps(table_metadata_invalid_format_version))
 
     assert "No match for discriminator 'format_version' and value -1 (allowed values: 1, 2)" in str(exc_info.value)
 
@@ -271,7 +271,7 @@ def test_current_schema_not_found() -> None:
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        TableMetadataUtil.parse_obj(table_metadata_schema_not_found)
+        TableMetadataUtil.parse_raw(json.dumps(table_metadata_schema_not_found))
 
     assert "current-schema-id 2 can't be found in the schemas" in str(exc_info.value)
 
@@ -317,7 +317,7 @@ def test_sort_order_not_found() -> None:
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        TableMetadataUtil.parse_obj(table_metadata_schema_not_found)
+        TableMetadataUtil.parse_raw(json.dumps(table_metadata_schema_not_found))
 
     assert "default-sort-order-id 4 can't be found" in str(exc_info.value)
 
@@ -354,7 +354,7 @@ def test_sort_order_unsorted() -> None:
         "snapshots": [],
     }
 
-    table_metadata = TableMetadataUtil.parse_obj(table_metadata_schema_not_found)
+    table_metadata = TableMetadataUtil.parse_raw(json.dumps(table_metadata_schema_not_found))
 
     # Most important here is that we correctly handle sort-order-id 0
     assert len(table_metadata.sort_orders) == 0
@@ -389,7 +389,7 @@ def test_invalid_partition_spec() -> None:
         "last-partition-id": 1000,
     }
     with pytest.raises(ValidationError) as exc_info:
-        TableMetadataUtil.parse_obj(table_metadata_spec_not_found)
+        TableMetadataUtil.parse_raw(json.dumps(table_metadata_spec_not_found))
 
     assert "default-spec-id 1 can't be found" in str(exc_info.value)
 

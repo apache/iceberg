@@ -26,9 +26,10 @@ from typing import (
     Union,
 )
 
+from pydantic import Field
+from pydantic import ValidationError as PydanticValidationError
+from pydantic import root_validator
 from typing_extensions import Annotated
-
-from pydantic import Field, root_validator, ValidationError as PydanticValidationError
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
@@ -382,14 +383,14 @@ def new_table_metadata(
 class TableMetadataUtil:
     """Helper class for parsing TableMetadata."""
 
-    class _TableMetadata(IcebergBaseModel):
-        metadata: TableMetadata
+    class _MetadataWrapper(IcebergBaseModel):
+        table_metadata: TableMetadata
 
     @staticmethod
-    def parse_obj(data: Dict[str, Any]) -> TableMetadata:
+    def parse_raw(data: str) -> TableMetadata:
         try:
-            metadata_util = TableMetadataUtil._TableMetadata(**{"metadata": data})
-            return metadata_util.metadata
+            d = f'{{"table_metadata": {data}}}'
+            metadata_wrapper = TableMetadataUtil._MetadataWrapper.parse_raw(d)
+            return metadata_wrapper.table_metadata
         except PydanticValidationError as e:
-            raise ValidationError(e)
-
+            raise ValidationError(e) from e
