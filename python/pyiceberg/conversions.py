@@ -65,7 +65,6 @@ _INT_STRUCT = Struct("<i")
 _LONG_STRUCT = Struct("<q")
 _FLOAT_STRUCT = Struct("<f")
 _DOUBLE_STRUCT = Struct("<d")
-_UUID_STRUCT = Struct(">QQ")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
@@ -231,7 +230,7 @@ def _(_: StringType, value: str) -> bytes:
 def _(_: UUIDType, value: Union[uuid.UUID, bytes]) -> bytes:
     if isinstance(value, bytes):
         return value
-    return _UUID_STRUCT.pack((value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
+    return value.bytes
 
 
 @to_bytes.register(BinaryType)

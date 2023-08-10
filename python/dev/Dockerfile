@@ -40,6 +40,7 @@ ENV SPARK_VERSION=3.4.1
 ENV ICEBERG_SPARK_RUNTIME_VERSION=3.4_2.12
 ENV ICEBERG_VERSION=1.3.1
 ENV AWS_SDK_VERSION=2.20.18
+ENV PYICEBERG_VERSION=0.4.0
 
 RUN curl --retry 3 -s -C - https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
  && tar xzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
@@ -65,7 +66,7 @@ RUN chmod u+x /opt/spark/sbin/* && \
 
 RUN pip3 install -q ipython
 
-RUN pip3 install 'pyiceberg[pyarrow,duckdb,pandas]==0.4.0'
+RUN pip3 install "pyiceberg[s3fs]==${PYICEBERG_VERSION}"
 
 COPY entrypoint.sh .
 COPY provision.py .

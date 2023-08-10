@@ -339,8 +339,8 @@ def test_unpartitioned_uuid_table(catalog: Catalog) -> None:
 @pytest.mark.integration
 def test_unpartitioned_fixed_table(catalog: Catalog) -> None:
     fixed_table = catalog.load_table("default.test_uuid_and_fixed_unpartitioned")
-    arrow_table = fixed_table.scan(row_filter=EqualTo("fixed_col", b"1234567890123456789012345")).to_arrow()
-    assert arrow_table["fixed_col"].to_pylist() == [b"1234567890123456789012345"]
+    arrow_table_eq = fixed_table.scan(row_filter=EqualTo("fixed_col", b"1234567890123456789012345")).to_arrow()
+    assert arrow_table_eq["fixed_col"].to_pylist() == [b"1234567890123456789012345"]
 
     arrow_table_neq = fixed_table.scan(
         row_filter=And(
