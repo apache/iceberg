@@ -117,6 +117,7 @@ from pyiceberg.utils.datetime import (
         (b"\x00\x01\x02\x03", FixedType(4), -188683207),
         ("iceberg", StringType(), 1210000089),
         (UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"), UUIDType(), 1488055340),
+        (b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", UUIDType(), 1488055340),
     ],
 )
 def test_bucket_hash_values(test_input: Any, test_type: PrimitiveType, expected: Any) -> None:
@@ -136,6 +137,11 @@ def test_bucket_hash_values(test_input: Any, test_type: PrimitiveType, expected:
         (
             BucketTransform(100).transform(UUIDType()),
             UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
+            40,
+        ),
+        (
+            BucketTransform(100).transform(UUIDType()),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
             40,
         ),
         (BucketTransform(128).transform(FixedType(3)), b"foo", 32),
