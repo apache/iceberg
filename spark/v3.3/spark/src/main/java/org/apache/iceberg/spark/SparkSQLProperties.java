@@ -64,7 +64,8 @@ public class SparkSQLProperties {
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
 
-  // If enabled, we will use the Spark AQE (Adaptive Query Execution) for all write operations.
+  // If enabled, we will use the Spark AQE (Adaptive Query Execution) for executing final shuffle
+  // during write operations.
   // By default, it's disabled. This property only exists in spark 3.3.
   public static final String WRITE_DISTRIBUTION_AQE_ENABLED =
       "spark.sql.iceberg.write-distribution.aqe.enabled";
