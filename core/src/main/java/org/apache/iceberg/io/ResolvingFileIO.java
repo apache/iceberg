@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 /** FileIO implementation that uses location scheme to choose the correct FileIO implementation. */
 public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulkOperations {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
-  private static final Integer BATCH_SIZE = 100_000;
+  private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
