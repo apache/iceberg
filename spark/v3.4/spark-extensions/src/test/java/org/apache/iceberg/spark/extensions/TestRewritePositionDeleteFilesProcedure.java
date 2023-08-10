@@ -41,19 +41,30 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
   }
 
   private void createTable() throws Exception {
+    createTable(false);
+  }
+
+  private void createTable(boolean partitioned) throws Exception {
+    String partitionStmt = partitioned ? "PARTITIONED BY (id)" : "";
     sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+        "CREATE TABLE %s (id bigint, data string) USING iceberg %s TBLPROPERTIES"
             + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+        tableName, partitionStmt);
 
     List<SimpleRecord> records =
         Lists.newArrayList(
             new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b"),
-            new SimpleRecord(3, "c"),
-            new SimpleRecord(4, "d"),
-            new SimpleRecord(5, "e"),
-            new SimpleRecord(6, "f"));
+            new SimpleRecord(1, "b"),
+            new SimpleRecord(2, "c"),
+            new SimpleRecord(2, "d"),
+            new SimpleRecord(3, "e"),
+            new SimpleRecord(3, "f"),
+            new SimpleRecord(4, "g"),
+            new SimpleRecord(4, "h"),
+            new SimpleRecord(5, "i"),
+            new SimpleRecord(5, "j"),
+            new SimpleRecord(6, "k"),
+            new SimpleRecord(6, "l"));
     spark
         .createDataset(records, Encoders.bean(SimpleRecord.class))
         .coalesce(1)
@@ -128,6 +139,42 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                 Long.valueOf(snapshotSummary.get(REMOVED_FILE_SIZE_PROP)),
                 Long.valueOf(snapshotSummary.get(ADDED_FILE_SIZE_PROP)))),
         output);
+  }
+
+  @Test
+  public void testExpireDeleteFilesFilter() throws Exception {
+    createTable(true);
+
+    sql("DELETE FROM %s WHERE data='a'", tableName);
+    sql("DELETE FROM %s WHERE data='c'", tableName);
+    sql("DELETE FROM %s WHERE data='e'", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals(3, TestHelpers.deleteFiles(table).size());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_position_delete_files("
+                + "table => '%s',"
+                // data filter is ignored as it cannot be applied to position deletes
+                + "where => 'id IN (1, 2) AND data=\"bar\"',"
+                + "options => map("
+                + "'rewrite-all','true'))",
+            catalogName, tableIdent);
+    table.refresh();
+
+    Map<String, String> snapshotSummary = snapshotSummary();
+    assertEquals(
+        "Should delete 2 delete files and add 2",
+        ImmutableList.of(
+            row(
+                2,
+                2,
+                Long.valueOf(snapshotSummary.get(REMOVED_FILE_SIZE_PROP)),
+                Long.valueOf(snapshotSummary.get(ADDED_FILE_SIZE_PROP)))),
+        output);
+
+    Assert.assertEquals(3, TestHelpers.deleteFiles(table).size());
   }
 
   @Test

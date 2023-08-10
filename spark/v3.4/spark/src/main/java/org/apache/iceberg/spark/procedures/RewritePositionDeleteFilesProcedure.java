@@ -20,12 +20,17 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -42,9 +47,11 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
       ProcedureParameter.optional("options", STRING_MAP);
+  private static final ProcedureParameter WHERE_PARAM =
+      ProcedureParameter.optional("where", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM, WHERE_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -85,13 +92,32 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
+    String where = input.asString(WHERE_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Result result = actions().rewritePositionDeletes(table).options(options).execute();
+          RewritePositionDeleteFiles action =
+              actions().rewritePositionDeletes(table).options(options);
+          action = checkAndApplyFilter(action, where, tableIdent);
+          Result result = action.execute();
           return new InternalRow[] {toOutputRow(result)};
         });
+  }
+
+  private RewritePositionDeleteFiles checkAndApplyFilter(
+      RewritePositionDeleteFiles action, String where, Identifier ident) {
+    if (where != null) {
+      try {
+        String name = Spark3Util.quotedFullIdentifier(tableCatalog().name(), ident);
+        Expression expression =
+            SparkExpressionConverter.collectResolvedSparkExpression(spark(), name, where);
+        return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
+      } catch (AnalysisException e) {
+        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
+      }
+    }
+    return action;
   }
 
   private InternalRow toOutputRow(Result result) {
