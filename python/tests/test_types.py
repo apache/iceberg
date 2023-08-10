@@ -226,7 +226,7 @@ def test_serialization_boolean() -> None:
 
 
 def test_deserialization_boolean() -> None:
-    assert BooleanType.parse_raw('"boolean"') == BooleanType()
+    assert BooleanType.model_validate_json('"boolean"') == BooleanType()
 
 
 def test_str_boolean() -> None:
@@ -242,7 +242,7 @@ def test_serialization_int() -> None:
 
 
 def test_deserialization_int() -> None:
-    assert IntegerType.parse_raw('"int"') == IntegerType()
+    assert IntegerType.model_validate_json('"int"') == IntegerType()
 
 
 def test_str_int() -> None:
@@ -258,7 +258,7 @@ def test_serialization_long() -> None:
 
 
 def test_deserialization_long() -> None:
-    assert LongType.parse_raw('"long"') == LongType()
+    assert LongType.model_validate_json('"long"') == LongType()
 
 
 def test_str_long() -> None:
@@ -274,7 +274,7 @@ def test_serialization_float() -> None:
 
 
 def test_deserialization_float() -> None:
-    assert FloatType.parse_raw('"float"') == FloatType()
+    assert FloatType.model_validate_json('"float"') == FloatType()
 
 
 def test_str_float() -> None:
@@ -290,7 +290,7 @@ def test_serialization_double() -> None:
 
 
 def test_deserialization_double() -> None:
-    assert DoubleType.parse_raw('"double"') == DoubleType()
+    assert DoubleType.model_validate_json('"double"') == DoubleType()
 
 
 def test_str_double() -> None:
@@ -306,7 +306,7 @@ def test_serialization_date() -> None:
 
 
 def test_deserialization_date() -> None:
-    assert DateType.parse_raw('"date"') == DateType()
+    assert DateType.model_validate_json('"date"') == DateType()
 
 
 def test_str_date() -> None:
@@ -322,7 +322,7 @@ def test_serialization_time() -> None:
 
 
 def test_deserialization_time() -> None:
-    assert TimeType.parse_raw('"time"') == TimeType()
+    assert TimeType.model_validate_json('"time"') == TimeType()
 
 
 def test_str_time() -> None:
@@ -338,7 +338,7 @@ def test_serialization_timestamp() -> None:
 
 
 def test_deserialization_timestamp() -> None:
-    assert TimestampType.parse_raw('"timestamp"') == TimestampType()
+    assert TimestampType.model_validate_json('"timestamp"') == TimestampType()
 
 
 def test_str_timestamp() -> None:
@@ -354,7 +354,7 @@ def test_serialization_timestamptz() -> None:
 
 
 def test_deserialization_timestamptz() -> None:
-    assert TimestamptzType.parse_raw('"timestamptz"') == TimestamptzType()
+    assert TimestamptzType.model_validate_json('"timestamptz"') == TimestamptzType()
 
 
 def test_str_timestamptz() -> None:
@@ -370,7 +370,7 @@ def test_serialization_string() -> None:
 
 
 def test_deserialization_string() -> None:
-    assert StringType.parse_raw('"string"') == StringType()
+    assert StringType.model_validate_json('"string"') == StringType()
 
 
 def test_str_string() -> None:
@@ -386,7 +386,7 @@ def test_serialization_uuid() -> None:
 
 
 def test_deserialization_uuid() -> None:
-    assert UUIDType.parse_raw('"uuid"') == UUIDType()
+    assert UUIDType.model_validate_json('"uuid"') == UUIDType()
 
 
 def test_str_uuid() -> None:
@@ -402,14 +402,14 @@ def test_serialization_fixed() -> None:
 
 
 def test_deserialization_fixed() -> None:
-    fixed = FixedType.parse_raw('"fixed[22]"')
+    fixed = FixedType.model_validate_json('"fixed[22]"')
     assert fixed == FixedType(22)
     assert len(fixed) == 22
 
 
 def test_deserialization_fixed_failure() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        _ = FixedType.parse_raw('"fixed[abc]"')
+        _ = FixedType.model_validate_json('"fixed[abc]"')
 
     assert "Could not match fixed[abc], expected format fixed[22]" in str(exc_info.value)
 
@@ -427,7 +427,7 @@ def test_serialization_binary() -> None:
 
 
 def test_deserialization_binary() -> None:
-    assert BinaryType.parse_raw('"binary"') == BinaryType()
+    assert BinaryType.model_validate_json('"binary"') == BinaryType()
 
 
 def test_str_binary() -> None:
@@ -443,7 +443,7 @@ def test_serialization_decimal() -> None:
 
 
 def test_deserialization_decimal() -> None:
-    decimal = DecimalType.parse_raw('"decimal(19, 25)"')
+    decimal = DecimalType.model_validate_json('"decimal(19, 25)"')
     assert decimal == DecimalType(19, 25)
     assert decimal.precision == 19
     assert decimal.scale == 25
@@ -451,7 +451,7 @@ def test_deserialization_decimal() -> None:
 
 def test_deserialization_decimal_failure() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        _ = DecimalType.parse_raw('"decimal(abc, def)"')
+        _ = DecimalType.model_validate_json('"decimal(abc, def)"')
 
     assert "Could not parse decimal(abc, def) into a DecimalType" in str(exc_info.value)
 
@@ -496,7 +496,7 @@ def test_nestedfield_by_alias() -> None:
 
 def test_deserialization_nestedfield() -> None:
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = NestedField.parse_raw(
+    actual = NestedField.model_validate_json(
         '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}'
     )
     assert expected == actual
@@ -504,7 +504,7 @@ def test_deserialization_nestedfield() -> None:
 
 def test_deserialization_nestedfield_inner() -> None:
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = StringType.parse_raw('{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}')
+    actual = StringType.model_validate_json('{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}')
     assert expected == actual.__root__
 
 
@@ -522,7 +522,7 @@ def test_serialization_struct() -> None:
 
 
 def test_deserialization_struct() -> None:
-    actual = StructType.parse_raw(
+    actual = StructType.model_validate_json(
         """
     {
         "type": "struct",
@@ -569,7 +569,7 @@ def test_serialization_list(simple_list: ListType) -> None:
 
 
 def test_deserialization_list(simple_list: ListType) -> None:
-    actual = ListType.parse_raw('{"type": "list", "element-id": 22, "element": "string", "element-required": true}')
+    actual = ListType.model_validate_json('{"type": "list", "element-id": 22, "element": "string", "element-required": true}')
     assert actual == simple_list
 
 
@@ -589,7 +589,7 @@ def test_serialization_map(simple_map: MapType) -> None:
 
 
 def test_deserialization_map(simple_map: MapType) -> None:
-    actual = MapType.parse_raw(
+    actual = MapType.model_validate_json(
         """{"type": "map", "key-id": 19, "key": "string", "value-id": 25, "value": "double", "value-required": false}"""
     )
     assert actual == simple_map

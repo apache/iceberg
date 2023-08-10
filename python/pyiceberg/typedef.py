@@ -144,12 +144,12 @@ class IcebergRootModel(RootModel[T], Generic[T]):
     https://pydantic-docs.helpmanual.io/usage/model_config/#change-behaviour-globally
     """
 
-    @classmethod
-    def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls.validate,
-            core_schema.str_schema(),
-        )
+    # @classmethod
+    # def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+    #     return core_schema.no_info_after_validator_function(
+    #         cls.validate,
+    #         core_schema.str_schema(),
+    #     )
 
     model_config = ConfigDict(frozen=True)
 

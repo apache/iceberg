@@ -53,7 +53,7 @@ def test_serialize_sort_order(sort_order: SortOrder) -> None:
 def test_deserialize_sort_order(sort_order: SortOrder) -> None:
     payload = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
 
-    assert SortOrder.parse_raw(payload) == sort_order
+    assert SortOrder.model_validate_json(payload) == sort_order
 
 
 def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]) -> None:

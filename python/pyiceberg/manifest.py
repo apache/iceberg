@@ -224,11 +224,11 @@ class DataFile(Record):
 
 
 MANIFEST_ENTRY_SCHEMA = Schema(
-    NestedField(0, "status", IntegerType(), required=True),
-    NestedField(1, "snapshot_id", LongType(), required=False),
-    NestedField(3, "data_sequence_number", LongType(), required=False),
-    NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
+    NestedField(field_id=0, name= "status", field_type=IntegerType(), required=True),
+    NestedField(field_id=1, name="snapshot_id", field_type=LongType(), required=False),
+    NestedField(field_id=3, name="data_sequence_number", field_type=LongType(), required=False),
+    NestedField(field_id=4, name="file_sequence_number", field_type=LongType(), required=False),
+    NestedField(field_id=2, name="data_file", field_type= DATA_FILE_TYPE, required=True),
 )
 
 MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
@@ -247,10 +247,10 @@ class ManifestEntry(Record):
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
-    NestedField(509, "contains_null", BooleanType(), required=True),
-    NestedField(518, "contains_nan", BooleanType(), required=False),
-    NestedField(510, "lower_bound", BinaryType(), required=False),
-    NestedField(511, "upper_bound", BinaryType(), required=False),
+    NestedField(field_id=509, name="contains_null",field_type= BooleanType(), required=True),
+    NestedField(field_id=518, name="contains_nan", field_type=BooleanType(), required=False),
+    NestedField(field_id=510,name= "lower_bound",field_type= BinaryType(), required=False),
+    NestedField(field_id=511,name= "upper_bound",field_type= BinaryType(), required=False),
 )
 
 
@@ -266,27 +266,27 @@ class PartitionFieldSummary(Record):
 
 
 MANIFEST_FILE_SCHEMA: Schema = Schema(
-    NestedField(500, "manifest_path", StringType(), required=True, doc="Location URI with FS scheme"),
-    NestedField(501, "manifest_length", LongType(), required=True),
-    NestedField(502, "partition_spec_id", IntegerType(), required=True),
-    NestedField(517, "content", IntegerType(), required=False, initial_default=ManifestContent.DATA),
-    NestedField(515, "sequence_number", LongType(), required=False, initial_default=0),
-    NestedField(516, "min_sequence_number", LongType(), required=False, initial_default=0),
-    NestedField(503, "added_snapshot_id", LongType(), required=False),
-    NestedField(504, "added_files_count", IntegerType(), required=False),
-    NestedField(505, "existing_files_count", IntegerType(), required=False),
-    NestedField(506, "deleted_files_count", IntegerType(), required=False),
-    NestedField(512, "added_rows_count", LongType(), required=False),
-    NestedField(513, "existing_rows_count", LongType(), required=False),
-    NestedField(514, "deleted_rows_count", LongType(), required=False),
-    NestedField(507, "partitions", ListType(508, PARTITION_FIELD_SUMMARY_TYPE, element_required=True), required=False),
-    NestedField(519, "key_metadata", BinaryType(), required=False),
+    NestedField(field_id=500,name= "manifest_path", field_type= StringType(), required=True, doc="Location URI with FS scheme"),
+    NestedField(field_id=501, name="manifest_length",field_type= LongType(), required=True),
+    NestedField(field_id=502, name="partition_spec_id", field_type=IntegerType(), required=True),
+    NestedField(field_id=517, name="content", field_type=IntegerType(), required=False, initial_default=ManifestContent.DATA),
+    NestedField(field_id=515, name="sequence_number",field_type= LongType(), required=False, initial_default=0),
+    NestedField(field_id=516,name= "min_sequence_number", field_type=LongType(), required=False, initial_default=0),
+    NestedField(field_id=503,name= "added_snapshot_id", field_type=LongType(), required=False),
+    NestedField(field_id=504, name="added_files_count", field_type=IntegerType(), required=False),
+    NestedField(field_id=505,name= "existing_files_count",field_type= IntegerType(), required=False),
+    NestedField(field_id=506, name="deleted_files_count",field_type= IntegerType(), required=False),
+    NestedField(field_id=512, name="added_rows_count",field_type= LongType(), required=False),
+    NestedField(field_id=513,name= "existing_rows_count",field_type= LongType(), required=False),
+    NestedField(field_id=514,name= "deleted_rows_count",field_type= LongType(), required=False),
+    NestedField(field_id=507, name="partitions", field_type=ListType(508, PARTITION_FIELD_SUMMARY_TYPE, element_required=True), required=False),
+    NestedField(field_id=519,name= "key_metadata", field_type=BinaryType(), required=False),
 )
 
 MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
 
 POSITIONAL_DELETE_SCHEMA = Schema(
-    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
+    NestedField(field_id=2147483546, name="file_path",field_type= StringType()), NestedField(field_id=2147483545,name= "pos",field_type= IntegerType())
 )
 
 

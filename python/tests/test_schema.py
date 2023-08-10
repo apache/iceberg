@@ -50,7 +50,7 @@ def test_schema_str(table_schema_simple: Schema) -> None:
 
 def test_schema_repr_single_field() -> None:
     """Test schema representation"""
-    actual = repr(schema.Schema(NestedField(1, "foo", StringType()), schema_id=1))
+    actual = repr(schema.Schema(NestedField(field_id=1, name="foo",field_type= StringType()), schema_id=1))
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
 
@@ -58,7 +58,7 @@ def test_schema_repr_single_field() -> None:
 def test_schema_repr_two_fields() -> None:
     """Test schema representation"""
     actual = repr(
-        schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1)
+        schema.Schema(NestedField(field_id=1, name="foo", field_type=StringType()), NestedField(field_id=2, name="bar", field_type=IntegerType(), required=False), schema_id=1)
     )
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
@@ -456,7 +456,7 @@ def test_serialize_schema(table_schema_simple: Schema) -> None:
 
 
 def test_deserialize_schema(table_schema_simple: Schema) -> None:
-    actual = Schema.parse_raw(
+    actual = Schema.model_validate_json(
         """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
     )
     expected = table_schema_simple

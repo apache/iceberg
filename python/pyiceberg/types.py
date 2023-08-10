@@ -43,8 +43,9 @@ from typing import (
 from pydantic import (
     Field,
     SerializeAsAny,
-    PrivateAttr,
+    PrivateAttr, model_validator,
 )
+from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.typedef import IcebergBaseModel, IcebergRootModel
@@ -66,24 +67,25 @@ class IcebergType(IcebergBaseModel):
         'IcebergType()'
     """
 
-    @classmethod
-    def validate(cls, v: Any) -> IcebergType:
-        # When Pydantic is unable to determine the subtype
-        # In this case we'll help pydantic a bit by parsing the
-        # primitive type ourselves, or pointing it at the correct
-        # complex type by looking at the type field
-
-        if isinstance(v, dict):
-            if v.get("type") == "struct":
-                return StructType(**v)
-            elif v.get("type") == "list":
-                return ListType(**v)
-            elif v.get("type") == "map":
-                return MapType(**v)
-            else:
-                return NestedField(**v)
-        else:
-            return v
+    # @model_validator(mode="wrap")
+    # @classmethod
+    # def handle_primitive_type(
+    #     cls, v: Any, handler: ValidatorFunctionWrapHandler
+    # ) -> IcebergType:
+    #     if isinstance(v, str):
+    #         return PrimitiveType.validate(v)
+    #
+    #     if isinstance(v, dict):
+    #         if v.get("type") == "struct":
+    #             return StructType(**v)
+    #         elif v.get("type") == "list":
+    #             return ListType(**v)
+    #         elif v.get("type") == "map":
+    #             return MapType(**v)
+    #         else:
+    #             return NestedField.model_validate(**v)
+    #     else:
+    #         return v
 
     @property
     def is_primitive(self) -> bool:
@@ -99,6 +101,46 @@ class PrimitiveType(IcebergRootModel[str], IcebergType, Singleton):
 
     root: str = Field()
 
+    # @model_validator(mode="wrap")
+    # @classmethod
+    # def handle_primitive_type(
+    #     cls, v: Any, handler: ValidatorFunctionWrapHandler
+    # ) -> IcebergType:
+    #     if isinstance(v, str):
+    #         return PrimitiveType.validate(v)
+
+
+    # @classmethod
+    # def validate(cls, v: Any) -> IcebergType:
+    #     if isinstance(v, str):
+    #         if v == "boolean":
+    #             return BooleanType()
+    #         elif v == "string":
+    #             return StringType()
+    #         if v == "float":
+    #             return FloatType()
+    #         if v == "double":
+    #             return DoubleType()
+    #         if v == "timestamp":
+    #             return TimestampType()
+    #         if v == "timestamptz":
+    #             return TimestamptzType()
+    #         if v == "date":
+    #             return DateType()
+    #         if v == "time":
+    #             return TimeType()
+    #         if v == "binary":
+    #             return BinaryType()
+    #         if v.startswith("fixed"):
+    #             return FixedType(_parse_fixed_type(v))
+    #         if v.startswith("decimal"):
+    #             precision, scale = _parse_decimal_type(v)
+    #             return DecimalType(precision, scale)
+    #         else:
+    #             raise ValueError(f"Unknown type: {v}")
+    #
+    #     return v
+
     def __repr__(self) -> str:
         """Returns the string representation of the PrimitiveType class."""
         return f"{type(self).__name__}()"
@@ -111,8 +153,8 @@ class PrimitiveType(IcebergRootModel[str], IcebergType, Singleton):
 def _parse_fixed_type(fixed: Any) -> int:
     if isinstance(fixed, str):
         return FIXED_PARSER.match(fixed)
-    elif isinstance(fixed, dict):
-        return fixed["length"]
+    elif isinstance(fixed, dict) and (length := fixed.get("length")):
+        return length
     else:
         return fixed
 
@@ -130,32 +172,30 @@ class FixedType(PrimitiveType):
     """
 
     root: str = Field()
-    _length = PrivateAttr()
 
-    def __init__(self, length: Any, **data) -> None:
-        self._length = _parse_fixed_type(length)
-        super().__init__(f"fixed[{length}]", **data)
+    @model_validator(mode="wrap")
+    @classmethod
+    def handle_primitive_type(
+        cls, v: Any, handler: ValidatorFunctionWrapHandler
+    ) -> str:
+        if isinstance(v, int):
+            return f"fixed[{v}]"
+        return v
 
     def __len__(self) -> int:
         """Returns the length of an instance of the FixedType class."""
-        return self._length
+        return  FIXED_PARSER.match(self.root)
 
     def __str__(self) -> str:
         return f"fixed[{self._length}]"
 
     def __repr__(self) -> str:
         """Returns the string representation of the FixedType class."""
-        return f"FixedType(length={self._length})"
+        return f"FixedType({self._length})"
 
     def __getnewargs__(self) -> Tuple[int]:
         """A magic function for pickling the FixedType class."""
         return (self._length,)
-
-    def __hash__(self) -> int:
-        return hash(self._length)
-
-    def __eq__(self, other: Any) -> bool:
-        return len(other) == len(self) if isinstance(other, FixedType) else False
 
 
 def _parse_decimal_type(decimal: Any) -> Tuple[int, int]:
@@ -182,14 +222,9 @@ class DecimalType(PrimitiveType):
     """
 
     root: str = Field()
-    _precision: int = PrivateAttr()
-    _scale: int = PrivateAttr()
 
-    def __init__(self, precision: int, scale: int, **data) -> None:
-        self._precision = precision
-        self._scale = scale
-        super().__init__(f"Decimal({self._precision}, {self._scale})", **data)
-
+    def __init__(self, precision: int, scale: int) -> None:
+        super().__init__(f"decimal({precision}, {scale})")
 
     @property
     def precision(self) -> int:
@@ -201,17 +236,18 @@ class DecimalType(PrimitiveType):
 
     def __repr__(self) -> str:
         """Returns the string representation of the DecimalType class."""
-        return f"DecimalType(precision={self.precision}, scale={self.scale})"
+        precision, scale = _parse_decimal_type(self.root)
+        return f"DecimalType({precision}, {scale})"
 
     def __str__(self) -> str:
         return f"decimal({self.precision}, {self.scale})"
 
     def __getnewargs__(self) -> Tuple[int, int]:
         """A magic function for pickling the DecimalType class."""
-        return self._precision, self._scale
+        return _parse_decimal_type(self.root)
 
     def __eq__(self, other: Any) -> bool:
-        return self.root == other.root if isinstance(other, DecimalType) else False
+        return self.root == other.root
 
 
 class NestedField(IcebergType):
@@ -244,26 +280,32 @@ class NestedField(IcebergType):
     doc: Optional[str] = Field(default=None, repr=False)
     initial_default: Optional[Any] = Field(alias="initial-default", default=None, repr=False)
 
-    def __init__(
-        self,
-        field_id: Optional[int] = None,
-        name: Optional[str] = None,
-        field_type: Optional[IcebergType] = None,
-        required: bool = True,
-        doc: Optional[str] = None,
-        initial_default: Optional[Any] = None,
-        **data: Any,
-    ):
-        # We need an init when we want to use positional arguments, but
-        # need also to support the aliases.
-        data["id"] = data["id"] if "id" in data else field_id
-        data["name"] = name
-        data["type"] = data["type"] if "type" in data else field_type
-        data["required"] = required
-        data["doc"] = doc
-        data["initial-default"] = initial_default
-        super().__init__(**data)
+    # @model_validator(mode="wrap")
+    # @classmethod
+    # def handle_primitive_type(
+    #     cls, v: Any, handler: ValidatorFunctionWrapHandler
+    # ) -> IcebergType:
+    #     return handler(v)
 
+    # def __init__(
+    #     self,
+    #     field_id: Optional[int] = None,
+    #     name: Optional[str] = None,
+    #     field_type: Optional[IcebergType] = None,
+    #     required: bool = True,
+    #     doc: Optional[str] = None,
+    #     initial_default: Optional[Any] = None,
+    #     **data: Any,
+    # ):
+    #     # We need an init when we want to use positional arguments, but
+    #     # need also to support the aliases.
+    #     data["id"] = data["id"] if "id" in data else field_id
+    #     data["name"] = name
+    #     data["type"] = data["type"] if "type" in data else field_type
+    #     data["required"] = required
+    #     data["doc"] = doc
+    #     data["initial-default"] = initial_default
+    #     super().__init__(**data)
 
     def __str__(self) -> str:
         """Returns the string representation of the NestedField class."""
@@ -439,11 +481,10 @@ class BooleanType(PrimitiveType):
         BooleanType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("boolean")
-
     root: Literal["boolean"] = Field(default="boolean")
 
+    def __str__(self) -> str:
+        return "boolean"
 
 class IntegerType(PrimitiveType):
     """An Integer data type in Iceberg can be represented using an instance of this class.
@@ -462,13 +503,17 @@ class IntegerType(PrimitiveType):
             in Java (returns `-2147483648`)
     """
 
-    def __init__(self) -> None:
-        super().__init__("int")
+    # def __init__(self) -> None:
+    #     super().__init__("int")
 
     root: Literal["int"] = Field(default="int")
 
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
+
+    def __str__(self) -> str:
+        return "int"
+
 
 class LongType(PrimitiveType):
     """A Long data type in Iceberg can be represented using an instance of this class.
@@ -491,13 +536,16 @@ class LongType(PrimitiveType):
             in Java (returns `-9223372036854775808`)
     """
 
-    def __init__(self) -> None:
-        super().__init__("long")
+    # def __init__(self) -> None:
+    #     super().__init__("long")
 
     root: Literal["long"] = Field(default="long")
 
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
+
+    def __str__(self) -> str:
+        return "long"
 
 
 
@@ -520,13 +568,16 @@ class FloatType(PrimitiveType):
             in Java (returns `-3.4028235e38`)
     """
 
-    def __init__(self) -> None:
-        super().__init__("float")
+    # def __init__(self) -> None:
+    #     super().__init__("float")
 
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
 
     root: Literal["float"] = Field(default="float")
+
+    def __str__(self) -> str:
+        return "float"
 
 
 class DoubleType(PrimitiveType):
@@ -542,10 +593,13 @@ class DoubleType(PrimitiveType):
         DoubleType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("double")
+    # def __init__(self) -> None:
+    #     super().__init__("double")
 
     root: Literal["double"] = Field(default="double")
+
+    def __str__(self) -> str:
+        return "double"
 
 
 class DateType(PrimitiveType):
@@ -561,11 +615,13 @@ class DateType(PrimitiveType):
         DateType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("date")
+    # def __init__(self) -> None:
+    #     super().__init__("date")
 
     root: Literal["date"] = Field(default="date")
 
+    def __str__(self) -> str:
+        return "date"
 
 class TimeType(PrimitiveType):
     """A Time data type in Iceberg can be represented using an instance of this class.
@@ -580,10 +636,13 @@ class TimeType(PrimitiveType):
         TimeType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("time")
+    # def __init__(self) -> None:
+    #     super().__init__("time")
 
     root: Literal["time"] =  Field(default="time")
+
+    def __str__(self) -> str:
+        return "time"
 
 
 class TimestampType(PrimitiveType):
@@ -599,10 +658,13 @@ class TimestampType(PrimitiveType):
         TimestampType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("timestamp")
+    # def __init__(self) -> None:
+    #     super().__init__("timestamp")
 
     root: Literal["timestamp"] = Field(default="timestamp")
+
+    def __str__(self) -> str:
+        return "timestamp"
 
 
 class TimestamptzType(PrimitiveType):
@@ -618,11 +680,13 @@ class TimestamptzType(PrimitiveType):
         TimestamptzType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("timestamptz")
+    # def __init__(self) -> None:
+    #     super().__init__("timestamptz")
 
     root: Literal["timestamptz"] = Field(default="timestamptz")
 
+    def __str__(self) -> str:
+        return "timestamptz"
 
 class StringType(PrimitiveType):
     """A String data type in Iceberg can be represented using an instance of this class.
@@ -639,8 +703,11 @@ class StringType(PrimitiveType):
 
     root: Literal["string"] = Field(default="string")
 
-    def __init__(self) -> None:
-        super().__init__("string")
+    # def __init__(self) -> None:
+    #     super().__init__("string")
+
+    def __str__(self):
+        return "string"
 
 
 class UUIDType(PrimitiveType):
@@ -656,10 +723,14 @@ class UUIDType(PrimitiveType):
         UUIDType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("uuid")
+    # def __init__(self) -> None:
+    #     super().__init__("uuid")
 
     root: Literal["uuid"] = Field(default="uuid")
+
+    def __str__(self) -> str:
+        return "uuid"
+
 
 
 class BinaryType(PrimitiveType):
@@ -675,8 +746,11 @@ class BinaryType(PrimitiveType):
         BinaryType()
     """
 
-    def __init__(self) -> None:
-        super().__init__("binary")
+    # def __init__(self) -> None:
+    #     super().__init__("binary")
 
     root: Literal["binary"] = Field(default="binary")
+
+    def __str__(self) -> str:
+        return "binary"
 
