@@ -152,48 +152,30 @@ class DoubleReader(Reader):
         decoder.skip_double()
 
 
-class DateReader(Reader):
+class DateReader(IntegerReader):
     """Reads a day granularity date from the stream.
 
     The number of days from 1 January 1970.
     """
 
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_int()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_int()
-
-
-class TimeReader(Reader):
+class TimeReader(IntegerReader):
     """Reads a microsecond granularity timestamp from the stream.
 
     Long is decoded as an integer which represents
     the number of microseconds from the unix epoch, 1 January 1970.
     """
 
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_int()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_int()
-
-
-class TimestampReader(Reader):
+class TimestampReader(IntegerReader):
     """Reads a microsecond granularity timestamp from the stream.
 
     Long is decoded as python integer which represents
     the number of microseconds from the unix epoch, 1 January 1970.
     """
 
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_int()
 
-    def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_int()
-
-
-class TimestamptzReader(Reader):
+class TimestamptzReader(IntegerReader):
     """Reads a microsecond granularity timestamptz from the stream.
 
     Long is decoded as python integer which represents
@@ -201,12 +183,6 @@ class TimestamptzReader(Reader):
 
     Adjusted to UTC.
     """
-
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_int()
-
-    def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_int()
 
 
 class StringReader(Reader):
