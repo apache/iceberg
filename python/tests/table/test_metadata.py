@@ -168,7 +168,7 @@ def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]) -> None:
         ],
     }
 
-    mutable_table_metadata = table_metadata.dict()
+    mutable_table_metadata = table_metadata.model_dump()
     mutable_table_metadata["schemas"].append(new_schema)
     mutable_table_metadata["current-schema-id"] = 1
 
@@ -713,4 +713,4 @@ def test_make_metadata_fresh() -> None:
         last_sequence_number=0,
     )
 
-    assert actual.dict() == expected.dict()
+    assert actual.model_dump() == expected.model_dump()

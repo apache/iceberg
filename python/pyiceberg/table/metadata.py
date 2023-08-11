@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import datetime
 import uuid
 from copy import copy
@@ -61,7 +63,7 @@ INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
 
 
-def check_schemas(metadata: "TableMetadataV2") -> "TableMetadataV2":
+def check_schemas(metadata: TableMetadataV2) -> TableMetadataV2:
     """Validator to check if the current-schema-id is actually present in schemas."""
     current_schema_id = metadata.current_schema_id
 
@@ -72,7 +74,7 @@ def check_schemas(metadata: "TableMetadataV2") -> "TableMetadataV2":
     raise ValidationError(f"current-schema-id {current_schema_id} can't be found in the schemas")
 
 
-def check_partition_specs(values: "TableMetadataV2") -> "TableMetadataV2":
+def check_partition_specs(values: TableMetadataV2) -> TableMetadataV2:
     """Validator to check if the default-spec-id is present in partition-specs."""
     default_spec_id = values.default_spec_id
 
@@ -84,7 +86,7 @@ def check_partition_specs(values: "TableMetadataV2") -> "TableMetadataV2":
     # raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
 
 
-def check_sort_orders(values: "TableMetadataV2") -> "TableMetadataV2":
+def check_sort_orders(values: TableMetadataV2) -> TableMetadataV2:
     """Validator to check if the default_sort_order_id is present in sort-orders."""
     default_sort_order_id: int = values.default_sort_order_id
 
@@ -98,27 +100,26 @@ def check_sort_orders(values: "TableMetadataV2") -> "TableMetadataV2":
     return values
 
 
+def cleanup_snapshot_id(data: Dict[str, Any]) -> Dict[str, Any]:
+    if CURRENT_SNAPSHOT_ID in data and data[CURRENT_SNAPSHOT_ID] == -1:
+        # We treat -1 and None the same, by cleaning this up
+        # in a pre-validator, we can simplify the logic later on
+        data[CURRENT_SNAPSHOT_ID] = None
+    return data
+
+
+def construct_refs(data: TableMetadata) -> TableMetadata:
+    if data.current_snapshot_id is not None:
+        if MAIN_BRANCH not in data.refs:
+            data.refs[MAIN_BRANCH] = SnapshotRef(snapshot_id=data.current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
+    return data
+
+
 class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg spec.
 
     https://iceberg.apache.org/spec/#iceberg-table-spec
     """
-
-    @model_validator(mode="before")
-    def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        if CURRENT_SNAPSHOT_ID in data and data[CURRENT_SNAPSHOT_ID] == -1:
-            # We treat -1 and None the same, by cleaning this up
-            # in a pre-validator, we can simplify the logic later on
-            data[CURRENT_SNAPSHOT_ID] = None
-        return data
-
-    @model_validator(mode="before")
-    def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        # This is going to be much nicer as soon as refs is an actual pydantic object
-        if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
-            if MAIN_BRANCH not in data[REFS]:
-                data[REFS][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
-        return data
 
     location: str = Field()
     """The table’s base location. This is used by writers to determine where
@@ -220,6 +221,14 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # to the owner of the table.
 
     @model_validator(mode="before")
+    def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        return cleanup_snapshot_id(data)
+
+    @model_validator(mode="after")
+    def construct_refs(cls, data: TableMetadataV1) -> TableMetadataV1:
+        return construct_refs(data)
+
+    @model_validator(mode="before")
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2.
 
@@ -304,10 +313,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             check_sort_orders(data)
         return data
 
-    def to_v2(self) -> "TableMetadataV2":
-        metadata = copy(self.dict())
-        metadata["format_version"] = 2
-        return TableMetadataV2(**metadata)
+    def to_v2(self) -> TableMetadataV2:
+        metadata = copy(self.model_dump())
+        metadata["format-version"] = 2
+        return TableMetadataV2.model_validate(metadata)
 
     format_version: Literal[1] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2
@@ -348,6 +357,14 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     @model_validator(mode="after")
     def check_sort_orders(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_sort_orders(values)
+
+    @model_validator(mode="before")
+    def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        return cleanup_snapshot_id(data)
+
+    @model_validator(mode="after")
+    def construct_refs(cls, data: TableMetadataV2) -> TableMetadataV2:
+        return construct_refs(data)
 
     format_version: Literal[2] = Field(alias="format-version", default=2)
     """An integer version number for the format. Currently, this can be 1 or 2

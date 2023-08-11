@@ -51,7 +51,8 @@ def test_serialize_summary() -> None:
 
 
 def test_serialize_summary_with_properties() -> None:
-    assert Summary(Operation.APPEND, property="yes").json() == """{"operation":"append","property":"yes"}"""
+    summary = Summary(Operation.APPEND, property="yes")
+    assert summary.json() == """{"operation":"append","property":"yes"}"""
 
 
 def test_serialize_snapshot(snapshot: Snapshot) -> None:

@@ -504,8 +504,10 @@ def test_deserialization_nestedfield() -> None:
 
 def test_deserialization_nestedfield_inner() -> None:
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = StringType.model_validate_json('{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}')
-    assert expected == actual.__root__
+    actual = NestedField.model_validate_json(
+        '{"id":1,"name":"required_field","type":"string","required":true,"doc":"this is a doc"}'
+    )
+    assert expected == actual
 
 
 def test_serialization_struct() -> None:
@@ -583,7 +585,7 @@ def test_repr_list(simple_list: ListType) -> None:
 
 def test_serialization_map(simple_map: MapType) -> None:
     actual = simple_map.json()
-    expected = """{"type": "map", "key-id": 19, "key": "string", "value-id": 25, "value": "double", "value-required": false}"""
+    expected = """{"type":"map","key-id":19,"key":"string","value-id":25,"value":"double","value-required":false}"""
 
     assert actual == expected
 

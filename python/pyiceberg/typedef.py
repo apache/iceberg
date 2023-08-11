@@ -36,8 +36,7 @@ from typing import (
 )
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, RootModel, GetCoreSchemaHandler
-from pydantic_core import core_schema
+from pydantic import BaseModel, ConfigDict, RootModel
 
 if TYPE_CHECKING:
     from pyiceberg.types import StructType
@@ -117,8 +116,12 @@ class IcebergBaseModel(BaseModel):
             {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, exclude or set()
         )
 
-    def dict(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, **kwargs: Any) -> Dict[str, Any]:
-        return super().dict(exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), **kwargs)
+    def model_dump(
+        self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any
+    ) -> Dict[str, Any]:
+        return super().model_dump(
+            exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
+        )
 
     def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any) -> str:
         return super().json(

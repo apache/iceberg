@@ -22,7 +22,7 @@ from typing import (
     Optional,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_serializer
 
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
@@ -64,6 +64,13 @@ class Summary(IcebergBaseModel):
     def __init__(self, operation: Optional[Operation] = None, **data: Any) -> None:
         super().__init__(operation=operation, **data)
         self._additional_properties = data
+
+    @model_serializer
+    def ser_model(self) -> dict:
+        return {
+            "operation": self.operation.value,
+            **self._additional_properties,
+        }
 
     @property
     def operation(self) -> Operation:

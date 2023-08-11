@@ -93,7 +93,7 @@ class FromByteStream:
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            return VO.model_validate_json(json_bytes.read())
+            return VO.model_validate_json(json_bytes.read()).root
 
 
 class FromInputFile:
