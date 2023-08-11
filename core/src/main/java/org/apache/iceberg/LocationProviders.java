@@ -89,7 +89,7 @@ public class LocationProviders {
           properties.getOrDefault(
               TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
               TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
-      useRelativePath = strUseRelativePath.equalsIgnoreCase("true") ? true : false;
+      useRelativePath = strUseRelativePath.equalsIgnoreCase("true");
 
       prefix = properties.getOrDefault(TableProperties.PREFIX, tableLocation).toLowerCase();
     }

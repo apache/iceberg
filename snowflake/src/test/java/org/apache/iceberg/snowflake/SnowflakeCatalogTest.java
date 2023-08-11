@@ -20,6 +20,7 @@ package org.apache.iceberg.snowflake;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -29,6 +30,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -44,7 +46,7 @@ public class SnowflakeCatalogTest {
   private InMemoryFileIO fakeFileIO;
   private SnowflakeCatalog.FileIOFactory fakeFileIOFactory;
   private Map<String, String> properties;
-
+  LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
   @BeforeEach
   public void before() {
     catalog = new SnowflakeCatalog();
@@ -87,7 +89,7 @@ public class SnowflakeCatalogTest {
         "s3://tab1/metadata/v3.metadata.json",
         TableMetadataParser.toJson(
                 TableMetadata.newTableMetadata(
-                    schema, partitionSpec, "s3://tab1", ImmutableMap.<String, String>of()))
+                    schema, partitionSpec, "s3://tab1", ImmutableMap.<String, String>of()), locationRelativizer)
             .getBytes());
     fakeFileIO.addFile(
         "wasbs://mycontainer@myaccount.blob.core.windows.net/tab3/metadata/v334.metadata.json",
@@ -96,13 +98,13 @@ public class SnowflakeCatalogTest {
                     schema,
                     partitionSpec,
                     "wasbs://mycontainer@myaccount.blob.core.windows.net/tab1/",
-                    ImmutableMap.<String, String>of()))
+                    ImmutableMap.<String, String>of()), locationRelativizer)
             .getBytes());
     fakeFileIO.addFile(
         "gs://tab5/metadata/v793.metadata.json",
         TableMetadataParser.toJson(
                 TableMetadata.newTableMetadata(
-                    schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()))
+                    schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()), locationRelativizer)
             .getBytes());
 
     fakeFileIOFactory =
