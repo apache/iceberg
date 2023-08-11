@@ -42,6 +42,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -480,7 +481,6 @@ class DeleteFileIndex {
       ListMultimap<Pair<Integer, StructLikeWrapper>, IndexedDeleteFile> deleteFilesByPartition =
           Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
       for (DeleteFile file : files) {
-        scanMetrics.indexedDeleteFile(file);
         int specId = file.specId();
         PartitionSpec spec = specsById.get(specId);
         StructLikeWrapper wrapper =
@@ -488,6 +488,7 @@ class DeleteFileIndex {
                 .computeIfAbsent(specId, id -> StructLikeWrapper.forType(spec.partitionType()))
                 .copyFor(file.partition());
         deleteFilesByPartition.put(Pair.of(specId, wrapper), new IndexedDeleteFile(spec, file));
+        ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }
 
       // sort the entries in each map value by sequence number and split into sequence numbers and
