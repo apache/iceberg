@@ -193,7 +193,7 @@ def test_string_with_surrogate_pair() -> None:
         (17501, DayTransform(), "2017-12-01"),
     ],
 )
-def test_date_to_human_string(date_val: int, date_transform: Transform, expected: str) -> None:  # type: ignore
+def test_date_to_human_string(date_val: int, date_transform: Transform[Any, Any], expected: str) -> None:
     assert date_transform.to_human_string(DateType(), date_val) == expected
 
 
@@ -205,7 +205,7 @@ def test_date_to_human_string(date_val: int, date_transform: Transform, expected
         DayTransform(),
     ],
 )
-def test_none_date_to_human_string(date_transform: TimeTransform) -> None:  # type: ignore
+def test_none_date_to_human_string(date_transform: TimeTransform[Any]) -> None:
     assert date_transform.to_human_string(DateType(), None) == "null"
 
 
@@ -223,7 +223,7 @@ def test_hour_to_human_string() -> None:
         (-1, HourTransform(), "1969-12-31-23"),
     ],
 )
-def test_negative_value_to_human_string(negative_value: int, time_transform: TimeTransform, expected: str) -> None:  # type: ignore
+def test_negative_value_to_human_string(negative_value: int, time_transform: TimeTransform[Any], expected: str) -> None:
     assert time_transform.to_human_string(TimestampType(), negative_value) == expected
 
 
@@ -267,7 +267,7 @@ def test_time_methods(type_var: PrimitiveType) -> None:
         (DayTransform(), TimestampType(), -1, -1),
     ],
 )
-def test_time_apply_method(transform: TimeTransform, type_var: PrimitiveType, value: int, expected: int) -> None:  # type: ignore
+def test_time_apply_method(transform: TimeTransform[Any], type_var: PrimitiveType, value: int, expected: int) -> None:
     assert transform.transform(type_var)(value) == expected
 
 
@@ -296,7 +296,7 @@ def test_hour_method(type_var: PrimitiveType) -> None:
         (DayTransform(), HourTransform()),
     ],
 )
-def test_satisfies_order_of_method(transform: TimeTransform, other_transform: TimeTransform) -> None:  # type: ignore
+def test_satisfies_order_of_method(transform: TimeTransform[Any], other_transform: TimeTransform[Any]) -> None:
     assert transform.satisfies_order_of(transform)
     assert other_transform.satisfies_order_of(transform)
     assert not transform.satisfies_order_of(other_transform)
@@ -535,7 +535,7 @@ def test_hour_transform_deserialize() -> None:
         (HourTransform(), "hour"),
     ],
 )
-def test_datetime_transform_str(transform: TimeTransform, transform_str: str) -> None:  # type: ignore
+def test_datetime_transform_str(transform: TimeTransform[Any], transform_str: str) -> None:
     assert str(transform) == transform_str
 
 
@@ -548,7 +548,7 @@ def test_datetime_transform_str(transform: TimeTransform, transform_str: str) ->
         (HourTransform(), "HourTransform()"),
     ],
 )
-def test_datetime_transform_repr(transform: TimeTransform, transform_repr: str) -> None:  # type: ignore
+def test_datetime_transform_repr(transform: TimeTransform[Any], transform_repr: str) -> None:
     assert repr(transform) == transform_repr
 
 

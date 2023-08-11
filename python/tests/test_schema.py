@@ -85,8 +85,8 @@ def test_schema_raise_on_duplicate_names() -> None:
 
 def test_schema_index_by_id_visitor(table_schema_nested: Schema) -> None:
     """Test index_by_id visitor function"""
-    actual = schema.index_by_id(table_schema_nested)
-    expected = {
+    index = schema.index_by_id(table_schema_nested)
+    assert index == {
         1: NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         2: NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         3: NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
@@ -154,10 +154,6 @@ def test_schema_index_by_id_visitor(table_schema_nested: Schema) -> None:
         16: NestedField(field_id=16, name="name", field_type=StringType(), required=False),
         17: NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
     }
-    assert expected.keys() == actual.keys()
-
-    for k in expected:
-        assert expected[k] == actual[k]
 
 
 def test_schema_index_by_name_visitor(table_schema_nested: Schema) -> None:

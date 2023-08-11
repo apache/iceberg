@@ -224,11 +224,11 @@ class DataFile(Record):
 
 
 MANIFEST_ENTRY_SCHEMA = Schema(
-    NestedField(field_id=0, name="status", field_type=IntegerType(), required=True),
-    NestedField(field_id=1, name="snapshot_id", field_type=LongType(), required=False),
-    NestedField(field_id=3, name="data_sequence_number", field_type=LongType(), required=False),
-    NestedField(field_id=4, name="file_sequence_number", field_type=LongType(), required=False),
-    NestedField(field_id=2, name="data_file", field_type=DATA_FILE_TYPE, required=True),
+    NestedField(0, "status", IntegerType(), required=True),
+    NestedField(1, "snapshot_id", LongType(), required=False),
+    NestedField(3, "data_sequence_number", LongType(), required=False),
+    NestedField(4, "file_sequence_number", LongType(), required=False),
+    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
 )
 
 MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
@@ -279,12 +279,7 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(512, "added_rows_count", LongType(), required=False),
     NestedField(513, "existing_rows_count", LongType(), required=False),
     NestedField(514, "deleted_rows_count", LongType(), required=False),
-    NestedField(
-        507,
-        "partitions",
-        ListType(508, PARTITION_FIELD_SUMMARY_TYPE, element_required=True),
-        required=False,
-    ),
+    NestedField(507, "partitions", ListType(508, PARTITION_FIELD_SUMMARY_TYPE, element_required=True), required=False),
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
