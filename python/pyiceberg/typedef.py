@@ -123,8 +123,10 @@ class IcebergBaseModel(BaseModel):
             exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
         )
 
-    def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any) -> str:
-        return super().json(
+    def model_dump_json(
+        self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any
+    ) -> str:
+        return super().model_dump_json(
             exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
         )
 

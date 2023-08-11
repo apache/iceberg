@@ -31,7 +31,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import load_file_io
-from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
@@ -367,7 +367,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
                 "partition-spec": [],
                 "default-spec-id": 0,
                 "partition-specs": [{"spec-id": 0, "fields": []}],
-                "last-partition-id": 1000,
+                "last-partition-id": 999,
                 "default-sort-order-id": 0,
                 "sort-orders": [{"order-id": 0, "fields": []}],
                 "properties": {"owner": "bryan", "write.metadata.compression-codec": "gzip"},
@@ -428,7 +428,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
             ],
             current_schema_id=0,
             default_spec_id=0,
-            last_partition_id=1000,
+            last_partition_id=999,
             properties={"owner": "bryan", "write.metadata.compression-codec": "gzip"},
             current_snapshot_id=3497810964824022504,
             snapshots=[
@@ -483,7 +483,6 @@ def test_load_table_200(rest_mock: Mocker) -> None:
                 identifier_field_ids=[],
             ),
             partition_spec=[],
-            partition_specs=[UNPARTITIONED_PARTITION_SPEC],
         ),
         io=load_file_io(),
         catalog=catalog,

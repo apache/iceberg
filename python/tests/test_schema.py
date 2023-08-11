@@ -458,7 +458,7 @@ def test_build_position_accessors_with_struct(table_schema_nested: Schema) -> No
 
 
 def test_serialize_schema(table_schema_simple: Schema) -> None:
-    actual = table_schema_simple.json()
+    actual = table_schema_simple.model_dump_json()
     expected = """{"type":"struct","fields":[{"id":1,"name":"foo","type":"string","required":false},{"id":2,"name":"bar","type":"int","required":true},{"id":3,"name":"baz","type":"boolean","required":false}],"schema-id":1,"identifier-field-ids":[2]}"""
     assert actual == expected
 

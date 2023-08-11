@@ -289,12 +289,11 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
                 data[PARTITION_SPECS] = [{SPEC_ID: INITIAL_SPEC_ID, FIELDS: fields}]
                 data[DEFAULT_SPEC_ID] = INITIAL_SPEC_ID
             else:
-                data[PARTITION_SPECS] = []
+                data[PARTITION_SPECS] = [{"field-id": 0, "fields": ()}]
 
-        if partition_spec := data.get(PARTITION_SPECS):
-            data[LAST_PARTITION_ID] = max(
-                [field.get(FIELD_ID) for spec in partition_spec for field in spec[FIELDS]], default=PARTITION_FIELD_ID_START
-            )
+        data[LAST_PARTITION_ID] = max(
+            [field.get(FIELD_ID) for spec in data[PARTITION_SPECS] for field in spec[FIELDS]], default=PARTITION_FIELD_ID_START
+        )
 
         return data
 

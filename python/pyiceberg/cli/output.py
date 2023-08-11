@@ -200,7 +200,11 @@ class JsonOutput(Output):
             metadata_location: str
             metadata: TableMetadata
 
-        print(FauxTable(identifier=table.identifier, metadata=table.metadata, metadata_location=table.metadata_location).json())
+        print(
+            FauxTable(
+                identifier=table.identifier, metadata=table.metadata, metadata_location=table.metadata_location
+            ).model_dump_json()
+        )
 
     def describe_properties(self, properties: Properties) -> None:
         self._out(properties)
@@ -209,13 +213,13 @@ class JsonOutput(Output):
         print(json.dumps(response))
 
     def schema(self, schema: Schema) -> None:
-        print(schema.json())
+        print(schema.model_dump_json())
 
     def files(self, table: Table, history: bool) -> None:
         pass
 
     def spec(self, spec: PartitionSpec) -> None:
-        print(spec.json())
+        print(spec.model_dump_json())
 
     def uuid(self, uuid: Optional[UUID]) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})

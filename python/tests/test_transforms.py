@@ -430,7 +430,7 @@ def test_void_transform() -> None:
     assert void_transform.dedup_name == "void"
 
 
-class TestType(RootModel):
+class FauxModel(RootModel):
     root: Annotated[  # type: ignore
         Transform,
         BeforeValidator(_deserialize_transform),
@@ -440,11 +440,11 @@ class TestType(RootModel):
 
 
 def test_bucket_transform_serialize() -> None:
-    assert BucketTransform(num_buckets=22).json() == '"bucket[22]"'
+    assert BucketTransform(num_buckets=22).model_dump_json() == '"bucket[22]"'
 
 
 def test_bucket_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"bucket[22]"').root
+    transform = FauxModel.model_validate_json('"bucket[22]"').root
     assert transform == BucketTransform(num_buckets=22)
 
 
@@ -457,11 +457,11 @@ def test_bucket_transform_repr() -> None:
 
 
 def test_truncate_transform_serialize() -> None:
-    assert UnknownTransform("unknown").json() == '"unknown"'
+    assert UnknownTransform("unknown").model_dump_json() == '"unknown"'
 
 
 def test_unknown_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"unknown"').root
+    transform = FauxModel.model_validate_json('"unknown"').root
     assert transform == UnknownTransform("unknown")
 
 
@@ -474,11 +474,11 @@ def test_unknown_transform_repr() -> None:
 
 
 def test_void_transform_serialize() -> None:
-    assert VoidTransform().json() == '"void"'
+    assert VoidTransform().model_dump_json() == '"void"'
 
 
 def test_void_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"void"').root
+    transform = FauxModel.model_validate_json('"void"').root
     assert transform == VoidTransform()
 
 
@@ -491,38 +491,38 @@ def test_void_transform_repr() -> None:
 
 
 def test_year_transform_serialize() -> None:
-    assert YearTransform().json() == '"year"'
+    assert YearTransform().model_dump_json() == '"year"'
 
 
 def test_year_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"year"').root
+    transform = FauxModel.model_validate_json('"year"').root
     assert transform == YearTransform()
 
 
 def test_month_transform_serialize() -> None:
-    assert MonthTransform().json() == '"month"'
+    assert MonthTransform().model_dump_json() == '"month"'
 
 
 def test_month_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"month"').root
+    transform = FauxModel.model_validate_json('"month"').root
     assert transform == MonthTransform()
 
 
 def test_day_transform_serialize() -> None:
-    assert DayTransform().json() == '"day"'
+    assert DayTransform().model_dump_json() == '"day"'
 
 
 def test_day_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"day"').root
+    transform = FauxModel.model_validate_json('"day"').root
     assert transform == DayTransform()
 
 
 def test_hour_transform_serialize() -> None:
-    assert HourTransform().json() == '"hour"'
+    assert HourTransform().model_dump_json() == '"hour"'
 
 
 def test_hour_transform_deserialize() -> None:
-    transform = TestType.model_validate_json('"hour"').root
+    transform = FauxModel.model_validate_json('"hour"').root
     assert transform == HourTransform()
 
 

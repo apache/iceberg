@@ -84,7 +84,7 @@ def test_unpartitioned() -> None:
 
 
 def test_serialize_unpartitioned_spec() -> None:
-    assert UNPARTITIONED_PARTITION_SPEC.json() == """{"spec-id":0,"fields":[]}"""
+    assert UNPARTITIONED_PARTITION_SPEC.model_dump_json() == """{"spec-id":0,"fields":[]}"""
 
 
 def test_serialize_partition_spec() -> None:
@@ -94,7 +94,7 @@ def test_serialize_partition_spec() -> None:
         spec_id=3,
     )
     assert (
-        partitioned.json()
+        partitioned.model_dump_json()
         == """{"spec-id":3,"fields":[{"source-id":1,"field-id":1000,"transform":"truncate[19]","name":"str_truncate"},{"source-id":2,"field-id":1001,"transform":"bucket[25]","name":"int_bucket"}]}"""
     )
 

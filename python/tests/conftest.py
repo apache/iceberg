@@ -1510,7 +1510,7 @@ def clean_up(test_catalog: Catalog) -> None:
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
-        metadata={"iceberg.schema": table_schema_simple.json()},
+        metadata={"iceberg.schema": table_schema_simple.model_dump_json()},
     )
 
     file_path = f"{tmp_path}/0000-data.parquet"
