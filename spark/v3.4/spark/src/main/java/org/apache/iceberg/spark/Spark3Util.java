@@ -663,9 +663,11 @@ public class Spark3Util {
     private static <T> String sqlString(UnboundTerm<T> term) {
       if (term instanceof org.apache.iceberg.expressions.NamedReference) {
         return term.ref().name();
-      } else {
+      } else if (term instanceof UnboundTransform) {
         UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
         return transform.transform().toString() + "(" + transform.ref().name() + ")";
+      } else {
+        throw new UnsupportedOperationException("Cannot convert term to SQL: " + term);
       }
     }
 
