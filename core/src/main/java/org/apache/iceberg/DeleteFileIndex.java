@@ -117,6 +117,8 @@ class DeleteFileIndex {
     return deleteFiles;
   }
 
+  // use HashMap with precomputed values instead of thread-safe collections loaded on demand
+  // as the cache is being accessed for each data file and the lookup speed is critical
   private Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers(Map<Integer, PartitionSpec> specs) {
     Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers = Maps.newHashMap();
     specs.forEach((specId, spec) -> wrappers.put(specId, newWrapper(specId)));
