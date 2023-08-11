@@ -96,7 +96,13 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (pushedFilters, remainingFilters) = command.condition match {
         case Some(cond) => pushFilters(cond, scanBuilder, relation.output)
-        case None => (Nil, Nil)
+        case None => (Left(Nil), Nil)
+      }
+
+      val pushedFiltersStr = if (pushedFilters.isLeft) {
+        pushedFilters.left.get.mkString(", ")
+      } else {
+        pushedFilters.right.get.mkString(", ")
       }
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
@@ -104,7 +110,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
       logInfo(
         s"""
            |Pushing operators to ${relation.name}
-           |Pushed filters: ${pushedFilters.mkString(", ")}
+           |Pushed filters: $pushedFiltersStr
            |Filters that were not pushed: ${remainingFilters.mkString(",")}
            |Output: ${output.mkString(", ")}
          """.stripMargin)
@@ -122,7 +128,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   private def pushFilters(
       cond: Expression,
       scanBuilder: ScanBuilder,
-      tableAttrs: Seq[AttributeReference]): (Seq[Filter], Seq[Predicate]) = {
+      tableAttrs: Seq[AttributeReference]): (Either[Seq[Filter], Seq[Predicate]], Seq[Expression]) = {
 
     val tableAttrSet = AttributeSet(tableAttrs)
     val filters = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
@@ -130,8 +136,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
     val (_, normalizedFiltersWithoutSubquery) =
       normalizedFilters.partition(SubqueryExpression.hasSubquery)
 
-    val (pushedFilters, _) = PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
-    (pushedFilters.left.getOrElse(Seq.empty), pushedFilters.right.getOrElse(Seq.empty))
+    PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
   }
 
   // splits the join condition into predicates and tries to push down each predicate into the scan

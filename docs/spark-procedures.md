@@ -184,6 +184,34 @@ Cherry-pick snapshot 1 with named args
 CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' )
 ```
 
+### `fast_forward`
+
+Fast-forward the current snapshot of one branch to the latest snapshot of another.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table` | ✔️ | string | Name of the table to update |
+| `branch` | ✔️ | string   | Name of the branch to fast-forward |
+| `to` | ✔️ | string | | Name of the branch to be fast-forwarded to |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `branch_updated` | string | Name of the branch that has been fast-forwarded |
+| `previous_ref` | long | The snapshot ID before applying fast-forward |
+| `updated_ref`  | long | The current snapshot ID after applying fast-forward |
+
+#### Examples
+
+Fast-forward the main branch to the head of `audit-branch`
+```sql
+CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch')
+```
+
+
 
 ## Metadata management
 

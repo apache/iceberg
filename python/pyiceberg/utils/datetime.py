@@ -61,15 +61,14 @@ def days_to_date(days: int) -> date:
     return EPOCH_DATE + timedelta(days)
 
 
-def time_to_micros(time_str: str) -> int:
+def time_str_to_micros(time_str: str) -> int:
     """Converts an ISO-8601 formatted time to microseconds from midnight."""
-    t = time.fromisoformat(time_str)
+    return time_to_micros(time.fromisoformat(time_str))
+
+
+def time_to_micros(t: time) -> int:
+    """Converts a datetime.time object to microseconds from midnight."""
     return (((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond
-
-
-def time_object_to_micros(t: time) -> int:
-    """Converts an datetime.time object to microseconds from midnight."""
-    return int(t.hour * 60 * 60 * 1e6 + t.minute * 60 * 1e6 + t.second * 1e6 + t.microsecond)
 
 
 def datetime_to_micros(dt: datetime) -> int:

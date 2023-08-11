@@ -50,7 +50,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL);
 
-  private final Map<String, FileIO> ioInstances = Maps.newHashMap();
+  private final Map<String, FileIO> ioInstances = Maps.newConcurrentMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
@@ -102,10 +102,8 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     if (isClosed.compareAndSet(false, true)) {
       List<FileIO> instances = Lists.newArrayList();
 
-      synchronized (ioInstances) {
-        instances.addAll(ioInstances.values());
-        ioInstances.clear();
-      }
+      instances.addAll(ioInstances.values());
+      ioInstances.clear();
 
       for (FileIO io : instances) {
         io.close();
@@ -133,52 +131,55 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     String impl = implFromLocation(location);
     FileIO io = ioInstances.get(impl);
     if (io != null) {
-      return io;
-    }
-
-    synchronized (ioInstances) {
-      // double check while holding the lock
-      io = ioInstances.get(impl);
-      if (io != null) {
-        return io;
-      }
-
-      Configuration conf = hadoopConf.get();
-
-      try {
-        Map<String, String> props = Maps.newHashMap(properties);
-        // ResolvingFileIO is keeping track of the creation stacktrace, so no need to do the same in
-        // S3FileIO.
-        props.put("init-creation-stacktrace", "false");
-        io = CatalogUtil.loadFileIO(impl, props, conf);
-      } catch (IllegalArgumentException e) {
-        if (impl.equals(FALLBACK_IMPL)) {
-          // no implementation to fall back to, throw the exception
-          throw e;
-        } else {
-          // couldn't load the normal class, fall back to HadoopFileIO
-          LOG.warn(
-              "Failed to load FileIO implementation: {}, falling back to {}",
-              impl,
-              FALLBACK_IMPL,
-              e);
-          try {
-            io = CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
-          } catch (IllegalArgumentException suppressed) {
-            LOG.warn(
-                "Failed to load FileIO implementation: {} (fallback)", FALLBACK_IMPL, suppressed);
-            // both attempts failed, throw the original exception with the later exception
-            // suppressed
-            e.addSuppressed(suppressed);
-            throw e;
+      if (io instanceof HadoopConfigurable && ((HadoopConfigurable) io).getConf() == null) {
+        synchronized (io) {
+          if (((HadoopConfigurable) io).getConf() == null) {
+            // re-apply the config in case it's null after Kryo serialization
+            ((HadoopConfigurable) io).setConf(hadoopConf.get());
           }
         }
       }
 
-      ioInstances.put(impl, io);
+      return io;
     }
 
-    return io;
+    return ioInstances.computeIfAbsent(
+        impl,
+        key -> {
+          Configuration conf = hadoopConf.get();
+
+          try {
+            Map<String, String> props = Maps.newHashMap(properties);
+            // ResolvingFileIO is keeping track of the creation stacktrace, so no need to do the
+            // same in S3FileIO.
+            props.put("init-creation-stacktrace", "false");
+            return CatalogUtil.loadFileIO(key, props, conf);
+          } catch (IllegalArgumentException e) {
+            if (key.equals(FALLBACK_IMPL)) {
+              // no implementation to fall back to, throw the exception
+              throw e;
+            } else {
+              // couldn't load the normal class, fall back to HadoopFileIO
+              LOG.warn(
+                  "Failed to load FileIO implementation: {}, falling back to {}",
+                  key,
+                  FALLBACK_IMPL,
+                  e);
+              try {
+                return CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
+              } catch (IllegalArgumentException suppressed) {
+                LOG.warn(
+                    "Failed to load FileIO implementation: {} (fallback)",
+                    FALLBACK_IMPL,
+                    suppressed);
+                // both attempts failed, throw the original exception with the later exception
+                // suppressed
+                e.addSuppressed(suppressed);
+                throw e;
+              }
+            }
+          }
+        });
   }
 
   private static String implFromLocation(String location) {
