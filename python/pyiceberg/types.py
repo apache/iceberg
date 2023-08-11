@@ -155,9 +155,6 @@ class PrimitiveType(IcebergRootModel[str], IcebergType, Singleton):
 
     root: Any = Field()
 
-    def __eq__(self, other: Any) -> bool:
-        return self.root == other.root if isinstance(other, PrimitiveType) else False
-
     def __repr__(self) -> str:
         """Returns the string representation of the PrimitiveType class."""
         return f"{type(self).__name__}()"
@@ -193,6 +190,7 @@ class FixedType(PrimitiveType):
         return self.root
 
     def __str__(self) -> str:
+        """Returns the string representation."""
         return f"fixed[{self.root}]"
 
     def __repr__(self) -> str:
@@ -221,14 +219,17 @@ class DecimalType(PrimitiveType):
 
     @model_serializer
     def ser_model(self) -> str:
+        """Used when serialized to a string."""
         return f"decimal({self.precision}, {self.scale})"
 
     @property
     def precision(self) -> int:
+        """Returns the precision of the decimal."""
         return self.root[0]
 
     @property
     def scale(self) -> int:
+        """Returns the scale of the decimal."""
         return self.root[1]
 
     def __repr__(self) -> str:
@@ -236,9 +237,11 @@ class DecimalType(PrimitiveType):
         return f"DecimalType(precision={self.precision}, scale={self.scale})"
 
     def __str__(self) -> str:
+        """Returns the string representation."""
         return f"decimal({self.precision}, {self.scale})"
 
     def __hash__(self) -> int:
+        """Returns the hash of the tuple."""
         return hash(self.root)
 
     def __getnewargs__(self) -> Tuple[int, int]:
@@ -246,7 +249,8 @@ class DecimalType(PrimitiveType):
         return self.precision, self.scale
 
     def __eq__(self, other: Any) -> bool:
-        return self.root == other.root
+        """Compares to root to another object."""
+        return self.root == other.root if isinstance(other, DecimalType) else False
 
 
 class NestedField(IcebergType):
@@ -363,6 +367,7 @@ class StructType(IcebergType):
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
+        """Compares the object if it is equal to another object."""
         return self.fields == other.fields if isinstance(other, StructType) else False
 
 
@@ -415,6 +420,7 @@ class ListType(IcebergType):
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
+        """Compares the list type to another list type."""
         return self.element_field == other.element_field if isinstance(other, ListType) else False
 
 
@@ -481,9 +487,11 @@ class MapType(IcebergType):
         return self.key_id, self.key_type, self.value_id, self.value_type, self.value_required
 
     def __hash__(self) -> int:
+        """Returns the hash of the MapType."""
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
+        """Compares the MapType to another object."""
         return (
             self.key_field == other.key_field and self.value_field == other.value_field if isinstance(other, MapType) else False
         )
@@ -501,9 +509,6 @@ class BooleanType(PrimitiveType):
     """
 
     root: Literal["boolean"] = Field(default="boolean")
-
-    def __str__(self) -> str:
-        return "boolean"
 
 
 class IntegerType(PrimitiveType):
@@ -527,9 +532,6 @@ class IntegerType(PrimitiveType):
 
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
-
-    def __str__(self) -> str:
-        return "int"
 
 
 class LongType(PrimitiveType):
@@ -558,9 +560,6 @@ class LongType(PrimitiveType):
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
 
-    def __str__(self) -> str:
-        return "long"
-
 
 class FloatType(PrimitiveType):
     """A Float data type in Iceberg can be represented using an instance of this class.
@@ -586,9 +585,6 @@ class FloatType(PrimitiveType):
 
     root: Literal["float"] = Field(default="float")
 
-    def __str__(self) -> str:
-        return "float"
-
 
 class DoubleType(PrimitiveType):
     """A Double data type in Iceberg can be represented using an instance of this class.
@@ -604,9 +600,6 @@ class DoubleType(PrimitiveType):
     """
 
     root: Literal["double"] = Field(default="double")
-
-    def __str__(self) -> str:
-        return "double"
 
 
 class DateType(PrimitiveType):
@@ -624,9 +617,6 @@ class DateType(PrimitiveType):
 
     root: Literal["date"] = Field(default="date")
 
-    def __str__(self) -> str:
-        return "date"
-
 
 class TimeType(PrimitiveType):
     """A Time data type in Iceberg can be represented using an instance of this class.
@@ -642,9 +632,6 @@ class TimeType(PrimitiveType):
     """
 
     root: Literal["time"] = Field(default="time")
-
-    def __str__(self) -> str:
-        return "time"
 
 
 class TimestampType(PrimitiveType):
@@ -662,9 +649,6 @@ class TimestampType(PrimitiveType):
 
     root: Literal["timestamp"] = Field(default="timestamp")
 
-    def __str__(self) -> str:
-        return "timestamp"
-
 
 class TimestamptzType(PrimitiveType):
     """A Timestamptz data type in Iceberg can be represented using an instance of this class.
@@ -680,9 +664,6 @@ class TimestamptzType(PrimitiveType):
     """
 
     root: Literal["timestamptz"] = Field(default="timestamptz")
-
-    def __str__(self) -> str:
-        return "timestamptz"
 
 
 class StringType(PrimitiveType):
@@ -700,9 +681,6 @@ class StringType(PrimitiveType):
 
     root: Literal["string"] = Field(default="string")
 
-    def __str__(self):
-        return "string"
-
 
 class UUIDType(PrimitiveType):
     """A UUID data type in Iceberg can be represented using an instance of this class.
@@ -719,9 +697,6 @@ class UUIDType(PrimitiveType):
 
     root: Literal["uuid"] = Field(default="uuid")
 
-    def __str__(self) -> str:
-        return "uuid"
-
 
 class BinaryType(PrimitiveType):
     """A Binary data type in Iceberg can be represented using an instance of this class.
@@ -737,6 +712,3 @@ class BinaryType(PrimitiveType):
     """
 
     root: Literal["binary"] = Field(default="binary")
-
-    def __str__(self) -> str:
-        return "binary"

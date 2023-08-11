@@ -31,7 +31,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import load_file_io
-from pyiceberg.partitioning import PartitionField, PartitionSpec
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
@@ -367,7 +367,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
                 "partition-spec": [],
                 "default-spec-id": 0,
                 "partition-specs": [{"spec-id": 0, "fields": []}],
-                "last-partition-id": 999,
+                "last-partition-id": 1000,
                 "default-sort-order-id": 0,
                 "sort-orders": [{"order-id": 0, "fields": []}],
                 "properties": {"owner": "bryan", "write.metadata.compression-codec": "gzip"},
@@ -428,7 +428,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
             ],
             current_schema_id=0,
             default_spec_id=0,
-            last_partition_id=999,
+            last_partition_id=1000,
             properties={"owner": "bryan", "write.metadata.compression-codec": "gzip"},
             current_snapshot_id=3497810964824022504,
             snapshots=[
@@ -440,7 +440,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
                     manifest_list="s3://warehouse/database/table/metadata/snap-3497810964824022504-1-c4f68204-666b-4e50-a9df-b10c34bf6b82.avro",
                     summary=Summary(
                         operation=Operation.APPEND,
-                        **{  # type: ignore
+                        **{
                             "spark.app.id": "local-1646787004168",
                             "added-data-files": "1",
                             "added-records": "1",
@@ -483,10 +483,13 @@ def test_load_table_200(rest_mock: Mocker) -> None:
                 identifier_field_ids=[],
             ),
             partition_spec=[],
+            partition_specs=[UNPARTITIONED_PARTITION_SPEC],
         ),
         io=load_file_io(),
         catalog=catalog,
     )
+    # First compare the dicts
+    assert actual.metadata.model_dump() == expected.metadata.model_dump()
     assert actual == expected
 
 
@@ -588,7 +591,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
         request_headers=TEST_HEADERS,
     )
     catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
-    table = catalog.create_table(
+    actual = catalog.create_table(
         identifier=("fokko", "fokko2"),
         schema=table_schema_simple,
         location=None,
@@ -598,7 +601,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
         sort_order=SortOrder(SortField(source_id=2, transform=IdentityTransform())),
         properties={"owner": "fokko"},
     )
-    assert table == Table(
+    expected = Table(
         identifier=("rest", "fokko", "fokko2"),
         metadata_location="s3://warehouse/database/table/metadata.json",
         metadata=TableMetadataV1(
@@ -644,6 +647,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
         io=load_file_io(),
         catalog=catalog,
     )
+    assert actual == expected
 
 
 def test_create_table_409(rest_mock: Mocker, table_schema_simple: Schema) -> None:

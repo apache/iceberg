@@ -206,7 +206,7 @@ class BucketTransform(Transform[S, int]):
         transformer = self.transform(pred.term.ref().field.field_type)
 
         if isinstance(pred.term, BoundTransform):
-            return _project_transform_predicate(self, name, pred)
+            return _project_transform_predicate(self, name, pred)  # type: ignore
         elif isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundEqualTo):
@@ -303,7 +303,7 @@ class TimeTransform(Transform[S, int], Generic[S], Singleton):
     def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         transformer = self.transform(pred.term.ref().field.field_type)
         if isinstance(pred.term, BoundTransform):
-            return _project_transform_predicate(self, name, pred)
+            return _project_transform_predicate(self, name, pred)  # type: ignore
         elif isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundLiteralPredicate):
@@ -536,7 +536,7 @@ class IdentityTransform(Transform[S, S]):
 
     def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         if isinstance(pred.term, BoundTransform):
-            return _project_transform_predicate(self, name, pred)
+            return _project_transform_predicate(self, name, pred)  # type: ignore
         elif isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundLiteralPredicate):
@@ -550,7 +550,7 @@ class IdentityTransform(Transform[S, S]):
     def preserves_order(self) -> bool:
         return True
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, S]) -> bool:
         """Ordering by value is the same as long as the other preserves order."""
         return other.preserves_order
 
@@ -601,7 +601,7 @@ class TruncateTransform(Transform[S, S]):
         field_type = pred.term.ref().field.field_type
 
         if isinstance(pred.term, BoundTransform):
-            return _project_transform_predicate(self, name, pred)
+            return _project_transform_predicate(self, name, pred)  # type: ignore
 
         if isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
@@ -641,7 +641,7 @@ class TruncateTransform(Transform[S, S]):
 
         return lambda v: truncate_func(v) if v else None
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, S]) -> bool:
         if self == other:
             return True
         elif (
@@ -740,7 +740,7 @@ class UnknownTransform(Transform[S, T]):
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
-class VoidTransform(Transform, Singleton):
+class VoidTransform(Transform[S, None], Singleton):
     """A transform that always returns None."""
 
     root: str = "void"
@@ -807,7 +807,7 @@ def _truncate_array(
 
 
 def _project_transform_predicate(
-    transform: Transform, partition_name: str, pred: BoundPredicate[L]
+    transform: Transform[L, L], partition_name: str, pred: BoundPredicate[L]
 ) -> Optional[UnboundPredicate[Any]]:
     term = pred.term
     if isinstance(term, BoundTransform) and transform == term.transform:
@@ -837,8 +837,8 @@ def _set_apply_transform(name: str, pred: BoundSetPredicate[L], transform: Calla
 class BoundTransform(BoundTerm[L]):
     """A transform expression."""
 
-    transform: Transform
+    transform: Transform[L, L]
 
-    def __init__(self, term: BoundTerm[L], transform: Transform):
+    def __init__(self, term: BoundTerm[L], transform: Transform[L, L]):
         self.term: BoundTerm[L] = term
         self.transform = transform

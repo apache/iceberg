@@ -87,13 +87,13 @@ class FromByteStream:
             compression: Optional compression method
         """
 
-        class VO(IcebergRootModel):
+        class Wrapper(IcebergRootModel):  # type: ignore
             root: TableMetadata
 
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            return VO.model_validate_json(json_bytes.read()).root
+            return Wrapper.model_validate_json(json_bytes.read()).root
 
 
 class FromInputFile:

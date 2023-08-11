@@ -103,10 +103,10 @@ class SortField(IcebergBaseModel):
         return values
 
     source_id: int = Field(alias="source-id")
-    transform: Annotated[
+    transform: Annotated[  # type: ignore
         Transform,
         BeforeValidator(_deserialize_transform),
-        PlainSerializer(lambda c: str(c), return_type=str),
+        PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
         WithJsonSchema({"type": "string"}, mode="serialization"),
     ] = Field()
     direction: SortDirection = Field()

@@ -99,6 +99,13 @@ def test_serialize_partition_spec() -> None:
     )
 
 
+def test_deserialize_unpartition_spec() -> None:
+    json_partition_spec = """{"spec-id":0,"fields":[]}"""
+    spec = PartitionSpec.model_validate_json(json_partition_spec)
+
+    assert spec == PartitionSpec(spec_id=0)
+
+
 def test_deserialize_partition_spec() -> None:
     json_partition_spec = """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}]}"""
 

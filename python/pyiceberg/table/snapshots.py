@@ -66,20 +66,11 @@ class Summary(IcebergBaseModel):
         self._additional_properties = data
 
     @model_serializer
-    def ser_model(self) -> dict:
+    def ser_model(self) -> Dict[str, str]:
         return {
-            "operation": self.operation.value,
+            "operation": str(self.operation.value),
             **self._additional_properties,
         }
-
-    @property
-    def operation(self) -> Operation:
-        operation = self.root[OPERATION]
-        if isinstance(operation, Operation):
-            return operation
-        else:
-            # Should never happen
-            raise ValueError(f"Unknown type of operation: {operation}")
 
     @property
     def additional_properties(self) -> Dict[str, str]:

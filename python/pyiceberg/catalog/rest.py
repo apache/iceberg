@@ -177,8 +177,8 @@ class OAuthErrorResponse(IcebergBaseModel):
     error: Literal[
         "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope"
     ]
-    error_description: Optional[str]
-    error_uri: Optional[str]
+    error_description: Optional[str] = None
+    error_uri: Optional[str] = None
 
 
 class RestCatalog(Catalog):

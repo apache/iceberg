@@ -537,7 +537,7 @@ class Catalog(ABC):
         io = load_file_io(self.properties, table.metadata_location)
         metadata = table.metadata
         manifest_lists_to_delete = set()
-        manifests_to_delete = []
+        manifests_to_delete: List[ManifestFile] = []
         for snapshot in metadata.snapshots:
             manifests_to_delete += snapshot.manifests(io)
             if snapshot.manifest_list is not None:
