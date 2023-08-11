@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -140,7 +139,6 @@ public class LocationProviders {
       /*
       TODO: to be used for read code-paths
        */
-      // throw new NotImplementedException("TODO: this method is a stub");
       return relativePath;
     }
   }
@@ -223,7 +221,6 @@ public class LocationProviders {
       /*
       TODO: to be used for write code-paths
        */
-      // throw new NotImplementedException("TODO: this method is a stub");
       return path;
     }
 
@@ -232,7 +229,6 @@ public class LocationProviders {
       /*
       TODO: to be used for read code-paths
        */
-      // throw new NotImplementedException("TODO: this method is a stub");
       return path;
     }
 
@@ -241,7 +237,7 @@ public class LocationProviders {
       /*
       TODO: to be used for read code-paths
        */
-      throw new NotImplementedException("TODO: this method is a stub");
+      return false;
     }
   }
 
