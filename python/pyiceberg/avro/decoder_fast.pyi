@@ -16,9 +16,6 @@
 # under the License.
 
 from typing import Tuple, Dict
-from datetime import datetime, time
-from uuid import UUID
-import decimal
 
 class CythonBinaryDecoder:
     def __init__(self, input_contents: bytes) -> None:
@@ -41,21 +38,7 @@ class CythonBinaryDecoder:
         pass
     def read_double(self) -> float:
         pass
-    def read_decimal_from_bytes(self, precision: int, scale: int) -> decimal.Decimal:
-        pass
-    def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
-        pass
     def read_utf8(self) -> str:
-        pass
-    def read_uuid_from_fixed(self) -> UUID:
-        pass
-    def read_time_millis(self) -> time:
-        pass
-    def read_time_micros(self) -> time:
-        pass
-    def read_timestamp_micros(self) -> datetime:
-        pass
-    def read_timestamptz_micros(self) -> datetime:
         pass
     def skip(self, n: int) -> None:
         pass

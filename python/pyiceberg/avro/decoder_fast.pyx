@@ -155,25 +155,6 @@ cdef class CythonBinaryDecoder:
         """
         return float(STRUCT_DOUBLE.unpack(self.read(8))[0])
 
-    def read_decimal_from_bytes(self, precision: int, scale: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
-
-        Decimal bytes are decoded as signed short, int or long depending on the
-        size of bytes.
-        """
-        size = self.read_int()
-        return self.read_decimal_from_fixed(precision, scale, size)
-
-    def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
-        """Reads a value from the stream as a decimal.
-
-        Decimal is encoded as fixed. Fixed instances are encoded using the
-        number of bytes declared in the schema.
-        """
-        data = self.read(size)
-        unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
-        return unscaled_to_decimal(unscaled_datum, scale)
-
     cpdef str read_utf8(self):
         """Reads a utf-8 encoded string from the stream.
 
@@ -181,45 +162,6 @@ cdef class CythonBinaryDecoder:
         that many bytes of UTF-8 encoded character data.
         """
         return self.read_bytes().decode("utf-8")
-
-    def read_uuid_from_fixed(self) -> UUID:
-        """Reads a UUID as a fixed[16]."""
-        return UUID(bytes=self.read(16))
-
-    def read_time_millis(self) -> time:
-        """Reads a milliseconds granularity time from the stream.
-
-        Int is decoded as python time object which represents
-        the number of milliseconds after midnight, 00:00:00.000.
-        """
-        millis = self.read_int()
-        return micros_to_time(millis * 1000)
-
-    def read_time_micros(self) -> time:
-        """Reads a microseconds granularity time from the stream.
-
-        Long is decoded as python time object which represents
-        the number of microseconds after midnight, 00:00:00.000000.
-        """
-        return micros_to_time(self.read_int())
-
-    def read_timestamp_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamp from the stream.
-
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
-        """
-        return micros_to_timestamp(self.read_int())
-
-    def read_timestamptz_micros(self) -> datetime:
-        """Reads a microsecond granularity timestamptz from the stream.
-
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
-
-        Adjusted to UTC.
-        """
-        return micros_to_timestamptz(self.read_int())
 
     def skip_int(self) -> None:
         skip_int(&self._current)
@@ -237,10 +179,10 @@ cdef class CythonBinaryDecoder:
     def skip_double(self) -> None:
         self._current += 8
 
-    cpdef skip_bytes(self) -> None:
+    def skip_bytes(self) -> None:
         cdef long result;
         decode_longs(&self._current, 1, <unsigned long *>&result)
         self._current += result
 
-    cpdef skip_utf8(self) -> None:
+    def skip_utf8(self) -> None:
         self.skip_bytes()
