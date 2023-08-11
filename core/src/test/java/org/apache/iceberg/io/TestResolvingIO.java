@@ -23,7 +23,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -41,7 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestResolvingIO {
 
-  @TempDir private File tempDir;
+  @TempDir private java.nio.file.Path temp;
 
   @Test
   public void testResolvingFileIOKryoSerialization() throws IOException {
@@ -61,17 +60,16 @@ public class TestResolvingIO {
     resolvingFileIO.setConf(conf);
     resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
 
-    assertThat(resolvingFileIO.ioClass(tempDir.getCanonicalPath())).isEqualTo(HadoopFileIO.class);
-    assertThat(resolvingFileIO.newInputFile(tempDir.getCanonicalPath())).isNotNull();
+    assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
+    assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
 
     ResolvingFileIO roundTripSerializedFileIO =
         TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
     roundTripSerializedFileIO.setConf(conf);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
 
-    assertThat(roundTripSerializedFileIO.ioClass(tempDir.getCanonicalPath()))
-        .isEqualTo(HadoopFileIO.class);
-    assertThat(roundTripSerializedFileIO.newInputFile(tempDir.getCanonicalPath())).isNotNull();
+    assertThat(roundTripSerializedFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
+    assertThat(roundTripSerializedFileIO.newInputFile(temp.toString())).isNotNull();
   }
 
   @Test
@@ -92,16 +90,15 @@ public class TestResolvingIO {
     resolvingFileIO.setConf(conf);
     resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
 
-    assertThat(resolvingFileIO.ioClass(tempDir.getCanonicalPath())).isEqualTo(HadoopFileIO.class);
-    assertThat(resolvingFileIO.newInputFile(tempDir.getCanonicalPath())).isNotNull();
+    assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
+    assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
 
     ResolvingFileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
     roundTripSerializedFileIO.setConf(conf);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
 
-    assertThat(roundTripSerializedFileIO.ioClass(tempDir.getCanonicalPath()))
-        .isEqualTo(HadoopFileIO.class);
-    assertThat(roundTripSerializedFileIO.newInputFile(tempDir.getCanonicalPath())).isNotNull();
+    assertThat(roundTripSerializedFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
+    assertThat(roundTripSerializedFileIO.newInputFile(temp.toString())).isNotNull();
   }
 
   @Test
@@ -109,7 +106,7 @@ public class TestResolvingIO {
     ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
     Configuration hadoopConf = new Configuration();
     FileSystem fs = FileSystem.getLocal(hadoopConf);
-    Path parent = new Path(tempDir.toURI());
+    Path parent = new Path(temp.toUri());
     // configure delegation IO
     HadoopFileIO delegation = new HadoopFileIO(hadoopConf);
     doReturn(delegation).when(resolvingFileIO).io(anyString());
