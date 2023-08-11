@@ -28,7 +28,6 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import datetime, time
 from decimal import Decimal
 from typing import (
     Any,
@@ -46,6 +45,7 @@ from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.lazydict import LazyDictIntInt
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
+from pyiceberg.utils.decimal import bytes_to_decimal, decimal_required_bytes
 from pyiceberg.utils.singleton import Singleton
 
 ReadableDecoder = Union[BinaryDecoder, CythonBinaryDecoder]
@@ -158,6 +158,11 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
+    """Reads a day granularity date from the stream.
+
+    The number of days from 1 January 1970.
+    """
+
     def read(self, decoder: ReadableDecoder) -> int:
         return decoder.read_int()
 
@@ -166,24 +171,44 @@ class DateReader(Reader):
 
 
 class TimeReader(Reader):
-    def read(self, decoder: ReadableDecoder) -> time:
-        return decoder.read_time_micros()
+    """Reads a microsecond granularity timestamp from the stream.
+
+    Long is decoded as an integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+    """
+
+    def read(self, decoder: ReadableDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestampReader(Reader):
-    def read(self, decoder: ReadableDecoder) -> datetime:
-        return decoder.read_timestamp_micros()
+    """Reads a microsecond granularity timestamp from the stream.
+
+    Long is decoded as python integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+    """
+
+    def read(self, decoder: ReadableDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
 
 
 class TimestamptzReader(Reader):
-    def read(self, decoder: ReadableDecoder) -> datetime:
-        return decoder.read_timestamptz_micros()
+    """Reads a microsecond granularity timestamptz from the stream.
+
+    Long is decoded as python integer which represents
+    the number of microseconds from the unix epoch, 1 January 1970.
+
+    Adjusted to UTC.
+    """
+
+    def read(self, decoder: ReadableDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_int()
@@ -199,7 +224,7 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: ReadableDecoder) -> UUID:
-        return decoder.read_uuid_from_fixed()
+        return UUID(bytes=decoder.read(16))
 
     def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip(16)
@@ -225,6 +250,12 @@ class FixedReader(Reader):
 
 
 class BinaryReader(Reader):
+    """Read a binary value.
+
+    First reads an integer, to get the length of the binary value,
+    then reads the binary field itself.
+    """
+
     def read(self, decoder: ReadableDecoder) -> bytes:
         return decoder.read_bytes()
 
@@ -232,13 +263,25 @@ class BinaryReader(Reader):
         decoder.skip_bytes()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class DecimalReader(Reader):
+    """Reads a value as a decimal.
+
+    Decimal bytes are decoded as signed short, int or long depending on the
+    size of bytes.
+    """
+
     precision: int = dataclassfield()
     scale: int = dataclassfield()
+    _length: int
+
+    def __init__(self, precision: int, scale: int):
+        object.__setattr__(self, "precision", precision)
+        object.__setattr__(self, "scale", scale)
+        object.__setattr__(self, "_length", decimal_required_bytes(precision))
 
     def read(self, decoder: ReadableDecoder) -> Decimal:
-        return decoder.read_decimal_from_bytes(self.precision, self.scale)
+        return bytes_to_decimal(decoder.read(self._length), self.scale)
 
     def skip(self, decoder: ReadableDecoder) -> None:
         decoder.skip_bytes()

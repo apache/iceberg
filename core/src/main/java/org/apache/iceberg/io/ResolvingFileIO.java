@@ -133,6 +133,15 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     String impl = implFromLocation(location);
     FileIO io = ioInstances.get(impl);
     if (io != null) {
+      if (io instanceof HadoopConfigurable && ((HadoopConfigurable) io).getConf() == null) {
+        synchronized (ioInstances) {
+          if (((HadoopConfigurable) io).getConf() == null) {
+            // re-apply the config in case it's null after Kryo serialization
+            ((HadoopConfigurable) io).setConf(hadoopConf.get());
+          }
+        }
+      }
+
       return io;
     }
 

@@ -101,13 +101,13 @@ ALTER TABLE db.table CREATE BRANCH `audit-branch` AS OF VERSION 3 RETAIN 7 DAYS
 3. Writes are performed on a separate `audit-branch` independent from the main table history.
 ```sql
 -- WAP Branch write
-SET spark.wap.branch = 'audit-branch'
+SET spark.wap.branch = audit-branch
 INSERT INTO prod.db.table VALUES (3, 'c')
 ```
 4. A validation workflow can validate (e.g. data quality) the state of `audit-branch`.
 5. After validation, the main branch can be `fastForward` to the head of `audit-branch` to update the main table state.
-```java
-table.manageSnapshots().fastForward("main", "audit-branch").commit()
+```sql
+CALL catalog_name.system.fast_forward('prod.db.table', 'main', 'audit-branch')
 ```
 6. The branch reference will be removed when `expireSnapshots` is run 1 week later.
 

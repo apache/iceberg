@@ -608,8 +608,8 @@ project(':iceberg-gcp') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
 
-    implementation platform(libs.google.libraries.bom)
-    implementation "com.google.cloud:google-cloud-storage"
+    compileOnly platform(libs.google.libraries.bom)
+    compileOnly "com.google.cloud:google-cloud-storage"
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
