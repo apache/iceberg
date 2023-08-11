@@ -30,6 +30,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromByteStream
 from pyiceberg.table import SortOrder
 from pyiceberg.table.metadata import (
+    TableMetadataFactory,
     TableMetadataUtil,
     TableMetadataV1,
     TableMetadataV2,
@@ -49,39 +50,65 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from tests.conftest import EXAMPLE_TABLE_METADATA_V2
+
+EXAMPLE_TABLE_METADATA_V1 = {
+    "format-version": 1,
+    "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+    "location": "s3://bucket/test/location",
+    "last-updated-ms": 1602638573874,
+    "last-column-id": 3,
+    "schema": {
+        "type": "struct",
+        "fields": [
+            {"id": 1, "name": "x", "required": True, "type": "long"},
+            {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+            {"id": 3, "name": "z", "required": True, "type": "long"},
+        ],
+    },
+    "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
+    "properties": {},
+    "current-snapshot-id": -1,
+    "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
+}
 
 
 @pytest.fixture(scope="session")
 def example_table_metadata_v1() -> Dict[str, Any]:
-    return {
-        "format-version": 1,
-        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
-        "location": "s3://bucket/test/location",
-        "last-updated-ms": 1602638573874,
-        "last-column-id": 3,
-        "schema": {
-            "type": "struct",
-            "fields": [
-                {"id": 1, "name": "x", "required": True, "type": "long"},
-                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-                {"id": 3, "name": "z", "required": True, "type": "long"},
-            ],
-        },
-        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-        "properties": {},
-        "current-snapshot-id": -1,
-        "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
-    }
+    return EXAMPLE_TABLE_METADATA_V1
 
 
 def test_from_dict_v1(example_table_metadata_v1: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
+    TableMetadataUtil.parse_obj(example_table_metadata_v1)
+
+
+def test_from_dict_v1_parse_raw(example_table_metadata_v1: Dict[str, Any]) -> None:
+    """Test initialization of a TableMetadata instance from a str"""
     TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v1))
 
 
 def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
+    TableMetadataUtil.parse_obj(example_table_metadata_v2)
+
+
+def test_from_dict_v2_parse_raw(example_table_metadata_v2: Dict[str, Any]) -> None:
+    """Test initialization of a TableMetadata instance from a str"""
     TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
+
+
+@pytest.mark.parametrize(
+    "table_metadata, expected_version",
+    [
+        (EXAMPLE_TABLE_METADATA_V1, 1),
+        (EXAMPLE_TABLE_METADATA_V2, 2),
+    ],
+)
+def test_table_metadata_factory(table_metadata: Dict[str, Any], expected_version: int) -> None:
+    """Test initialization of a TableMetadataFactory instance"""
+    factory = TableMetadataFactory(table_metadata=table_metadata)
+    assert factory.table_metadata.format_version == expected_version
 
 
 def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -93,7 +120,7 @@ def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test retrieving values from a TableMetadata instance of version 2"""
-    table_metadata = TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
+    table_metadata = TableMetadataFactory(table_metadata=example_table_metadata_v2).table_metadata
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1")
