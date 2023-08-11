@@ -140,7 +140,7 @@ public class SnapshotManager implements ManageSnapshots {
 ### Checking for API breakages
 Running `./gradlew revapi` will flag this as an API-breaking change:
 ```
-./gradlew revapi                                                                                                                                                                                                                                                    ──(Fri,Aug11)─┘
+./gradlew revapi
 > Task :iceberg-api:revapi FAILED
 > Task :iceberg-api:showDeprecationRulesOnRevApiFailure FAILED
 
