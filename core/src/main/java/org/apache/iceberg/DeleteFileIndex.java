@@ -42,6 +42,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -50,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -445,10 +445,8 @@ class DeleteFileIndex {
       return this;
     }
 
-    private Collection<DeleteFile> filterDeleteFiles() {
-      return Streams.stream(deleteFiles)
-          .filter(file -> file.dataSequenceNumber() > minSequenceNumber)
-          .collect(Collectors.toList());
+    private Iterable<DeleteFile> filterDeleteFiles() {
+      return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
 
     private Collection<DeleteFile> loadDeleteFiles() {
@@ -476,7 +474,7 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
-      Collection<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
+      Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
       // build a map from (specId, partition) to delete file entries
       Map<Integer, StructLikeWrapper> wrappersBySpecId = Maps.newHashMap();
@@ -490,6 +488,7 @@ class DeleteFileIndex {
                 .computeIfAbsent(specId, id -> StructLikeWrapper.forType(spec.partitionType()))
                 .copyFor(file.partition());
         deleteFilesByPartition.put(Pair.of(specId, wrapper), new IndexedDeleteFile(spec, file));
+        ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }
 
       // sort the entries in each map value by sequence number and split into sequence numbers and
@@ -528,19 +527,6 @@ class DeleteFileIndex {
           sortedDeletesByPartition.put(partition, new DeleteFileGroup(filesSortedBySeq));
         }
       }
-
-      scanMetrics.indexedDeleteFiles().increment(files.size());
-      deleteFilesByPartition
-          .values()
-          .forEach(
-              file -> {
-                FileContent content = file.content();
-                if (content == FileContent.EQUALITY_DELETES) {
-                  scanMetrics.equalityDeleteFiles().increment();
-                } else if (content == FileContent.POSITION_DELETES) {
-                  scanMetrics.positionalDeleteFiles().increment();
-                }
-              });
 
       return new DeleteFileIndex(specsById, globalDeletes, sortedDeletesByPartition);
     }
