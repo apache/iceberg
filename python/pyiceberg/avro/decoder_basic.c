@@ -18,16 +18,19 @@
 */
 
 /*
-  Decode an an array of zig-zag encoded integers from a buffer.
+  Decode an an array of zig-zag encoded longs from a buffer.
 
   The buffer is advanced to the end of the integers.
   `count` is the number of integers to decode.
   `result` is where the decoded integers are stored.
 
 */
-static inline void decode_ints_with_ptr(const char **buffer, unsigned int count, unsigned long *result) {
-  unsigned int shift;
-  unsigned int i;
+static inline void decode_longs(const char **buffer, unsigned int count, unsigned long *result) {
+  // The largest shift will always be < 64
+  unsigned char shift;
+
+  // The largest this could ever be is 10
+  unsigned char i;
 
   for (i = 0; i < count; i++) {
     shift = 7;
@@ -37,7 +40,7 @@ static inline void decode_ints_with_ptr(const char **buffer, unsigned int count,
         *result |= (unsigned long)(**buffer & 0x7F) << shift;
         shift += 7;
     }
-    *result = (*result >> 1) ^ -(*result & 1);
+    *result = (*result >> 1) ^ (~(*result & 1) + 1);
     result += 1;
     *buffer += 1;
   }

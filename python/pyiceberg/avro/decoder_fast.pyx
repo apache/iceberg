@@ -31,7 +31,7 @@ import decimal
 import array
 
 cdef extern from "decoder_basic.c":
-  void decode_ints_with_ptr(const char **buffer, unsigned int count, unsigned long *result);
+  void decode_longs(const char **buffer, unsigned int count, unsigned long *result);
   void skip_int(const char **buffer);
 
 unsigned_long_array_template = cython.declare(array.array, array.array('L', []))
@@ -98,7 +98,7 @@ cdef class CythonBinaryDecoder:
         cdef unsigned long result;
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&result)
+        decode_longs(&self._current, 1, <unsigned long *>&result)
         return result
 
     def read_ints(self, count: int) -> Tuple[int, ...]:
@@ -106,7 +106,7 @@ cdef class CythonBinaryDecoder:
         newarray = array.clone(unsigned_long_array_template, count, zero=False)
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_ints_with_ptr(&self._current, count, newarray.data.as_ulongs)
+        decode_longs(&self._current, count, newarray.data.as_ulongs)
         return newarray
 
     cpdef void read_int_bytes_dict(self, count: int, dest: Dict[int, bytes]):
@@ -116,7 +116,7 @@ cdef class CythonBinaryDecoder:
           raise EOFError(f"EOF: read 1 bytes")
 
         for _ in range(count):
-          decode_ints_with_ptr(&self._current, 2, <unsigned long *>&result)
+          decode_longs(&self._current, 2, <unsigned long *>&result)
           if result[1] <= 0:
               dest[result[0]] = b""
           else:
@@ -129,7 +129,7 @@ cdef class CythonBinaryDecoder:
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
 
-        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&length)
+        decode_longs(&self._current, 1, <unsigned long *>&length)
 
         if length <= 0:
             return b""
@@ -237,10 +237,10 @@ cdef class CythonBinaryDecoder:
     def skip_double(self) -> None:
         self._current += 8
 
-    def skip_bytes(self) -> None:
+    cpdef skip_bytes(self) -> None:
         cdef long result;
-        decode_ints_with_ptr(&self._current, 1, <unsigned long *>&result)
+        decode_longs(&self._current, 1, <unsigned long *>&result)
         self._current += result
 
-    def skip_utf8(self) -> None:
+    cpdef skip_utf8(self) -> None:
         self.skip_bytes()
