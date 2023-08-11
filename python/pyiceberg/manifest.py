@@ -286,8 +286,7 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
 MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
 
 POSITIONAL_DELETE_SCHEMA = Schema(
-    NestedField(2147483546, "file_path", StringType()),
-    NestedField(2147483545, "pos", IntegerType()),
+    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
 )
 
 
