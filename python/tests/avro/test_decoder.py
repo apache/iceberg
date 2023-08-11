@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import io
+import struct
 from datetime import datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
@@ -82,6 +83,25 @@ def test_read_int_longer(decoder_class: CALLABLE_DECODER) -> None:
     mis = io.BytesIO(b"\x8e\xd1\x87\x01")
     decoder = decoder_class(mis)
     assert decoder.read_int() == 1111111
+
+def zigzag_encode(datum: int) -> bytes:
+    result = []
+    datum = (datum << 1) ^ (datum >> 63)
+    while (datum & ~0x7F) != 0:
+        result.append(struct.pack("B", (datum & 0x7F) | 0x80))
+        datum >>= 7
+    result.append(struct.pack("B", datum))
+    return b"".join(result)
+
+import itertools
+
+@pytest.mark.parametrize("decoder_class, expected_value", list(itertools.product(AVAILABLE_DECODERS, [0, -1, 2**32, -2**32, (2**63-1), -(2**63)])))
+def test_read_int_custom_encode(decoder_class: CALLABLE_DECODER, expected_value: int) -> None:
+    encoded = zigzag_encode(expected_value)
+    mis = io.BytesIO(encoded)
+    decoder = decoder_class(mis)
+    decoded = decoder.read_int()
+    assert decoded == expected_value, f"Decoded value does not match decoded={decoded} expected={expected_value}"
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
