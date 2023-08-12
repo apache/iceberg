@@ -124,6 +124,15 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       assertThat(table.spec().fields()).hasSize(1);
       assertThat(table.properties()).containsEntry("key1", "value1");
       assertThat(table.properties()).containsEntry("key2", "value2");
+      // Default Parquet compression is explicitly set for new tables
+      assertThat(table.properties())
+          .containsEntry(
+              TableProperties.PARQUET_COMPRESSION,
+              TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+      assertThat(table.properties())
+          .containsEntry(
+              TableProperties.DELETE_PARQUET_COMPRESSION,
+              TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -146,6 +155,15 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       assertThat(table.spec().fields()).hasSize(1);
       assertThat(table.properties()).containsEntry("key1", "value1");
       assertThat(table.properties()).containsEntry("key2", "value2");
+      // Default Parquet compression is explicitly set for new tables
+      assertThat(table.properties())
+          .containsEntry(
+              TableProperties.PARQUET_COMPRESSION,
+              TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+      assertThat(table.properties())
+          .containsEntry(
+              TableProperties.DELETE_PARQUET_COMPRESSION,
+              TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
     } finally {
       cachingCatalog.dropTable(tableIdent);
     }

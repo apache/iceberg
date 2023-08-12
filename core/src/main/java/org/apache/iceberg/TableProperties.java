@@ -143,6 +143,7 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  public static final String PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0 = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =

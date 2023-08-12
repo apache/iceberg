@@ -21,7 +21,7 @@ package org.apache.iceberg.mr;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -32,12 +32,14 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -126,7 +128,9 @@ public class TestCatalogs {
     Assert.assertEquals(properties.getProperty("location"), table.location());
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
-    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+    Map<String, String> expected = defaultProperties();
+    expected.put("dummy", "test");
+    Assert.assertEquals(expected, table.properties());
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
         .isInstanceOf(NullPointerException.class)
@@ -178,7 +182,9 @@ public class TestCatalogs {
 
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
-    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+    Map<String, String> expected = defaultProperties();
+    expected.put("dummy", "test");
+    Assert.assertEquals(expected, table.properties());
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
         .isInstanceOf(NullPointerException.class)
@@ -292,5 +298,16 @@ public class TestCatalogs {
         InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_IMPL),
         CustomHadoopCatalog.class.getName());
     conf.set(InputFormatConfig.CATALOG_NAME, catalogName);
+  }
+
+  private Map<String, String> defaultProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    properties.put(
+        TableProperties.DELETE_PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    return properties;
   }
 }

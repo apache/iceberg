@@ -47,6 +47,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseSessionCatalog;
@@ -592,6 +593,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       this.ident = ident;
       this.schema = schema;
       this.context = context;
+
+      // Explicitly set default Parquet compression codecs for new tables
+      propertiesBuilder.put(
+          TableProperties.PARQUET_COMPRESSION,
+          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+      propertiesBuilder.put(
+          TableProperties.DELETE_PARQUET_COMPRESSION,
+          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
     }
 
     @Override

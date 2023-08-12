@@ -44,11 +44,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -121,12 +121,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
+    Assert.assertEquals(defaultProperties(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(defaultProperties(), catalogTable.getOptions());
   }
 
   @Test
@@ -176,7 +176,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT)");
 
     // Assert that table does exist.
-    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+    Assert.assertEquals(defaultProperties(), table("tl").properties());
 
     sql("DROP TABLE tl");
     AssertHelpers.assertThrows(
@@ -186,9 +186,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         () -> table("tl"));
 
     sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
-    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+    Assert.assertEquals(defaultProperties(), table("tl").properties());
 
-    final Map<String, String> expectedProperties = ImmutableMap.of("key", "value");
+    Map<String, String> expectedProperties = defaultProperties();
+    expectedProperties.put("key", "value");
     table("tl").updateProperties().set("key", "value").commit();
     Assert.assertEquals(expectedProperties, table("tl").properties());
 
@@ -206,12 +207,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
+    Assert.assertEquals(defaultProperties(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl2");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(defaultProperties(), catalogTable.getOptions());
   }
 
   @Test
@@ -226,7 +227,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
     Assert.assertEquals("file:///tmp/location", table.location());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
+    Assert.assertEquals(defaultProperties(), table.properties());
   }
 
   @Test
@@ -242,7 +243,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(
         PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
+    Assert.assertEquals(defaultProperties(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
@@ -251,7 +252,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .field("dt", DataTypes.STRING())
             .build(),
         catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(defaultProperties(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
   }
 
@@ -304,14 +305,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(defaultProperties(), catalogTable.getOptions());
     Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
   }
 
   @Test
   public void testAlterTable() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
-    Map<String, String> properties = Maps.newHashMap();
+    Map<String, String> properties = defaultProperties();
     properties.put("oldK", "oldV");
 
     // new
@@ -337,7 +338,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   @Test
   public void testAlterTableWithPrimaryKey() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT, PRIMARY KEY(id) NOT ENFORCED) WITH ('oldK'='oldV')");
-    Map<String, String> properties = Maps.newHashMap();
+    Map<String, String> properties = defaultProperties();
     properties.put("oldK", "oldV");
 
     // new
@@ -441,5 +442,16 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .getCatalog(getTableEnv().getCurrentCatalog())
             .get()
             .getTable(new ObjectPath(DATABASE, name));
+  }
+
+  private Map<String, String> defaultProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    properties.put(
+        TableProperties.DELETE_PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    return properties;
   }
 }

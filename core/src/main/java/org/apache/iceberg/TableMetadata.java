@@ -68,7 +68,12 @@ public class TableMetadata implements Serializable {
         PropertyUtil.propertyAsInt(
             properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(
-        schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+        schema,
+        spec,
+        sortOrder,
+        location,
+        withPersistedProperties(unreservedProperties(properties)),
+        formatVersion);
   }
 
   public static TableMetadata newTableMetadata(
@@ -78,13 +83,30 @@ public class TableMetadata implements Serializable {
         PropertyUtil.propertyAsInt(
             properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(
-        schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+        schema,
+        spec,
+        sortOrder,
+        location,
+        withPersistedProperties(unreservedProperties(properties)),
+        formatVersion);
   }
 
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
     return rawProperties.entrySet().stream()
         .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private static Map<String, String> withPersistedProperties(Map<String, String> properties) {
+    Map<String, String> persistedProperties = Maps.newHashMap();
+    persistedProperties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    persistedProperties.put(
+        TableProperties.DELETE_PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    persistedProperties.putAll(properties);
+    return ImmutableMap.copyOf(persistedProperties);
   }
 
   static TableMetadata newTableMetadata(
@@ -119,7 +141,7 @@ public class TableMetadata implements Serializable {
     int freshSortOrderId = sortOrder.isUnsorted() ? sortOrder.orderId() : INITIAL_SORT_ORDER_ID;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, sortOrder);
 
-    // Validate the metrics configuration. Note: we only do this on new tables to we don't
+    // Validate the metrics configuration. Note: we only do this on new tables to not
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 

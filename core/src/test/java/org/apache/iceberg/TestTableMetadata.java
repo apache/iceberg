@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -1461,10 +1462,10 @@ public class TestTableMetadata {
         "format version should be configured based on the format-version key",
         2,
         meta.formatVersion());
+    Map<String, String> expected = defaultProperties();
+    expected.put("key", "val");
     Assert.assertEquals(
-        "should not contain format-version in properties",
-        ImmutableMap.of("key", "val"),
-        meta.properties());
+        "should not contain format-version in properties", expected, meta.properties());
   }
 
   @Test
@@ -1490,9 +1491,12 @@ public class TestTableMetadata {
         "format version should be configured based on the format-version key",
         2,
         meta.formatVersion());
+    Map<String, String> expected = defaultProperties();
+    expected.put("key", "val");
+    expected.put("key2", "val2");
     Assert.assertEquals(
         "should not contain format-version but should contain old and new properties",
-        ImmutableMap.of("key", "val", "key2", "val2"),
+        expected,
         meta.properties());
   }
 
@@ -1594,5 +1598,16 @@ public class TestTableMetadata {
     }
 
     return localInput(manifestList).location();
+  }
+
+  private Map<String, String> defaultProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    properties.put(
+        TableProperties.DELETE_PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    return properties;
   }
 }
