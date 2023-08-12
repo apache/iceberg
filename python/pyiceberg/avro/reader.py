@@ -42,10 +42,10 @@ from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
-from pyiceberg.avro.lazydict import LazyDictIntInt
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.decimal import bytes_to_decimal, decimal_required_bytes
+from pyiceberg.utils.lazydict import LazyDict
 from pyiceberg.utils.singleton import Singleton
 
 ReadableDecoder = Union[BinaryDecoder, CythonBinaryDecoder]
@@ -450,7 +450,7 @@ class MapReader(Reader):
                 decoder.skip_int()
             contents_array.append(decoder.read_ints(block_count * 2))
             block_count = decoder.read_int()
-        return LazyDictIntInt(tuple(contents_array))
+        return LazyDict(contents_array)
 
     def read(self, decoder: ReadableDecoder) -> Mapping[Any, Any]:
         read_items: dict[Any, Any] = {}

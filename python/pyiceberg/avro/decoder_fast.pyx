@@ -19,7 +19,6 @@ import cython
 from cython.cimports.cpython import array
 from datetime import datetime, time
 from uuid import UUID
-from pyiceberg.avro.lazydict import LazyDictIntInt
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from pyiceberg.utils.decimal import unscaled_to_decimal
