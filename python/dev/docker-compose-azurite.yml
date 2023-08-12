@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-version: '3'
+version: "3"
 
 services:
-    azurite:
-        image: mcr.microsoft.com/azure-storage/azurite
-        container_name: azurite
-        hostname: azurite
-        ports:
-            - 10000:10000
-        command: ['azurite-blob', '--loose', '--blobHost', '0.0.0.0']
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: azurite
+    hostname: azurite
+    ports:
+      - 10000:10000
+    command: ["azurite-blob", "--loose", "--blobHost", "0.0.0.0"]
