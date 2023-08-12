@@ -49,7 +49,7 @@ public class GCSLocationTest {
   }
 
   @Test
-  public void tesInvalidScheme() {
+  public void testInvalidScheme() {
     Assertions.assertThatThrownBy(() -> new GCSLocation("s3://bucket/path/to/prefix"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid GCS URI, invalid scheme: s3");
