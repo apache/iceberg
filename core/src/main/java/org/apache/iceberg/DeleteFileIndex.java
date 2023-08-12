@@ -93,7 +93,7 @@ class DeleteFileIndex {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specs.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
-    this.wrapperById = Maps.newConcurrentMap();
+    this.wrapperById = wrappers(specs);
     this.globalDeletes = globalDeletes;
     this.deletesByPartition = deletesByPartition;
     this.isEmpty = globalDeletes == null && deletesByPartition.isEmpty();
@@ -117,13 +117,20 @@ class DeleteFileIndex {
     return deleteFiles;
   }
 
-  private StructLikeWrapper newWrapper(int specId) {
-    return StructLikeWrapper.forType(partitionTypeById.get(specId));
+  // use HashMap with precomputed values instead of thread-safe collections loaded on demand
+  // as the cache is being accessed for each data file and the lookup speed is critical
+  private Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers(Map<Integer, PartitionSpec> specs) {
+    Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers = Maps.newHashMap();
+    specs.forEach((specId, spec) -> wrappers.put(specId, newWrapper(specId)));
+    return wrappers;
+  }
+
+  private ThreadLocal<StructLikeWrapper> newWrapper(int specId) {
+    return ThreadLocal.withInitial(() -> StructLikeWrapper.forType(partitionTypeById.get(specId)));
   }
 
   private Pair<Integer, StructLikeWrapper> partition(int specId, StructLike struct) {
-    ThreadLocal<StructLikeWrapper> wrapper =
-        wrapperById.computeIfAbsent(specId, id -> ThreadLocal.withInitial(() -> newWrapper(id)));
+    ThreadLocal<StructLikeWrapper> wrapper = wrapperById.get(specId);
     return Pair.of(specId, wrapper.get().set(struct));
   }
 
