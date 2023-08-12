@@ -17,14 +17,15 @@
 
 from pyiceberg.utils.lazydict import LazyDict
 
+
 def test_lazy_dict_ints() -> None:
     lazy_dict = LazyDict[int, int]([[1, 2], [3, 4]])
-    assert(lazy_dict[1] == 2)
-    assert(lazy_dict[3] == 4)
+    assert lazy_dict[1] == 2
+    assert lazy_dict[3] == 4
 
 
 def test_lazy_dict_strings() -> None:
     lazy_dict = LazyDict[int, str]([[1, "red", 5, "banana"], [3, "blue"]])
-    assert(lazy_dict[1] == "red")
-    assert(lazy_dict[3] == "blue")
-    assert(lazy_dict[5] == "banana")
+    assert lazy_dict[1] == "red"
+    assert lazy_dict[3] == "blue"
+    assert lazy_dict[5] == "banana"

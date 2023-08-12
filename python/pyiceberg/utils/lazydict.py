@@ -19,15 +19,16 @@ from typing import (
     Dict,
     Iterator,
     Mapping,
-    TypeVar,
-    Sequence,
-    Union,
     Optional,
-    cast
+    Sequence,
+    TypeVar,
+    Union,
+    cast,
 )
 
-K = TypeVar('K')
-V = TypeVar('V')
+K = TypeVar("K")
+V = TypeVar("V")
+
 
 class LazyDict(Mapping[K, V]):
     """Lazily build a dictionary from an array of items."""
