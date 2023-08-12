@@ -16,7 +16,12 @@
 # under the License.
 from abc import ABC, abstractmethod
 from io import SEEK_CUR
-from typing import Dict, List, Tuple
+from typing import (
+    Dict,
+    List,
+    Tuple,
+    cast,
+)
 
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
@@ -68,13 +73,6 @@ class BinaryDecoder(ABC):
         """Reads a list of integers."""
         return tuple(self.read_int() for _ in range(n))
 
-    def read_int_int_dict(self, n: int, dest: Dict[int, int]) -> None:
-        """Reads a dictionary of integers for keys and values into a destination dictionary."""
-        for _ in range(n):
-            k = self.read_int()
-            v = self.read_int()
-            dest[k] = v
-
     def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
         """Reads a dictionary of integers for keys and bytes for values into a destination dictionary."""
         for _ in range(n):
@@ -89,7 +87,7 @@ class BinaryDecoder(ABC):
         The float is converted into a 32-bit integer using a method equivalent to
         Java's floatToIntBits and then encoded in little-endian format.
         """
-        return float(STRUCT_FLOAT.unpack(self.read(4))[0])
+        return float(cast(Tuple[float, ...], STRUCT_FLOAT.unpack(self.read(4)))[0])
 
     def read_double(self) -> float:
         """Reads a value from the stream as a double.
@@ -98,7 +96,7 @@ class BinaryDecoder(ABC):
         The double is converted into a 64-bit integer using a method equivalent to
         Java's doubleToLongBits and then encoded in little-endian format.
         """
-        return float(STRUCT_DOUBLE.unpack(self.read(8))[0])
+        return float(cast(Tuple[float, ...], STRUCT_DOUBLE.unpack(self.read(8)))[0])
 
     def read_bytes(self) -> bytes:
         """Bytes are encoded as a long followed by that many bytes of data."""

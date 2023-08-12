@@ -396,6 +396,10 @@ class ListReader(Reader):
         return self._hash
 
 
+# Represent an empty dict as a singleton
+EMPTY_DICT: dict[Any, Any] = {}
+
+
 @dataclass(frozen=False, init=False)
 class MapReader(Reader):
     __slots__ = ("key", "value", "_is_int_int", "_is_int_bytes", "_key_reader", "_value_reader", "_hash")
@@ -416,16 +420,39 @@ class MapReader(Reader):
             self._value_reader = self.value.read
         self._hash = hash((self.key, self.value))
 
-    def read_int_int(self, decoder: ReadableDecoder) -> Mapping[int, int]:
-        contents_array: List[Tuple[int, ...]] = []
+    def _read_int_int(self, decoder: ReadableDecoder) -> Mapping[int, int]:
+        """Read a mapping from int to int from the decoder.
+
+        Read a map of ints to ints from the decoder, since this is such a common
+        data type, it is optimized to be faster than the generic map reader, by
+        using a lazy dict.
+
+        The time it takes to create the python dictionary is much larger than
+        the time it takes to read the data from the decoder as an array, so the
+        lazy dict defers creating the python dictionary until it is actually
+        accessed.
+
+        """
         block_count = decoder.read_int()
+
+        # Often times the map is empty, so we can just return an empty dict without
+        # instancing the LazyDict
+        if block_count == 0:
+            return EMPTY_DICT
+
+        contents_array: List[Tuple[int, ...]] = []
+
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
                 # We ignore the block size for now
                 decoder.skip_int()
+
+            # Since the integers are encoding right next to each other
+            # just read them all at once.
             contents_array.append(decoder.read_ints(block_count * 2))
             block_count = decoder.read_int()
+
         return LazyDict(contents_array)
 
     def read(self, decoder: ReadableDecoder) -> Mapping[Any, Any]:
@@ -433,7 +460,7 @@ class MapReader(Reader):
 
         if self._is_int_int or self._is_int_bytes:
             if self._is_int_int:
-                return self.read_int_int(decoder)
+                return self._read_int_int(decoder)
 
             block_count = decoder.read_int()
             while block_count != 0:

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import cython
 from cython.cimports.cpython import array
 from datetime import datetime, time
@@ -30,8 +29,8 @@ import decimal
 import array
 
 cdef extern from "decoder_basic.c":
-  void decode_longs(const char **buffer, unsigned int count, unsigned long *result);
-  void skip_int(const char **buffer);
+  void decode_longs(const unsigned char **buffer, unsigned int count, unsigned long *result);
+  void skip_int(const unsigned char **buffer);
 
 unsigned_long_array_template = cython.declare(array.array, array.array('L', []))
 
@@ -42,13 +41,13 @@ cdef class CythonBinaryDecoder:
     """
 
     # This the data that is duplicated when the decoder is created.
-    cdef char *_data
+    cdef unsigned char *_data
 
     # This is the current pointer to the buffer.
-    cdef const char *_current
+    cdef const unsigned char *_current
 
     # This is the address after the data buffer
-    cdef const char *_end
+    cdef const unsigned char *_end
 
     # This is the size of the buffer of the data being parsed.
     cdef unsigned int _size
@@ -57,10 +56,10 @@ cdef class CythonBinaryDecoder:
         self._size = len(input_contents)
 
         # Make a copy of the data so the data can be iterated.
-        self._data = <char *> PyMem_Malloc(self._size * sizeof(char))
+        self._data = <unsigned char *> PyMem_Malloc(self._size * sizeof(char))
         if not self._data:
             raise MemoryError()
-        cdef const char *input_as_array = input_contents
+        cdef const unsigned char *input_as_array = input_contents
         memcpy(self._data, input_as_array, self._size)
         self._end = self._data + self._size
         self._current = self._data
@@ -76,7 +75,7 @@ cdef class CythonBinaryDecoder:
         """Read n bytes."""
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        cdef const char *r = self._current
+        cdef const unsigned char *r = self._current
         self._current += n
         return r[0:n]
 
@@ -132,7 +131,7 @@ cdef class CythonBinaryDecoder:
 
         if length <= 0:
             return b""
-        cdef const char *r = self._current
+        cdef const unsigned char *r = self._current
         self._current += length
         return r[0:length]
 

@@ -33,7 +33,7 @@ V = TypeVar("V")
 class LazyDict(Mapping[K, V]):
     """Lazily build a dictionary from an array of items."""
 
-    __slots__ = ("_contents", "_dict", "_len")
+    __slots__ = ("_contents", "_dict")
 
     # Since Python's type system is not powerful enough to express the type of the
     # contents of the dictionary, we use specify the type as a sequence of either K or V
@@ -44,7 +44,6 @@ class LazyDict(Mapping[K, V]):
     def __init__(self, contents: Sequence[Sequence[Union[K, V]]]):
         self._contents = contents
         self._dict: Optional[Dict[K, V]] = None
-        self._len = len(self._contents) // 2
 
     def _build_dict(self) -> Dict[K, V]:
         self._dict = {}
@@ -65,4 +64,5 @@ class LazyDict(Mapping[K, V]):
 
     def __len__(self) -> int:
         """Returns the number of items in the dictionary."""
-        return self._len
+        source = self._dict or self._build_dict()
+        return len(source)

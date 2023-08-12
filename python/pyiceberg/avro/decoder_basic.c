@@ -25,33 +25,35 @@
   `result` is where the decoded integers are stored.
 
 */
-static inline void decode_longs(const char **buffer, unsigned int count, unsigned long *result) {
+static inline void decode_longs(const unsigned char **buffer, unsigned int count, unsigned long *result) {
+  unsigned int current_index;
+  const unsigned char *current_position = *buffer;
+  unsigned long temp;
   // The largest shift will always be < 64
   unsigned char shift;
 
-  // The largest this could ever be is 10
-  unsigned char i;
-
-  for (i = 0; i < count; i++) {
+  for (current_index = 0; current_index < count; current_index++) {
     shift = 7;
-    *result = **buffer & 0x7F;
-    while(**buffer & 0x80) {
-        *buffer += 1;
-        *result |= (unsigned long)(**buffer & 0x7F) << shift;
+    temp = *current_position & 0x7F;
+    while(*current_position & 0x80) {
+        current_position += 1;
+        temp |= (unsigned long)(*current_position & 0x7F) << shift;
         shift += 7;
     }
-    *result = (*result >> 1) ^ (~(*result & 1) + 1);
-    result += 1;
-    *buffer += 1;
+    result[current_index] = (temp >> 1) ^ (~(temp & 1) + 1);
+    current_position += 1;
   }
+  *buffer = current_position;
 }
+
+
 
 /*
   Skip a zig-zag encoded integer in a buffer.
 
   The buffer is advanced to the end of the integer.
 */
-static inline void skip_int(const char **buffer) {
+static inline void skip_int(const unsigned char **buffer) {
   while(**buffer & 0x80) {
     *buffer += 1;
   }
