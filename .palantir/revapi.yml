@@ -801,6 +801,94 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method java.lang.String org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate)"
+      new: "method java.lang.String org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate,\
+        \ org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method java.lang.String org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate,\
+        \ boolean)"
+      new: "method java.lang.String org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate,\
+        \ boolean, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method java.lang.String org.apache.iceberg.SnapshotParser::toJson(org.apache.iceberg.Snapshot)"
+      new: "method java.lang.String org.apache.iceberg.SnapshotParser::toJson(org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method java.lang.String org.apache.iceberg.SnapshotParser::toJson(org.apache.iceberg.Snapshot,\
+        \ boolean)"
+      new: "method java.lang.String org.apache.iceberg.SnapshotParser::toJson(org.apache.iceberg.Snapshot,\
+        \ boolean, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method java.lang.String org.apache.iceberg.TableMetadataParser::toJson(org.apache.iceberg.TableMetadata)"
+      new: "method java.lang.String org.apache.iceberg.TableMetadataParser::toJson(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.Snapshot org.apache.iceberg.SnapshotParser::fromJson(java.lang.String)"
+      new: "method org.apache.iceberg.Snapshot org.apache.iceberg.SnapshotParser::fromJson(java.lang.String,\
+        \ org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::fromJson(java.lang.String)"
+      new: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::fromJson(java.lang.String,\
+        \ org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::fromJson(java.lang.String,\
+        \ java.lang.String)"
+      new: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::fromJson(java.lang.String,\
+        \ java.lang.String, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::read(org.apache.iceberg.io.FileIO,\
+        \ java.lang.String)"
+      new: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::read(org.apache.iceberg.io.FileIO,\
+        \ java.lang.String, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::read(org.apache.iceberg.io.FileIO,\
+        \ org.apache.iceberg.io.InputFile)"
+      new: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::read(org.apache.iceberg.io.FileIO,\
+        \ org.apache.iceberg.io.InputFile, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate,\
+        \ com.fasterxml.jackson.core.JsonGenerator) throws java.io.IOException"
+      new: "method void org.apache.iceberg.MetadataUpdateParser::toJson(org.apache.iceberg.MetadataUpdate,\
+        \ com.fasterxml.jackson.core.JsonGenerator, org.apache.iceberg.io.LocationRelativizer)\
+        \ throws java.io.IOException"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.TableMetadataParser::internalWrite(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile, boolean)"
+      new: "method void org.apache.iceberg.TableMetadataParser::internalWrite(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile, boolean, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.TableMetadataParser::overwrite(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile)"
+      new: "method void org.apache.iceberg.TableMetadataParser::overwrite(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.TableMetadataParser::toJson(org.apache.iceberg.TableMetadata,\
+        \ com.fasterxml.jackson.core.JsonGenerator) throws java.io.IOException"
+      new: "method void org.apache.iceberg.TableMetadataParser::toJson(org.apache.iceberg.TableMetadata,\
+        \ com.fasterxml.jackson.core.JsonGenerator, org.apache.iceberg.io.LocationRelativizer)\
+        \ throws java.io.IOException"
+      justification: "{why this break is ok_}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.TableMetadataParser::write(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile)"
+      new: "method void org.apache.iceberg.TableMetadataParser::write(org.apache.iceberg.TableMetadata,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.LocationRelativizer)"
+      justification: "{why this break is ok_}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

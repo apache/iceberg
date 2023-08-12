@@ -49,7 +49,7 @@ public class TestSnapshotJson {
         new BaseSnapshot(
             0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
     String json = SnapshotParser.toJson(expected, locationRelativizer);
-    Snapshot snapshot = SnapshotParser.fromJson(json);
+    Snapshot snapshot = SnapshotParser.fromJson(json, locationRelativizer);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals(
@@ -69,7 +69,7 @@ public class TestSnapshotJson {
         new BaseSnapshot(
             0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
     String json = SnapshotParser.toJson(expected, locationRelativizer);
-    Snapshot snapshot = SnapshotParser.fromJson(json);
+    Snapshot snapshot = SnapshotParser.fromJson(json, locationRelativizer);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals(
@@ -98,7 +98,7 @@ public class TestSnapshotJson {
             manifestList);
 
     String json = SnapshotParser.toJson(expected, locationRelativizer);
-    Snapshot snapshot = SnapshotParser.fromJson(json);
+    Snapshot snapshot = SnapshotParser.fromJson(json, locationRelativizer);
 
     Assert.assertEquals("Sequence number should default to 0 for v1", 0, snapshot.sequenceNumber());
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
@@ -152,7 +152,7 @@ public class TestSnapshotJson {
 
     String json = SnapshotParser.toJson(expected, true, locationRelativizer);
     Assertions.assertThat(json).isEqualTo(expectedJson);
-    Snapshot snapshot = SnapshotParser.fromJson(json);
+    Snapshot snapshot = SnapshotParser.fromJson(json, locationRelativizer);
     Assertions.assertThat(snapshot).isEqualTo(expected);
 
     Assert.assertEquals("Sequence number should default to 0 for v1", 0, snapshot.sequenceNumber());

@@ -109,7 +109,8 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testRoundTripSerdeWithV1TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata v1Metadata =
-        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(
+            TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
@@ -127,7 +128,9 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     // When the schema type (struct) is missing
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1MissingSchemaType.json");
     Assertions.assertThatThrownBy(
-            () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson))
+            () ->
+                TableMetadataParser.fromJson(
+                    TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse type from json:");
   }
@@ -136,7 +139,8 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testRoundTripSerdeWithV2TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata v2Metadata =
-        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(
+            TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
@@ -156,7 +160,8 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s}", TEST_METADATA_LOCATION, metadataJson);
-    TableMetadata metadata = TableMetadataParser.fromJson(TEST_METADATA_LOCATION, metadataJson);
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, metadataJson, locationRelativizer);
     LoadTableResponse actual = deserialize(json);
     LoadTableResponse expected = LoadTableResponse.builder().withTableMetadata(metadata).build();
     assertEquals(actual, expected);

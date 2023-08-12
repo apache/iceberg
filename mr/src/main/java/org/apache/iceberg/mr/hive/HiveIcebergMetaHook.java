@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -174,7 +175,9 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         String metadataLocation =
             hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
         this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
-        this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+        this.deleteMetadata =
+            TableMetadataParser.read(
+                deleteIo, metadataLocation, new LocationProviders.NoActionLocationRelativizer());
       } catch (Exception e) {
         LOG.error(
             "preDropTable: Error during loading Iceberg table or parsing its metadata for HMS table: {}.{}. "

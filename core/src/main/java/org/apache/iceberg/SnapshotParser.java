@@ -109,7 +109,7 @@ public class SnapshotParser {
     return JsonUtil.generate(gen -> toJson(snapshot, gen, locationRelativizer), pretty);
   }
 
-  static Snapshot fromJson(JsonNode node) {
+  static Snapshot fromJson(JsonNode node, LocationRelativizer locationRelativizer) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -150,7 +150,8 @@ public class SnapshotParser {
 
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
-      String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
+      String manifestList =
+          locationRelativizer.getAbsolutePath(JsonUtil.getString(MANIFEST_LIST, node));
       return new BaseSnapshot(
           sequenceNumber,
           snapshotId,
@@ -176,8 +177,8 @@ public class SnapshotParser {
     }
   }
 
-  public static Snapshot fromJson(String json) {
-    return JsonUtil.parse(json, SnapshotParser::fromJson);
+  public static Snapshot fromJson(String json, LocationRelativizer locationRelativizer) {
+    return JsonUtil.parse(json, jsonStr -> SnapshotParser.fromJson(jsonStr, locationRelativizer));
   }
 
   /**

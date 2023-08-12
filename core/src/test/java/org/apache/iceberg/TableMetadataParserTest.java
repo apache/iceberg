@@ -73,7 +73,10 @@ public class TableMetadataParserTest {
         metadata, outputFile, new LocationProviders.NoActionLocationRelativizer());
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
     TableMetadata actualMetadata =
-        TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
+        TableMetadataParser.read(
+            (FileIO) null,
+            Files.localInput(new File(fileName)),
+            new LocationProviders.NoActionLocationRelativizer());
     verifyMetadata(metadata, actualMetadata);
   }
 

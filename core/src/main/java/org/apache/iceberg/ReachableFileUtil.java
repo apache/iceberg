@@ -90,7 +90,8 @@ public class ReachableFileUtil {
     TableMetadata metadata = null;
     for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
       try {
-        metadata = TableMetadataParser.read(io, metadataLogEntry.file());
+        // TODO check for code trail
+        metadata = TableMetadataParser.read(io, metadataLogEntry.file(), null);
         break;
       } catch (Exception e) {
         LOG.error("Failed to load {}", metadataLogEntry, e);

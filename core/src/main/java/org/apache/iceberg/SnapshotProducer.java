@@ -46,6 +46,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -257,7 +258,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        ((LocationRelativizer) ops.locationProvider()).getAbsolutePath(manifestList.location()));
   }
 
   protected abstract Map<String, String> summary();
@@ -370,6 +371,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(
               taskOps -> {
                 Snapshot newSnapshot = apply();
+                // TODO : manifest and manifest-list is written already at this point.
                 newSnapshotId.set(newSnapshot.snapshotId());
                 TableMetadata.Builder update = TableMetadata.buildFrom(base);
                 if (base.snapshot(newSnapshot.snapshotId()) != null) {
@@ -393,6 +395,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 // this operation retries
                 // to ensure that if a concurrent operation assigns the UUID, this operation will
                 // not fail.
+
+                // TODO : FIX metadata.json's snapshot path, metadata log paths
                 taskOps.commit(base, updated.withUUID());
               });
 

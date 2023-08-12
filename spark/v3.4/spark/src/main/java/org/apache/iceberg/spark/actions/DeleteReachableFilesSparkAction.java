@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
@@ -97,7 +98,9 @@ public class DeleteReachableFilesSparkAction
   }
 
   private Result doExecute() {
-    TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
+    TableMetadata metadata =
+        TableMetadataParser.read(
+            io, metadataFileLocation, new LocationProviders.NoActionLocationRelativizer());
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),

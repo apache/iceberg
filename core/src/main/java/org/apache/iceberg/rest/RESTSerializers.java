@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.PartitionSpecParser;
@@ -161,7 +162,8 @@ public class RESTSerializers {
     @Override
     public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      TableMetadataParser.toJson(metadata, gen, null);
+      TableMetadataParser.toJson(
+          metadata, gen, new LocationProviders.NoActionLocationRelativizer());
     }
   }
 
@@ -178,7 +180,7 @@ public class RESTSerializers {
     @Override
     public void serialize(MetadataUpdate value, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      MetadataUpdateParser.toJson(value, gen, null);
+      MetadataUpdateParser.toJson(value, gen, new LocationProviders.NoActionLocationRelativizer());
     }
   }
 

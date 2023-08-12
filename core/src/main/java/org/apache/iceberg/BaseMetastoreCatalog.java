@@ -83,7 +83,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
-    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+    TableMetadata metadata =
+        TableMetadataParser.read(ops.io(), metadataFile, ops.locationProvider());
     ops.commit(null, metadata);
 
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());

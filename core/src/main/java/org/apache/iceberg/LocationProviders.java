@@ -91,7 +91,9 @@ public class LocationProviders {
               TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
       useRelativePath = strUseRelativePath.equalsIgnoreCase("true");
 
-      prefix = properties.getOrDefault(TableProperties.PREFIX, tableLocation).toLowerCase();
+      prefix =
+          (new Path(properties.getOrDefault(TableProperties.PREFIX, tableLocation).toLowerCase()))
+              .toString();
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -121,8 +123,10 @@ public class LocationProviders {
     }
 
     @Override
-    public String getRelativePath(String path) {
+    public String getRelativePath(String inPath) {
       // TODO : Refine the logic to see if handling malformed path is required?
+      String path = (new Path(inPath)).toString();
+
       if (useRelativePath) {
         if (path.toLowerCase().startsWith(prefix)) {
           return path.toLowerCase().replace(prefix, "");
@@ -130,7 +134,7 @@ public class LocationProviders {
         throw new IllegalArgumentException(
             String.format("Provided value for property prefix as %s is not valid.", prefix));
       } else {
-        return path;
+        return inPath;
       }
     }
 

@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -322,9 +323,10 @@ public class TestSortOrder {
         "Schema must have one less column", initialColSize - 1, table.schema().columns().size());
 
     // ensure that the table metadata can be serialized and reloaded with an invalid order
+    LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
     TableMetadataParser.fromJson(
-        TableMetadataParser.toJson(
-            table.ops().current(), new LocationProviders.NoActionLocationRelativizer()));
+        TableMetadataParser.toJson(table.ops().current(), locationRelativizer),
+        locationRelativizer);
   }
 
   @Test

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.UpdateRequirement;
@@ -65,7 +66,8 @@ public class UpdateTableRequestParser {
 
     gen.writeArrayFieldStart(UPDATES);
     for (MetadataUpdate metadataUpdate : request.updates()) {
-      MetadataUpdateParser.toJson(metadataUpdate, gen, null);
+      MetadataUpdateParser.toJson(
+          metadataUpdate, gen, new LocationProviders.NoActionLocationRelativizer());
     }
     gen.writeEndArray();
 

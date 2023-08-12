@@ -47,6 +47,7 @@ public class SnowflakeCatalogTest {
   private SnowflakeCatalog.FileIOFactory fakeFileIOFactory;
   private Map<String, String> properties;
   LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
+
   @BeforeEach
   public void before() {
     catalog = new SnowflakeCatalog();
@@ -89,7 +90,8 @@ public class SnowflakeCatalogTest {
         "s3://tab1/metadata/v3.metadata.json",
         TableMetadataParser.toJson(
                 TableMetadata.newTableMetadata(
-                    schema, partitionSpec, "s3://tab1", ImmutableMap.<String, String>of()), locationRelativizer)
+                    schema, partitionSpec, "s3://tab1", ImmutableMap.<String, String>of()),
+                locationRelativizer)
             .getBytes());
     fakeFileIO.addFile(
         "wasbs://mycontainer@myaccount.blob.core.windows.net/tab3/metadata/v334.metadata.json",
@@ -98,13 +100,15 @@ public class SnowflakeCatalogTest {
                     schema,
                     partitionSpec,
                     "wasbs://mycontainer@myaccount.blob.core.windows.net/tab1/",
-                    ImmutableMap.<String, String>of()), locationRelativizer)
+                    ImmutableMap.<String, String>of()),
+                locationRelativizer)
             .getBytes());
     fakeFileIO.addFile(
         "gs://tab5/metadata/v793.metadata.json",
         TableMetadataParser.toJson(
                 TableMetadata.newTableMetadata(
-                    schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()), locationRelativizer)
+                    schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()),
+                locationRelativizer)
             .getBytes());
 
     fakeFileIOFactory =

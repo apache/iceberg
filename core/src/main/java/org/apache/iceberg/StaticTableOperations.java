@@ -47,7 +47,7 @@ public class StaticTableOperations implements TableOperations {
   @Override
   public TableMetadata current() {
     if (staticMetadata == null) {
-      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+      staticMetadata = TableMetadataParser.read(io, metadataFileLocation, locationProvider());
     }
     return staticMetadata;
   }

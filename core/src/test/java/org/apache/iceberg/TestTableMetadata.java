@@ -91,6 +91,8 @@ public class TestTableMetadata {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
+  LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
+
   @Test
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
@@ -171,9 +173,8 @@ public class TestTableMetadata {
             statisticsFiles,
             ImmutableList.of());
 
-    String asJson =
-        TableMetadataParser.toJson(expected, (LocationRelativizer) ops.locationProvider());
-    TableMetadata metadata = TableMetadataParser.fromJson(asJson);
+    String asJson = TableMetadataParser.toJson(expected, locationRelativizer);
+    TableMetadata metadata = TableMetadataParser.fromJson(asJson, locationRelativizer);
 
     Assert.assertEquals(
         "Format version should match", expected.formatVersion(), metadata.formatVersion());
@@ -295,7 +296,7 @@ public class TestTableMetadata {
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(asJson);
+    TableMetadata metadata = TableMetadataParser.fromJson(asJson, locationRelativizer);
 
     Assert.assertEquals(
         "Format version should match", expected.formatVersion(), metadata.formatVersion());
@@ -622,8 +623,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of());
 
-    String asJson = TableMetadataParser.toJson(base, ops.locationProvider());
-    TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
+    String asJson = TableMetadataParser.toJson(base, locationRelativizer);
+    TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson, locationRelativizer);
 
     Assert.assertEquals(
         "Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
@@ -988,15 +989,16 @@ public class TestTableMetadata {
   @Test
   public void testParserVersionValidation() throws Exception {
     String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    TableMetadata parsed1 = TableMetadataParser.fromJson(supportedVersion1);
+    TableMetadata parsed1 = TableMetadataParser.fromJson(supportedVersion1, locationRelativizer);
     Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
 
     String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata parsed2 = TableMetadataParser.fromJson(supportedVersion2);
+    TableMetadata parsed2 = TableMetadataParser.fromJson(supportedVersion2, locationRelativizer);
     Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupportedVersion, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot read unsupported version");
   }
@@ -1005,7 +1007,8 @@ public class TestTableMetadata {
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupportedVersion, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("partition-specs must exist in format v2");
   }
@@ -1014,7 +1017,8 @@ public class TestTableMetadata {
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupportedVersion, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("last-partition-id must exist in format v2");
   }
@@ -1022,7 +1026,8 @@ public class TestTableMetadata {
   @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupportedVersion, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("sort-orders must exist in format v2");
   }
@@ -1030,7 +1035,8 @@ public class TestTableMetadata {
   @Test
   public void testParserV2CurrentSchemaIdValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupported, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
@@ -1038,7 +1044,8 @@ public class TestTableMetadata {
   @Test
   public void testParserV2SchemasValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+    Assertions.assertThatThrownBy(
+            () -> TableMetadataParser.fromJson(unsupported, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("schemas must exist in format v2");
   }
@@ -1322,7 +1329,7 @@ public class TestTableMetadata {
   @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    TableMetadata parsed = TableMetadataParser.fromJson(data, locationRelativizer);
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
   }
@@ -1330,7 +1337,7 @@ public class TestTableMetadata {
   @Test
   public void testParseMinimal() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
-    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    TableMetadata parsed = TableMetadataParser.fromJson(data, locationRelativizer);
     Assertions.assertThat(parsed.snapshots()).isEmpty();
     Assertions.assertThat(parsed.snapshotLog()).isEmpty();
     Assertions.assertThat(parsed.properties()).isEmpty();
@@ -1522,7 +1529,7 @@ public class TestTableMetadata {
   @Test
   public void testParseStatisticsFiles() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
-    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    TableMetadata parsed = TableMetadataParser.fromJson(data, locationRelativizer);
     Assertions.assertThat(parsed.statisticsFiles()).as("parsed statistics files").hasSize(1);
     Assert.assertEquals(
         "parsed statistics file",

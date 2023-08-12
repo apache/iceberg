@@ -229,7 +229,7 @@ public class TableMetadataParser {
 
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
-      // TODO : Do it only in new snapshot
+      // TODO : should we do it only in new snapshot?
       SnapshotParser.toJson(snapshot, generator, locationRelativizer);
     }
     generator.writeEndArray();
@@ -253,7 +253,8 @@ public class TableMetadataParser {
     for (MetadataLogEntry logEntry : metadata.previousFiles()) {
       generator.writeStartObject();
       generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
-      generator.writeStringField(METADATA_FILE, logEntry.file());
+      generator.writeStringField(
+          METADATA_FILE, locationRelativizer.getRelativePath(logEntry.file()));
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -271,15 +272,17 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
-  public static TableMetadata read(FileIO io, String path) {
-    return read(io, io.newInputFile(path));
+  public static TableMetadata read(
+      FileIO io, String path, LocationRelativizer locationRelativizer) {
+    return read(io, io.newInputFile(path), locationRelativizer);
   }
 
-  public static TableMetadata read(FileIO io, InputFile file) {
+  public static TableMetadata read(
+      FileIO io, InputFile file, LocationRelativizer locationRelativizer) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class), locationRelativizer);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -293,8 +296,8 @@ public class TableMetadataParser {
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(String json) {
-    return fromJson(null, json);
+  public static TableMetadata fromJson(String json, LocationRelativizer locationRelativizer) {
+    return fromJson(null, json, locationRelativizer);
   }
 
   /**
@@ -304,20 +307,25 @@ public class TableMetadataParser {
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(String metadataLocation, String json) {
-    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
+  public static TableMetadata fromJson(
+      String metadataLocation, String json, LocationRelativizer locationRelativizer) {
+    return JsonUtil.parse(
+        json, node -> TableMetadataParser.fromJson(metadataLocation, node, locationRelativizer));
   }
 
-  public static TableMetadata fromJson(InputFile file, JsonNode node) {
-    return fromJson(file.location(), node);
+  public static TableMetadata fromJson(
+      InputFile file, JsonNode node, LocationRelativizer locationRelativizer) {
+    return fromJson(file.location(), node, locationRelativizer);
   }
 
+  // TODO :  Add locationRelatiizer as argument
   public static TableMetadata fromJson(JsonNode node) {
-    return fromJson((String) null, node);
+    return fromJson((String) null, node, null);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+  public static TableMetadata fromJson(
+      String metadataLocation, JsonNode node, LocationRelativizer locationRelativizer) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -328,7 +336,7 @@ public class TableMetadataParser {
         formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
-    String location = JsonUtil.getString(LOCATION, node);
+    String location = locationRelativizer.getAbsolutePath(JsonUtil.getString(LOCATION, node));
     long lastSequenceNumber;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
@@ -477,7 +485,7 @@ public class TableMetadataParser {
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), locationRelativizer));
       }
     } else {
       snapshots = ImmutableList.of();
@@ -510,7 +518,7 @@ public class TableMetadataParser {
         metadataEntries.add(
             new MetadataLogEntry(
                 JsonUtil.getLong(TIMESTAMP_MS, entryNode),
-                JsonUtil.getString(METADATA_FILE, entryNode)));
+                locationRelativizer.getAbsolutePath(JsonUtil.getString(METADATA_FILE, entryNode))));
       }
     }
 
