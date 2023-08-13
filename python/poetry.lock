@@ -2,13 +2,13 @@
 
 [[package]]
 name = "adlfs"
-version = "2023.4.0"
+version = "2023.8.0"
 description = "Access Azure Datalake Gen1 with fsspec and dask"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "adlfs-2023.4.0-py3-none-any.whl", hash = "sha256:43f91a7478a7bb8e1521f4b9369ca6685cdae5392b2b382744f58a40c6d7c877"},
-    {file = "adlfs-2023.4.0.tar.gz", hash = "sha256:84bf8875c57d6cc7e8b3f38034b117b4f43be1c7010aef9947bb5044c7b2fa37"},
+    {file = "adlfs-2023.8.0-py3-none-any.whl", hash = "sha256:3eb248a3c2a30b419f1147bd7676d156b5219f96ef7f11d47166afd2a3bdb07e"},
+    {file = "adlfs-2023.8.0.tar.gz", hash = "sha256:07e804f6df4593acfcaf01025b162e30ac13e523d3570279c98b2d91a18026d9"},
 ]
 
 [package.dependencies]
@@ -2270,21 +2270,26 @@ files = [
     {file = "ray-2.6.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:120631ce1e6206ceb0395aeca5c1dcef4b0b65dd0a0cd53053e131254da96f0a"},
     {file = "ray-2.6.2-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:8aeef75db0d9922f69a6ab31ffd3df3f40fff404c30bfb4ca76e480c53df98ce"},
     {file = "ray-2.6.2-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:050d3c2ac71a8ca7779c7b590a91400f45e071b298b67727949ffdcc096406e0"},
+    {file = "ray-2.6.2-cp310-cp310-win_amd64.whl", hash = "sha256:38a23c417b5e96532eee9480ccaebdde1af7fb2f9d884155c5aef894aa7dda25"},
     {file = "ray-2.6.2-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:2356454ec63135b6dee3e46b091c76b7daec09bae05aa943a767f884377acda8"},
     {file = "ray-2.6.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:e924173198e2d37e29baa7b7893221594139442e9a0b0334fa80f1c8a7b5a6ed"},
     {file = "ray-2.6.2-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:7ee8afffa1c971a71570b6a98de0c69d83c99423a97d29000aeabb706cc1baab"},
     {file = "ray-2.6.2-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:2fa25cf5071082c386dbc086f917f6a4a9f29980eff2cb94d939fd23dd16735a"},
+    {file = "ray-2.6.2-cp311-cp311-win_amd64.whl", hash = "sha256:58e632c7cc69b560b46826c454777cf44518a09fa5e3cf275e0aba167bf49cca"},
     {file = "ray-2.6.2-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:8ecac78203045ef33236ec913775fe9f30d5f3ebe7ee090276c05a3a1fc1ba31"},
     {file = "ray-2.6.2-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:267b52ed13422f9bc57a7ae89289d2cdb6174fd27c1ea842a2618b2d054cf795"},
     {file = "ray-2.6.2-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:a0507f49113d98eea24903b5ef384e631997ebfd4934b94ce13c15fbb0adb0c4"},
+    {file = "ray-2.6.2-cp37-cp37m-win_amd64.whl", hash = "sha256:4c919861433cb70d1e8b8605eda8319780b8f3c07c1abe73afba15aad5aea54f"},
     {file = "ray-2.6.2-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:ff3d5ea1057c4d57bae9b921df0bdd98263c91d0fe7a4221a179bb9034005795"},
     {file = "ray-2.6.2-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:302213def2b0d9fd2039d14b992a2dffa5b4db36ac8d154a219d8bd8e580d694"},
     {file = "ray-2.6.2-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:8f34ddd7012b5908d19a12e452138e941d83e38a1fbce2db4545c281957bbda5"},
     {file = "ray-2.6.2-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:9a4cdabff16caaed76e9b7f2a9d94cfbae30073b6dc8956f55d70b99e218d1dc"},
+    {file = "ray-2.6.2-cp38-cp38-win_amd64.whl", hash = "sha256:a4b405e3595993db91703e9847fe51e41fb98c3181ee904d673da82e25fe7e86"},
     {file = "ray-2.6.2-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:86b57fb864a9328971d7e554e0c55608735e94434f13948a58bb07423c783a39"},
     {file = "ray-2.6.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:21608b9dbc19175fbb1832ec9296e7c93cf416d28b0e21ee7e2667da7af952b7"},
     {file = "ray-2.6.2-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:4ab10849705f41923ec1ccf597f3881c9f3f304c43da3e6f5b794c2072694f77"},
     {file = "ray-2.6.2-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:3f359fdb88406528c564e66dbe848ab98679ddb046d44465ebd3933fa1ecdd62"},
+    {file = "ray-2.6.2-cp39-cp39-win_amd64.whl", hash = "sha256:d23a9059d84b416df135512d224cfbe4ed45de8fc727eb6c616468ab9dbdd7bd"},
 ]
 
 [package.dependencies]
