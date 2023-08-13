@@ -43,7 +43,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
-  private static final String ADLSV2_FILE_IO_IMPL = "org.apache.iceberg.azure.adlsv2,ADLSv2FileIO";
+  private static final String ADLSV2_FILE_IO_IMPL = "org.apache.iceberg.azure.adlsv2.ADLSv2FileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO =
       ImmutableMap.of(
           "s3", S3_FILE_IO_IMPL,
