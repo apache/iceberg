@@ -24,24 +24,24 @@ docs = ["furo", "myst-parser", "numpydoc", "sphinx"]
 
 [[package]]
 name = "aiobotocore"
-version = "2.5.2"
+version = "2.5.4"
 description = "Async client for aws services using botocore and aiohttp"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "aiobotocore-2.5.2-py3-none-any.whl", hash = "sha256:337429ffd3cc367532572d40be809a84c7b5335f3f8eca2f23e09dfaa9a9ef90"},
-    {file = "aiobotocore-2.5.2.tar.gz", hash = "sha256:e7399f21570db1c287f1c0c814dd3475dfe1c8166722e2c77ce67f172cbcfa89"},
+    {file = "aiobotocore-2.5.4-py3-none-any.whl", hash = "sha256:4b32218728ca3d0be83835b604603a0cd6c329066e884bb78149334267f92440"},
+    {file = "aiobotocore-2.5.4.tar.gz", hash = "sha256:60341f19eda77e41e1ab11eef171b5a98b5dbdb90804f5334b6f90e560e31fae"},
 ]
 
 [package.dependencies]
 aiohttp = ">=3.3.1,<4.0.0"
 aioitertools = ">=0.5.1,<1.0.0"
-botocore = ">=1.29.161,<1.29.162"
+botocore = ">=1.31.17,<1.31.18"
 wrapt = ">=1.10.10,<2.0.0"
 
 [package.extras]
-awscli = ["awscli (>=1.27.161,<1.27.162)"]
-boto3 = ["boto3 (>=1.26.161,<1.26.162)"]
+awscli = ["awscli (>=1.29.17,<1.29.18)"]
+boto3 = ["boto3 (>=1.28.17,<1.28.18)"]
 
 [[package]]
 name = "aiohttp"
@@ -283,17 +283,17 @@ aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
 
 [[package]]
 name = "boto3"
-version = "1.26.161"
+version = "1.28.17"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">= 3.7"
 files = [
-    {file = "boto3-1.26.161-py3-none-any.whl", hash = "sha256:f66e5c9dbe7f34383bcf64fa6070771355c11a44dd75c7f1279f2f37e1c89183"},
-    {file = "boto3-1.26.161.tar.gz", hash = "sha256:662731e464d14af1035f44fc6a46b0e3112ee011ac0a5ed416d205daa3e15f25"},
+    {file = "boto3-1.28.17-py3-none-any.whl", hash = "sha256:bca0526f819e0f19c0f1e6eba3e2d1d6b6a92a45129f98c0d716e5aab6d9444b"},
+    {file = "boto3-1.28.17.tar.gz", hash = "sha256:90f7cfb5e1821af95b1fc084bc50e6c47fa3edc99f32de1a2591faa0c546bea7"},
 ]
 
 [package.dependencies]
-botocore = ">=1.29.161,<1.30.0"
+botocore = ">=1.31.17,<1.32.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.6.0,<0.7.0"
 
@@ -302,13 +302,13 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.29.161"
+version = "1.31.17"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">= 3.7"
 files = [
-    {file = "botocore-1.29.161-py3-none-any.whl", hash = "sha256:b906999dd53dda2ef0ef6f7f55fcc81a4b06b9f1c8a9f65c546e0b981f959f5f"},
-    {file = "botocore-1.29.161.tar.gz", hash = "sha256:a50edd715eb510343e27849f36483804aae4b871590db4d4996aa53368dcac40"},
+    {file = "botocore-1.31.17-py3-none-any.whl", hash = "sha256:6ac34a1d34aa3750e78b77b8596617e2bab938964694d651939dba2cbde2c12b"},
+    {file = "botocore-1.31.17.tar.gz", hash = "sha256:396459065dba4339eb4da4ec8b4e6599728eb89b7caaceea199e26f7d824a41c"},
 ]
 
 [package.dependencies]
@@ -317,7 +317,7 @@ python-dateutil = ">=2.1,<3.0.0"
 urllib3 = ">=1.25.4,<1.27"
 
 [package.extras]
-crt = ["awscrt (==0.16.9)"]
+crt = ["awscrt (==0.16.26)"]
 
 [[package]]
 name = "build"
@@ -2270,21 +2270,26 @@ files = [
     {file = "ray-2.6.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:120631ce1e6206ceb0395aeca5c1dcef4b0b65dd0a0cd53053e131254da96f0a"},
     {file = "ray-2.6.2-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:8aeef75db0d9922f69a6ab31ffd3df3f40fff404c30bfb4ca76e480c53df98ce"},
     {file = "ray-2.6.2-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:050d3c2ac71a8ca7779c7b590a91400f45e071b298b67727949ffdcc096406e0"},
+    {file = "ray-2.6.2-cp310-cp310-win_amd64.whl", hash = "sha256:38a23c417b5e96532eee9480ccaebdde1af7fb2f9d884155c5aef894aa7dda25"},
     {file = "ray-2.6.2-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:2356454ec63135b6dee3e46b091c76b7daec09bae05aa943a767f884377acda8"},
     {file = "ray-2.6.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:e924173198e2d37e29baa7b7893221594139442e9a0b0334fa80f1c8a7b5a6ed"},
     {file = "ray-2.6.2-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:7ee8afffa1c971a71570b6a98de0c69d83c99423a97d29000aeabb706cc1baab"},
     {file = "ray-2.6.2-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:2fa25cf5071082c386dbc086f917f6a4a9f29980eff2cb94d939fd23dd16735a"},
+    {file = "ray-2.6.2-cp311-cp311-win_amd64.whl", hash = "sha256:58e632c7cc69b560b46826c454777cf44518a09fa5e3cf275e0aba167bf49cca"},
     {file = "ray-2.6.2-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:8ecac78203045ef33236ec913775fe9f30d5f3ebe7ee090276c05a3a1fc1ba31"},
     {file = "ray-2.6.2-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:267b52ed13422f9bc57a7ae89289d2cdb6174fd27c1ea842a2618b2d054cf795"},
     {file = "ray-2.6.2-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:a0507f49113d98eea24903b5ef384e631997ebfd4934b94ce13c15fbb0adb0c4"},
+    {file = "ray-2.6.2-cp37-cp37m-win_amd64.whl", hash = "sha256:4c919861433cb70d1e8b8605eda8319780b8f3c07c1abe73afba15aad5aea54f"},
     {file = "ray-2.6.2-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:ff3d5ea1057c4d57bae9b921df0bdd98263c91d0fe7a4221a179bb9034005795"},
     {file = "ray-2.6.2-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:302213def2b0d9fd2039d14b992a2dffa5b4db36ac8d154a219d8bd8e580d694"},
     {file = "ray-2.6.2-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:8f34ddd7012b5908d19a12e452138e941d83e38a1fbce2db4545c281957bbda5"},
     {file = "ray-2.6.2-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:9a4cdabff16caaed76e9b7f2a9d94cfbae30073b6dc8956f55d70b99e218d1dc"},
+    {file = "ray-2.6.2-cp38-cp38-win_amd64.whl", hash = "sha256:a4b405e3595993db91703e9847fe51e41fb98c3181ee904d673da82e25fe7e86"},
     {file = "ray-2.6.2-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:86b57fb864a9328971d7e554e0c55608735e94434f13948a58bb07423c783a39"},
     {file = "ray-2.6.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:21608b9dbc19175fbb1832ec9296e7c93cf416d28b0e21ee7e2667da7af952b7"},
     {file = "ray-2.6.2-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:4ab10849705f41923ec1ccf597f3881c9f3f304c43da3e6f5b794c2072694f77"},
     {file = "ray-2.6.2-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:3f359fdb88406528c564e66dbe848ab98679ddb046d44465ebd3933fa1ecdd62"},
+    {file = "ray-2.6.2-cp39-cp39-win_amd64.whl", hash = "sha256:d23a9059d84b416df135512d224cfbe4ed45de8fc727eb6c616468ab9dbdd7bd"},
 ]
 
 [package.dependencies]
