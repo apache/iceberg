@@ -149,6 +149,7 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
     try (ReadChannel readChannel = openChannel()) {
       readChannel.seek(position);
+      readChannel.limit(position + length);
       int bytesRead = read(readChannel, ByteBuffer.wrap(buffer), offset, length);
       if (bytesRead < length) {
         throw new EOFException(
