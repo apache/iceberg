@@ -14,7 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-from typing import Any, List
+from typing import Any, Dict, List
 from unittest import mock
 
 import pytest
@@ -441,7 +441,7 @@ def test_update_namespace_properties_overlap_update_removal(
 
 @mock_glue
 def test_passing_profile_name() -> None:
-    session_properties: dict[str, Any] = {
+    session_properties: Dict[str, Any] = {
         "aws_access_key_id": "abc",
         "aws_secret_access_key": "def",
         "aws_session_token": "ghi",
