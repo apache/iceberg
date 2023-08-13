@@ -113,6 +113,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
       StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
       builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
     }
+
     builder.setAll(writeProperties);
   }
 

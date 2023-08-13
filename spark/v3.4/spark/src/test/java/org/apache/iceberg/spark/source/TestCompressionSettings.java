@@ -135,6 +135,7 @@ public class TestCompressionSettings {
     for (int i = 0; i < 1000; i++) {
       expectedOrigin.add(new SimpleRecord(1, "hello world" + i));
     }
+    
     Dataset<Row> df = spark.createDataFrame(expectedOrigin, SimpleRecord.class);
 
     for (Map.Entry<String, String> entry : properties.entrySet()) {
