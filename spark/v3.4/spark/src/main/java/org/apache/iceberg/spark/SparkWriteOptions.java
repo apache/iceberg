@@ -81,7 +81,6 @@ public class SparkWriteOptions {
   // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
   public static final String ISOLATION_LEVEL = "isolation-level";
 
-
   // Controls write compress options
   public static final String COMPRESSION_CODEC = "compression-codec";
   public static final String COMPRESSION_LEVEL = "compression-level";
