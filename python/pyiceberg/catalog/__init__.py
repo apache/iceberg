@@ -46,13 +46,12 @@ from pyiceberg.table import (
     Table,
     TableMetadata,
 )
-from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import (
-    EMPTY_DICT,
-    Identifier,
-    Properties,
-    RecursiveDict,
-)
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER
+from pyiceberg.table.sorting import SortOrder as SortOrder
+from pyiceberg.typedef import EMPTY_DICT
+from pyiceberg.typedef import Identifier as Identifier
+from pyiceberg.typedef import Properties as Properties
+from pyiceberg.typedef import RecursiveDict
 from pyiceberg.utils.config import Config, merge_config
 
 logger = logging.getLogger(__name__)

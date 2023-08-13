@@ -244,7 +244,7 @@ def test_time_methods(type_var: PrimitiveType) -> None:
     assert DayTransform().preserves_order
     assert YearTransform().result_type(type_var) == IntegerType()
     assert MonthTransform().result_type(type_var) == IntegerType()
-    assert DayTransform().result_type(type_var) == DateType()
+    assert DayTransform().result_type(type_var) == IntegerType()
     assert YearTransform().dedup_name == "time"
     assert MonthTransform().dedup_name == "time"
     assert DayTransform().dedup_name == "time"

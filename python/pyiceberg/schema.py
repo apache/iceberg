@@ -1276,13 +1276,12 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
 
     @staticmethod
     def _project_selected_struct(projected_field: Optional[IcebergType]) -> StructType:
-        if projected_field and not isinstance(projected_field, StructType):
-            raise ValueError("Expected a struct")
-
         if projected_field is None:
             return StructType()
-        else:
+        if isinstance(projected_field, StructType):
             return projected_field
+
+        raise ValueError("Expected a struct")
 
     @staticmethod
     def _project_list(list_type: ListType, element_result: IcebergType) -> ListType:
