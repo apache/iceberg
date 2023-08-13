@@ -18,15 +18,15 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
-import java.net.URI;
-import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /** This class represents a fully qualified location in Azure expressed as a URI. */
 class ADLSv2Location {
-  private static final Set<String> EXPECTED_SCHEMES = ImmutableSet.of("abfs", "abfss");
+  private static final Pattern URI_PATTERN =
+      Pattern.compile("^abfss?://(.+?)@(.+?\\.dfs\\.core\\.windows\\.net)(/.*)?$");
 
   private final String storageAccountUrl;
   private final String container;
@@ -41,30 +41,16 @@ class ADLSv2Location {
   ADLSv2Location(String location) {
     Preconditions.checkArgument(location != null, "Invalid location: null");
 
-    URI uri = URI.create(location);
+    Matcher matcher = URI_PATTERN.matcher(location);
 
-    String scheme = uri.getScheme();
-    ValidationException.check(
-        scheme != null, "Invalid ADLSv2 URI, cannot determine scheme: %s", location);
-    ValidationException.check(
-        EXPECTED_SCHEMES.contains(scheme), "Invalid ADLSv2 URI, invalid scheme: %s", scheme);
+    ValidationException.check(matcher.matches(), "Invalid ADLSv2 URI: %s", location);
 
-    this.container = uri.getUserInfo();
-    ValidationException.check(container != null, "Invalid ADLSv2 URI, container is null");
+    this.container = matcher.group(1);
+    this.storageAccountUrl = "https://" + matcher.group(2);
 
-    String storageAccountHost = uri.getHost();
-    if (uri.getPort() >= 0) {
-      storageAccountHost += ":" + uri.getPort();
-    }
-
-    ValidationException.check(
-        storageAccountHost != null,
-        "Invalid ADLSv2 URI, invalid storage account host: %s",
-        location);
-    this.storageAccountUrl = "https://" + storageAccountHost;
-
-    String uriPath = uri.getPath();
-    this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
+    String uriPath = matcher.group(3);
+    uriPath = uriPath == null ? "" : uriPath.substring(1);
+    this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
 
   /** Returns Azure storage account URL. */

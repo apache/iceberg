@@ -47,22 +47,21 @@ public class ADLSv2LocationTest {
     Assertions.assertThat(location.storageAccountUrl())
         .isEqualTo("https://account.dfs.core.windows.net");
     Assertions.assertThat(location.container()).isEqualTo("container");
-    // Azure API will handle encoding as needed
-    Assertions.assertThat(location.path()).isEqualTo("path to file");
+    Assertions.assertThat(location.path()).isEqualTo("path%20to%20file");
   }
 
   @Test
   public void testMissingScheme() {
     Assertions.assertThatThrownBy(() -> new ADLSv2Location("/path/to/file"))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI, cannot determine scheme: /path/to/file");
+        .hasMessage("Invalid ADLSv2 URI: /path/to/file");
   }
 
   @Test
   public void testInvalidScheme() {
     Assertions.assertThatThrownBy(() -> new ADLSv2Location("s3://bucket/path/to/file"))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI, invalid scheme: s3");
+        .hasMessage("Invalid ADLSv2 URI: s3://bucket/path/to/file");
   }
 
   @Test
@@ -70,7 +69,7 @@ public class ADLSv2LocationTest {
     Assertions.assertThatThrownBy(
             () -> new ADLSv2Location("abfs://account.dfs.core.windows.net/path/to/file"))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI, container is null");
+        .hasMessage("Invalid ADLSv2 URI: abfs://account.dfs.core.windows.net/path/to/file");
   }
 
   @Test
