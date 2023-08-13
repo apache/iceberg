@@ -60,9 +60,10 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadata
+from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER
+from pyiceberg.table.metadata import TableMetadata as TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
-from pyiceberg.table.sorting import SortOrder
+from pyiceberg.table.sorting import SortOrder as SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
     IcebergBaseModel,

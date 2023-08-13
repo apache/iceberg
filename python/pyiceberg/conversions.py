@@ -36,7 +36,9 @@ from typing import (
     Any,
     Callable,
     Optional,
+    Tuple,
     Union,
+    cast,
 )
 
 from pyiceberg.typedef import L
@@ -279,13 +281,13 @@ def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
 
 @from_bytes.register(BooleanType)
 def _(_: BooleanType, b: bytes) -> bool:
-    return _BOOL_STRUCT.unpack(b)[0] != 0
+    return cast(Tuple[bool, ...], _BOOL_STRUCT.unpack(b))[0] != 0
 
 
 @from_bytes.register(IntegerType)
 @from_bytes.register(DateType)
 def _(_: PrimitiveType, b: bytes) -> int:
-    return _INT_STRUCT.unpack(b)[0]
+    return cast(Tuple[int, ...], _INT_STRUCT.unpack(b))[0]
 
 
 @from_bytes.register(LongType)
@@ -293,17 +295,17 @@ def _(_: PrimitiveType, b: bytes) -> int:
 @from_bytes.register(TimestampType)
 @from_bytes.register(TimestamptzType)
 def _(_: PrimitiveType, b: bytes) -> int:
-    return _LONG_STRUCT.unpack(b)[0]
+    return cast(Tuple[int, ...], _LONG_STRUCT.unpack(b))[0]
 
 
 @from_bytes.register(FloatType)
 def _(_: FloatType, b: bytes) -> float:
-    return _FLOAT_STRUCT.unpack(b)[0]
+    return cast(Tuple[float, ...], _FLOAT_STRUCT.unpack(b))[0]
 
 
 @from_bytes.register(DoubleType)
 def _(_: DoubleType, b: bytes) -> float:
-    return _DOUBLE_STRUCT.unpack(b)[0]
+    return cast(Tuple[float, ...], _DOUBLE_STRUCT.unpack(b))[0]
 
 
 @from_bytes.register(StringType)

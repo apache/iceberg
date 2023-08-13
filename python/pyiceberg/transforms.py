@@ -463,8 +463,8 @@ class DayTransform(TimeTransform[S]):
             TimestamptzType,
         }
 
-    def result_type(self, source: IcebergType) -> IcebergType:
-        return DateType()
+    def result_type(self, source: IcebergType) -> IntegerType:
+        return IntegerType()
 
     @property
     def granularity(self) -> TimeResolution:
@@ -752,7 +752,8 @@ class UnknownTransform(Transform[S, T]):
 class VoidTransform(Transform[S, None], Singleton):
     """A transform that always returns None."""
 
-    __root__ = "void"
+    def __init__(self) -> None:
+        super().__init__(__root__="void")
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         return lambda v: None

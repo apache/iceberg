@@ -422,7 +422,8 @@ class BooleanType(PrimitiveType):
         BooleanType()
     """
 
-    __root__ = "boolean"
+    def __init__(self) -> None:
+        super().__init__(__root__="boolean")
 
 
 class IntegerType(PrimitiveType):
@@ -442,10 +443,11 @@ class IntegerType(PrimitiveType):
             in Java (returns `-2147483648`)
     """
 
+    def __init__(self) -> None:
+        super().__init__(__root__="int")
+
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
-
-    __root__ = "int"
 
 
 class LongType(PrimitiveType):
@@ -472,7 +474,8 @@ class LongType(PrimitiveType):
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
 
-    __root__ = "long"
+    def __init__(self) -> None:
+        super().__init__(__root__="long")
 
 
 class FloatType(PrimitiveType):
@@ -497,7 +500,8 @@ class FloatType(PrimitiveType):
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
 
-    __root__ = "float"
+    def __init__(self) -> None:
+        super().__init__(__root__="float")
 
 
 class DoubleType(PrimitiveType):
@@ -513,7 +517,8 @@ class DoubleType(PrimitiveType):
         DoubleType()
     """
 
-    __root__ = "double"
+    def __init__(self) -> None:
+        super().__init__(__root__="double")
 
 
 class DateType(PrimitiveType):
@@ -529,7 +534,8 @@ class DateType(PrimitiveType):
         DateType()
     """
 
-    __root__ = "date"
+    def __init__(self) -> None:
+        super().__init__(__root__="date")
 
 
 class TimeType(PrimitiveType):
@@ -545,7 +551,8 @@ class TimeType(PrimitiveType):
         TimeType()
     """
 
-    __root__ = "time"
+    def __init__(self) -> None:
+        super().__init__(__root__="time")
 
 
 class TimestampType(PrimitiveType):
@@ -561,7 +568,8 @@ class TimestampType(PrimitiveType):
         TimestampType()
     """
 
-    __root__ = "timestamp"
+    def __init__(self) -> None:
+        super().__init__(__root__="timestamp")
 
 
 class TimestamptzType(PrimitiveType):
@@ -577,7 +585,8 @@ class TimestamptzType(PrimitiveType):
         TimestamptzType()
     """
 
-    __root__ = "timestamptz"
+    def __init__(self) -> None:
+        super().__init__(__root__="timestamptz")
 
 
 class StringType(PrimitiveType):
@@ -593,7 +602,8 @@ class StringType(PrimitiveType):
         StringType()
     """
 
-    __root__ = "string"
+    def __init__(self) -> None:
+        super().__init__(__root__="string")
 
 
 class UUIDType(PrimitiveType):
@@ -609,7 +619,8 @@ class UUIDType(PrimitiveType):
         UUIDType()
     """
 
-    __root__ = "uuid"
+    def __init__(self) -> None:
+        super().__init__(__root__="uuid")
 
 
 class BinaryType(PrimitiveType):
@@ -625,7 +636,8 @@ class BinaryType(PrimitiveType):
         BinaryType()
     """
 
-    __root__ = "binary"
+    def __init__(self) -> None:
+        super().__init__(__root__="binary")
 
 
 PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
