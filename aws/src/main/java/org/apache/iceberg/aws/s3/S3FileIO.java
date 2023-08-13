@@ -323,7 +323,7 @@ public class S3FileIO
     deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
-  private S3Client client() {
+  public S3Client client() {
     if (client == null) {
       synchronized (this) {
         if (client == null) {
