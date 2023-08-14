@@ -89,7 +89,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: apache-client  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: apache-client  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -149,7 +149,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: auth  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: auth  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -209,7 +209,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -269,7 +269,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -299,7 +299,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: dynamodb  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: dynamodb  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -359,7 +359,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: glue  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: glue  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -389,7 +389,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -449,7 +449,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: json-utils  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: json-utils  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -509,7 +509,7 @@ The licenses for these third party components are included in LICENSE.txt
 
 --------------------------------------------------------------------------------
 
-NOTICE for  Group: software.amazon.awssdk  Name: lakeformation  Version: 2.20.18
+NOTICE for Group: software.amazon.awssdk  Name: lakeformation  Version: 2.20.18
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
