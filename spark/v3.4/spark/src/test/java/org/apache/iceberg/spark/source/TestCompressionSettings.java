@@ -60,6 +60,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -73,13 +74,14 @@ import org.junit.runners.Parameterized;
 public class TestCompressionSettings {
 
   private static final Configuration CONF = new Configuration();
-  private final FileFormat format;
-
-  private final ImmutableMap<String, String> properties;
-  private static SparkSession spark = null;
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+
+  private static SparkSession spark = null;
+
+  private final FileFormat format;
+  private final ImmutableMap<String, String> properties;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -153,8 +155,8 @@ public class TestCompressionSettings {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assert.assertEquals(
-          getCompressionType(inputFile).toLowerCase(), properties.get(COMPRESSION_CODEC));
+      Assertions.assertThat(
+          getCompressionType(inputFile)).isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }
 
