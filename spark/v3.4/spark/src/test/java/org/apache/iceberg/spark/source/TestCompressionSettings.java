@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.FileFormat.AVRO;
+import static org.apache.iceberg.FileFormat.ORC;
+import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
@@ -30,6 +33,7 @@ import static org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FI
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.avro.file.DataFileConstants;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericDatumReader;
@@ -61,15 +65,14 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class TestCompressionSettings {
 
   private static final Configuration CONF = new Configuration();
@@ -79,51 +82,41 @@ public class TestCompressionSettings {
 
   private static SparkSession spark = null;
 
-  private final FileFormat format;
-  private final ImmutableMap<String, String> properties;
+  @TempDir private File temp;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Parameterized.Parameters(name = "format = {0}, properties = {1}")
-  public static Object[] parameters() {
-    return new Object[] {
-      new Object[] {"parquet", ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")},
-      new Object[] {"parquet", ImmutableMap.of(COMPRESSION_CODEC, "gzip")},
-      new Object[] {
-        "orc", ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "speed")
-      },
-      new Object[] {
-        "orc", ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "compression")
-      },
-      new Object[] {"avro", ImmutableMap.of(COMPRESSION_CODEC, "snappy", COMPRESSION_LEVEL, "3")}
-    };
+  private static Stream<Arguments> parameters() {
+    return Stream.of(
+        Arguments.of(PARQUET, ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")),
+        Arguments.of(PARQUET, ImmutableMap.of(COMPRESSION_CODEC, "gzip")),
+        Arguments.of(
+            ORC, ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "speed")),
+        Arguments.of(
+            ORC, ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "compression")),
+        Arguments.of(AVRO, ImmutableMap.of(COMPRESSION_CODEC, "snappy", COMPRESSION_LEVEL, "3")));
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @Parameterized.AfterParam
-  public static void clearSourceCache() {
+  @AfterEach
+  public void clearSourceCache() {
     ManualSource.clearTables();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestCompressionSettings.spark;
     TestCompressionSettings.spark = null;
     currentSpark.stop();
   }
 
-  public TestCompressionSettings(String format, ImmutableMap properties) {
-    this.format = FileFormat.fromString(format);
-    this.properties = properties;
-  }
-
-  @Test
-  public void testWriteDataWithDifferentSetting() throws Exception {
-    File parent = temp.newFolder(format.toString());
+  @ParameterizedTest(name = "format = {0}, properties = {1}")
+  @MethodSource("parameters")
+  public void testWriteDataWithDifferentSetting(
+      FileFormat format, ImmutableMap<String, String> properties) throws Exception {
+    File parent = temp;
     File location = new File(parent, "test");
     HadoopTables tables = new HadoopTables(CONF);
     Map<String, String> tableProperties = Maps.newHashMap();
@@ -154,12 +147,12 @@ public class TestCompressionSettings {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assertions.assertThat(getCompressionType(inputFile))
+      Assertions.assertThat(getCompressionType(format, inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }
 
-  private String getCompressionType(InputFile inputFile) throws Exception {
+  private String getCompressionType(FileFormat format, InputFile inputFile) throws Exception {
     switch (format) {
       case ORC:
         OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(CONF).useUTCTimestamp(true);
