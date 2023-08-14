@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.swing.text.html.Option;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -529,7 +532,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // apply schema changes
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, adds, moves))
+        TypeUtil.visit(schema, new ApplyChanges(schema, deletes, updates, adds, moves))
             .asNestedType()
             .asStructType();
 
@@ -558,6 +561,7 @@ class SchemaUpdate implements UpdateSchema {
     private final Multimap<Integer, Move> moves;
 
     private ApplyChanges(
+        Schema oldSchema,
         List<Integer> deletes,
         Map<Integer, Types.NestedField> updates,
         Multimap<Integer, Types.NestedField> adds,
@@ -565,7 +569,34 @@ class SchemaUpdate implements UpdateSchema {
       this.deletes = deletes;
       this.updates = updates;
       this.adds = adds;
-      this.moves = moves;
+      Multimap<Integer, Move> reconstructedMap = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+      Collection<Types.NestedField> addedFields = adds.values();
+      for (Integer k: moves.keys()) {
+        Collection<Move> moveOps = moves.get(k);
+        for (Move move: moveOps) {
+          if (deletes.contains(move.fieldId)) {
+            String deletedFieldName = oldSchema.findField(move.fieldId).name();
+            Optional<Types.NestedField> addedBackField = findFieldWithName(addedFields, deletedFieldName);
+            if (addedBackField.isPresent()) {
+              Move newMoveOp = null;
+              if (move.type == Move.MoveType.FIRST) {
+                newMoveOp = Move.first(addedBackField.get().fieldId());
+              } else if (move.type == Move.MoveType.AFTER) {
+                newMoveOp = Move.after(addedBackField.get().fieldId(), move.referenceFieldId);
+              } else if (move.type == Move.MoveType.BEFORE) {
+                newMoveOp = Move.before(addedBackField.get().fieldId(), move.referenceFieldId);
+              }
+              reconstructedMap.put(k, newMoveOp);
+            } else {
+              throw new IllegalArgumentException("cannot move the field " + deletedFieldName + " which was deleted" +
+                      " without adding it back");
+            }
+          } else {
+            reconstructedMap.put(k, move);
+          }
+        }
+      }
+      this.moves = reconstructedMap;
     }
 
     @Override
@@ -726,6 +757,7 @@ class SchemaUpdate implements UpdateSchema {
       List<Types.NestedField> fields, Collection<Types.NestedField> adds, Collection<Move> moves) {
     if (adds != null && !adds.isEmpty()) {
       if (moves != null && !moves.isEmpty()) {
+
         // always apply adds first so that added fields can be moved
         return moveFields(addFields(fields, adds), moves);
       } else {
@@ -742,6 +774,12 @@ class SchemaUpdate implements UpdateSchema {
     List<Types.NestedField> newFields = Lists.newArrayList(fields);
     newFields.addAll(adds);
     return newFields;
+  }
+
+  private static Optional<Types.NestedField> findFieldWithName(Collection<Types.NestedField> addedFields, String fieldName) {
+    return addedFields.stream()
+            .filter(nestedField -> nestedField.name().equals(fieldName))
+            .findFirst();
   }
 
   @SuppressWarnings({"checkstyle:IllegalType", "JdkObsolete"})
@@ -790,6 +828,11 @@ class SchemaUpdate implements UpdateSchema {
       AFTER
     }
 
+    @Override
+    public String toString() {
+      return "Move column " + fieldId + " " + type.toString() + " field " + referenceFieldId;
+    }
+
     static Move first(int fieldId) {
       return new Move(fieldId, -1, MoveType.FIRST);
     }
@@ -828,4 +871,5 @@ class SchemaUpdate implements UpdateSchema {
   private Types.NestedField findField(String fieldName) {
     return caseSensitive ? schema.findField(fieldName) : schema.caseInsensitiveFindField(fieldName);
   }
+
 }
