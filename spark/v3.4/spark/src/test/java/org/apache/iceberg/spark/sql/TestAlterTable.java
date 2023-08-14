@@ -21,13 +21,11 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.SparkException;
@@ -321,9 +319,8 @@ public class TestAlterTable extends SparkCatalogTestBase {
         .as("Should not have the removed table property")
         .isNull();
 
-    Iterator<String> iter = SparkTable.reservedUpdateProperties().iterator();
-    while (iter.hasNext()) {
-      String reservedProp = iter.next();
+    String[] reservedProperties = new String[] {"sort-order", "identifier-fields"};
+    for (String reservedProp : reservedProperties) {
       assertThatThrownBy(
               () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='value')", tableName, reservedProp))
           .isInstanceOf(UnsupportedOperationException.class)
