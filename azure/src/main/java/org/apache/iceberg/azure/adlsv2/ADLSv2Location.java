@@ -18,22 +18,31 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** This class represents a fully qualified location in Azure expressed as a URI. */
+/**
+ * This class represents a fully qualified location in Azure expressed as a URI.
+ *
+ * <p>Locations follow the conventions used by Hadoop's Azure support, i.e.
+ *
+ * <pre>{@code abfs[s]://[<container>@]<storage account host>/<file path>}</pre>
+ *
+ * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
+ * Support</a>
+ */
 class ADLSv2Location {
-  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)@(.+?)([/?#].*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)([/?#].*)?$");
 
   private final String storageAccountUrl;
   private final String container;
   private final String path;
 
   /**
-   * Creates a new ADLSv2Location with the form of
-   * scheme://container@storage_url/path?query#fragment
+   * Creates a new ADLSv2Location from a fully qualified URI.
    *
    * @param location fully qualified URI
    */
@@ -44,10 +53,17 @@ class ADLSv2Location {
 
     ValidationException.check(matcher.matches(), "Invalid ADLSv2 URI: %s", location);
 
-    this.container = matcher.group(1);
-    this.storageAccountUrl = "https://" + matcher.group(2);
+    String authority = matcher.group(1);
+    String[] parts = authority.split("@", -1);
+    if (parts.length > 1) {
+      this.container = parts[0];
+      this.storageAccountUrl = "https://" + parts[1];
+    } else {
+      this.container = null;
+      this.storageAccountUrl = "https://" + authority;
+    }
 
-    String uriPath = matcher.group(3);
+    String uriPath = matcher.group(2);
     uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
     this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
@@ -58,8 +74,8 @@ class ADLSv2Location {
   }
 
   /** Returns Azure container name. */
-  public String container() {
-    return container;
+  public Optional<String> container() {
+    return Optional.ofNullable(container);
   }
 
   /** Returns ADLSv2 path. */

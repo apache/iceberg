@@ -33,16 +33,7 @@ import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * FileIO implementation backed by Azure Data Lake Storage v2 (ADLSv2)
- *
- * <p>Locations follow the conventions used by Hadoop's Azure support, i.e.
- *
- * <pre>{@code abfs[s]://<container>@<storage account>.dfs.core.windows.net/<blob_path>}</pre>
- *
- * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
- * Support</a>
- */
+/** FileIO implementation backed by Azure Data Lake Storage v2 (ADLSv2). */
 public class ADLSv2FileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(ADLSv2FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
@@ -100,9 +91,9 @@ public class ADLSv2FileIO implements FileIO {
         new DataLakePathClientBuilder()
             .httpClient(HTTP)
             .endpoint(location.storageAccountUrl())
-            .fileSystemName(location.container())
             .pathName(location.path());
 
+    location.container().ifPresent(clientBuilder::fileSystemName);
     azureProperties.applyCredentialConfiguration(clientBuilder);
 
     return clientBuilder.buildFileClient();

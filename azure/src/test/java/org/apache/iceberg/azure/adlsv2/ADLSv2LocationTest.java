@@ -34,7 +34,7 @@ public class ADLSv2LocationTest {
     ADLSv2Location location = new ADLSv2Location(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
-    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
@@ -44,7 +44,7 @@ public class ADLSv2LocationTest {
     ADLSv2Location location = new ADLSv2Location(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
-    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path%20to%20file");
   }
 
@@ -63,10 +63,13 @@ public class ADLSv2LocationTest {
   }
 
   @Test
-  public void testMissingContainer() {
-    assertThatThrownBy(() -> new ADLSv2Location("abfs://account.dfs.core.windows.net/path/to/file"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI: abfs://account.dfs.core.windows.net/path/to/file");
+  public void testNoContainer() {
+    String p1 = "abfs://account.dfs.core.windows.net/path/to/file";
+    ADLSv2Location location = new ADLSv2Location(p1);
+
+    assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
+    assertThat(location.container().isPresent()).isFalse();
+    assertThat(location.path()).isEqualTo("path/to/file");
   }
 
   @Test
@@ -75,7 +78,7 @@ public class ADLSv2LocationTest {
     ADLSv2Location location = new ADLSv2Location(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
-    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }
 
@@ -85,7 +88,7 @@ public class ADLSv2LocationTest {
     ADLSv2Location location = new ADLSv2Location(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
-    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
@@ -95,7 +98,7 @@ public class ADLSv2LocationTest {
     ADLSv2Location location = new ADLSv2Location(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
-    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }
 }
