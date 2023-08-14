@@ -17,11 +17,12 @@
 # pylint:disable=protected-access
 import io
 import json
-from typing import Type
+from typing import Callable
 
 import pytest
 
-from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder, StreamingBinaryDecoder
+from pyiceberg.avro.decoder import StreamingBinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -32,6 +33,7 @@ from pyiceberg.avro.reader import (
     FixedReader,
     FloatReader,
     IntegerReader,
+    ReadableDecoder,
     StringReader,
     StructReader,
     TimeReader,
@@ -40,6 +42,7 @@ from pyiceberg.avro.reader import (
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
+from pyiceberg.io import InputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
@@ -64,7 +67,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 
-AVAILABLE_DECODERS = [StreamingBinaryDecoder, InMemoryBinaryDecoder]
+AVAILABLE_DECODERS = [StreamingBinaryDecoder, lambda stream: CythonBinaryDecoder(stream.read())]
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
@@ -339,7 +342,7 @@ def test_uuid_reader() -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct(decoder_class: Type[BinaryDecoder]) -> None:
+def test_read_struct(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
     mis = io.BytesIO(b"\x18")
     decoder = decoder_class(mis)
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -348,7 +351,7 @@ def test_read_struct(decoder_class: Type[BinaryDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_lambda(decoder_class: Type[BinaryDecoder]) -> None:
+def test_read_struct_lambda(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
     mis = io.BytesIO(b"\x18")
     decoder = decoder_class(mis)
 
@@ -361,7 +364,7 @@ def test_read_struct_lambda(decoder_class: Type[BinaryDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_not_struct_type(decoder_class: Type[BinaryDecoder]) -> None:
+def test_read_not_struct_type(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
     mis = io.BytesIO(b"\x18")
     decoder = decoder_class(mis)
 
@@ -373,7 +376,7 @@ def test_read_not_struct_type(decoder_class: Type[BinaryDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_exception_handling(decoder_class: Type[BinaryDecoder]) -> None:
+def test_read_struct_exception_handling(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
     mis = io.BytesIO(b"\x18")
     decoder = decoder_class(mis)
 

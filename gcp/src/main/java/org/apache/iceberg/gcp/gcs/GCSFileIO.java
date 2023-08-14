@@ -119,7 +119,7 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
     return properties.immutableMap();
   }
 
-  private Storage client() {
+  public Storage client() {
     if (storage == null) {
       synchronized (this) {
         if (storage == null) {

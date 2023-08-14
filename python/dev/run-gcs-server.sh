@@ -1,3 +1,5 @@
+#!/bin/bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,15 +16,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
-mkdocs==1.5.2
-griffe==0.32.3
-jinja2==3.1.2
-mkdocstrings==0.22.0
-mkdocstrings-python==1.3.0
-mkdocs-literate-nav==0.6.0
-mkdocs-autorefs==0.5.0
-mkdocs-gen-files==0.5.0
-mkdocs-material==9.1.21
-mkdocs-material-extensions==1.1.1
-mkdocs-section-index==0.3.5
+set -ex
+
+if [ $(docker ps -q --filter "name=gcs-server" --filter "status=running" ) ]; then
+    echo "Fake GCS Server running"
+else
+    docker-compose -f dev/docker-compose-gcs-server.yml kill
+    docker-compose -f dev/docker-compose-gcs-server.yml up -d
+    while [ -z $(docker ps -q --filter "name=gcs-server" --filter "status=running" ) ]
+    do
+      echo "Waiting for Fake GCS Server"
+      sleep 1
+    done
+fi

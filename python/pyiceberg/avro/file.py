@@ -35,9 +35,9 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder import BinaryDecoder, InMemoryBinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.encoder import BinaryEncoder
-from pyiceberg.avro.reader import Reader
+from pyiceberg.avro.reader import ReadableDecoder, Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
 from pyiceberg.avro.writer import Writer
 from pyiceberg.io import InputFile, OutputFile, OutputStream
@@ -105,7 +105,7 @@ D = TypeVar("D", bound=StructProtocol)
 class Block(Generic[D]):
     reader: Reader
     block_records: int
-    block_decoder: BinaryDecoder
+    block_decoder: ReadableDecoder
     position: int = 0
 
     def __iter__(self) -> Block[D]:
@@ -143,7 +143,7 @@ class AvroFile(Generic[D]):
     schema: Schema
     reader: Reader
 
-    decoder: BinaryDecoder
+    decoder: ReadableDecoder
     block: Optional[Block[D]]
 
     def __init__(
@@ -165,8 +165,7 @@ class AvroFile(Generic[D]):
         Returns:
             A generator returning the AvroStructs.
         """
-        with self.input_file.open() as f:
-            self.decoder = InMemoryBinaryDecoder(io.BytesIO(f.read()))
+        self.decoder = CythonBinaryDecoder(self.input_file.open().read())
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
@@ -198,9 +197,7 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(
-            reader=self.reader, block_records=block_records, block_decoder=InMemoryBinaryDecoder(io.BytesIO(block_bytes))
-        )
+        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=CythonBinaryDecoder(block_bytes))
         return block_records
 
     def __next__(self) -> D:
