@@ -99,6 +99,12 @@ def datetime_to_millis(dt: datetime) -> int:
     return (delta.days * 86400 + delta.seconds) * 1_000 + delta.microseconds // 1_000
 
 
+def millis_to_datetime(millis: int) -> datetime:
+    """Converts milliseconds from epoch to a timestamp."""
+    dt = timedelta(milliseconds=millis)
+    return EPOCH_TIMESTAMP + dt
+
+
 def timestamptz_to_micros(timestamptz_str: str) -> int:
     """Converts an ISO-8601 formatted timestamp with zone to microseconds from 1970-01-01T00:00:00.000000+00:00."""
     if ISO_TIMESTAMPTZ.fullmatch(timestamptz_str):

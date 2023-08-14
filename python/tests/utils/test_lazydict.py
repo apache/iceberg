@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-mkdocs==1.5.2
-griffe==0.32.3
-jinja2==3.1.2
-mkdocstrings==0.22.0
-mkdocstrings-python==1.3.0
-mkdocs-literate-nav==0.6.0
-mkdocs-autorefs==0.5.0
-mkdocs-gen-files==0.5.0
-mkdocs-material==9.1.21
-mkdocs-material-extensions==1.1.1
-mkdocs-section-index==0.3.5
+from pyiceberg.utils.lazydict import LazyDict
+
+
+def test_lazy_dict_ints() -> None:
+    lazy_dict = LazyDict[int, int]([[1, 2], [3, 4]])
+    assert lazy_dict[1] == 2
+    assert lazy_dict[3] == 4
+
+
+def test_lazy_dict_strings() -> None:
+    lazy_dict = LazyDict[int, str]([[1, "red", 5, "banana"], [3, "blue"]])
+    assert lazy_dict[1] == "red"
+    assert lazy_dict[3] == "blue"
+    assert lazy_dict[5] == "banana"
