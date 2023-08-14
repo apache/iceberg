@@ -19,7 +19,7 @@ from datetime import datetime, timezone, tzinfo
 import pytest
 import pytz
 
-from pyiceberg.utils.datetime import datetime_to_millis
+from pyiceberg.utils.datetime import datetime_to_millis, millis_to_datetime
 
 timezones = [
     pytz.timezone("Etc/GMT"),
@@ -67,3 +67,7 @@ def test_datetime_tz_to_millis(tz: tzinfo) -> None:
     expected = int(dt.timestamp() * 1_000)
     datetime_millis = datetime_to_millis(dt)
     assert datetime_millis == expected
+
+
+def test_millis_to_datetime() -> None:
+    assert millis_to_datetime(1690971805918) == datetime(2023, 8, 2, 10, 23, 25, 918000)

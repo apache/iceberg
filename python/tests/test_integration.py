@@ -17,6 +17,7 @@
 # pylint:disable=redefined-outer-name
 
 import math
+import uuid
 from urllib.parse import urlparse
 
 import pyarrow.parquet as pq
@@ -27,9 +28,11 @@ from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import (
     And,
+    EqualTo,
     GreaterThanOrEqual,
     IsNaN,
     LessThan,
+    NotEqualTo,
     NotNaN,
 )
 from pyiceberg.io.pyarrow import pyarrow_to_schema
@@ -315,3 +318,37 @@ def test_partitioned_tables(catalog: Catalog) -> None:
         table = catalog.load_table(f"default.{table_name}")
         arrow_table = table.scan(selected_fields=("number",), row_filter=predicate).to_arrow()
         assert set(arrow_table["number"].to_pylist()) == {5, 6, 7, 8, 9, 10, 11, 12}, f"Table {table_name}, predicate {predicate}"
+
+
+@pytest.mark.integration
+def test_unpartitioned_uuid_table(catalog: Catalog) -> None:
+    unpartitioned_uuid = catalog.load_table("default.test_uuid_and_fixed_unpartitioned")
+    arrow_table_eq = unpartitioned_uuid.scan(row_filter="uuid_col == '102cb62f-e6f8-4eb0-9973-d9b012ff0967'").to_arrow()
+    assert arrow_table_eq["uuid_col"].to_pylist() == [uuid.UUID("102cb62f-e6f8-4eb0-9973-d9b012ff0967").bytes]
+
+    arrow_table_neq = unpartitioned_uuid.scan(
+        row_filter="uuid_col != '102cb62f-e6f8-4eb0-9973-d9b012ff0967' and uuid_col != '639cccce-c9d2-494a-a78c-278ab234f024'"
+    ).to_arrow()
+    assert arrow_table_neq["uuid_col"].to_pylist() == [
+        uuid.UUID("ec33e4b2-a834-4cc3-8c4a-a1d3bfc2f226").bytes,
+        uuid.UUID("c1b0d8e0-0b0e-4b1e-9b0a-0e0b0d0c0a0b").bytes,
+        uuid.UUID("923dae77-83d6-47cd-b4b0-d383e64ee57e").bytes,
+    ]
+
+
+@pytest.mark.integration
+def test_unpartitioned_fixed_table(catalog: Catalog) -> None:
+    fixed_table = catalog.load_table("default.test_uuid_and_fixed_unpartitioned")
+    arrow_table_eq = fixed_table.scan(row_filter=EqualTo("fixed_col", b"1234567890123456789012345")).to_arrow()
+    assert arrow_table_eq["fixed_col"].to_pylist() == [b"1234567890123456789012345"]
+
+    arrow_table_neq = fixed_table.scan(
+        row_filter=And(
+            NotEqualTo("fixed_col", b"1234567890123456789012345"), NotEqualTo("uuid_col", "c1b0d8e0-0b0e-4b1e-9b0a-0e0b0d0c0a0b")
+        )
+    ).to_arrow()
+    assert arrow_table_neq["fixed_col"].to_pylist() == [
+        b"1231231231231231231231231",
+        b"12345678901234567ass12345",
+        b"qweeqwwqq1231231231231111",
+    ]
