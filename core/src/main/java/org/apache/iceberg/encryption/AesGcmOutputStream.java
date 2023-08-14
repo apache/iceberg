@@ -25,6 +25,12 @@ import org.apache.iceberg.io.PositionOutputStream;
 
 public class AesGcmOutputStream extends PositionOutputStream {
 
+  private static final byte[] HEADER_BYTES =
+      ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
+          .order(ByteOrder.LITTLE_ENDIAN)
+          .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
+          .putInt(Ciphers.PLAIN_BLOCK_SIZE)
+          .array();
   private final Ciphers.AesGcmEncryptor gcmEncryptor;
   private final PositionOutputStream targetStream;
   private final byte[] fileAadPrefix;
@@ -113,19 +119,18 @@ public class AesGcmOutputStream extends PositionOutputStream {
   }
 
   private void writeHeader() throws IOException {
-    byte[] headerBytes =
-        ByteBuffer.allocate(Ciphers.GCM_STREAM_HEADER_LENGTH)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
-            .putInt(Ciphers.PLAIN_BLOCK_SIZE)
-            .array();
-    targetStream.write(headerBytes);
+
+    targetStream.write(HEADER_BYTES);
     isHeaderWritten = true;
   }
 
   private void encryptAndWriteBlock() throws IOException {
     if (currentBlockIndex == Integer.MAX_VALUE) {
-      throw new IOException("Too many blocks - exceed Integer.MAX_VALUE");
+      throw new IOException("Cannot write block: exceeded Integer.MAX_VALUE blocks");
+    }
+
+    if (positionInPlainBlock == 0) {
+      throw new IOException("Empty plain block");
     }
 
     byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);

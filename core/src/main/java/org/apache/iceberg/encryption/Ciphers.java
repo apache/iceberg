@@ -91,7 +91,8 @@ public class Ciphers {
         byte[] ciphertextBuffer,
         int ciphertextOffset,
         byte[] aad) {
-      Preconditions.checkArgument(plaintextLength > 0, "Wrong plaintextLength " + plaintextLength);
+      Preconditions.checkArgument(
+          plaintextLength > 0, "Invalid plain text length: %s", plaintextLength);
       randomGenerator.nextBytes(nonce);
       int enciphered;
 
@@ -101,6 +102,8 @@ public class Ciphers {
         if (null != aad) {
           cipher.updateAAD(aad);
         }
+
+        // doFinal encrypts and adds a GCM tag. The nonce is added later.
         enciphered =
             cipher.doFinal(
                 plaintext,
@@ -111,11 +114,11 @@ public class Ciphers {
 
         if (enciphered != plaintextLength + GCM_TAG_LENGTH) {
           throw new RuntimeException(
-              "Wrong number of enciphered bytes: "
-                  + enciphered
-                  + ". Must be "
+              "Failed to encrypt block: expected "
                   + plaintextLength
-                  + GCM_TAG_LENGTH);
+                  + GCM_TAG_LENGTH
+                  + " encrypted bytes but produced bytes "
+                  + enciphered);
         }
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to encrypt", e);

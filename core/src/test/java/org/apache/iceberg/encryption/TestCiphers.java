@@ -29,16 +29,29 @@ public class TestCiphers {
 
   @Test
   public void testBasicEncrypt() {
-    testEncryptDecrypt(null);
+    testEncryptDecrypt(null, true, false, false);
   }
 
   @Test
   public void testAAD() {
     byte[] aad = "abcd".getBytes(StandardCharsets.UTF_8);
-    testEncryptDecrypt(aad);
+    testEncryptDecrypt(aad, true, false, false);
   }
 
-  private void testEncryptDecrypt(byte[] aad) {
+  @Test
+  public void testBadAAD() {
+    byte[] aad = "abcd".getBytes(StandardCharsets.UTF_8);
+    testEncryptDecrypt(aad, false, true, false);
+  }
+
+  @Test
+  public void testContentCorruption() {
+    byte[] aad = "abcd".getBytes(StandardCharsets.UTF_8);
+    testEncryptDecrypt(aad, false, false, true);
+  }
+
+  private void testEncryptDecrypt(
+      byte[] aad, boolean testDecrypt, boolean testBadAad, boolean testCorruption) {
     SecureRandom random = new SecureRandom();
     int[] aesKeyLengthArray = {16, 24, 32};
 
@@ -51,23 +64,28 @@ public class TestCiphers {
       byte[] ciphertext = encryptor.encrypt(plaintext, aad);
 
       Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(key);
-      byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
-      assertThat(decryptedText).as("Key length " + keyLength).isEqualTo(plaintext);
 
-      // Test bad aad
-      final byte[] badAad = (aad == null) ? new byte[1] : aad;
-      badAad[0]++;
+      if (testDecrypt) {
+        byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
+        assertThat(decryptedText).as("Key length " + keyLength).isEqualTo(plaintext);
+      }
 
-      Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, badAad))
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("GCM tag check failed");
+      if (testBadAad) {
+        final byte[] badAad = (aad == null) ? new byte[1] : aad;
+        badAad[0]++;
 
-      // Test content corruption
-      ciphertext[ciphertext.length / 2]++;
+        Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, badAad))
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("GCM tag check failed");
+      }
 
-      Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, aad))
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("GCM tag check failed");
+      if (testCorruption) {
+        ciphertext[ciphertext.length / 2]++;
+
+        Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, aad))
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("GCM tag check failed");
+      }
     }
   }
 }
