@@ -47,6 +47,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -92,6 +93,8 @@ public class SparkTable
         SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
+  private static final String SORT_ORDER = "sort-order";
+  private static final String IDENTIFIER_FIELDS = "identifier-fields";
 
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(
@@ -100,8 +103,10 @@ public class SparkTable
           CURRENT_SNAPSHOT_ID,
           "location",
           FORMAT_VERSION,
-          "sort-order",
-          "identifier-fields");
+          SORT_ORDER,
+          IDENTIFIER_FIELDS);
+  private static final Set<String> ICEBERG_RESERVED_PROPERTIES_FOR_UPDATE =
+      ImmutableSet.of(SORT_ORDER, IDENTIFIER_FIELDS);
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(
           TableCapability.BATCH_READ,
@@ -386,6 +391,11 @@ public class SparkTable
     }
 
     deleteFiles.commit();
+  }
+
+  @VisibleForTesting
+  public static Set<String> reservedUpdateProperties() {
+    return ICEBERG_RESERVED_PROPERTIES_FOR_UPDATE;
   }
 
   @Override
