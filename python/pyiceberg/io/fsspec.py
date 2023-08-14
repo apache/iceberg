@@ -16,6 +16,7 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems."""
 import errno
+import json
 import logging
 import os
 from functools import lru_cache, partial
@@ -37,6 +38,16 @@ from requests import HTTPError
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
+    GCS_ACCESS,
+    GCS_CACHE_TIMEOUT,
+    GCS_CONSISTENCY,
+    GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT,
+    GCS_PROJECT_ID,
+    GCS_REQUESTER_PAYS,
+    GCS_SESSION_KWARGS,
+    GCS_TOKEN,
+    GCS_VERSION_AWARE,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
     S3_PROXY_URI,
@@ -124,6 +135,24 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     return fs
 
 
+def _gs(properties: Properties) -> AbstractFileSystem:
+    # https://gcsfs.readthedocs.io/en/latest/api.html#gcsfs.core.GCSFileSystem
+    from gcsfs import GCSFileSystem
+
+    return GCSFileSystem(
+        project=properties.get(GCS_PROJECT_ID),
+        access=properties.get(GCS_ACCESS, "full_control"),
+        token=properties.get(GCS_TOKEN),
+        consistency=properties.get(GCS_CONSISTENCY, "none"),
+        cache_timeout=properties.get(GCS_CACHE_TIMEOUT),
+        requester_pays=properties.get(GCS_REQUESTER_PAYS, False),
+        session_kwargs=json.loads(properties.get(GCS_SESSION_KWARGS, "{}")),
+        endpoint_url=properties.get(GCS_ENDPOINT),
+        default_location=properties.get(GCS_DEFAULT_LOCATION),
+        version_aware=properties.get(GCS_VERSION_AWARE, "false").lower() == "true",
+    )
+
+
 def _adlfs(properties: Properties) -> AbstractFileSystem:
     from adlfs import AzureBlobFileSystem
 
@@ -145,6 +174,8 @@ SCHEME_TO_FS = {
     "s3n": _s3,
     "abfs": _adlfs,
     "abfss": _adlfs,
+    "gs": _gs,
+    "gcs": _gs,
 }
 
 

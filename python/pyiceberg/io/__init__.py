@@ -55,6 +55,17 @@ HDFS_HOST = "hdfs.host"
 HDFS_PORT = "hdfs.port"
 HDFS_USER = "hdfs.user"
 HDFS_KERB_TICKET = "hdfs.kerberos_ticket"
+GCS_TOKEN = "gcs.oauth2.token"
+GCS_TOKEN_EXPIRES_AT_MS = "gcs.oauth2.token-expires-at"
+GCS_PROJECT_ID = "gcs.project-id"
+GCS_ACCESS = "gcs.access"
+GCS_CONSISTENCY = "gcs.consistency"
+GCS_CACHE_TIMEOUT = "gcs.cache-timeout"
+GCS_REQUESTER_PAYS = "gcs.requester-pays"
+GCS_SESSION_KWARGS = "gcs.session-kwargs"
+GCS_ENDPOINT = "gcs.endpoint"
+GCS_DEFAULT_LOCATION = "gcs.default-bucket-location"
+GCS_VERSION_AWARE = "gcs.version-aware"
 
 
 @runtime_checkable
