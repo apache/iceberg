@@ -1327,7 +1327,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
                 partition_specs=[PartitionSpec()],
             ),
             metadata_location=metadata_location,
-            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.PyArrowFileIO"}, location=metadata_location),
+            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
             catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,

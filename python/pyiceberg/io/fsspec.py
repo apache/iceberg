@@ -42,7 +42,7 @@ from pyiceberg.io import (
     GCS_CACHE_TIMEOUT,
     GCS_CONSISTENCY,
     GCS_DEFAULT_LOCATION,
-    GCS_ENDPOINT_URL,
+    GCS_ENDPOINT,
     GCS_PROJECT_ID,
     GCS_REQUESTER_PAYS,
     GCS_SESSION_KWARGS,
@@ -147,7 +147,7 @@ def _gs(properties: Properties) -> AbstractFileSystem:
         cache_timeout=properties.get(GCS_CACHE_TIMEOUT),
         requester_pays=properties.get(GCS_REQUESTER_PAYS, False),
         session_kwargs=json.loads(properties.get(GCS_SESSION_KWARGS, "{}")),
-        endpoint_url=properties.get(GCS_ENDPOINT_URL),
+        endpoint_url=properties.get(GCS_ENDPOINT),
         default_location=properties.get(GCS_DEFAULT_LOCATION),
         version_aware=properties.get(GCS_VERSION_AWARE, "false").lower() == "true",
     )

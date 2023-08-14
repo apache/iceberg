@@ -58,10 +58,10 @@ from pyarrow import parquet as pq
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
 from pyiceberg.io import (
-    GCS_ENDPOINT_URL,
+    GCS_ENDPOINT,
     GCS_PROJECT_ID,
     GCS_TOKEN,
-    GCS_TOKEN_EXPIRES_AT,
+    GCS_TOKEN_EXPIRES_AT_MS,
     OutputFile,
     OutputStream,
     fsspec,
@@ -124,7 +124,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="The ADLS secret account key for tests marked as adlfs",
     )
     parser.addoption(
-        "--gcs.endpoint-url", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+        "--gcs.endpoint", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
     )
     parser.addoption(
         "--gcs.oauth2.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs"
@@ -1317,7 +1317,7 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
 @pytest.fixture
 def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
     properties = {
-        GCS_ENDPOINT_URL: request.config.getoption("--gcs.endpoint-url"),
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
         GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
         GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
     }
@@ -1327,10 +1327,10 @@ def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
 @pytest.fixture
 def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
     properties = {
-        GCS_ENDPOINT_URL: request.config.getoption("--gcs.endpoint-url"),
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
         GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
         GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
-        GCS_TOKEN_EXPIRES_AT: datetime_to_millis(datetime.now()) + 60 * 1000,
+        GCS_TOKEN_EXPIRES_AT_MS: datetime_to_millis(datetime.now()) + 60 * 1000,
     }
     return PyArrowFileIO(properties=properties)
 
