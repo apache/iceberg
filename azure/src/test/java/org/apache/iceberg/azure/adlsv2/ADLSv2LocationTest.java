@@ -70,7 +70,7 @@ public class ADLSv2LocationTest {
   }
 
   @Test
-  public void testOnlyContainerNameLocation() {
+  public void testNoPath() {
     String p1 = "abfs://container@account.dfs.core.windows.net";
     ADLSv2Location location = new ADLSv2Location(p1);
 
@@ -87,5 +87,15 @@ public class ADLSv2LocationTest {
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
+  }
+
+  @Test
+  public void testQueryAndFragmentNoPath() {
+    String p1 = "abfs://container@account.dfs.core.windows.net?query=foo#123";
+    ADLSv2Location location = new ADLSv2Location(p1);
+
+    assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
+    assertThat(location.container()).isEqualTo("container");
+    assertThat(location.path()).isEqualTo("");
   }
 }

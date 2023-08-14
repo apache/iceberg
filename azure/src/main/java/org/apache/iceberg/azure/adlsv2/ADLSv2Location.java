@@ -25,8 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** This class represents a fully qualified location in Azure expressed as a URI. */
 class ADLSv2Location {
-  private static final Pattern URI_PATTERN =
-      Pattern.compile("^abfss?://(.+?)@(.+?\\.dfs\\.core\\.windows\\.net)(/.*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)@(.+?)([/?#].*)?$");
 
   private final String storageAccountUrl;
   private final String container;
@@ -49,7 +48,7 @@ class ADLSv2Location {
     this.storageAccountUrl = "https://" + matcher.group(2);
 
     String uriPath = matcher.group(3);
-    uriPath = uriPath == null ? "" : uriPath.substring(1);
+    uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
     this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
 
