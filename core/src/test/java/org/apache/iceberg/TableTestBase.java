@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -254,16 +255,17 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(String fileName, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(null, fileName, entries);
+    return writeManifest(null, fileName, ImmutableMap.of(), entries);
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(snapshotId, "input.m0.avro", entries);
+    return writeManifest(snapshotId, "input.m0.avro", ImmutableMap.of(), entries);
   }
 
   @SuppressWarnings("unchecked")
   <F extends ContentFile<F>> ManifestFile writeManifest(
-      Long snapshotId, String fileName, ManifestEntry<?>... entries) throws IOException {
+      Long snapshotId, String fileName, Map<String, String> config, ManifestEntry<?>... entries)
+      throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
@@ -272,12 +274,12 @@ public class TableTestBase {
     if (entries[0].file() instanceof DataFile) {
       writer =
           (ManifestWriter<F>)
-              ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+              ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId, config);
     } else {
       writer =
           (ManifestWriter<F>)
               ManifestFiles.writeDeleteManifest(
-                  formatVersion, table.spec(), outputFile, snapshotId);
+                  formatVersion, table.spec(), outputFile, snapshotId, config);
     }
     try {
       for (ManifestEntry<?> entry : entries) {

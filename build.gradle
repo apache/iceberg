@@ -360,6 +360,8 @@ project(':iceberg-core') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
+    testImplementation libs.snappy
+    testImplementation libs.zstd
   }
 }
 
