@@ -39,7 +39,10 @@ packages = [
   { include = "Makefile", format = "sdist" },
   { include = "NOTICE", format = ["sdist", "wheel"] }
 ]
-include = [{ path = "dev", format = "sdist" }]
+include = [
+  { path = "dev", format = "sdist" },
+  { path = "pyiceberg/**/*.so", format = "wheel" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -75,6 +78,7 @@ requests-mock = "1.11.0"
 moto = "^4.1.13"
 typing-extensions = "4.7.1"
 pytest-mock = "3.11.1"
+cython = "3.0.0"
 
 [[tool.mypy.overrides]]
 module = "pytest_mock.*"
@@ -84,8 +88,12 @@ ignore_missing_imports = true
 pyiceberg = "pyiceberg.cli.console:run"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.0.0", "wheel", "Cython>=3.0.0", "setuptools"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.build]
+generate-setup-file = false
+script = "build-module.py"
 
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
@@ -257,6 +265,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "sqlalchemy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "Cython.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "setuptools.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
