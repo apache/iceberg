@@ -119,7 +119,7 @@ The most straight-forward way would be to add the below code:
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   // existing code...
 
-  // introduces an API-breaking change
+  // adding this method introduces an API-breaking change
   ManageSnapshots createBranch(String name);
 }
 ```
