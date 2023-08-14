@@ -233,9 +233,17 @@ func (s *StructType) String() string {
 		if i != 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString(f.Name)
-		b.WriteString(": ")
+		fmt.Fprintf(&b, "%d: %s: ",
+			f.ID, f.Name)
+		if f.Required {
+			b.WriteString("required ")
+		}
 		b.WriteString(f.Type.String())
+		if f.Doc != "" {
+			b.WriteString(" (")
+			b.WriteString(f.Doc)
+			b.WriteByte(')')
+		}
 	}
 	b.WriteString(">")
 
