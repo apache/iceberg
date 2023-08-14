@@ -23,9 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.spark.SparkV2Filters;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 
 public class SparkFunctions {
@@ -42,6 +39,15 @@ public class SparkFunctions {
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
+  private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
+      ImmutableMap.of(
+          YearsFunction.class, new YearsFunction(),
+          MonthsFunction.class, new MonthsFunction(),
+          DaysFunction.class, new DaysFunction(),
+          HoursFunction.class, new HoursFunction(),
+          BucketFunction.class, new BucketFunction(),
+          TruncateFunction.class, new TruncateFunction());
+
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 
   // Functions that are added to all Iceberg catalogs should be accessed with the `system`
@@ -55,24 +61,16 @@ public class SparkFunctions {
 
   public static UnboundFunction load(String name) {
     // function resolution is case-insensitive to match the existing Spark behavior for functions
-    String lowerCaseName = name.toLowerCase(Locale.ROOT);
-    UnboundFunction function = FUNCTIONS.get(lowerCaseName);
+    return FUNCTIONS.get(name.toLowerCase(Locale.ROOT));
+  }
 
-    SparkSession sparkSession = SparkSession.active();
-    String enabledStr =
-        sparkSession
-            .conf()
-            .get(
-                SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED,
-                String.valueOf(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED_DEFAULT));
-    if (Boolean.parseBoolean(enabledStr)
-        && SparkV2Filters.SUPPORTED_FUNCTIONS.contains(lowerCaseName)) {
-      // Use a UnboundFunctionWrapper to wrap the actual system function. The system function will
-      // be
-      // analyzed into ApplyFunctionExpression which could be pushed down datasource.
-      return new UnboundFunctionWrapper(function);
-    } else {
-      return function;
+  public static UnboundFunction loadFunctionByClass(Class<?> functionClass) {
+    String clasCanonicalName = functionClass.getCanonicalName();
+    if (!clasCanonicalName.startsWith(SparkFunctions.class.getPackage().getName())) {
+      return null;
     }
+
+    Class<?> declaringClass = functionClass.getDeclaringClass();
+    return CLASS_TO_FUNCTIONS.get(declaringClass);
   }
 }

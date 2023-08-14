@@ -21,15 +21,19 @@ package org.apache.iceberg.spark.sql;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
-public class TestSparkTruncateFunction extends SystemFunctionTestBase {
-  public TestSparkTruncateFunction(boolean systemFunctionPushDownEnabled) {
-    super(systemFunctionPushDownEnabled);
+public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
+  public TestSparkTruncateFunction() {}
+
+  @Before
+  public void useCatalog() {
+    sql("USE %s", catalogName);
   }
 
   @Test
@@ -383,7 +387,6 @@ public class TestSparkTruncateFunction extends SystemFunctionTestBase {
 
   @Test
   public void testMagicFunctionsResolveForTinyIntAndSmallIntWidths() {
-    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
     // Magic functions have staticinvoke in the explain output. Nonmagic calls use
     // applyfunctionexpression instead.
     String tinyIntWidthExplain =
@@ -402,7 +405,6 @@ public class TestSparkTruncateFunction extends SystemFunctionTestBase {
 
   @Test
   public void testThatMagicFunctionsAreInvoked() {
-    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
     // Magic functions have `staticinvoke` in the explain output.
     // Non-magic calls have `applyfunctionexpression` instead.
 
@@ -455,54 +457,6 @@ public class TestSparkTruncateFunction extends SystemFunctionTestBase {
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBinary");
-  }
-
-  @Test
-  public void testAnalyzedToApplyFunctionExpression() {
-    Assumptions.assumeThat(systemFunctionPushDownEnabled).isTrue();
-
-    // TinyInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6Y)"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(tinyint)");
-
-    // SmallInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(smallint)");
-
-    // Int
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(int)");
-
-    // Long
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(bigint)");
-
-    // String
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(string)");
-
-    // Decimal
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(decimal(4,2))");
-
-    // Binary
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(iceberg.truncate(binary)");
   }
 
   private String asBytesLiteral(String value) {

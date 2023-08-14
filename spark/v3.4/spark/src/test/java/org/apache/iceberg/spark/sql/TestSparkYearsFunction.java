@@ -18,17 +18,19 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.YearsFunction;
 import org.apache.spark.sql.AnalysisException;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
-public class TestSparkYearsFunction extends SystemFunctionTestBase {
+public class TestSparkYearsFunction extends SparkTestBaseWithCatalog {
 
-  public TestSparkYearsFunction(boolean systemFunctionPushDownEnabled) {
-    super(systemFunctionPushDownEnabled);
+  @Before
+  public void useCatalog() {
+    sql("USE %s", catalogName);
   }
 
   @Test
@@ -111,7 +113,6 @@ public class TestSparkYearsFunction extends SystemFunctionTestBase {
 
   @Test
   public void testThatMagicFunctionsAreInvoked() {
-    Assumptions.assumeThat(systemFunctionPushDownEnabled).isFalse();
     String dateValue = "date('2017-12-01')";
     String dateTransformClass = YearsFunction.DateToYearsFunction.class.getName();
     Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", dateValue))
@@ -125,24 +126,5 @@ public class TestSparkYearsFunction extends SystemFunctionTestBase {
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + timestampTransformClass);
-  }
-
-  @Test
-  public void testAnalyzedToApplyFunctionExpression() {
-    Assumptions.assumeThat(systemFunctionPushDownEnabled).isTrue();
-    String dateValue = "date('2017-12-01')";
-    String dateTransformCanonicalName = new YearsFunction.DateToYearsFunction().canonicalName();
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", dateValue))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(" + dateTransformCanonicalName);
-
-    String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
-    String timestampTransformCanonicalName =
-        new YearsFunction.TimestampToYearsFunction().canonicalName();
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", timestampValue))
-        .asString()
-        .isNotNull()
-        .contains("applyfunctionexpression(Wrapper(" + timestampTransformCanonicalName);
   }
 }

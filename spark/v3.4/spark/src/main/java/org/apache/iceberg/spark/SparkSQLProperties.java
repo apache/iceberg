@@ -72,5 +72,5 @@ public class SparkSQLProperties {
   // Controls whether to push down Iceberg system function
   public static final String SYSTEM_FUNC_PUSH_DOWN_ENABLED =
       "spark.sql.iceberg.system-function-push-down.enabled";
-  public static final boolean SYSTEM_FUNC_PUSH_DOWN_ENABLED_DEFAULT = false;
+  public static final boolean SYSTEM_FUNC_PUSH_DOWN_ENABLED_DEFAULT = true;
 }

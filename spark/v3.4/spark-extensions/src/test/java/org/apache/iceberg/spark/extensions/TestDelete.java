@@ -1337,33 +1337,35 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
 
     int targetYears = timestampStrToYearOrdinal("2018-12-21T00:00:00.000000+00:00");
-    List<Object[]> expected =
-        sql(
-            "SELECT * FROM %s WHERE %s.system.years(ts) != %s ORDER BY id",
-            tableName, catalogName, targetYears);
 
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String deleteSql =
-              String.format(
-                  "DELETE FROM %s WHERE %s.system.years(ts) == %s",
+          List<Object[]> expected =
+              sql(
+                  "SELECT * FROM %s WHERE %s.system.years(ts) != %s ORDER BY id",
                   tableName, catalogName, targetYears);
-          // Metadata delete
-          Dataset<Row> df = spark.sql(deleteSql);
-          CommandResultExec commandResultExec =
-              (CommandResultExec) df.queryExecution().sparkPlan().collectLeaves().apply(0);
-          Assertions.assertThat(commandResultExec.commandPhysicalPlan())
-              .isInstanceOf(DeleteFromTableExec.class);
-          DeleteFromTableExec deleteFromTable =
-              (DeleteFromTableExec) commandResultExec.commandPhysicalPlan();
-          Assertions.assertThat(deleteFromTable.condition().length).isEqualTo(1);
-          Predicate predicate = deleteFromTable.condition()[0];
-          Assertions.assertThat(predicate.toString()).isEqualTo("years(ts) = " + targetYears);
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          container.add(expected);
         });
+
+    String deleteSql =
+        String.format(
+            "DELETE FROM %s WHERE %s.system.years(ts) == %s", tableName, catalogName, targetYears);
+    // Metadata delete
+    Dataset<Row> df = spark.sql(deleteSql);
+    CommandResultExec commandResultExec =
+        (CommandResultExec) df.queryExecution().sparkPlan().collectLeaves().apply(0);
+    Assertions.assertThat(commandResultExec.commandPhysicalPlan())
+        .isInstanceOf(DeleteFromTableExec.class);
+    DeleteFromTableExec deleteFromTable =
+        (DeleteFromTableExec) commandResultExec.commandPhysicalPlan();
+    Assertions.assertThat(deleteFromTable.condition().length).isEqualTo(1);
+    Predicate predicate = deleteFromTable.condition()[0];
+    Assertions.assertThat(predicate.toString()).isEqualTo("years(ts) = " + targetYears);
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   @Test
@@ -1382,38 +1384,40 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             extraTableProperties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT));
 
     int targetMonths = timestampStrToMonthOrdinal("2018-12-21T00:00:00.000000+00:00");
-    List<Object[]> expected =
-        sql(
-            "SELECT * FROM %s WHERE %s.system.months(ts) = %s ORDER BY id",
-            tableName, catalogName, targetMonths);
 
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String deleteSql =
-              String.format(
-                  "DELETE FROM %s WHERE %s.system.months(ts) != %s",
+          List<Object[]> expected =
+              sql(
+                  "SELECT * FROM %s WHERE %s.system.months(ts) = %s ORDER BY id",
                   tableName, catalogName, targetMonths);
-          Dataset<Row> df = spark.sql(deleteSql);
-          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-          List<Expression> pushedFilers;
-          if (COPY_ON_WRITE == operationMode) {
-            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-          } else {
-            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-          }
-
-          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-          Expression actualPushed = pushedFilers.get(0);
-          Expression expectedPushed = notEqual(month("ts"), targetMonths);
-          Assertions.assertThat(
-                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-              .isTrue();
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          container.add(expected);
         });
+
+    String deleteSql =
+        String.format(
+            "DELETE FROM %s WHERE %s.system.months(ts) != %s",
+            tableName, catalogName, targetMonths);
+    Dataset<Row> df = spark.sql(deleteSql);
+    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+    List<Expression> pushedFilers;
+    if (COPY_ON_WRITE == operationMode) {
+      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+    } else {
+      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+    }
+
+    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+    Expression actualPushed = pushedFilers.get(0);
+    Expression expectedPushed = notEqual(month("ts"), targetMonths);
+    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+        .isTrue();
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   // TODO: multiple stripes for ORC

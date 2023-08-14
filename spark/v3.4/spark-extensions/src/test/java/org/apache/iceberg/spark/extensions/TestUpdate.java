@@ -1498,38 +1498,39 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         RowLevelOperationMode.fromName(
             extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
 
-    List<Object[]> expected =
-        sql(
-            "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
-            catalogName, tableName);
-
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String updateSql =
-              String.format(
-                  "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
-                  tableName, catalogName);
-          Dataset<Row> df = spark.sql(updateSql);
-          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-          List<Expression> pushedFilers;
-          if (COPY_ON_WRITE == operationMode) {
-            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-          } else {
-            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-          }
-
-          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-          Expression actualPushed = pushedFilers.get(0);
-          Expression expectedPushed = equal(bucket("id", 5), 1);
-          Assertions.assertThat(
-                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-              .isTrue();
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          List<Object[]> expected =
+              sql(
+                  "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
+                  catalogName, tableName);
+          container.add(expected);
         });
+
+    String updateSql =
+        String.format(
+            "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
+            tableName, catalogName);
+    Dataset<Row> df = spark.sql(updateSql);
+    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+    List<Expression> pushedFilers;
+    if (COPY_ON_WRITE == operationMode) {
+      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+    } else {
+      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+    }
+
+    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+    Expression actualPushed = pushedFilers.get(0);
+    Expression expectedPushed = equal(bucket("id", 5), 1);
+    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+        .isTrue();
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   @Test
@@ -1547,38 +1548,39 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         RowLevelOperationMode.fromName(
             extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
 
-    List<Object[]> expected =
-        sql(
-            "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
-            catalogName, tableName);
-
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String updateSql =
-              String.format(
-                  "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
-                  tableName, catalogName);
-          Dataset<Row> df = spark.sql(updateSql);
-          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-          List<Expression> pushedFilers;
-          if (COPY_ON_WRITE == operationMode) {
-            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-          } else {
-            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-          }
-
-          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-          Expression actualPushed = pushedFilers.get(0);
-          Expression expectedPushed = equal(bucket("id", 5), 1);
-          Assertions.assertThat(
-                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-              .isTrue();
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          List<Object[]> expected =
+              sql(
+                  "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
+                  catalogName, tableName);
+          container.add(expected);
         });
+
+    String updateSql =
+        String.format(
+            "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
+            tableName, catalogName);
+    Dataset<Row> df = spark.sql(updateSql);
+    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+    List<Expression> pushedFilers;
+    if (COPY_ON_WRITE == operationMode) {
+      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+    } else {
+      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+    }
+
+    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+    Expression actualPushed = pushedFilers.get(0);
+    Expression expectedPushed = equal(bucket("id", 5), 1);
+    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+        .isTrue();
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   private RowLevelOperationMode mode(Table table) {

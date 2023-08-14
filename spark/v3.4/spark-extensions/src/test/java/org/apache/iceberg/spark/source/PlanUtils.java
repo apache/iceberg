@@ -90,7 +90,7 @@ public class PlanUtils {
   private static List<Scan> collectCommandScans(SparkPlan sparkPlan) {
     Assertions.assertThat(sparkPlan).isInstanceOf(CommandResultExec.class);
     CommandResultExec commandResultExec = (CommandResultExec) sparkPlan;
-    return collectLevies(commandResultExec.commandPhysicalPlan()).stream()
+    return collectLeaves(commandResultExec.commandPhysicalPlan()).stream()
         .flatMap(
             plan -> {
               if (!(plan instanceof BatchScanExec)) {
@@ -104,7 +104,7 @@ public class PlanUtils {
         .collect(Collectors.toList());
   }
 
-  private static List<SparkPlan> collectLevies(SparkPlan sparkPlan) {
+  private static List<SparkPlan> collectLeaves(SparkPlan sparkPlan) {
     Seq<List<SparkPlan>> leaves =
         sparkPlan.collect(
             new PartialFunction<SparkPlan, List<SparkPlan>>() {
@@ -117,7 +117,7 @@ public class PlanUtils {
               public List<SparkPlan> apply(SparkPlan plan) {
                 if (plan instanceof AdaptiveSparkPlanExec) {
                   AdaptiveSparkPlanExec adaptiveSparkPlanExec = (AdaptiveSparkPlanExec) plan;
-                  return collectLevies(adaptiveSparkPlanExec.inputPlan());
+                  return collectLeaves(adaptiveSparkPlanExec.inputPlan());
                 } else {
                   return Lists.newArrayList(plan);
                 }

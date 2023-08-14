@@ -2771,41 +2771,43 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
     int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
-    List<Object[]> expected =
-        sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String mergeSql =
-              String.format(
-                  "MERGE INTO %s AS t USING source AS s "
-                      + "ON t.id = s.id AND %s.system.years(t.ts) = %s "
-                      + "WHEN MATCHED "
-                      + "  THEN UPDATE SET t.data = s.data "
-                      + "WHEN NOT MATCHED AND s.id != 5 "
-                      + "  THEN INSERT *",
-                  tableName, catalogName, targetYears);
-          Dataset<Row> df = spark.sql(mergeSql);
-          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-          List<Expression> pushedFilers;
-          if (COPY_ON_WRITE == operationMode) {
-            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-          } else {
-            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-          }
-
-          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-          Expression actualPushed = pushedFilers.get(0);
-          Expression expectedPushed = equal(year("ts"), targetYears);
-          Assertions.assertThat(
-                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-              .isTrue();
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          List<Object[]> expected =
+              sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
+          container.add(expected);
         });
+
+    String mergeSql =
+        String.format(
+            "MERGE INTO %s AS t USING source AS s "
+                + "ON t.id = s.id AND %s.system.years(t.ts) = %s "
+                + "WHEN MATCHED "
+                + "  THEN UPDATE SET t.data = s.data "
+                + "WHEN NOT MATCHED AND s.id != 5 "
+                + "  THEN INSERT *",
+            tableName, catalogName, targetYears);
+    Dataset<Row> df = spark.sql(mergeSql);
+    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+    List<Expression> pushedFilers;
+    if (COPY_ON_WRITE == operationMode) {
+      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+    } else {
+      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+    }
+
+    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+    Expression actualPushed = pushedFilers.get(0);
+    Expression expectedPushed = equal(year("ts"), targetYears);
+    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+        .isTrue();
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   @Test
@@ -2830,41 +2832,43 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
     int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
-    List<Object[]> expected =
-        sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
+    List<List<Object[]>> container = Lists.newArrayList();
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "true"),
+        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
         () -> {
-          String mergeSql =
-              String.format(
-                  "MERGE INTO %s AS t USING source AS s "
-                      + "ON t.id = s.id AND %s.system.months(t.ts) = %s "
-                      + "WHEN MATCHED "
-                      + "  THEN UPDATE SET t.data = s.data "
-                      + "WHEN NOT MATCHED AND s.id != 5 "
-                      + "  THEN INSERT *",
-                  tableName, catalogName, targetMonths);
-          Dataset<Row> df = spark.sql(mergeSql);
-          SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-          List<Expression> pushedFilers;
-          if (COPY_ON_WRITE == operationMode) {
-            pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-          } else {
-            pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-          }
-
-          Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-          Expression actualPushed = pushedFilers.get(0);
-          Expression expectedPushed = equal(month("ts"), targetMonths);
-          Assertions.assertThat(
-                  ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-              .isTrue();
-
-          List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-          assertEquals("Results should match", expected, actual);
+          List<Object[]> expected =
+              sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
+          container.add(expected);
         });
+
+    String mergeSql =
+        String.format(
+            "MERGE INTO %s AS t USING source AS s "
+                + "ON t.id = s.id AND %s.system.months(t.ts) = %s "
+                + "WHEN MATCHED "
+                + "  THEN UPDATE SET t.data = s.data "
+                + "WHEN NOT MATCHED AND s.id != 5 "
+                + "  THEN INSERT *",
+            tableName, catalogName, targetMonths);
+    Dataset<Row> df = spark.sql(mergeSql);
+    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
+
+    List<Expression> pushedFilers;
+    if (COPY_ON_WRITE == operationMode) {
+      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
+    } else {
+      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
+    }
+
+    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
+    Expression actualPushed = pushedFilers.get(0);
+    Expression expectedPushed = equal(month("ts"), targetMonths);
+    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
+        .isTrue();
+
+    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Results should match", container.get(0), actual);
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
