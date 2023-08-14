@@ -62,7 +62,6 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -155,8 +154,8 @@ public class TestCompressionSettings {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assertions.assertThat(
-          getCompressionType(inputFile)).isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
+      Assertions.assertThat(getCompressionType(inputFile))
+          .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }
 
