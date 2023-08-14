@@ -35,8 +35,8 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -2770,7 +2770,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
-    int targetYears = years("2017-11-22");
+    int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
     List<Object[]> expected =
         sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 
@@ -2829,7 +2829,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
             + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
 
-    int targetMonths = months("2017-11-22");
+    int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
     List<Object[]> expected =
         sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
 

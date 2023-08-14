@@ -34,10 +34,9 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.days;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.hours;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToDayOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToHourOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
 
 import java.sql.Date;
 import java.util.List;
@@ -157,7 +156,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testYearsFunction(boolean partitioned) {
-    int targetYears = years("2017-11-22");
+    int targetYears = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
     String query =
         String.format(
             "SELECT * FROM %s WHERE system.years(ts) = %s ORDER BY id", tableName, targetYears);
@@ -193,7 +192,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testMonthsFunction(boolean partitioned) {
-    int targetMonths = months("2017-11-22");
+    int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
     String query =
         String.format(
             "SELECT * FROM %s WHERE system.months(ts) > %s ORDER BY id", tableName, targetMonths);
@@ -228,8 +227,8 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testDaysFunction(boolean partitioned) {
-    String date = "2018-11-20";
-    int targetDays = days(date);
+    String date = "2018-11-20T00:00:00.000000+00:00";
+    int targetDays = timestampStrToDayOrdinal(date);
     String query =
         String.format(
             "SELECT * FROM %s WHERE system.days(ts) < date('%s') ORDER BY id", tableName, date);
@@ -265,7 +264,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   }
 
   private void testHoursFunction(boolean partitioned) {
-    int targetHours = hours("2017-11-22T06:02:09.243857+00:00");
+    int targetHours = timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00");
     String query =
         String.format(
             "SELECT * FROM %s WHERE system.hours(ts) >= %s ORDER BY id", tableName, targetHours);

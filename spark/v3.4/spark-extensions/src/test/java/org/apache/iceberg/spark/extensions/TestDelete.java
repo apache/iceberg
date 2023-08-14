@@ -34,8 +34,8 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -1336,7 +1336,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     tableProperties.putAll(extraTableProperties());
     createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
 
-    int targetYears = years("2018-12-21");
+    int targetYears = timestampStrToYearOrdinal("2018-12-21T00:00:00.000000+00:00");
     List<Object[]> expected =
         sql(
             "SELECT * FROM %s WHERE %s.system.years(ts) != %s ORDER BY id",
@@ -1381,7 +1381,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         RowLevelOperationMode.fromName(
             extraTableProperties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT));
 
-    int targetMonths = months("2018-12-21");
+    int targetMonths = timestampStrToMonthOrdinal("2018-12-21T00:00:00.000000+00:00");
     List<Object[]> expected =
         sql(
             "SELECT * FROM %s WHERE %s.system.months(ts) = %s ORDER BY id",

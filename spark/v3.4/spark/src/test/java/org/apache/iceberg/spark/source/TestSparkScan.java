@@ -20,10 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.days;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.hours;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.months;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.years;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToDayOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToHourOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
+import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
@@ -120,7 +120,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     YearsFunction.TimestampToYearsFunction function = new YearsFunction.TimestampToYearsFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate("=", expressions(udf, intLit(years("2017-11-22"))));
+    Predicate predicate =
+        new Predicate(
+            "=",
+            expressions(
+                udf, intLit(timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -144,7 +148,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     YearsFunction.TimestampToYearsFunction function = new YearsFunction.TimestampToYearsFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate("=", expressions(udf, intLit(years("2017-11-22"))));
+    Predicate predicate =
+        new Predicate(
+            "=",
+            expressions(
+                udf, intLit(timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -169,7 +177,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     MonthsFunction.TimestampToMonthsFunction function =
         new MonthsFunction.TimestampToMonthsFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate(">", expressions(udf, intLit(months("2017-11-22"))));
+    Predicate predicate =
+        new Predicate(
+            ">",
+            expressions(
+                udf, intLit(timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -194,7 +206,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     MonthsFunction.TimestampToMonthsFunction function =
         new MonthsFunction.TimestampToMonthsFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate(">", expressions(udf, intLit(months("2017-11-22"))));
+    Predicate predicate =
+        new Predicate(
+            ">",
+            expressions(
+                udf, intLit(timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -218,7 +234,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     DaysFunction.TimestampToDaysFunction function = new DaysFunction.TimestampToDaysFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate("<", expressions(udf, dateLit(days("2018-11-20"))));
+    Predicate predicate =
+        new Predicate(
+            "<",
+            expressions(
+                udf, dateLit(timestampStrToDayOrdinal("2018-11-20T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -242,7 +262,11 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     DaysFunction.TimestampToDaysFunction function = new DaysFunction.TimestampToDaysFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
-    Predicate predicate = new Predicate("<", expressions(udf, dateLit(days("2018-11-20"))));
+    Predicate predicate =
+        new Predicate(
+            "<",
+            expressions(
+                udf, dateLit(timestampStrToDayOrdinal("2018-11-20T00:00:00.000000+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -267,7 +291,10 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
     Predicate predicate =
-        new Predicate(">=", expressions(udf, intLit(hours("2017-11-22T06:02:09.243857+00:00"))));
+        new Predicate(
+            ">=",
+            expressions(
+                udf, intLit(timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
@@ -292,7 +319,10 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     HoursFunction.TimestampToHoursFunction function = new HoursFunction.TimestampToHoursFunction();
     UserDefinedScalarFunc udf = toUDF(function, expressions(fieldRef("ts")));
     Predicate predicate =
-        new Predicate(">=", expressions(udf, intLit(hours("2017-11-22T06:02:09.243857+00:00"))));
+        new Predicate(
+            ">=",
+            expressions(
+                udf, intLit(timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00"))));
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
