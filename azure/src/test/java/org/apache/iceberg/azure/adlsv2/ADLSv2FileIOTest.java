@@ -32,23 +32,18 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class ADLSv2FileIOTest {
-  private DataLakeFileClient fileClient;
-  private ADLSv2FileIO io;
-
-  @BeforeEach
-  public void before() {
-    fileClient = mock(DataLakeFileClient.class);
-    io = spy(new ADLSv2FileIO());
-    doReturn(fileClient).when(io).client(any());
-  }
-
   @Test
   public void testFileOperations() {
     String location = "abfs://container@account.dfs.core.windows.net/path/to/file";
+
+    ADLSv2FileIO io = spy(new ADLSv2FileIO());
+    io.initialize(ImmutableMap.of());
+
+    DataLakeFileClient fileClient = mock(DataLakeFileClient.class);
+    doReturn(fileClient).when(io).client(any());
 
     InputFile in = io.newInputFile(location);
     verify(fileClient, times(0)).openInputStream(any());

@@ -61,18 +61,6 @@ public class ADLSv2FileIO implements FileIO {
    */
   public ADLSv2FileIO() {}
 
-  /**
-   * Constructor with Azure properties.
-   *
-   * <p>Calling {@link ADLSv2FileIO#initialize(Map)} will overwrite information set in this
-   * constructor.
-   *
-   * @param azureProperties Azure properties
-   */
-  public ADLSv2FileIO(AzureProperties azureProperties) {
-    this.azureProperties = azureProperties;
-  }
-
   @Override
   public InputFile newInputFile(String path) {
     return ADLSv2InputFile.of(path, client(path), azureProperties, metrics);
@@ -115,7 +103,7 @@ public class ADLSv2FileIO implements FileIO {
             .fileSystemName(location.container())
             .pathName(location.path());
 
-    azureProperties.applyCredentialConfigurations(clientBuilder);
+    azureProperties.applyCredentialConfiguration(clientBuilder);
 
     return clientBuilder.buildFileClient();
   }

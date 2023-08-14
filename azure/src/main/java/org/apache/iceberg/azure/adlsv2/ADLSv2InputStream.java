@@ -96,8 +96,8 @@ class ADLSv2InputStream extends SeekableInputStream implements RangeReadable {
 
   @Override
   public void seek(long newPos) {
-    Preconditions.checkState(!closed, "already closed");
-    Preconditions.checkArgument(newPos >= 0, "position is negative: %s", newPos);
+    Preconditions.checkState(!closed, "Cannot seek: already closed");
+    Preconditions.checkArgument(newPos >= 0, "Cannot seek: position %s is negative", newPos);
 
     // this allows a seek beyond the end of the stream but the next read will fail
     next = newPos;

@@ -39,7 +39,6 @@ import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -200,7 +199,7 @@ public class ADLSv2InputStreamTest {
       throws IOException {
     in.readFully(position, buffer, offset, length);
 
-    Assertions.assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
+    assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
   }
 
@@ -210,7 +209,9 @@ public class ADLSv2InputStreamTest {
     SeekableInputStream closed =
         new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
     closed.close();
-    assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> closed.seek(0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot seek: already closed");
   }
 
   @Test
@@ -229,6 +230,17 @@ public class ADLSv2InputStreamTest {
       byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
       assertThat(actual).isEqualTo(expected);
     }
+  }
+
+  @Test
+  public void testSeekNegative() throws Exception {
+    setupData(randomData(2));
+    SeekableInputStream in =
+        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
+    assertThatThrownBy(() -> in.seek(-3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot seek: position -3 is negative");
+    in.close();
   }
 
   private byte[] randomData(int size) {

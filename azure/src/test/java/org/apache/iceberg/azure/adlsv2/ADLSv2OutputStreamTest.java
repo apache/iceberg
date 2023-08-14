@@ -28,11 +28,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Random;
-import java.util.stream.Stream;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class ADLSv2OutputStreamTest {
 
@@ -45,18 +46,14 @@ public class ADLSv2OutputStreamTest {
     fileClient = mock(DataLakeFileClient.class);
   }
 
-  @Test
-  public void testWrite() {
-    // Run tests for both byte and array write paths
-    Stream.of(true, false)
-        .forEach(
-            arrayWrite -> {
-              // Test small file write
-              writeAndVerify(randomData(1024), arrayWrite);
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testWrite(boolean arrayWrite) {
+    // Test small file write
+    writeAndVerify(randomData(1024), arrayWrite);
 
-              // Test large file
-              writeAndVerify(randomData(10 * 1024 * 1024), arrayWrite);
-            });
+    // Test large file
+    writeAndVerify(randomData(10 * 1024 * 1024), arrayWrite);
   }
 
   @Test

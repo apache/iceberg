@@ -53,7 +53,7 @@ public class AzureProperties implements Serializable {
     return Optional.ofNullable(adlsv2WriteBlockSize);
   }
 
-  public <T extends DataLakePathClientBuilder> void applyCredentialConfigurations(T builder) {
+  public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(T builder) {
     builder.credential(DEFAULT_CREDENTIAL);
   }
 }
