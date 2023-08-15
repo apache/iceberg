@@ -85,8 +85,6 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader.
             compression: Optional compression method
         """
-
-
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)

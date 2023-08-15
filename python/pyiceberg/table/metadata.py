@@ -44,7 +44,12 @@ from pyiceberg.table.sorting import (
     SortOrder,
     assign_fresh_sort_order_ids,
 )
-from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties, IcebergRootModel
+from pyiceberg.typedef import (
+    EMPTY_DICT,
+    IcebergBaseModel,
+    IcebergRootModel,
+    Properties,
+)
 from pyiceberg.utils.datetime import datetime_to_millis
 
 CURRENT_SNAPSHOT_ID = "current-snapshot-id"
@@ -294,8 +299,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
                 data[PARTITION_SPECS] = [{"field-id": 0, "fields": ()}]
 
         data[LAST_PARTITION_ID] = max(
-            [field.get(FIELD_ID) for spec in data[PARTITION_SPECS] for field in spec[FIELDS]],
-            default=PARTITION_FIELD_ID_START
+            [field.get(FIELD_ID) for spec in data[PARTITION_SPECS] for field in spec[FIELDS]], default=PARTITION_FIELD_ID_START
         )
 
         return data
@@ -384,8 +388,7 @@ TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discrim
 
 
 def new_table_metadata(
-        schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str,
-        properties: Properties = EMPTY_DICT
+    schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str, properties: Properties = EMPTY_DICT
 ) -> TableMetadata:
     fresh_schema = assign_fresh_schema_ids(schema)
     fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, schema, fresh_schema)
@@ -433,5 +436,4 @@ class TableMetadataUtil:
             raise ValidationError(f"Unknown format version: {format_version}")
 
 
-TableMetadata = Annotated[
-    Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]  # type: ignore
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]  # type: ignore
