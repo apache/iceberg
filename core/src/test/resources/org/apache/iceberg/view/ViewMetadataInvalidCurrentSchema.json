@@ -2,7 +2,6 @@
   "format-version": 1,
   "location": "s3://bucket/test/location",
   "properties": {"some-key": "some-value"},
-  "current-schema-id": 1234,
   "schemas": [
     {
       "type": "struct",
@@ -51,7 +50,7 @@
       "version-id": 2,
       "timestamp-ms": 5555,
       "summary": {"operation": "replace"},
-      "schema-id": 1,
+      "schema-id": 1234,
       "default-catalog": "some-catalog",
       "default-namespace": [],
       "representations": [

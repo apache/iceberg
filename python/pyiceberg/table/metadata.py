@@ -20,7 +20,6 @@ import datetime
 import uuid
 from copy import copy
 from typing import (
-    Annotated,
     Any,
     Dict,
     List,
@@ -29,7 +28,10 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, model_validator
+from pydantic import Field
+from pydantic import ValidationError as PydanticValidationError
+from pydantic import model_validator
+from typing_extensions import Annotated
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PARTITION_FIELD_ID_START, PartitionSpec, assign_fresh_partition_spec_ids
@@ -42,7 +44,7 @@ from pyiceberg.table.sorting import (
     SortOrder,
     assign_fresh_sort_order_ids,
 )
-from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties
+from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties, IcebergRootModel
 from pyiceberg.utils.datetime import datetime_to_millis
 
 CURRENT_SNAPSHOT_ID = "current-snapshot-id"
@@ -292,7 +294,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
                 data[PARTITION_SPECS] = [{"field-id": 0, "fields": ()}]
 
         data[LAST_PARTITION_ID] = max(
-            [field.get(FIELD_ID) for spec in data[PARTITION_SPECS] for field in spec[FIELDS]], default=PARTITION_FIELD_ID_START
+            [field.get(FIELD_ID) for spec in data[PARTITION_SPECS] for field in spec[FIELDS]],
+            default=PARTITION_FIELD_ID_START
         )
 
         return data
@@ -377,11 +380,12 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     increasing long that tracks the order of snapshots in a table."""
 
 
-TableMetadata = Union[TableMetadataV1, TableMetadataV2]
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]
 
 
 def new_table_metadata(
-    schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str, properties: Properties = EMPTY_DICT
+        schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str,
+        properties: Properties = EMPTY_DICT
 ) -> TableMetadata:
     fresh_schema = assign_fresh_schema_ids(schema)
     fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, schema, fresh_schema)
@@ -401,17 +405,24 @@ def new_table_metadata(
     )
 
 
+class TableMetadataWrapper(IcebergRootModel[TableMetadata]):
+    root: TableMetadata
+
+
 class TableMetadataUtil:
     """Helper class for parsing TableMetadata."""
 
-    # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
-    # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]
+    @staticmethod
+    def parse_raw(data: str) -> TableMetadata:
+        try:
+            return TableMetadataWrapper.model_validate_json(data).root
+        except PydanticValidationError as e:
+            raise ValidationError(e) from e
 
     @staticmethod
     def parse_obj(data: Dict[str, Any]) -> TableMetadata:
         if "format-version" not in data:
             raise ValidationError(f"Missing format-version in TableMetadata: {data}")
-
         format_version = data["format-version"]
 
         if format_version == 1:
@@ -422,4 +433,5 @@ class TableMetadataUtil:
             raise ValidationError(f"Unknown format version: {format_version}")
 
 
-TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]  # type: ignore
+TableMetadata = Annotated[
+    Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]  # type: ignore

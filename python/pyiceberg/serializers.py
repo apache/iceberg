@@ -22,8 +22,7 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 from pyiceberg.io import InputFile, InputStream, OutputFile
-from pyiceberg.table.metadata import TableMetadata
-from pyiceberg.typedef import IcebergRootModel
+from pyiceberg.table.metadata import TableMetadata, TableMetadataUtil
 
 GZIP = "gzip"
 
@@ -87,13 +86,13 @@ class FromByteStream:
             compression: Optional compression method
         """
 
-        class Wrapper(IcebergRootModel):  # type: ignore
-            root: TableMetadata
 
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            return Wrapper.model_validate_json(json_bytes.read()).root
+            metadata = json_bytes.read()
+
+        return TableMetadataUtil.parse_raw(metadata)
 
 
 class FromInputFile:

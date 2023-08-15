@@ -67,6 +67,7 @@ public class GCPProperties implements Serializable {
 
   public GCPProperties() {}
 
+  @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);

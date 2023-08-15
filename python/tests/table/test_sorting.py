@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name,eval-used
-
+import json
 from typing import Any, Dict
 
 import pytest
@@ -57,7 +57,7 @@ def test_deserialize_sort_order(sort_order: SortOrder) -> None:
 
 
 def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]) -> None:
-    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
+    table_metadata = TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
 
     assert table_metadata.sort_orders == [
         SortOrder(
