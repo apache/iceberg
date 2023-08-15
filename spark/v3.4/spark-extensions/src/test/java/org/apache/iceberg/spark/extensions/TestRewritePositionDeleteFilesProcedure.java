@@ -55,16 +55,22 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
         Lists.newArrayList(
             new SimpleRecord(1, "a"),
             new SimpleRecord(1, "b"),
-            new SimpleRecord(2, "c"),
+            new SimpleRecord(1, "c"),
             new SimpleRecord(2, "d"),
-            new SimpleRecord(3, "e"),
-            new SimpleRecord(3, "f"),
-            new SimpleRecord(4, "g"),
-            new SimpleRecord(4, "h"),
-            new SimpleRecord(5, "i"),
-            new SimpleRecord(5, "j"),
-            new SimpleRecord(6, "k"),
-            new SimpleRecord(6, "l"));
+            new SimpleRecord(2, "e"),
+            new SimpleRecord(2, "f"),
+            new SimpleRecord(3, "g"),
+            new SimpleRecord(3, "h"),
+            new SimpleRecord(3, "i"),
+            new SimpleRecord(4, "j"),
+            new SimpleRecord(4, "k"),
+            new SimpleRecord(4, "l"),
+            new SimpleRecord(5, "m"),
+            new SimpleRecord(5, "n"),
+            new SimpleRecord(5, "o"),
+            new SimpleRecord(6, "p"),
+            new SimpleRecord(6, "q"),
+            new SimpleRecord(6, "r"));
     spark
         .createDataset(records, Encoders.bean(SimpleRecord.class))
         .coalesce(1)
@@ -145,12 +151,16 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
   public void testExpireDeleteFilesFilter() throws Exception {
     createTable(true);
 
-    sql("DELETE FROM %s WHERE data='a'", tableName);
-    sql("DELETE FROM %s WHERE data='c'", tableName);
-    sql("DELETE FROM %s WHERE data='e'", tableName);
+    sql("DELETE FROM %s WHERE id = 1 and data='a'", tableName);
+    sql("DELETE FROM %s WHERE id = 1 and data='b'", tableName);
+    sql("DELETE FROM %s WHERE id = 2 and data='d'", tableName);
+    sql("DELETE FROM %s WHERE id = 2 and data='e'", tableName);
+    sql("DELETE FROM %s WHERE id = 3 and data='g'", tableName);
+    sql("DELETE FROM %s WHERE id = 3 and data='h'", tableName);
+
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals(3, TestHelpers.deleteFiles(table).size());
+    Assert.assertEquals(6, TestHelpers.deleteFiles(table).size());
 
     List<Object[]> output =
         sql(
@@ -165,16 +175,16 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
 
     Map<String, String> snapshotSummary = snapshotSummary();
     assertEquals(
-        "Should delete 2 delete files and add 2",
+        "Should delete 4 delete files and add 2",
         ImmutableList.of(
             row(
-                2,
+                4,
                 2,
                 Long.valueOf(snapshotSummary.get(REMOVED_FILE_SIZE_PROP)),
                 Long.valueOf(snapshotSummary.get(ADDED_FILE_SIZE_PROP)))),
         output);
 
-    Assert.assertEquals(3, TestHelpers.deleteFiles(table).size());
+    Assert.assertEquals(4, TestHelpers.deleteFiles(table).size());
   }
 
   @Test

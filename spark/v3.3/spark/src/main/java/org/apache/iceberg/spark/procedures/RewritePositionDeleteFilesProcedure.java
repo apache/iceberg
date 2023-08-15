@@ -22,15 +22,12 @@ import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.Spark3Util;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
-import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -99,25 +96,13 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
         table -> {
           RewritePositionDeleteFiles action =
               actions().rewritePositionDeletes(table).options(options);
-          action = checkAndApplyFilter(action, where, tableIdent);
+          if (where != null) {
+            Expression whereExpression = filterExpression(tableIdent, where);
+            action = action.filter(whereExpression);
+          }
           Result result = action.execute();
           return new InternalRow[] {toOutputRow(result)};
         });
-  }
-
-  private RewritePositionDeleteFiles checkAndApplyFilter(
-      RewritePositionDeleteFiles action, String where, Identifier ident) {
-    if (where != null) {
-      try {
-        String name = Spark3Util.quotedFullIdentifier(tableCatalog().name(), ident);
-        Expression expression =
-            SparkExpressionConverter.collectResolvedSparkExpression(spark(), name, where);
-        return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
-      } catch (AnalysisException e) {
-        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
-      }
-    }
-    return action;
   }
 
   private InternalRow toOutputRow(Result result) {
