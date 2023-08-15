@@ -288,12 +288,14 @@ def test_load_file_io_location_no_schema() -> None:
     assert isinstance(load_file_io({"location": "/no-schema/"}), PyArrowFileIO)
 
 
+@pytest.mark.filterwarnings("ignore")
 def test_mock_warehouse_location_file_io() -> None:
     # For testing the selection logic
     io = load_file_io({"warehouse": "test://some-path/"})
     assert io.properties["warehouse"] == "test://some-path/"
 
 
+@pytest.mark.filterwarnings("ignore")
 def test_mock_table_location_file_io() -> None:
     # For testing the selection logic
     io = load_file_io({}, "test://some-path/")

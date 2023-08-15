@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+import warnings
 from pathlib import Path
 from typing import Generator, List
 
@@ -275,6 +276,7 @@ def test_create_namespace_with_comment_and_location(test_catalog: SqlCatalog, da
     assert properties["location"] == test_location
 
 
+@pytest.mark.filterwarnings("ignore")
 def test_create_namespace_with_null_properties(test_catalog: SqlCatalog, database_name: str) -> None:
     with pytest.raises(IntegrityError):
         test_catalog.create_namespace(namespace=database_name, properties={None: "value"})  # type: ignore
