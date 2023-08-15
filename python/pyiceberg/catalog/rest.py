@@ -430,7 +430,7 @@ class RestCatalog(Catalog):
             write_order=sort_order,
             properties=properties,
         )
-        serialized_json = request.model_dump_json()
+        serialized_json = request.model_dump_json().encode("utf-8")
         response = self._session.post(
             self.url(Endpoints.create_table, namespace=namespace_and_table["namespace"]),
             data=serialized_json,
@@ -507,7 +507,7 @@ class RestCatalog(Catalog):
         """
         response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
-            data=table_request.model_dump_json(),
+            data=table_request.model_dump_json().encode("utf-8"),
         )
         try:
             response.raise_for_status()
