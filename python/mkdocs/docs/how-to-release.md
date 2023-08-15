@@ -25,7 +25,11 @@ The first step is to publish a release candidate (RC) and publish it to the publ
 
 ## Running a release candidate
 
-Make sure that you're on the version that you want to release. And that the version is correct in `pyproject.toml` and `pyiceberg/__init__.py`. Correct means that it reflects the version that you want to release, and doesn't contain any additional modifiers, such as `dev0`.
+Make sure that the version is correct in `pyproject.toml` and `pyiceberg/__init__.py`. Correct means that it reflects the version that you want to release.
+
+### Setting the tag
+
+First set the tag on the commit:
 
 ```bash
 export RC=rc1
@@ -44,36 +48,23 @@ export LAST_COMMIT_ID=$(git rev-list ${GIT_TAG} 2> /dev/null | head -n 1)
 
 The `-s` option will sign the commit. If you don't have a key yet, you can find the instructions [here](http://www.apache.org/dev/openpgp.html#key-gen-generate-key). To install gpg on a M1 based Mac, a couple of additional steps are required: https://gist.github.com/phortuin/cf24b1cca3258720c71ad42977e1ba57
 
-Next step is to remove the `dist/` directory to make sure that we have a clean start. Create a source distribution (`sdist`) which will generate a `.tar.gz` with all the source files using `poetry build`. These files need to be uploaded to the Apache SVN.
+### Upload to Apache SVN
 
-```sh
-rm -rf dist/
-poetry build
-```
+Both the source distribution (`sdist`) and the binary distributions (`wheels`) need to be published for the RC. The wheels are convenient to avoid having people to install compilers locally. The downside is that each architecture requires its own wheel. [use `cibuildwheel`](https://github.com/pypa/cibuildwheel) runs in Github actions to create a wheel for each of the architectures.
 
-This will create two artifacts:
+Before committing the files to the Apache SVN artifact distribution SVN hashes need to be generated, and those need to be signed with gpg to make sure that they are authentic.
 
-```
-Building pyiceberg (0.1.0)
-  - Building sdist
-  - Built pyiceberg-0.1.0.tar.gz
-  - Building wheel
-  - Built apache_iceberg-0.1.0-py3-none-any.whl
-```
-
-The `sdist` contains the source which can be used for checking licenses, and the wheel is a compiled version for quick installation.
-
-Before committing the files to the Apache SVN artifact distribution SVN hashes need to be generated, and those need to be signed with gpg to make sure that they are authentic:
+Go to [Github Actions and run the `Python release` action](https://github.com/apache/iceberg/actions/workflows/python-release.yml). **Set the version to master, since we cannot modify the source**. Download the zip, and sign the files:
 
 ```bash
-for name in "pyiceberg-${VERSION_WITHOUT_RC}-py3-none-any.whl" "pyiceberg-${VERSION_WITHOUT_RC}.tar.gz"
+for name in $(ls release-master/pyiceberg-*.whl)
 do
-    gpg --yes --armor --local-user fokko@apache.org --output "dist/${name}.asc" --detach-sig "dist/${name}"
-    (cd dist/ && shasum -a 512 "${name}" > "${name}.sha512")
+    gpg --yes --armor --local-user fokko@apache.org --output "${name}.asc" --detach-sig "${name}"
+    shasum -a 512 "${name}.asc" > "${name}.asc.sha512"
 done
 ```
 
-Next step is to clone the Apache SVN, copy and commit the files:
+Now we can upload the files
 
 ```bash
 export SVN_TMP_DIR=/tmp/iceberg-${VERSION_BRANCH}/
@@ -81,18 +72,19 @@ svn checkout https://dist.apache.org/repos/dist/dev/iceberg $SVN_TMP_DIR
 
 export SVN_TMP_DIR_VERSIONED=${SVN_TMP_DIR}pyiceberg-$VERSION/
 mkdir -p $SVN_TMP_DIR_VERSIONED
-cp dist/* $SVN_TMP_DIR_VERSIONED
+cp artifact/* $SVN_TMP_DIR_VERSIONED
 svn add $SVN_TMP_DIR_VERSIONED
 svn ci -m "PyIceberg ${VERSION}" ${SVN_TMP_DIR_VERSIONED}
 ```
 
+### Upload to PyPi
+
+Go to Github Actions and run the `Python release` action. Set the version of the release candidate as the input: `0.1.0rc1`. Download the zip and unzip it locally.
+
 Next step is to upload them to pypi. Please keep in mind that this **won't** bump the version for everyone that hasn't pinned their version, since it is set to a RC [pre-release and those are ignored](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#pre-release-versioning).
 
-```
-poetry version ${VERSION}
-rm -rf dist/
-poetry build
-twine upload -s dist/*
+```bash
+twine upload -s release-0.1.0-rc1/*
 ```
 
 Final step is to generate the email to the dev mail list:
@@ -138,12 +130,11 @@ cat release-announcement-email.txt
 
 ## Vote has passed
 
-Once the vote has been passed, the latest version can be pushed to PyPi. Check out the commit associated with the passing vote, and run:
+Once the vote has been passed, the latest version can be pushed to PyPi. Check out the Apache SVN and make sure to publish the right version with `twine`:
 
 ```bash
-rm -rf dist/
-poetry build
-twine upload -s dist/*
+svn checkout https://dist.apache.org/repos/dist/dev/iceberg /tmp/
+twine upload -s /tmp/iceberg/pyiceberg-0.1.0rc1
 ```
 
 Send out an announcement on the dev mail list:
@@ -166,4 +157,4 @@ Thanks to everyone for contributing!
 
 ## Release the docs
 
-A committer triggers the `Python Docs` Github Actions through the UI by selecting the branch that just has been released. This will publish the new docs.
+A committer triggers the [`Python Docs` Github Actions](https://github.com/apache/iceberg/actions/workflows/python-ci-docs.yml) through the UI by selecting the branch that just has been released. This will publish the new docs.

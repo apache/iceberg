@@ -36,6 +36,7 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1177,5 +1178,15 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(SCHEMA, equal("id", ((long) Integer.MAX_VALUE) + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should not read: Long value outside Integer range").isFalse();
+  }
+
+  @Test
+  public void testTransformFilter() {
+    boolean shouldRead =
+        new ParquetBloomRowGroupFilter(SCHEMA, equal(year("timestamp"), 10), true)
+            .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    assertThat(shouldRead)
+        .as("Should read: filter contains non-reference evaluate as True")
+        .isTrue();
   }
 }

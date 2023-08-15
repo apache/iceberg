@@ -1095,13 +1095,16 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
     lower_bounds: Dict[int, bytes]
     upper_bounds: Dict[int, bytes]
 
-    def __init__(self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True) -> None:
+    def __init__(
+        self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True, include_empty_files: bool = False
+    ) -> None:
         self.struct = schema.as_struct()
+        self.include_empty_files = include_empty_files
         self.expr = bind(schema, rewrite_not(expr), case_sensitive)
 
     def eval(self, file: DataFile) -> bool:
         """Test whether the file may contain records that match the expression."""
-        if file.record_count == 0:
+        if not self.include_empty_files and file.record_count == 0:
             return ROWS_CANNOT_MATCH
 
         if file.record_count < 0:

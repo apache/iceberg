@@ -28,6 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
+from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
@@ -56,6 +57,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 
 _BOOL_STRUCT = Struct("<?")
@@ -63,7 +65,6 @@ _INT_STRUCT = Struct("<i")
 _LONG_STRUCT = Struct("<q")
 _FLOAT_STRUCT = Struct("<f")
 _DOUBLE_STRUCT = Struct("<d")
-_UUID_STRUCT = Struct(">QQ")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
@@ -152,7 +153,9 @@ def _(_: DecimalType, value_str: str) -> Decimal:
 
 
 @singledispatch
-def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
+def to_bytes(
+    primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, date, datetime, float, int, str, time, uuid.UUID]
+) -> bytes:
     """A generic function which converts a built-in python value to bytes.
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
@@ -172,16 +175,34 @@ def _(_: BooleanType, value: bool) -> bytes:
 
 
 @to_bytes.register(IntegerType)
-@to_bytes.register(DateType)
 def _(_: PrimitiveType, value: int) -> bytes:
     return _INT_STRUCT.pack(value)
 
 
 @to_bytes.register(LongType)
-@to_bytes.register(TimeType)
+def _(_: PrimitiveType, value: int) -> bytes:
+    return _LONG_STRUCT.pack(value)
+
+
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
-def _(_: PrimitiveType, value: int) -> bytes:
+def _(_: TimestampType, value: Union[datetime, int]) -> bytes:
+    if isinstance(value, datetime):
+        value = datetime_to_micros(value)
+    return _LONG_STRUCT.pack(value)
+
+
+@to_bytes.register(DateType)
+def _(_: DateType, value: Union[date, int]) -> bytes:
+    if isinstance(value, date):
+        value = date_to_days(value)
+    return _INT_STRUCT.pack(value)
+
+
+@to_bytes.register(TimeType)
+def _(_: TimeType, value: Union[time, int]) -> bytes:
+    if isinstance(value, time):
+        value = time_to_micros(value)
     return _LONG_STRUCT.pack(value)
 
 
@@ -206,8 +227,10 @@ def _(_: StringType, value: str) -> bytes:
 
 
 @to_bytes.register(UUIDType)
-def _(_: UUIDType, value: uuid.UUID) -> bytes:
-    return _UUID_STRUCT.pack((value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
+def _(_: UUIDType, value: Union[uuid.UUID, bytes]) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    return value.bytes
 
 
 @to_bytes.register(BinaryType)
@@ -288,14 +311,9 @@ def _(_: StringType, b: bytes) -> str:
     return bytes(b).decode("utf-8")
 
 
-@from_bytes.register(UUIDType)
-def _(_: UUIDType, b: bytes) -> uuid.UUID:
-    unpacked_bytes = _UUID_STRUCT.unpack(b)
-    return uuid.UUID(int=unpacked_bytes[0] << 64 | unpacked_bytes[1])
-
-
 @from_bytes.register(BinaryType)
 @from_bytes.register(FixedType)
+@from_bytes.register(UUIDType)
 def _(_: PrimitiveType, b: bytes) -> bytes:
     return b
 

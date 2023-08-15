@@ -68,6 +68,10 @@ class Output(ABC):
     def uuid(self, uuid: Optional[UUID]) -> None:
         ...
 
+    @abstractmethod
+    def version(self, version: str) -> None:
+        ...
+
 
 class ConsoleOutput(Output):
     """Writes to the console."""
@@ -167,6 +171,9 @@ class ConsoleOutput(Output):
     def uuid(self, uuid: Optional[UUID]) -> None:
         Console().print(str(uuid) if uuid else "missing")
 
+    def version(self, version: str) -> None:
+        Console().print(version)
+
 
 class JsonOutput(Output):
     """Writes json to stdout."""
@@ -212,3 +219,6 @@ class JsonOutput(Output):
 
     def uuid(self, uuid: Optional[UUID]) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})
+
+    def version(self, version: str) -> None:
+        self._out({"version": version})
