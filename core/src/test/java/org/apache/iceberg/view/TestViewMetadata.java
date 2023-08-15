@@ -34,26 +34,15 @@ public class TestViewMetadata {
     assertThatThrownBy(() -> ImmutableViewMetadata.builder().build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ViewMetadata, some of required attributes are not set [formatVersion, location, currentSchemaId, currentVersionId]");
+            "Cannot build ViewMetadata, some of required attributes are not set [formatVersion, location, currentVersionId]");
 
     assertThatThrownBy(() -> ImmutableViewMetadata.builder().formatVersion(1).build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ViewMetadata, some of required attributes are not set [location, currentSchemaId, currentVersionId]");
+            "Cannot build ViewMetadata, some of required attributes are not set [location, currentVersionId]");
 
     assertThatThrownBy(
             () -> ImmutableViewMetadata.builder().formatVersion(1).location("location").build())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot build ViewMetadata, some of required attributes are not set [currentSchemaId, currentVersionId]");
-
-    assertThatThrownBy(
-            () ->
-                ImmutableViewMetadata.builder()
-                    .formatVersion(1)
-                    .location("location")
-                    .currentSchemaId(1)
-                    .build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot build ViewMetadata, some of required attributes are not set [currentVersionId]");
@@ -63,7 +52,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -77,7 +65,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(23)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -91,7 +78,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -105,7 +91,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(1)
                     .addVersions(
                         ImmutableViewVersion.builder()
@@ -132,7 +117,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(23)
                     .addVersions(
                         ImmutableViewVersion.builder()
@@ -161,11 +145,10 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(23)
                     .currentVersionId(1)
                     .addVersions(
                         ImmutableViewVersion.builder()
-                            .schemaId(1)
+                            .schemaId(23)
                             .versionId(1)
                             .defaultNamespace(Namespace.of("ns"))
                             .timestampMillis(23L)
@@ -191,7 +174,6 @@ public class TestViewMetadata {
             .properties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
             .formatVersion(1)
             .location("location")
-            .currentSchemaId(1)
             .currentVersionId(3)
             .addVersions(
                 ImmutableViewVersion.builder()
@@ -235,7 +217,6 @@ public class TestViewMetadata {
                 ImmutableViewMetadata.builder()
                     .formatVersion(1)
                     .location("location")
-                    .currentSchemaId(1)
                     .currentVersionId(2)
                     .addVersions(
                         ImmutableViewVersion.builder()
@@ -267,7 +248,6 @@ public class TestViewMetadata {
             .properties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "1"))
             .formatVersion(1)
             .location("location")
-            .currentSchemaId(1)
             .currentVersionId(3)
             .addVersions(
                 ImmutableViewVersion.builder()
