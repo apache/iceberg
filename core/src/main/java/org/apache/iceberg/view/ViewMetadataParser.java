@@ -45,7 +45,6 @@ public class ViewMetadataParser {
   static final String VERSION_LOG = "version-log";
   static final String PROPERTIES = "properties";
   static final String SCHEMAS = "schemas";
-  static final String CURRENT_SCHEMA_ID = "current-schema-id";
 
   private ViewMetadataParser() {}
 
@@ -65,7 +64,6 @@ public class ViewMetadataParser {
     gen.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     gen.writeStringField(LOCATION, metadata.location());
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), gen);
-    gen.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
 
     gen.writeArrayFieldStart(SCHEMAS);
     for (Schema schema : metadata.schemas()) {
@@ -103,7 +101,6 @@ public class ViewMetadataParser {
     String location = JsonUtil.getString(LOCATION, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);
 
-    int currentSchemaId = JsonUtil.getInt(CURRENT_SCHEMA_ID, json);
     JsonNode schemasNode = JsonUtil.get(SCHEMAS, json);
 
     Preconditions.checkArgument(
@@ -138,7 +135,6 @@ public class ViewMetadataParser {
         .properties(properties)
         .versions(versions)
         .schemas(schemas)
-        .currentSchemaId(currentSchemaId)
         .history(historyEntries)
         .formatVersion(formatVersion)
         .build();
