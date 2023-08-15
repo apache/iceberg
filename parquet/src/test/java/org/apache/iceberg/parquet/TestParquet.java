@@ -25,17 +25,18 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -49,14 +50,12 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
@@ -68,7 +67,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assert.assertEquals(2, reader.getRowGroups().size());
+      assertThat(reader.getRowGroups()).hasSize(2);
     }
   }
 
@@ -83,7 +82,7 @@ public class TestParquet {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
-      Assert.assertEquals(2, reader.getRowGroups().size());
+      assertThat(reader.getRowGroups()).hasSize(2);
     }
   }
 
@@ -116,7 +115,7 @@ public class TestParquet {
             records.toArray(new GenericData.Record[] {}));
 
     long expectedSize = ParquetIO.file(localInput(file)).getLength();
-    Assert.assertEquals(expectedSize, actualSize);
+    assertThat(actualSize).isEqualTo(expectedSize);
   }
 
   @Test
@@ -127,11 +126,11 @@ public class TestParquet {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+        AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(testFile.toURI()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
@@ -154,8 +153,8 @@ public class TestParquet {
         Iterables.getOnlyElement(
             Parquet.read(Files.localInput(testFile)).project(schema).callInit().build());
 
-    Assert.assertEquals(expectedByteList, recordRead.get("arraybytes"));
-    Assert.assertEquals(expectedBinary, recordRead.get("topbytes"));
+    assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
+    assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
   }
 
   private Pair<File, Long> generateFile(

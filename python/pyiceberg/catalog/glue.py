@@ -51,12 +51,15 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
+BOTO_SESSION_CONFIG_KEYS = ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
+
 GLUE_CLIENT = "glue"
+
 
 PROP_GLUE_TABLE = "Table"
 PROP_GLUE_TABLE_TYPE = "TableType"
@@ -131,7 +134,10 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
 class GlueCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
-        self.glue = boto3.client(GLUE_CLIENT)
+
+        session_config = {k: v for k, v in properties.items() if k in BOTO_SESSION_CONFIG_KEYS}
+        session = boto3.Session(**session_config)
+        self.glue = session.client(GLUE_CLIENT)
 
     def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
         properties: Properties = glue_table.get(PROP_GLUE_TABLE_PARAMETERS, {})
@@ -160,10 +166,11 @@ class GlueCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
+            identifier=(self.name, glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
     def _create_glue_table(self, database_name: str, table_name: str, table_input: Dict[str, Any]) -> None:
@@ -184,7 +191,7 @@ class GlueCatalog(Catalog):
         properties: Properties = EMPTY_DICT,
     ) -> Table:
         """
-        Create an Iceberg table
+        Create an Iceberg table.
 
         Args:
             identifier: Table identifier.
@@ -195,11 +202,11 @@ class GlueCatalog(Catalog):
             properties: Table properties that can be a string based dictionary.
 
         Returns:
-            Table: the created table instance
+            Table: the created table instance.
 
         Raises:
-            AlreadyExistsError: If a table with the name already exists
-            ValueError: If the identifier is invalid, or no path is given to store metadata
+            AlreadyExistsError: If a table with the name already exists.
+            ValueError: If the identifier is invalid, or no path is given to store metadata.
 
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
@@ -218,20 +225,34 @@ class GlueCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Updates the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        raise NotImplementedError
+
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
 
         Args:
             identifier: Table identifier.
 
         Returns:
-            Table: the table instance with its metadata
+            Table: the table instance with its metadata.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
@@ -248,7 +269,7 @@ class GlueCatalog(Catalog):
             identifier: Table identifier.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
@@ -257,23 +278,23 @@ class GlueCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}") from e
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        """Rename a fully classified table name
+        """Rename a fully classified table name.
 
-        This method can only rename Iceberg tables in AWS Glue
+        This method can only rename Iceberg tables in AWS Glue.
 
         Args:
             from_identifier: Existing table identifier.
             to_identifier: New table identifier.
 
         Returns:
-            Table: the updated table instance with its metadata
+            Table: the updated table instance with its metadata.
 
         Raises:
-            ValueError: When from table identifier is invalid
-            NoSuchTableError: When a table with the name does not exist
-            NoSuchIcebergTableError: When from table is not a valid iceberg table
-            NoSuchPropertyException: When from table miss some required properties
-            NoSuchNamespaceError: When the destination namespace doesn't exist
+            ValueError: When from table identifier is invalid.
+            NoSuchTableError: When a table with the name does not exist.
+            NoSuchIcebergTableError: When from table is not a valid iceberg table.
+            NoSuchPropertyException: When from table miss some required properties.
+            NoSuchNamespaceError: When the destination namespace doesn't exist.
         """
         from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
         to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
@@ -320,12 +341,12 @@ class GlueCatalog(Catalog):
         """Create a namespace in the catalog.
 
         Args:
-            namespace: Namespace identifier
-            properties: A string dictionary of properties for the given namespace
+            namespace: Namespace identifier.
+            properties: A string dictionary of properties for the given namespace.
 
         Raises:
-            ValueError: If the identifier is invalid
-            AlreadyExistsError: If a namespace with the given name already exists
+            ValueError: If the identifier is invalid.
+            AlreadyExistsError: If a namespace with the given name already exists.
         """
         database_name = self.identifier_to_database(namespace)
         try:
@@ -336,14 +357,14 @@ class GlueCatalog(Catalog):
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         """Drop a namespace.
 
-        A Glue namespace can only be dropped if it is empty
+        A Glue namespace can only be dropped if it is empty.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
-            NamespaceNotEmptyError: If the namespace is not empty
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid.
+            NamespaceNotEmptyError: If the namespace is not empty.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
@@ -357,7 +378,7 @@ class GlueCatalog(Catalog):
         self.glue.delete_database(Name=database_name)
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        """List tables under the given namespace in the catalog (including non-Iceberg tables)
+        """List tables under the given namespace in the catalog (including non-Iceberg tables).
 
         Args:
             namespace (str | Identifier): Namespace identifier to search.
@@ -366,9 +387,8 @@ class GlueCatalog(Catalog):
             List[Identifier]: list of table identifiers.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid.
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         table_list = []
         try:
@@ -387,7 +407,7 @@ class GlueCatalog(Catalog):
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
-            List[Identifier]: a List of namespace identifiers
+            List[Identifier]: a List of namespace identifiers.
         """
         # Hierarchical namespace is not supported. Return an empty list
         if namespace:
@@ -407,13 +427,13 @@ class GlueCatalog(Catalog):
         """Get properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Returns:
-            Properties: Properties for the given namespace
+            Properties: Properties for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
@@ -424,10 +444,8 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
 
         database = database_response[PROP_GLUE_DATABASE]
-        if PROP_GLUE_DATABASE_PARAMETERS not in database:
-            return {}
 
-        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[LOCATION] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
@@ -441,15 +459,14 @@ class GlueCatalog(Catalog):
         """Removes provided property keys and updates properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
             removals: Set of property keys that need to be removed. Optional Argument.
             updates: Properties to be updated for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid.
             ValueError: If removals and updates have overlapping keys.
         """
-
         current_properties = self.load_namespace_properties(namespace=namespace)
         properties_update_summary, updated_properties = self._get_updated_props_and_update_summary(
             current_properties=current_properties, removals=removals, updates=updates

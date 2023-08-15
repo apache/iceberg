@@ -29,7 +29,7 @@ try:
     class SnappyCodec(Codec):
         @staticmethod
         def _check_crc32(bytes_: bytes, checksum: bytes) -> None:
-            """Incrementally compute CRC-32 from bytes and compare to a checksum
+            """Incrementally compute CRC-32 from bytes and compare to a checksum.
 
             Args:
               bytes_ (bytes): The bytes to check against `checksum`

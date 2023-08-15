@@ -79,7 +79,7 @@ public class TestSparkParquetWriter {
                   Types.StringType.get(),
                   Types.StructType.of(
                       optional(22, "jumpy", Types.DoubleType.get()),
-                      required(23, "koala", Types.IntegerType.get()),
+                      required(23, "koala", Types.UUIDType.get()),
                       required(24, "couch rope", Types.IntegerType.get())))),
           optional(2, "slide", Types.StringType.get()));
 

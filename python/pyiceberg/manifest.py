@@ -46,6 +46,7 @@ class DataFileContent(int, Enum):
     EQUALITY_DELETES = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the DataFileContent class."""
         return f"DataFileContent.{self.name}"
 
 
@@ -54,6 +55,7 @@ class ManifestContent(int, Enum):
     DELETES = 1
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestContent class."""
         return f"ManifestContent.{self.name}"
 
 
@@ -63,6 +65,7 @@ class ManifestEntryStatus(int, Enum):
     DELETED = 2
 
     def __repr__(self) -> str:
+        """Returns the string representation of the ManifestEntryStatus class."""
         return f"ManifestEntryStatus.{self.name}"
 
 
@@ -72,6 +75,7 @@ class FileFormat(str, Enum):
     ORC = "ORC"
 
     def __repr__(self) -> str:
+        """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
 
@@ -82,6 +86,7 @@ DATA_FILE_TYPE = StructType(
         field_type=IntegerType(),
         required=False,
         doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
+        initial_default=DataFileContent.DATA,
     ),
     NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
     NestedField(
@@ -100,14 +105,14 @@ DATA_FILE_TYPE = StructType(
         field_id=108,
         name="column_sizes",
         field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
-        required=True,
+        required=False,
         doc="Map of column id to total size on disk",
     ),
     NestedField(
         field_id=109,
         name="value_counts",
         field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
-        required=True,
+        required=False,
         doc="Map of column id to total count, including null and NaN",
     ),
     NestedField(
@@ -159,7 +164,26 @@ DATA_FILE_TYPE = StructType(
 
 
 class DataFile(Record):
-    content: Optional[DataFileContent]
+    __slots__ = (
+        "content",
+        "file_path",
+        "file_format",
+        "partition",
+        "record_count",
+        "file_size_in_bytes",
+        "column_sizes",
+        "value_counts",
+        "null_value_counts",
+        "nan_value_counts",
+        "lower_bounds",
+        "upper_bounds",
+        "key_metadata",
+        "split_offsets",
+        "equality_ids",
+        "sort_order_id",
+        "spec_id",
+    )
+    content: DataFileContent
     file_path: str
     file_format: FileFormat
     partition: Record
@@ -178,6 +202,7 @@ class DataFile(Record):
     spec_id: Optional[int]
 
     def __setattr__(self, name: str, value: Any) -> None:
+        """Used for assigning a key/value to a DataFile."""
         # The file_format is written as a string, so we need to cast it to the Enum
         if name == "file_format":
             value = FileFormat[value]
@@ -186,25 +211,39 @@ class DataFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
+    def __hash__(self) -> int:
+        """Returns the hash of the file path."""
+        return hash(self.file_path)
+
+    def __eq__(self, other: Any) -> bool:
+        """Compares the datafile with another object.
+
+        If it is a datafile, it will compare based on the file_path.
+        """
+        return self.file_path == other.file_path if isinstance(other, DataFile) else False
+
 
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
     NestedField(1, "snapshot_id", LongType(), required=False),
-    NestedField(3, "sequence_number", LongType(), required=False),
+    NestedField(3, "data_sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE_TYPE, required=False),
+    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
 )
+
+MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
 
 
 class ManifestEntry(Record):
+    __slots__ = ("status", "snapshot_id", "data_sequence_number", "file_sequence_number", "data_file")
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
-    sequence_number: Optional[int]
+    data_sequence_number: Optional[int]
     file_sequence_number: Optional[int]
     data_file: DataFile
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA_STRUCT, **named_data})
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -216,6 +255,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 
 
 class PartitionFieldSummary(Record):
+    __slots__ = ("contains_null", "contains_nan", "lower_bound", "upper_bound")
     contains_null: bool
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
@@ -229,9 +269,9 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(500, "manifest_path", StringType(), required=True, doc="Location URI with FS scheme"),
     NestedField(501, "manifest_length", LongType(), required=True),
     NestedField(502, "partition_spec_id", IntegerType(), required=True),
-    NestedField(517, "content", IntegerType(), required=False),
-    NestedField(515, "sequence_number", LongType(), required=False),
-    NestedField(516, "min_sequence_number", LongType(), required=False),
+    NestedField(517, "content", IntegerType(), required=False, initial_default=ManifestContent.DATA),
+    NestedField(515, "sequence_number", LongType(), required=False, initial_default=0),
+    NestedField(516, "min_sequence_number", LongType(), required=False, initial_default=0),
     NestedField(503, "added_snapshot_id", LongType(), required=False),
     NestedField(504, "added_files_count", IntegerType(), required=False),
     NestedField(505, "existing_files_count", IntegerType(), required=False),
@@ -243,15 +283,38 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+MANIFEST_FILE_SCHEMA_STRUCT = MANIFEST_FILE_SCHEMA.as_struct()
+
+POSITIONAL_DELETE_SCHEMA = Schema(
+    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
+)
+
 
 class ManifestFile(Record):
+    __slots__ = (
+        "manifest_path",
+        "manifest_length",
+        "partition_spec_id",
+        "content",
+        "sequence_number",
+        "min_sequence_number",
+        "added_snapshot_id",
+        "added_files_count",
+        "existing_files_count",
+        "deleted_files_count",
+        "added_rows_count",
+        "existing_rows_count",
+        "deleted_rows_count",
+        "partitions",
+        "key_metadata",
+    )
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
-    content: Optional[ManifestContent]
-    sequence_number: Optional[int]
-    min_sequence_number: Optional[int]
-    added_snapshot_id: Optional[int]
+    content: ManifestContent
+    sequence_number: int
+    min_sequence_number: int
+    added_snapshot_id: int
     added_files_count: Optional[int]
     existing_files_count: Optional[int]
     deleted_files_count: Optional[int]
@@ -262,26 +325,83 @@ class ManifestFile(Record):
     key_metadata: Optional[bytes]
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
+        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA_STRUCT, **named_data})
 
-    def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
-        file = io.new_input(self.manifest_path)
-        return list(read_manifest_entry(file))
+    def has_added_files(self) -> bool:
+        return self.added_files_count is None or self.added_files_count > 0
 
+    def has_existing_files(self) -> bool:
+        return self.existing_files_count is None or self.existing_files_count > 0
 
-def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile}) as reader:
-        yield from reader
+    def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
+        """
+        Reads the manifest entries from the manifest file.
 
+        Args:
+            io: The FileIO to fetch the file.
+            discard_deleted: Filter on live entries.
 
-def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
-    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
-
-
-def files(input_file: InputFile) -> Iterator[DataFile]:
-    return (entry.data_file for entry in live_entries(input_file))
+        Returns:
+            An Iterator of manifest entries.
+        """
+        input_file = io.new_input(self.manifest_path)
+        with AvroFile[ManifestEntry](
+            input_file,
+            MANIFEST_ENTRY_SCHEMA,
+            read_types={-1: ManifestEntry, 2: DataFile},
+            read_enums={0: ManifestEntryStatus, 101: FileFormat, 134: DataFileContent},
+        ) as reader:
+            return [
+                _inherit_sequence_number(entry, self)
+                for entry in reader
+                if not discard_deleted or entry.status != ManifestEntryStatus.DELETED
+            ]
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
-    with AvroFile[ManifestFile](input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+    """
+    Reads the manifests from the manifest list.
+
+    Args:
+        input_file: The input file where the stream can be read from.
+
+    Returns:
+        An iterator of ManifestFiles that are part of the list.
+    """
+    with AvroFile[ManifestFile](
+        input_file,
+        MANIFEST_FILE_SCHEMA,
+        read_types={-1: ManifestFile, 508: PartitionFieldSummary},
+        read_enums={517: ManifestContent},
+    ) as reader:
         yield from reader
+
+
+def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> ManifestEntry:
+    """Inherits the sequence numbers.
+
+    More information in the spec: https://iceberg.apache.org/spec/#sequence-number-inheritance
+
+    Args:
+        entry: The manifest entry that has null sequence numbers.
+        manifest: The manifest that has a sequence number.
+
+    Returns:
+        The manifest entry with the sequence numbers set.
+    """
+    # The snapshot_id is required in V1, inherit with V2 when null
+    if entry.snapshot_id is None:
+        entry.snapshot_id = manifest.added_snapshot_id
+
+    # in v1 tables, the data sequence number is not persisted and can be safely defaulted to 0
+    # in v2 tables, the data sequence number should be inherited iff the entry status is ADDED
+    if entry.data_sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
+        entry.data_sequence_number = manifest.sequence_number
+
+    # in v1 tables, the file sequence number is not persisted and can be safely defaulted to 0
+    # in v2 tables, the file sequence number should be inherited iff the entry status is ADDED
+    if entry.file_sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
+        # Only available in V2, always 0 in V1
+        entry.file_sequence_number = manifest.sequence_number
+
+    return entry

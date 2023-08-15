@@ -15,7 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 """
-This is a singleton metaclass that can be used to cache and re-use existing objects
+This is a singleton metaclass that can be used to cache and re-use existing objects.
 
 In the Iceberg codebase we have a lot of objects that are stateless (for example Types such as StringType,
 BooleanType etc). FixedTypes have arguments (eg. Fixed[22]) that we also make part of the key when caching

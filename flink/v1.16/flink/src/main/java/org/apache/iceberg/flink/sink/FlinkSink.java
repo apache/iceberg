@@ -132,7 +132,6 @@ public class FlinkSink {
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
-    private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
@@ -248,7 +247,8 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder writeParallelism(int newWriteParallelism) {
-      this.writeParallelism = newWriteParallelism;
+      writeOptions.put(
+          FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
       return this;
     }
 
@@ -428,7 +428,8 @@ public class FlinkSink {
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
-              flinkWriteConf.branch());
+              flinkWriteConf.branch(),
+              table.spec());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
@@ -464,7 +465,10 @@ public class FlinkSink {
       IcebergStreamWriter<RowData> streamWriter =
           createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds);
 
-      int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
+      int parallelism =
+          flinkWriteConf.writeParallelism() == null
+              ? input.getParallelism()
+              : flinkWriteConf.writeParallelism();
       SingleOutputStreamOperator<WriteResult> writerStream =
           input
               .transform(
@@ -505,7 +509,13 @@ public class FlinkSink {
                       + "and table is unpartitioned");
               return input;
             } else {
-              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              if (BucketPartitionerUtil.hasOneBucketField(partitionSpec)) {
+                return input.partitionCustom(
+                    new BucketPartitioner(partitionSpec),
+                    new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              } else {
+                return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              }
             }
           } else {
             if (partitionSpec.isUnpartitioned()) {

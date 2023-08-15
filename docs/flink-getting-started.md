@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Flink
+        identifier: flink_getting_started
         weight: 100
 ---
 <!--
@@ -53,7 +54,7 @@ To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](ht
 Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink 1.16 bundled with Scala 2.12.
 
 ```bash
-FLINK_VERSION=1.16.1
+FLINK_VERSION=1.16.2
 SCALA_VERSION=2.12
 APACHE_FLINK_URL=https://archive.apache.org/dist/flink/
 wget ${APACHE_FLINK_URL}/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
@@ -82,10 +83,15 @@ Start the Flink SQL client. There is a separate `flink-runtime` module in the Ic
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`   
 
-./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar shell
+# Below works for 1.15 or less
+./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-{{% icebergVersion %}}.jar shell
+
+# 1.16 or above has a regression in loading external jar via -j option. See FLINK-30035 for details.
+put iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar in flink/lib dir
+./bin/sql-client.sh embedded shell
 ```
 
-By default, Iceberg ships with Hadoop jars for Hadoop catalog. To use Hive catalog, load the Hive jars when opening the Flink SQL client. Fortunately, Flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.9_2.12/1.16.1/flink-sql-connector-hive-2.3.9_2.12-1.16.1.jar) for the SQL client. An example on how to download the dependencies and get started:
+By default, Iceberg ships with Hadoop jars for Hadoop catalog. To use Hive catalog, load the Hive jars when opening the Flink SQL client. Fortunately, Flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.9_2.12/1.16.2/flink-sql-connector-hive-2.3.9_2.12-1.16.2.jar) for the SQL client. An example on how to download the dependencies and get started:
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
@@ -99,7 +105,7 @@ wget ${ICEBERG_MAVEN_URL}/${ICEBERG_PACKAGE}-${FLINK_VERSION_MAJOR}/${ICEBERG_VE
 
 HIVE_VERSION=2.3.9
 SCALA_VERSION=2.12
-FLINK_VERSION=1.16.1
+FLINK_VERSION=1.16.2
 FLINK_CONNECTOR_URL=${MAVEN_URL}/org/apache/flink
 FLINK_CONNECTOR_PACKAGE=flink-sql-connector-hive
 wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}/${FLINK_VERSION}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
@@ -116,7 +122,7 @@ PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jir
 Install the Apache Flink dependency using `pip`:
 
 ```python
-pip install apache-flink==1.16.1
+pip install apache-flink==1.16.2
 ```
 
 Provide a `file://` path to the `iceberg-flink-runtime` jar, which can be obtained by building the project and looking at `<iceberg-root-dir>/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime/). Third-party jars can be added to `pyflink` via:
@@ -269,6 +275,16 @@ FlinkSink.forRowData(input)
     .append();
 
 env.execute("Test Iceberg DataStream");
+```
+
+### Branch Writes
+Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
+For more information on branches please refer to [branches](../tables/branching).
+```java
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .toBranch("audit-branch")
+    .append();
 ```
 
 ## Reading

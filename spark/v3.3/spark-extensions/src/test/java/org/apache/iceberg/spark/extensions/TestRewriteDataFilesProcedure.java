@@ -246,6 +246,49 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithDeterministicTrueFilter() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+    // select all 10 files for compaction
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', where => '1=1')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesWithDeterministicFalseFilter() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+    // select no files for compaction
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', where => '0=1')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 0 data files and add 0 data files",
+        row(0, 0),
+        Arrays.copyOf(output.get(0), 2));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testRewriteDataFilesWithFilterOnPartitionTable() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -390,7 +433,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Cannot set strategy to sort, it has already been set",
+        "Must use only one rewriter type (bin-pack, sort, zorder)",
         () ->
             sql(
                 "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
@@ -401,7 +444,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Can't use SORT when there is no sort order",
+        "Cannot sort data without a valid sort order",
         () ->
             sql(
                 "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
@@ -455,7 +498,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Cannot find column 'col1' in table schema: "
+        "Cannot find column 'col1' in table schema (case sensitive = false): "
             + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
         () ->
             sql(

@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_structured_streaming
         weight: 0
 ---
 <!--
@@ -31,10 +32,6 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 with different levels of support in Spark versions.
 
 As of Spark 3, DataFrame reads and writes are supported.
-
-| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                          |
-|--------------------------------------------------|-----------|------------|------------------------------------------------|
-| [DataFrame write](#streaming-writes)             | ✔         | ✔          |                                                |
 
 ## Streaming Reads
 

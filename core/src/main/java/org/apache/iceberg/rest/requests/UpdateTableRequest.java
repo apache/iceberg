@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,27 +34,41 @@ import org.apache.iceberg.rest.RESTRequest;
 
 public class UpdateTableRequest implements RESTRequest {
 
-  private List<UpdateRequirement> requirements;
+  private TableIdentifier identifier;
+  private List<org.apache.iceberg.UpdateRequirement> requirements;
   private List<MetadataUpdate> updates;
 
   public UpdateTableRequest() {
     // needed for Jackson deserialization
   }
 
-  public UpdateTableRequest(List<UpdateRequirement> requirements, List<MetadataUpdate> updates) {
+  public UpdateTableRequest(
+      List<org.apache.iceberg.UpdateRequirement> requirements, List<MetadataUpdate> updates) {
     this.requirements = requirements;
     this.updates = updates;
+  }
+
+  UpdateTableRequest(
+      TableIdentifier identifier,
+      List<org.apache.iceberg.UpdateRequirement> requirements,
+      List<MetadataUpdate> updates) {
+    this(requirements, updates);
+    this.identifier = identifier;
   }
 
   @Override
   public void validate() {}
 
-  public List<UpdateRequirement> requirements() {
+  public List<org.apache.iceberg.UpdateRequirement> requirements() {
     return requirements != null ? requirements : ImmutableList.of();
   }
 
   public List<MetadataUpdate> updates() {
     return updates != null ? updates : ImmutableList.of();
+  }
+
+  public TableIdentifier identifier() {
+    return identifier;
   }
 
   @Override
@@ -64,23 +79,51 @@ public class UpdateTableRequest implements RESTRequest {
         .toString();
   }
 
+  public static UpdateTableRequest create(
+      TableIdentifier identifier,
+      List<org.apache.iceberg.UpdateRequirement> requirements,
+      List<MetadataUpdate> updates) {
+    return new UpdateTableRequest(identifier, requirements, updates);
+  }
+
+  /**
+   * @deprecated will be removed in 1.5.0, use {@link
+   *     org.apache.iceberg.UpdateRequirements#forCreateTable(List)} instead.
+   */
+  @Deprecated
   public static Builder builderForCreate() {
     return new Builder(null, false).requireCreate();
   }
 
+  /**
+   * @deprecated will be removed in 1.5.0, use {@link
+   *     org.apache.iceberg.UpdateRequirements#forReplaceTable(TableMetadata, List)} instead.
+   */
+  @Deprecated
   public static Builder builderForReplace(TableMetadata base) {
     Preconditions.checkNotNull(base, "Cannot create a builder from table metadata: null");
     return new Builder(base, true).requireTableUUID(base.uuid());
   }
 
+  /**
+   * @deprecated will be removed in 1.5.0, use {@link
+   *     org.apache.iceberg.UpdateRequirements#forUpdateTable(TableMetadata, List)} instead.
+   */
+  @Deprecated
   public static Builder builderFor(TableMetadata base) {
     Preconditions.checkNotNull(base, "Cannot create a builder from table metadata: null");
     return new Builder(base, false).requireTableUUID(base.uuid());
   }
 
+  /**
+   * @deprecated will be removed in 1.5.0, use {@link org.apache.iceberg.UpdateRequirements}
+   *     instead.
+   */
+  @Deprecated
   public static class Builder {
     private final TableMetadata base;
-    private final ImmutableList.Builder<UpdateRequirement> requirements = ImmutableList.builder();
+    private final ImmutableList.Builder<org.apache.iceberg.UpdateRequirement> requirements =
+        ImmutableList.builder();
     private final List<MetadataUpdate> updates = Lists.newArrayList();
     private final Set<String> changedRefs = Sets.newHashSet();
     private final boolean isReplace;
@@ -221,8 +264,11 @@ public class UpdateTableRequest implements RESTRequest {
     }
   }
 
-  public interface UpdateRequirement {
-    void validate(TableMetadata base);
+  /**
+   * @deprecated will be removed in 1.5.0, use {@link org.apache.iceberg.UpdateRequirement} instead.
+   */
+  @Deprecated
+  public interface UpdateRequirement extends org.apache.iceberg.UpdateRequirement {
 
     class AssertTableDoesNotExist implements UpdateRequirement {
       AssertTableDoesNotExist() {}

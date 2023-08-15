@@ -76,6 +76,31 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
+  public void testPositionDeltaWithOneDataWriter() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    ClusteredDataWriter<T> dataWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+
+    deltaWriter.insert(toRow(1, "insert"), table.spec(), null);
+    deltaWriter.update(toRow(2, "update"), table.spec(), null);
+    deltaWriter.close();
+
+    WriteResult result = deltaWriter.result();
+    DataFile[] dataFiles = result.dataFiles();
+    DeleteFile[] deleteFiles = result.deleteFiles();
+    CharSequence[] referencedDataFiles = result.referencedDataFiles();
+
+    Assert.assertEquals("Must be 1 data files", 1, dataFiles.length);
+    Assert.assertEquals("Must be no delete files", 0, deleteFiles.length);
+    Assert.assertEquals("Must not reference data files", 0, referencedDataFiles.length);
+  }
+
+  @Test
   public void testPositionDeltaInsertOnly() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 

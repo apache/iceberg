@@ -20,16 +20,16 @@ package org.apache.iceberg.types;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Set;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTypeUtil {
   @Test
@@ -41,7 +41,7 @@ public class TestTypeUtil {
         new Schema(
             required(1, "a", Types.IntegerType.get()), required(2, "A", Types.IntegerType.get()));
     final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
-    Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
+    assertThat(actualSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
   }
 
   @Test
@@ -59,11 +59,10 @@ public class TestTypeUtil {
                 required(2, "A", Types.IntegerType.get())),
             Sets.newHashSet(1));
     final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
-    Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
-    Assert.assertEquals(
-        "identifier field ID should change based on source schema",
-        sourceSchema.identifierFieldIds(),
-        actualSchema.identifierFieldIds());
+    assertThat(actualSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
+    assertThat(actualSchema.identifierFieldIds())
+        .as("identifier field ID should change based on source schema")
+        .isEqualTo(sourceSchema.identifierFieldIds());
   }
 
   @Test
@@ -81,11 +80,10 @@ public class TestTypeUtil {
                 required(2, "A", Types.IntegerType.get())),
             Sets.newHashSet(1));
     final Schema actualSchema = TypeUtil.assignIncreasingFreshIds(schema);
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
-    Assert.assertEquals(
-        "identifier field ID should change based on source schema",
-        expectedSchema.identifierFieldIds(),
-        actualSchema.identifierFieldIds());
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+    assertThat(actualSchema.identifierFieldIds())
+        .as("identifier field ID should change based on source schema")
+        .isEqualTo(expectedSchema.identifierFieldIds());
   }
 
   @Test
@@ -102,11 +100,10 @@ public class TestTypeUtil {
                 required(1, "a", Types.IntegerType.get()),
                 required(2, "A", Types.IntegerType.get())));
     final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
-    Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
-    Assert.assertEquals(
-        "source schema missing identifier should not impact refreshing new identifier",
-        Sets.newHashSet(sourceSchema.findField("a").fieldId()),
-        actualSchema.identifierFieldIds());
+    assertThat(actualSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
+    assertThat(actualSchema.identifierFieldIds())
+        .as("source schema missing identifier should not impact refreshing new identifier")
+        .isEqualTo(Sets.newHashSet(sourceSchema.findField("a").fieldId()));
   }
 
   @Test
@@ -132,7 +129,7 @@ public class TestTypeUtil {
     Schema expectedTop = new Schema(Lists.newArrayList(required(11, "A", Types.IntegerType.get())));
 
     Schema actualTop = TypeUtil.project(schema, Sets.newHashSet(11));
-    Assert.assertEquals(expectedTop.asStruct(), actualTop.asStruct());
+    assertThat(actualTop.asStruct()).isEqualTo(expectedTop.asStruct());
 
     Schema expectedDepthOne =
         new Schema(
@@ -144,7 +141,7 @@ public class TestTypeUtil {
                     Types.StructType.of(required(13, "b", Types.IntegerType.get())))));
 
     Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 12, 13));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    assertThat(actualDepthOne.asStruct()).isEqualTo(expectedDepthOne.asStruct());
 
     Schema expectedDepthTwo =
         new Schema(
@@ -161,8 +158,8 @@ public class TestTypeUtil {
 
     Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(11, 12, 15, 17));
     Schema actualDepthTwoChildren = TypeUtil.project(schema, Sets.newHashSet(11, 17));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwoChildren.asStruct());
+    assertThat(actualDepthTwo.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
+    assertThat(actualDepthTwoChildren.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
   }
 
   @Test
@@ -183,7 +180,7 @@ public class TestTypeUtil {
         new Schema(Lists.newArrayList(required(12, "someStruct", Types.StructType.of())));
 
     Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(12));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    assertThat(actualDepthOne.asStruct()).isEqualTo(expectedDepthOne.asStruct());
 
     Schema expectedDepthTwo =
         new Schema(
@@ -194,7 +191,7 @@ public class TestTypeUtil {
                     Types.StructType.of(required(15, "anotherStruct", Types.StructType.of())))));
 
     Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(12, 15));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    assertThat(actualDepthTwo.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
 
     Schema expectedDepthThree =
         new Schema(
@@ -210,8 +207,8 @@ public class TestTypeUtil {
 
     Schema actualDepthThree = TypeUtil.project(schema, Sets.newHashSet(12, 15, 20));
     Schema actualDepthThreeChildren = TypeUtil.project(schema, Sets.newHashSet(20));
-    Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThree.asStruct());
-    Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThreeChildren.asStruct());
+    assertThat(actualDepthThree.asStruct()).isEqualTo(expectedDepthThree.asStruct());
+    assertThat(actualDepthThreeChildren.asStruct()).isEqualTo(expectedDepthThree.asStruct());
   }
 
   @Test
@@ -238,7 +235,7 @@ public class TestTypeUtil {
         new Schema(Lists.newArrayList(required(12, "someStruct", Types.StructType.of())));
 
     Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(12));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    assertThat(actualDepthOne.asStruct()).isEqualTo(expectedDepthOne.asStruct());
 
     Schema expectedDepthTwo =
         new Schema(
@@ -249,7 +246,7 @@ public class TestTypeUtil {
                     Types.StructType.of(required(15, "anotherStruct", Types.StructType.of())))));
 
     Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(12, 15));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    assertThat(actualDepthTwo.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
   }
 
   @Test
@@ -275,7 +272,7 @@ public class TestTypeUtil {
     Schema expectedTop = new Schema(Lists.newArrayList(required(11, "A", Types.IntegerType.get())));
 
     Schema actualTop = TypeUtil.select(schema, Sets.newHashSet(11));
-    Assert.assertEquals(expectedTop.asStruct(), actualTop.asStruct());
+    assertThat(actualTop.asStruct()).isEqualTo(expectedTop.asStruct());
 
     Schema expectedDepthOne =
         new Schema(
@@ -295,7 +292,7 @@ public class TestTypeUtil {
                                 required(17, "C", Types.IntegerType.get())))))));
 
     Schema actualDepthOne = TypeUtil.select(schema, Sets.newHashSet(10, 12));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    assertThat(actualDepthOne.asStruct()).isEqualTo(expectedDepthOne.asStruct());
 
     Schema expectedDepthTwo =
         new Schema(
@@ -311,7 +308,7 @@ public class TestTypeUtil {
                             Types.StructType.of(required(17, "C", Types.IntegerType.get())))))));
 
     Schema actualDepthTwo = TypeUtil.select(schema, Sets.newHashSet(11, 17));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    assertThat(actualDepthTwo.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
   }
 
   @Test
@@ -344,20 +341,18 @@ public class TestTypeUtil {
                                         required(300, "foo", Types.IntegerType.get()),
                                         required(301, "bar", Types.IntegerType.get())))))))));
 
-    Assert.assertThrows(
-        "Cannot project maps explicitly",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    Assert.assertThrows(
-        "Cannot project maps explicitly",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(201)));
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(201)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expectedTopLevel =
         new Schema(Lists.newArrayList(required(10, "a", Types.IntegerType.get())));
     Schema actualTopLevel = TypeUtil.project(schema, Sets.newHashSet(10));
-    Assert.assertEquals(expectedTopLevel.asStruct(), actualTopLevel.asStruct());
+    assertThat(actualTopLevel.asStruct()).isEqualTo(expectedTopLevel.asStruct());
 
     Schema expectedDepthOne =
         new Schema(
@@ -375,8 +370,8 @@ public class TestTypeUtil {
                         Types.StructType.of()))));
     Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14, 100, 101));
     Schema actualDepthOneNoKeys = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOneNoKeys.asStruct());
+    assertThat(actualDepthOne.asStruct()).isEqualTo(expectedDepthOne.asStruct());
+    assertThat(actualDepthOneNoKeys.asStruct()).isEqualTo(expectedDepthOne.asStruct());
 
     Schema expectedDepthTwo =
         new Schema(
@@ -400,7 +395,7 @@ public class TestTypeUtil {
                                     202, 203, Types.IntegerType.get(), Types.StructType.of())))))));
     Schema actualDepthTwo =
         TypeUtil.project(schema, Sets.newHashSet(10, 13, 14, 100, 101, 200, 202, 203));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    assertThat(actualDepthTwo.asStruct()).isEqualTo(expectedDepthTwo.asStruct());
   }
 
   @Test
@@ -427,7 +422,7 @@ public class TestTypeUtil {
     Set<Integer> expectedIds = Sets.newHashSet(10, 11, 35, 12, 13, 14, 15, 16, 17);
     Set<Integer> actualIds = TypeUtil.getProjectedIds(schema);
 
-    Assert.assertEquals(expectedIds, actualIds);
+    assertThat(actualIds).isEqualTo(expectedIds);
   }
 
   @Test
@@ -450,20 +445,17 @@ public class TestTypeUtil {
                                     required(17, "x", Types.IntegerType.get()),
                                     required(18, "y", Types.IntegerType.get()))))))));
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(13)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(13)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(14)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(
@@ -479,7 +471,7 @@ public class TestTypeUtil {
                                 15, 16, IntegerType.get(), Types.StructType.of()))))));
 
     Schema actual = TypeUtil.project(schema, Sets.newHashSet(16));
-    Assert.assertEquals(expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -504,20 +496,17 @@ public class TestTypeUtil {
                                     required(18, "x", Types.IntegerType.get()),
                                     required(19, "y", Types.IntegerType.get()))))))));
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(14)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(16)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(16)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(
@@ -536,7 +525,7 @@ public class TestTypeUtil {
                             Types.ListType.ofRequired(17, Types.StructType.of()))))));
 
     Schema actual = TypeUtil.project(schema, Sets.newHashSet(17));
-    Assert.assertEquals(expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -589,16 +578,16 @@ public class TestTypeUtil {
                         required(4, "long", Types.DoubleType.get())))));
 
     Schema actualNoPrimitve = TypeUtil.selectNot(schema, Sets.newHashSet(1));
-    Assert.assertEquals(expectedNoPrimitive.asStruct(), actualNoPrimitve.asStruct());
+    assertThat(actualNoPrimitve.asStruct()).isEqualTo(expectedNoPrimitive.asStruct());
 
     // Expected legacy behavior is to completely remove structs if their elements are removed
     Schema expectedNoStructElements = new Schema(required(1, "id", Types.LongType.get()));
     Schema actualNoStructElements = TypeUtil.selectNot(schema, Sets.newHashSet(3, 4));
-    Assert.assertEquals(expectedNoStructElements.asStruct(), actualNoStructElements.asStruct());
+    assertThat(actualNoStructElements.asStruct()).isEqualTo(expectedNoStructElements.asStruct());
 
     // Expected legacy behavior is to ignore selectNot on struct elements.
     Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
-    Assert.assertEquals(schema.asStruct(), actualNoStruct.asStruct());
+    assertThat(actualNoStruct.asStruct()).isEqualTo(schema.asStruct());
   }
 
   @Test
@@ -622,7 +611,7 @@ public class TestTypeUtil {
                 required(1, "a", Types.IntegerType.get()),
                 required(16, "c", Types.IntegerType.get()),
                 required(15, "B", Types.IntegerType.get())));
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
   @Test
@@ -643,6 +632,6 @@ public class TestTypeUtil {
             Lists.newArrayList(
                 required(1, "FIELD1", Types.IntegerType.get()),
                 required(2, "FIELD2", Types.IntegerType.get())));
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 }

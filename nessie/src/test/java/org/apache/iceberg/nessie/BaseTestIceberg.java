@@ -60,27 +60,23 @@ import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
-import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
-import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
-import org.projectnessie.versioned.persist.tests.extension.DatabaseAdapterExtension;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapter;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapterName;
-import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabase;
+import org.projectnessie.versioned.storage.common.persist.Persist;
+import org.projectnessie.versioned.storage.inmemory.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.testextension.NessieBackend;
+import org.projectnessie.versioned.storage.testextension.NessiePersist;
+import org.projectnessie.versioned.storage.testextension.PersistExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@ExtendWith(DatabaseAdapterExtension.class)
-@NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
-@NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@ExtendWith(PersistExtension.class)
+@NessieBackend(InmemoryBackendTestFactory.class)
+@NessieApiVersions // test all versions
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
+  @NessiePersist static Persist persist;
 
   @RegisterExtension
-  static NessieJaxRsExtension server =
-      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
+  static NessieJaxRsExtension server = NessieJaxRsExtension.jaxRsExtension(() -> persist);
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
@@ -88,6 +84,7 @@ public abstract class BaseTestIceberg {
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
+  protected String apiVersion;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String initialHashOfDefaultBranch;
@@ -122,6 +119,7 @@ public abstract class BaseTestIceberg {
       throws IOException {
     this.uri = nessieUri.toASCIIString();
     this.api = clientFactory.make();
+    this.apiVersion = clientFactory.apiVersion() == NessieApiVersion.V2 ? "2" : "1";
 
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
@@ -145,7 +143,8 @@ public abstract class BaseTestIceberg {
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString())
+            .put("client-api-version", apiVersion);
     if (null != hash) {
       options.put("ref.hash", hash);
     }

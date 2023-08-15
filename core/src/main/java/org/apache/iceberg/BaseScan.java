@@ -79,7 +79,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
       ImmutableList.<String>builder().addAll(DELETE_SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
-      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
+      SystemConfigs.SCAN_THREAD_POOL_ENABLED.value();
 
   private final Table table;
   private final Schema schema;
@@ -254,6 +254,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   @Override
   public ThisT metricsReporter(MetricsReporter reporter) {
-    return newRefinedScan(table(), schema(), context().reportWith(reporter));
+    return newRefinedScan(table, schema, context.reportWith(reporter));
   }
 }

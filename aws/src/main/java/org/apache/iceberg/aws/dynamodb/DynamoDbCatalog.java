@@ -178,7 +178,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     String defaultLocationCol = toPropertyCol(PROPERTY_DEFAULT_LOCATION);
     if (response.item().containsKey(defaultLocationCol)) {
       return String.format(
-          "%s/%s", response.item().get(defaultLocationCol), tableIdentifier.name());
+          "%s/%s", response.item().get(defaultLocationCol).s(), tableIdentifier.name());
     } else {
       return String.format(
           "%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableIdentifier.name());

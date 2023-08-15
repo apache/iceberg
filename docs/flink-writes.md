@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Flink
+        identifier: flink_writes
         weight: 400
 ---
 <!--
@@ -68,9 +69,9 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-  `id`  INT UNIQUE COMMENT 'unique id',
-  `data` STRING NOT NULL,
- PRIMARY KEY(`id`) NOT ENFORCED
+    `id`  INT UNIQUE COMMENT 'unique id',
+    `data` STRING NOT NULL,
+    PRIMARY KEY(`id`) NOT ENFORCED
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
@@ -188,6 +189,16 @@ FlinkSink.builderFor(
   .table(table)
   .tableLoader(tableLoader)
   .append();
+```
+
+### Branch Writes
+Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
+For more information on branches please refer to [branches](../tables/branching).
+```java
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .toBranch("audit-branch")
+    .append();
 ```
 
 ### Metrics

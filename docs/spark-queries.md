@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_queries
         weight: 0
 ---
 <!--
@@ -27,22 +28,7 @@ menu:
 
 # Spark Queries
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
-
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
-
-| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                          |
-|--------------------------------------------------|-----------|------------|------------------------------------------------|
-| [`SELECT`](#querying-with-sql)                   | ✔️        |            |                                                |
-| [DataFrame reads](#querying-with-dataframes)     | ✔️        | ✔️          |                                                |
-| [Metadata table `SELECT`](#inspecting-tables)    | ✔️        |            |                                                |
-| [History metadata table](#history)               | ✔️        | ✔️          |                                                |
-| [Snapshots metadata table](#snapshots)           | ✔️        | ✔️          |                                                |
-| [Files metadata table](#files)                   | ✔️        | ✔️          |                                                |
-| [Manifests metadata table](#manifests)           | ✔️        | ✔️          |                                                |
-| [Partitions metadata table](#partitions)         | ✔️        | ✔️          |                                                |
-| [All metadata tables](#all-metadata-tables)      | ✔️        | ✔️          |                                                |
-
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
 ## Querying with SQL
 
@@ -74,8 +60,6 @@ val df = spark.table("prod.db.table")
 ```
 
 ### Catalogs with DataFrameReader
-
-Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3 and 2.4.
 
 Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
 the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
@@ -205,29 +189,6 @@ Incremental read works with both V1 and V2 format-version.
 Incremental read is not supported by Spark's SQL syntax.
 {{< /hint >}}
 
-### Spark 2.4
-
-Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support direct SQL queries:
-
-```scala
-// named metastore table
-spark.read.format("iceberg").load("catalog.db.table")
-// Hadoop path table
-spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table")
-```
-
-#### Spark 2.4 with SQL
-
-To run SQL `SELECT` statements on Iceberg tables in 2.4, register the DataFrame as a temporary table:
-
-```scala
-val df = spark.read.format("iceberg").load("db.table")
-df.createOrReplaceTempView("table")
-
-spark.sql("""select count(1) from table""").show()
-```
-
-
 ## Inspecting tables
 
 To inspect a table's history, snapshots, and other metadata, Iceberg supports metadata tables.
@@ -235,8 +196,6 @@ To inspect a table's history, snapshots, and other metadata, Iceberg supports me
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
 
 {{< hint info >}}
-For Spark 2.4, use the `DataFrameReader` API to [inspect tables](#inspecting-with-dataframes).
-
 For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#replacing-the-session-catalog) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. As a workaround, configure an `org.apache.iceberg.spark.SparkCatalog`, or use the Spark `DataFrameReader` API.
 {{< /hint >}}
 
@@ -352,15 +311,15 @@ To show a table's current partitions:
 SELECT * FROM prod.db.table.partitions;
 ```
 
-| partition | record_count | file_count | spec_id |
-| -- | -- | -- | -- |
-|  {20211001, 11}|           1|         1|         0|
-|  {20211002, 11}|           1|         1|         0|
-|  {20211001, 10}|           1|         1|         0|
-|  {20211002, 10}|           1|         1|         0|
+| partition      | spec_id | record_count  | file_count | total_data_file_size_in_bytes | position_delete_record_count | position_delete_file_count | equality_delete_record_count | equality_delete_file_count | last_updated_at(μs) | last_updated_snapshot_id |
+| -------------- |---------|---------------|------------|--------------------------|------------------------------|----------------------------|------------------------------|----------------------------|---------------------|--------------------------|
+| {20211001, 11} | 0       | 1             | 1          | 100                      | 2                            | 1                          | 0                            | 0                          | 1633086034192000    | 9205185327307503337      |
+| {20211002, 11} | 0       | 4             | 3          | 500                      | 1                            | 1                          | 0                            | 0                          | 1633172537358000    | 867027598972211003       |
+| {20211001, 10} | 0       | 7             | 4          | 700                      | 0                            | 0                          | 0                            | 0                          | 1633082598716000    | 3280122546965981531      |
+| {20211002, 10} | 0       | 3             | 2          | 400                      | 0                            | 0                          | 1                            | 1                          | 1633169159489000    | 6941468797545315876      |
 
 Note:
-1. For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+1. For unpartitioned tables, the partitions table will not contain the partition and spec_id fields.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
 
@@ -422,7 +381,7 @@ SELECT * FROM prod.db.table.refs;
 
 ### Inspecting with DataFrames
 
-Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:
+Metadata tables can be loaded using the DataFrameReader API:
 
 ```scala
 // named metastore table

@@ -20,8 +20,7 @@ package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestViewHistoryEntryParser {
 
@@ -30,10 +29,9 @@ public class TestViewHistoryEntryParser {
     String json = "{\"timestamp-ms\":123,\"version-id\":1}";
     ViewHistoryEntry viewHistoryEntry =
         ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(123).build();
-    Assert.assertEquals(
-        "Should be able to deserialize valid view history entry",
-        viewHistoryEntry,
-        ViewHistoryEntryParser.fromJson(json));
+    Assertions.assertThat(ViewHistoryEntryParser.fromJson(json))
+        .as("Should be able to deserialize valid view history entry")
+        .isEqualTo(viewHistoryEntry);
   }
 
   @Test
@@ -41,10 +39,9 @@ public class TestViewHistoryEntryParser {
     String json = "{\"timestamp-ms\":123,\"version-id\":1}";
     ViewHistoryEntry viewHistoryEntry =
         ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(123).build();
-    Assert.assertEquals(
-        "Should be able to serialize view history entry",
-        json,
-        ViewHistoryEntryParser.toJson(viewHistoryEntry));
+    Assertions.assertThat(ViewHistoryEntryParser.toJson(viewHistoryEntry))
+        .as("Should be able to serialize view history entry")
+        .isEqualTo(json);
   }
 
   @Test

@@ -30,7 +30,6 @@ INFRA:
   - dev/**/*
 BUILD:
   - "**/*gradle*"
-  - versions.props
 DOCS:
   - docs/**/*
   - "**/*CHANGELOG.md"
@@ -83,3 +82,5 @@ DELL:
   - dell/**/*
 SNOWFLAKE:
   - snowflake/**/*
+OPENAPI:
+  - open-api/**/*

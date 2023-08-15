@@ -103,4 +103,15 @@ public interface SortOrderBuilder<R> {
    * @return this for method chaining
    */
   R desc(Term term, NullOrder nullOrder);
+
+  /**
+   * Set case sensitivity of sort column name resolution.
+   *
+   * @param caseSensitive when true, column name resolution is case-sensitive
+   * @return this for method chaining
+   */
+  default R caseSensitive(boolean caseSensitive) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement caseSensitive");
+  };
 }

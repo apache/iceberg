@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -31,6 +32,7 @@ case class CreateOrReplaceBranchExec(
     ident: Identifier,
     branch: String,
     branchOptions: BranchOptions,
+    create: Boolean,
     replace: Boolean,
     ifNotExists: Boolean) extends LeafV2CommandExec {
 
@@ -41,17 +43,27 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val snapshotId = branchOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
+        val snapshotId: java.lang.Long = branchOptions.snapshotId
+          .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
+          .map(java.lang.Long.valueOf)
+          .orNull
+
+        Preconditions.checkArgument(snapshotId != null,
+          "Cannot complete create or replace branch operation on %s, main has no snapshot", ident)
+
         val manageSnapshots = iceberg.table().manageSnapshots()
-        if (!replace) {
-          val ref = iceberg.table().refs().get(branch);
-          if (ref != null && ifNotExists) {
+        val refExists = null != iceberg.table().refs().get(branch)
+
+        if (create && replace && !refExists) {
+          manageSnapshots.createBranch(branch, snapshotId)
+        } else if (replace) {
+          manageSnapshots.replaceBranch(branch, snapshotId)
+        } else {
+          if (refExists && ifNotExists) {
             return Nil
           }
 
           manageSnapshots.createBranch(branch, snapshotId)
-        } else {
-          manageSnapshots.replaceBranch(branch, snapshotId)
         }
 
         if (branchOptions.numSnapshots.nonEmpty) {
@@ -76,6 +88,6 @@ case class CreateOrReplaceBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplace branch: ${branch} for table: ${ident.quoted}"
+    s"CreateOrReplace branch: $branch for table: ${ident.quoted}"
   }
 }

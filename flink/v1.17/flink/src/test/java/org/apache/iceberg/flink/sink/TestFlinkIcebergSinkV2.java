@@ -23,7 +23,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
@@ -39,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -202,18 +202,21 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .writeParallelism(parallelism)
             .upsert(true);
 
-    AssertHelpers.assertThrows(
-        "Should be error because upsert mode and overwrite mode enable at the same time.",
-        IllegalStateException.class,
-        "OVERWRITE mode shouldn't be enable",
-        () ->
-            builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append());
+    Assertions.assertThatThrownBy(
+            () ->
+                builder
+                    .equalityFieldColumns(ImmutableList.of("id", "data"))
+                    .overwrite(true)
+                    .append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
 
-    AssertHelpers.assertThrows(
-        "Should be error because equality field columns are empty.",
-        IllegalStateException.class,
-        "Equality field columns shouldn't be empty",
-        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append());
+    Assertions.assertThatThrownBy(
+            () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
   }
 
   @Test

@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_ddl
         weight: 0
 ---
 <!--
@@ -27,13 +28,7 @@ menu:
 
 # Spark DDL
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
-
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions. Spark 2.4 does not support SQL DDL.
-
-{{< hint info >}}
-Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3 or the [Iceberg API](..//java-api-quickstart).
-{{< /hint >}}
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
 ## `CREATE TABLE`
 
@@ -256,7 +251,7 @@ ADD COLUMN points.value.b int
 
 Note: Altering a map 'key' column by adding columns is not allowed. Only map values can be updated.
 
-In Spark 2.4.4 and later, you can add columns in any position by adding `FIRST` or `AFTER` clauses:
+Add columns in any position by adding `FIRST` or `AFTER` clauses:
 
 ```sql
 ALTER TABLE prod.db.sample
@@ -311,11 +306,16 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col
 ```
 
-Nullability can be changed using `SET NOT NULL` and `DROP NOT NULL`:
+Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
 ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL
 ```
+
+{{< hint info >}}
+It is not possible to change a nullable column to a non-nullable column with `SET NOT NULL` because Iceberg doesn't know whether there is existing data with null values.
+{{< /hint >}}
+
 
 {{< hint info >}}
 `ALTER COLUMN` is not used to update `struct` types. Use `ADD COLUMN` and `DROP COLUMN` to add or remove struct fields.
@@ -472,3 +472,97 @@ ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id, data
 ```
 
 Note that although the identifier is removed, the column will still exist in the table schema.
+
+### Branching and Tagging DDL
+
+#### `ALTER TABLE ... CREATE BRANCH`
+
+Branches can be created via the `CREATE BRANCH` statement with the following options:
+* Do not fail if the branch already exists with `IF NOT EXISTS`
+* Update the branch if it already exists with `CREATE OR REPLACE`
+* Create at a snapshot
+* Create with retention
+
+```sql
+-- CREATE audit-branch at current snapshot with default retention.
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
+
+-- CREATE audit-branch at current snapshot with default retention if it doesn't exist.
+ALTER TABLE prod.db.sample CREATE BRANCH IF NOT EXISTS `audit-branch`
+
+-- CREATE audit-branch at current snapshot with default retention or REPLACE it if it already exists.
+ALTER TABLE prod.db.sample CREATE OR REPLACE BRANCH `audit-branch`
+
+-- CREATE audit-branch at snapshot 1234 with default retention.
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
+AS OF VERSION 1234
+
+-- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots. 
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
+AS OF VERSION 1234 RETAIN 30 DAYS 
+WITH RETENTION 3 SNAPSHOTS 2 DAYS
+```
+
+#### `ALTER TABLE ... CREATE TAG`
+
+Tags can be created via the `CREATE TAG` statement with the following options:
+* Do not fail if the tag already exists with `IF NOT EXISTS`
+* Update the tag if it already exists with `CREATE OR REPLACE`
+* Create at a snapshot
+* Create with retention
+
+```sql
+-- CREATE historical-tag at current snapshot with default retention.
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag`
+
+-- CREATE historical-tag at current snapshot with default retention if it doesn't exist.
+ALTER TABLE prod.db.sample CREATE TAG IF NOT EXISTS `historical-tag`
+
+-- CREATE historical-tag at current snapshot with default retention or REPLACE it if it already exists.
+ALTER TABLE prod.db.sample CREATE OR REPLACE TAG `historical-tag`
+
+-- CREATE historical-tag at snapshot 1234 with default retention.
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag` AS OF VERSION 1234
+
+-- CREATE historical-tag at snapshot 1234 and retain it for 1 year. 
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag` 
+AS OF VERSION 1234 RETAIN 365 DAYS
+```
+
+#### `ALTER TABLE ... REPLACE BRANCH`
+
+The snapshot which a branch references can be updated via
+the `REPLACE BRANCH` sql. Retention can also be updated in this statement. 
+
+```sql
+-- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days.
+ALTER TABLE prod.db.sample REPLACE BRANCH `audit-branch`
+AS OF VERSION 4567 RETAIN 60 DAYS
+```
+
+#### `ALTER TABLE ... REPLACE TAG`
+
+The snapshot which a tag references can be updated via
+the `REPLACE TAG` sql. Retention can also be updated in this statement.
+
+```sql
+-- REPLACE historical-tag to reference snapshot 4567 and update the retention to 60 days.
+ALTER TABLE prod.db.sample REPLACE TAG `historical-tag`
+AS OF VERSION 4567 RETAIN 60 DAYS
+```
+
+#### `ALTER TABLE ... DROP BRANCH`
+
+Branches can be removed via the `DROP BRANCH` sql
+
+```sql
+ALTER TABLE prod.db.sample DROP BRANCH `audit-branch`
+```
+
+#### `ALTER TABLE ... DROP TAG`
+
+Tags can be removed via the `DROP TAG` sql
+
+```sql
+ALTER TABLE prod.db.sample DROP TAG `historical-tag`
+```

@@ -44,7 +44,10 @@ import org.slf4j.LoggerFactory;
  * RewriteDataFiles#MAX_FILE_GROUP_SIZE_BYTES}. Groups will be considered for rewriting if they
  * contain more files than {@link #MIN_INPUT_FILES} or would produce at least one file of {@link
  * RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SizeBasedFileRewriter} instead.
  */
+@Deprecated
 public abstract class BinPackStrategy implements RewriteStrategy {
 
   private static final Logger LOG = LoggerFactory.getLogger(BinPackStrategy.class);

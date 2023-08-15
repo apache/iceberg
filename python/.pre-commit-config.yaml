@@ -29,7 +29,7 @@ repos:
       - id: check-yaml
       - id: check-ast
   - repo: https://github.com/ambv/black
-    rev: 23.1.0
+    rev: 23.3.0
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/mirrors-isort
@@ -38,13 +38,13 @@ repos:
       - id: isort
         args: [--settings-path=python/pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.991
+    rev: v1.3.0
     hooks:
       - id: mypy
         args:
           [--install-types, --non-interactive, --config=python/pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v2.7.1
+    rev: v3.0.0-alpha.9-for-vscode
     hooks:
       - id: prettier
         args: [--plugin=prettier-plugin-toml]
@@ -52,17 +52,17 @@ repos:
           - prettier@2.7.1
           - prettier-plugin-toml@0.3.1
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.1.3
+    rev: v2.1.5
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.1
+    rev: v3.4.0
     hooks:
       - id: pyupgrade
         args: [--py38-plus, --keep-runtime-typing]
   - repo: https://github.com/pycqa/pylint
-    rev: v2.16.0
+    rev: v3.0.0a6
     hooks:
       - id: pylint
         args: [--rcfile=python/pylintrc]
@@ -70,15 +70,28 @@ repos:
     rev: "6.0.0"
     hooks:
       - id: flake8
-        args: ["--ignore=E501,W503,E203,B024"]
+        args: ["--ignore=E501,W503,E203,B024,B028"]
         additional_dependencies:
-          [flake8-bugbear==22.12.6, flake8-comprehensions==3.10.1]
+          - flake8-bugbear==23.3.23
+          - flake8-comprehensions==3.12.0
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.16
     hooks:
       - id: mdformat
         additional_dependencies:
-          - mdformat-black
-          - mdformat-config
-          - mdformat-beautysh
-          - mdformat-admon
+          - mdformat-black==0.1.1
+          - mdformat-config==0.1.3
+          - mdformat-beautysh==0.1.1
+          - mdformat-admon==1.0.1
+          - mdformat-mkdocs==1.0.1
+          - mdformat-frontmatter==2.0.1
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        args:
+          [
+            "--ignore=D100,D102,D101,D103,D104,D106,D107,D203,D212,D213,D401,D404,D405,D406,D407,D411,D413,D415,D417",
+          ]
+        additional_dependencies:
+          - tomli==2.0.1

@@ -180,4 +180,8 @@ public class FlinkWriteConf {
         .defaultValue(FlinkWriteOptions.BRANCH.defaultValue())
         .parse();
   }
+
+  public Integer writeParallelism() {
+    return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
+  }
 }

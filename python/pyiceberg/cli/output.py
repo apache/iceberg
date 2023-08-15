@@ -30,7 +30,7 @@ from pyiceberg.typedef import IcebergBaseModel, Identifier, Properties
 
 
 class Output(ABC):
-    """Output interface for exporting"""
+    """Output interface for exporting."""
 
     @abstractmethod
     def exception(self, ex: Exception) -> None:
@@ -68,9 +68,13 @@ class Output(ABC):
     def uuid(self, uuid: Optional[UUID]) -> None:
         ...
 
+    @abstractmethod
+    def version(self, version: str) -> None:
+        ...
+
 
 class ConsoleOutput(Output):
-    """Writes to the console"""
+    """Writes to the console."""
 
     verbose: bool
 
@@ -142,7 +146,7 @@ class ConsoleOutput(Output):
             manifest_list = snapshot.manifests(io)
             for manifest in manifest_list:
                 manifest_tree = list_tree.add(f"Manifest: {manifest.manifest_path}")
-                for manifest_entry in manifest.fetch_manifest_entry(io):
+                for manifest_entry in manifest.fetch_manifest_entry(io, discard_deleted=False):
                     manifest_tree.add(f"Datafile: {manifest_entry.data_file.file_path}")
         Console().print(snapshot_tree)
 
@@ -167,9 +171,12 @@ class ConsoleOutput(Output):
     def uuid(self, uuid: Optional[UUID]) -> None:
         Console().print(str(uuid) if uuid else "missing")
 
+    def version(self, version: str) -> None:
+        Console().print(version)
+
 
 class JsonOutput(Output):
-    """Writes json to stdout"""
+    """Writes json to stdout."""
 
     verbose: bool
 
@@ -187,7 +194,7 @@ class JsonOutput(Output):
 
     def describe_table(self, table: Table) -> None:
         class FauxTable(IcebergBaseModel):
-            """Just to encode it using Pydantic"""
+            """Just to encode it using Pydantic."""
 
             identifier: Identifier
             metadata_location: str
@@ -212,3 +219,6 @@ class JsonOutput(Output):
 
     def uuid(self, uuid: Optional[UUID]) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})
+
+    def version(self, version: str) -> None:
+        self._out({"version": version})

@@ -41,6 +41,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
@@ -48,6 +49,7 @@ import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -120,6 +122,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
   private final Integer workerPoolSize;
+  private final PartitionSpec spec;
   private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(
@@ -127,12 +130,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       boolean replacePartitions,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
-      String branch) {
+      String branch,
+      PartitionSpec spec) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
+    this.spec = spec;
   }
 
   @Override
@@ -233,6 +238,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // the files,
     // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
     if (checkpointId > maxCommittedCheckpointId) {
+      LOG.info("Checkpoint {} completed. Attempting commit.", checkpointId);
       commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
     } else {
@@ -262,7 +268,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
           SimpleVersionedSerialization.readVersionAndDeSerialize(
               DeltaManifestsSerializer.INSTANCE, e.getValue());
       pendingResults.put(
-          e.getKey(), FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io()));
+          e.getKey(),
+          FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
       manifests.addAll(deltaManifests.manifests());
     }
 
@@ -288,6 +295,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       }
       continuousEmptyCheckpoints = 0;
+    } else {
+      LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
     }
   }
 
@@ -440,7 +449,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), table.spec());
+            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -466,7 +475,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private static ListStateDescriptor<SortedMap<Long, byte[]>> buildStateDescriptor() {
+  @VisibleForTesting
+  static ListStateDescriptor<SortedMap<Long, byte[]>> buildStateDescriptor() {
     Comparator<Long> longComparator = Comparators.forType(Types.LongType.get());
     // Construct a SortedMapTypeInfo.
     SortedMapTypeInfo<Long, byte[]> sortedMapTypeInfo =

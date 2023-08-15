@@ -107,7 +107,8 @@ public interface Snapshot extends Serializable {
    * Return all data files added to the table in this snapshot.
    *
    * <p>The files returned include the following columns: file_path, file_format, partition,
-   * record_count, and file_size_in_bytes. Other columns will be null.
+   * record_count, and file_size_in_bytes. Data and file sequence number are populated. Other
+   * columns will be null.
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files added to the table in this snapshot.
@@ -118,7 +119,8 @@ public interface Snapshot extends Serializable {
    * Return all data files removed from the table in this snapshot.
    *
    * <p>The files returned include the following columns: file_path, file_format, partition,
-   * record_count, and file_size_in_bytes. Other columns will be null.
+   * record_count, and file_size_in_bytes. Data and file sequence number are populated. Other
+   * columns will be null.
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files removed from the table in this snapshot.

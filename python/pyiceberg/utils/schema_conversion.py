@@ -14,19 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility class for converting between Avro and Iceberg schemas"""
-from __future__ import annotations
-
+"""Utility class for converting between Avro and Iceberg schemas."""
 import logging
 from typing import (
     Any,
     Dict,
     List,
+    Optional,
     Tuple,
     Union,
 )
 
-from pyiceberg.schema import Schema
+from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType, visit
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -45,13 +44,14 @@ from pyiceberg.types import (
     StringType,
     StructType,
     TimestampType,
+    TimestamptzType,
     TimeType,
     UUIDType,
 )
 
 logger = logging.getLogger(__name__)
 
-PRIMITIVE_FIELD_TYPE_MAPPING: dict[str, PrimitiveType] = {
+PRIMITIVE_FIELD_TYPE_MAPPING: Dict[str, PrimitiveType] = {
     "boolean": BooleanType(),
     "bytes": BinaryType(),
     "double": DoubleType(),
@@ -62,21 +62,21 @@ PRIMITIVE_FIELD_TYPE_MAPPING: dict[str, PrimitiveType] = {
     "enum": StringType(),
 }
 
-LOGICAL_FIELD_TYPE_MAPPING: dict[tuple[str, str], PrimitiveType] = {
+LOGICAL_FIELD_TYPE_MAPPING: Dict[Tuple[str, str], PrimitiveType] = {
     ("date", "int"): DateType(),
-    ("time-millis", "int"): TimeType(),
-    ("timestamp-millis", "long"): TimestampType(),
-    ("time-micros", "int"): TimeType(),
+    ("time-micros", "long"): TimeType(),
     ("timestamp-micros", "long"): TimestampType(),
     ("uuid", "fixed"): UUIDType(),
 }
 
+AvroType = Union[str, Any]
+
 
 class AvroSchemaConversion:
-    def avro_to_iceberg(self, avro_schema: dict[str, Any]) -> Schema:
-        """Converts an Apache Avro into an Apache Iceberg schema equivalent
+    def avro_to_iceberg(self, avro_schema: Dict[str, Any]) -> Schema:
+        """Converts an Apache Avro into an Apache Iceberg schema equivalent.
 
-        This expects to have field id's to be encoded in the Avro schema::
+        This expects to have field id's to be encoded in the Avro schema:
 
             {
                 "type": "record",
@@ -111,18 +111,22 @@ class AvroSchemaConversion:
             True
 
         Args:
-            avro_schema (Dict[str, Any]): The JSON decoded Avro schema
+            avro_schema (Dict[str, Any]): The JSON decoded Avro schema.
 
         Returns:
-            Equivalent Iceberg schema
+            Equivalent Iceberg schema.
         """
         return Schema(*[self._convert_field(field) for field in avro_schema["fields"]], schema_id=1)
+
+    def iceberg_to_avro(self, schema: Schema, schema_name: Optional[str] = None) -> AvroType:
+        """Converts an Iceberg schema into an Avro dictionary that can be serialized to JSON."""
+        return visit(schema, ConvertSchemaToAvro(schema_name))
 
     def _resolve_union(
         self, type_union: Union[Dict[str, str], List[Union[str, Dict[str, str]]], str]
     ) -> Tuple[Union[str, Dict[str, Any]], bool]:
         """
-        Converts Unions into their type and resolves if the field is required
+        Converts Unions into their type and resolves if the field is required.
 
         Examples:
             >>> AvroSchemaConversion()._resolve_union('str')
@@ -135,13 +139,13 @@ class AvroSchemaConversion:
             ({'type': 'str'}, False)
 
         Args:
-            type_union: The field, can be a string 'str', list ['null', 'str'], or dict {"type": 'str'}
+            type_union: The field, can be a string 'str', list ['null', 'str'], or dict {"type": 'str'}.
 
         Returns:
-            A tuple containing the type and if required
+            A tuple containing the type and if required.
 
         Raises:
-            TypeError: In the case non-optional union types are encountered
+            TypeError: In the case non-optional union types are encountered.
         """
         avro_types: Union[Dict[str, str], List[Union[Dict[str, str], str]]]
         if isinstance(type_union, str):
@@ -171,13 +175,13 @@ class AvroSchemaConversion:
 
     def _convert_schema(self, avro_type: Union[str, Dict[str, Any]]) -> IcebergType:
         """
-        Resolves the Avro type
+        Resolves the Avro type.
 
         Args:
-            avro_type: The Avro type, can be simple or complex
+            avro_type: The Avro type, can be simple or complex.
 
         Returns:
-            The equivalent IcebergType
+            The equivalent IcebergType.
 
         Raises:
             ValueError: When there are unknown types
@@ -207,14 +211,14 @@ class AvroSchemaConversion:
         else:
             raise TypeError(f"Unknown type: {avro_type}")
 
-    def _convert_field(self, field: dict[str, Any]) -> NestedField:
-        """
-        Converts an Avro field into an Iceberg equivalent field
+    def _convert_field(self, field: Dict[str, Any]) -> NestedField:
+        """Converts an Avro field into an Iceberg equivalent field.
+
         Args:
-            field: The Avro field
+            field: The Avro field.
 
         Returns:
-            The Iceberg equivalent field
+            The Iceberg equivalent field.
         """
         if "field-id" not in field:
             raise ValueError(f"Cannot convert field, missing field-id: {field}")
@@ -229,9 +233,9 @@ class AvroSchemaConversion:
             doc=field.get("doc"),
         )
 
-    def _convert_record_type(self, record_type: dict[str, Any]) -> StructType:
+    def _convert_record_type(self, record_type: Dict[str, Any]) -> StructType:
         """
-        Converts the fields from a record into an Iceberg struct
+        Converts the fields from a record into an Iceberg struct.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -274,16 +278,16 @@ class AvroSchemaConversion:
             True
 
         Args:
-            record_type: The record type itself
+            record_type: The record type itself.
 
-        Returns:
+        Returns: A StructType.
         """
         if record_type["type"] != "record":
             raise ValueError(f"Expected record type, got: {record_type}")
 
         return StructType(*[self._convert_field(field) for field in record_type["fields"]])
 
-    def _convert_array_type(self, array_type: dict[str, Any]) -> ListType:
+    def _convert_array_type(self, array_type: Dict[str, Any]) -> ListType:
         if "element-id" not in array_type:
             raise ValueError(f"Cannot convert array-type, missing element-id: {array_type}")
 
@@ -295,10 +299,11 @@ class AvroSchemaConversion:
             element_required=element_required,
         )
 
-    def _convert_map_type(self, map_type: dict[str, Any]) -> MapType:
-        """
+    def _convert_map_type(self, map_type: Dict[str, Any]) -> MapType:
+        """Converts an avro map type into an Iceberg MapType.
+
         Args:
-            map_type: The dict that describes the Avro map type
+            map_type: The dict that describes the Avro map type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -319,7 +324,7 @@ class AvroSchemaConversion:
             >>> actual == expected
             True
 
-        Returns: A MapType
+        Returns: A MapType.
         """
         value_type, value_required = self._resolve_union(map_type["values"])
         return MapType(
@@ -331,11 +336,11 @@ class AvroSchemaConversion:
             value_required=value_required,
         )
 
-    def _convert_logical_type(self, avro_logical_type: dict[str, Any]) -> IcebergType:
-        """
-        Convert a schema with a logical type annotation. For the decimal and map
-        we need to fetch more keys from the dict, and for the simple ones we can just
-        look it up in the mapping.
+    def _convert_logical_type(self, avro_logical_type: Dict[str, Any]) -> IcebergType:
+        """Convert a schema with a logical type annotation into an IcebergType.
+
+        For the decimal and map we need to fetch more keys from the dict, and for
+        the simple ones we can just look it up in the mapping.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -348,13 +353,13 @@ class AvroSchemaConversion:
             True
 
         Args:
-            avro_logical_type: The logical type
+            avro_logical_type: The logical type.
 
         Returns:
-            The converted logical type
+            The converted logical type.
 
         Raises:
-            ValueError: When the logical type is unknown
+            ValueError: When the logical type is unknown.
         """
         logical_type = avro_logical_type["logicalType"]
         physical_type = avro_logical_type["type"]
@@ -362,15 +367,21 @@ class AvroSchemaConversion:
             return self._convert_logical_decimal_type(avro_logical_type)
         elif logical_type == "map":
             return self._convert_logical_map_type(avro_logical_type)
+        elif logical_type == "timestamp-micros":
+            if avro_logical_type.get("adjust-to-utc", False) is True:
+                return TimestamptzType()
+            else:
+                return TimestampType()
         elif (logical_type, physical_type) in LOGICAL_FIELD_TYPE_MAPPING:
             return LOGICAL_FIELD_TYPE_MAPPING[(logical_type, physical_type)]
         else:
             raise ValueError(f"Unknown logical/physical type combination: {avro_logical_type}")
 
-    def _convert_logical_decimal_type(self, avro_type: dict[str, Any]) -> DecimalType:
-        """
+    def _convert_logical_decimal_type(self, avro_type: Dict[str, Any]) -> DecimalType:
+        """Converts an avro type to an Iceberg DecimalType.
+
         Args:
-            avro_type: The Avro type
+            avro_type: The Avro type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -389,17 +400,17 @@ class AvroSchemaConversion:
             True
 
         Returns:
-            A Iceberg DecimalType
+            A Iceberg DecimalType.
         """
         return DecimalType(precision=avro_type["precision"], scale=avro_type["scale"])
 
-    def _convert_logical_map_type(self, avro_type: dict[str, Any]) -> MapType:
-        """
-        In the case where a map hasn't a key as a type you can use a logical map to
-        still encode this in Avro
+    def _convert_logical_map_type(self, avro_type: Dict[str, Any]) -> MapType:
+        """Converts an avro map type to an Iceberg MapType.
+
+        In the case where a map hasn't a key as a type you can use a logical map to still encode this in Avro.
 
         Args:
-            avro_type: The Avro Type
+            avro_type: The Avro Type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -430,7 +441,7 @@ class AvroSchemaConversion:
             https://iceberg.apache.org/spec/#appendix-a-format-specific-requirements
 
         Returns:
-            The logical map
+            The logical map.
         """
         fields = avro_type["items"]["fields"]
         if len(fields) != 2:
@@ -445,12 +456,14 @@ class AvroSchemaConversion:
             value_required=value.required,
         )
 
-    def _convert_fixed_type(self, avro_type: dict[str, Any]) -> FixedType:
+    def _convert_fixed_type(self, avro_type: Dict[str, Any]) -> FixedType:
         """
-        https://avro.apache.org/docs/current/spec.html#Fixed
+        Converts Avro Type to the equivalent Iceberg fixed type.
+
+        - https://avro.apache.org/docs/current/spec.html#Fixed
 
         Args:
-            avro_type: The Avro Type
+            avro_type: The Avro type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -463,6 +476,134 @@ class AvroSchemaConversion:
             True
 
         Returns:
-            An Iceberg equivalent fixed type
+            An Iceberg equivalent fixed type.
         """
         return FixedType(length=avro_type["size"])
+
+
+class ConvertSchemaToAvro(SchemaVisitorPerPrimitiveType[AvroType]):
+    """Converts an Iceberg schema to an Avro schema."""
+
+    schema_name: Optional[str]
+    last_list_field_id: int
+    last_map_key_field_id: int
+    last_map_value_field_id: int
+
+    def __init__(self, schema_name: Optional[str]) -> None:
+        """Converts an Iceberg schema to an Avro schema.
+
+        Args:
+            schema_name: The name of the root record.
+        """
+        self.schema_name = schema_name
+
+    def schema(self, schema: Schema, struct_result: AvroType) -> AvroType:
+        if isinstance(struct_result, dict) and self.schema_name is not None:
+            struct_result["name"] = self.schema_name
+        return struct_result
+
+    def before_list_element(self, element: NestedField) -> None:
+        self.last_list_field_id = element.field_id
+
+    def before_map_key(self, key: NestedField) -> None:
+        self.last_map_key_field_id = key.field_id
+
+    def before_map_value(self, value: NestedField) -> None:
+        self.last_map_value_field_id = value.field_id
+
+    def struct(self, struct: StructType, field_results: List[AvroType]) -> AvroType:
+        return {"type": "record", "fields": field_results}
+
+    def field(self, field: NestedField, field_result: AvroType) -> AvroType:
+        # Sets the schema name
+        if isinstance(field_result, dict) and field_result.get("type") == "record":
+            field_result["name"] = f"r{field.field_id}"
+
+        result = {
+            "name": field.name,
+            "field-id": field.field_id,
+            "type": field_result if field.required else ["null", field_result],
+        }
+
+        if field.optional:
+            result["default"] = None
+
+        if field.doc is not None:
+            result["doc"] = field.doc
+
+        return result
+
+    def list(self, list_type: ListType, element_result: AvroType) -> AvroType:
+        # Sets the schema name in case of a record
+        if isinstance(element_result, dict) and element_result.get("type") == "record":
+            element_result["name"] = f"r{self.last_list_field_id}"
+        return {"type": "array", "element-id": self.last_list_field_id, "items": element_result}
+
+    def map(self, map_type: MapType, key_result: AvroType, value_result: AvroType) -> AvroType:
+        if isinstance(key_result, StringType):
+            # Avro Maps does not support other keys than a String,
+            return {
+                "type": "map",
+                "values": value_result,
+                "key-id": self.last_map_key_field_id,
+                "value-id": self.last_map_value_field_id,
+            }
+        else:
+            # Creates a logical map that's a list of schema's
+            # binary compatible
+            return {
+                "type": "array",
+                "items": {
+                    "type": "record",
+                    "name": f"k{self.last_map_key_field_id}_v{self.last_map_value_field_id}",
+                    "fields": [
+                        {"name": "key", "type": key_result, "field-id": self.last_map_key_field_id},
+                        {"name": "value", "type": value_result, "field-id": self.last_map_value_field_id},
+                    ],
+                },
+                "logicalType": "map",
+            }
+
+    def visit_fixed(self, fixed_type: FixedType) -> AvroType:
+        return {"type": "fixed", "size": len(fixed_type)}
+
+    def visit_decimal(self, decimal_type: DecimalType) -> AvroType:
+        return {"type": "bytes", "logicalType": "decimal", "precision": decimal_type.precision, "scale": decimal_type.scale}
+
+    def visit_boolean(self, boolean_type: BooleanType) -> AvroType:
+        return "boolean"
+
+    def visit_integer(self, integer_type: IntegerType) -> AvroType:
+        return "int"
+
+    def visit_long(self, long_type: LongType) -> AvroType:
+        return "long"
+
+    def visit_float(self, float_type: FloatType) -> AvroType:
+        return "float"
+
+    def visit_double(self, double_type: DoubleType) -> AvroType:
+        return "double"
+
+    def visit_date(self, date_type: DateType) -> AvroType:
+        return {"type": "int", "logicalType": "date"}
+
+    def visit_time(self, time_type: TimeType) -> AvroType:
+        return {"type": "long", "logicalType": "time-micros"}
+
+    def visit_timestamp(self, timestamp_type: TimestampType) -> AvroType:
+        # Iceberg only supports micro's
+        return {"type": "long", "logicalType": "timestamp-micros", "adjust-to-utc": False}
+
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> AvroType:
+        # Iceberg only supports micro's
+        return {"type": "long", "logicalType": "timestamp-micros", "adjust-to-utc": True}
+
+    def visit_string(self, string_type: StringType) -> AvroType:
+        return "string"
+
+    def visit_uuid(self, uuid_type: UUIDType) -> AvroType:
+        return {"type": "fixed", "size": "16", "logicalType": "uuid"}
+
+    def visit_binary(self, binary_type: BinaryType) -> AvroType:
+        return "bytes"

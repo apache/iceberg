@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg.spark.data;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -40,6 +43,10 @@ class SparkOrcValueWriters {
 
   static OrcValueWriter<?> strings() {
     return StringWriter.INSTANCE;
+  }
+
+  static OrcValueWriter<?> uuids() {
+    return UUIDWriter.INSTANCE;
   }
 
   static OrcValueWriter<?> timestampTz() {
@@ -70,6 +77,19 @@ class SparkOrcValueWriters {
     public void nonNullWrite(int rowId, UTF8String data, ColumnVector output) {
       byte[] value = data.getBytes();
       ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
+    }
+  }
+
+  private static class UUIDWriter implements OrcValueWriter<UTF8String> {
+    private static final UUIDWriter INSTANCE = new UUIDWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, UTF8String data, ColumnVector output) {
+      // ((BytesColumnVector) output).setRef(..) just stores a reference to the passed byte[], so
+      // can't use a ThreadLocal ByteBuffer here like in other places because subsequent writes
+      // would then overwrite previous values
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(UUID.fromString(data.toString()));
+      ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
     }
   }
 
