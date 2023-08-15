@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -32,6 +33,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
@@ -68,6 +70,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
           "format-version", "1",
           "owner", "hank");
 
+  LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
   private static final Map<String, String> CONFIG = ImmutableMap.of("foo", "bar");
 
   @Override
@@ -106,14 +109,15 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testRoundTripSerdeWithV1TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata v1Metadata =
-        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(
+            TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata, locationRelativizer));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v1Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);
@@ -124,7 +128,9 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     // When the schema type (struct) is missing
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1MissingSchemaType.json");
     Assertions.assertThatThrownBy(
-            () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson))
+            () ->
+                TableMetadataParser.fromJson(
+                    TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse type from json:");
   }
@@ -133,14 +139,15 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testRoundTripSerdeWithV2TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata v2Metadata =
-        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(
+            TEST_METADATA_LOCATION, tableMetadataJson, locationRelativizer);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata, locationRelativizer));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v2Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);
@@ -153,7 +160,8 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s}", TEST_METADATA_LOCATION, metadataJson);
-    TableMetadata metadata = TableMetadataParser.fromJson(TEST_METADATA_LOCATION, metadataJson);
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, metadataJson, locationRelativizer);
     LoadTableResponse actual = deserialize(json);
     LoadTableResponse expected = LoadTableResponse.builder().withTableMetadata(metadata).build();
     assertEquals(actual, expected);

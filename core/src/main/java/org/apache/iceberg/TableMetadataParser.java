@@ -37,6 +37,7 @@ import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -110,23 +111,28 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
 
-  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, true);
+  public static void overwrite(
+      TableMetadata metadata, OutputFile outputFile, LocationRelativizer locationRelativizer) {
+    internalWrite(metadata, outputFile, true, locationRelativizer);
   }
 
-  public static void write(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, false);
+  public static void write(
+      TableMetadata metadata, OutputFile outputFile, LocationRelativizer locationRelativizer) {
+    internalWrite(metadata, outputFile, false, locationRelativizer);
   }
 
   public static void internalWrite(
-      TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
+      TableMetadata metadata,
+      OutputFile outputFile,
+      boolean overwrite,
+      LocationRelativizer locationRelativizer) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      toJson(metadata, generator);
+      toJson(metadata, generator, locationRelativizer);
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
@@ -146,10 +152,10 @@ public class TableMetadataParser {
     return ".metadata.json" + codec.extension;
   }
 
-  public static String toJson(TableMetadata metadata) {
+  public static String toJson(TableMetadata metadata, LocationRelativizer locationRelativizer) {
     try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
+      toJson(metadata, generator, locationRelativizer);
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
@@ -158,12 +164,14 @@ public class TableMetadataParser {
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(
+      TableMetadata metadata, JsonGenerator generator, LocationRelativizer locationRelativizer)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
-    generator.writeStringField(LOCATION, metadata.location());
+    generator.writeStringField(LOCATION, locationRelativizer.getRelativePath(metadata.location()));
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
@@ -221,7 +229,8 @@ public class TableMetadataParser {
 
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
-      SnapshotParser.toJson(snapshot, generator);
+      // TODO : should we do it only in new snapshot?
+      SnapshotParser.toJson(snapshot, generator, locationRelativizer);
     }
     generator.writeEndArray();
 
@@ -244,7 +253,8 @@ public class TableMetadataParser {
     for (MetadataLogEntry logEntry : metadata.previousFiles()) {
       generator.writeStartObject();
       generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
-      generator.writeStringField(METADATA_FILE, logEntry.file());
+      generator.writeStringField(
+          METADATA_FILE, locationRelativizer.getRelativePath(logEntry.file()));
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -262,15 +272,17 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
-  public static TableMetadata read(FileIO io, String path) {
-    return read(io, io.newInputFile(path));
+  public static TableMetadata read(
+      FileIO io, String path, LocationRelativizer locationRelativizer) {
+    return read(io, io.newInputFile(path), locationRelativizer);
   }
 
-  public static TableMetadata read(FileIO io, InputFile file) {
+  public static TableMetadata read(
+      FileIO io, InputFile file, LocationRelativizer locationRelativizer) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class), locationRelativizer);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -284,8 +296,8 @@ public class TableMetadataParser {
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(String json) {
-    return fromJson(null, json);
+  public static TableMetadata fromJson(String json, LocationRelativizer locationRelativizer) {
+    return fromJson(null, json, locationRelativizer);
   }
 
   /**
@@ -295,20 +307,25 @@ public class TableMetadataParser {
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(String metadataLocation, String json) {
-    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
+  public static TableMetadata fromJson(
+      String metadataLocation, String json, LocationRelativizer locationRelativizer) {
+    return JsonUtil.parse(
+        json, node -> TableMetadataParser.fromJson(metadataLocation, node, locationRelativizer));
   }
 
-  public static TableMetadata fromJson(InputFile file, JsonNode node) {
-    return fromJson(file.location(), node);
+  public static TableMetadata fromJson(
+      InputFile file, JsonNode node, LocationRelativizer locationRelativizer) {
+    return fromJson(file.location(), node, locationRelativizer);
   }
 
+  // TODO :  Add locationRelatiizer as argument
   public static TableMetadata fromJson(JsonNode node) {
-    return fromJson((String) null, node);
+    return fromJson((String) null, node, null);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+  public static TableMetadata fromJson(
+      String metadataLocation, JsonNode node, LocationRelativizer locationRelativizer) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -319,7 +336,7 @@ public class TableMetadataParser {
         formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
-    String location = JsonUtil.getString(LOCATION, node);
+    String location = locationRelativizer.getAbsolutePath(JsonUtil.getString(LOCATION, node));
     long lastSequenceNumber;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
@@ -468,7 +485,7 @@ public class TableMetadataParser {
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), locationRelativizer));
       }
     } else {
       snapshots = ImmutableList.of();
@@ -501,7 +518,7 @@ public class TableMetadataParser {
         metadataEntries.add(
             new MetadataLogEntry(
                 JsonUtil.getLong(TIMESTAMP_MS, entryNode),
-                JsonUtil.getString(METADATA_FILE, entryNode)));
+                locationRelativizer.getAbsolutePath(JsonUtil.getString(METADATA_FILE, entryNode))));
       }
     }
 

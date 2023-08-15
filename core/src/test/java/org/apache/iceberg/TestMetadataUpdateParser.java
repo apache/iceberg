@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -44,7 +45,7 @@ import org.junit.rules.TemporaryFolder;
 public class TestMetadataUpdateParser {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
-
+  LocationRelativizer locationRelativizer = new LocationProviders.NoActionLocationRelativizer();
   private static final Schema ID_DATA_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -81,7 +82,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "Assign UUID should convert to the correct JSON value",
         expected,
-        MetadataUpdateParser.toJson(actual));
+        MetadataUpdateParser.toJson(actual, locationRelativizer));
   }
 
   /** UpgradeFormatVersion * */
@@ -104,7 +105,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "Upgrade format version should convert to the correct JSON value",
         expected,
-        MetadataUpdateParser.toJson(actual));
+        MetadataUpdateParser.toJson(actual, locationRelativizer));
   }
 
   /** AddSchema * */
@@ -141,7 +142,7 @@ public class TestMetadataUpdateParser {
             "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
             SchemaParser.toJson(schema), lastColumnId);
     MetadataUpdate update = new MetadataUpdate.AddSchema(schema, lastColumnId);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals("Add schema should convert to the correct JSON value", expected, actual);
   }
 
@@ -161,7 +162,7 @@ public class TestMetadataUpdateParser {
     int schemaId = 6;
     String expected = String.format("{\"action\":\"%s\",\"schema-id\":%d}", action, schemaId);
     MetadataUpdate update = new MetadataUpdate.SetCurrentSchema(schemaId);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set current schema should convert to the correct JSON value", expected, actual);
   }
@@ -273,7 +274,7 @@ public class TestMetadataUpdateParser {
             .withSpecId(1)
             .build();
     MetadataUpdate update = new MetadataUpdate.AddPartitionSpec(expectedSpec);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Add partition spec should convert to the correct JSON value", expected, actual);
   }
@@ -285,7 +286,7 @@ public class TestMetadataUpdateParser {
     int specId = 4;
     String expected = String.format("{\"action\":\"%s\",\"spec-id\":%d}", action, specId);
     MetadataUpdate update = new MetadataUpdate.SetDefaultPartitionSpec(specId);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set default partition spec should serialize to the correct JSON value", expected, actual);
   }
@@ -319,7 +320,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "Add sort order should serialize to the correct JSON value",
         expected,
-        MetadataUpdateParser.toJson(update));
+        MetadataUpdateParser.toJson(update, locationRelativizer));
   }
 
   @Test
@@ -348,7 +349,7 @@ public class TestMetadataUpdateParser {
     String expected =
         String.format("{\"action\":\"%s\",\"sort-order-id\":%d}", action, sortOrderId);
     MetadataUpdate update = new MetadataUpdate.SetDefaultSortOrder(sortOrderId);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set default sort order should serialize to the correct JSON value", expected, actual);
   }
@@ -382,10 +383,10 @@ public class TestMetadataUpdateParser {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
             manifestList);
-    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false, locationRelativizer);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Add snapshot should serialize to the correct JSON value", expected, actual);
   }
@@ -409,7 +410,7 @@ public class TestMetadataUpdateParser {
             summary,
             schemaId,
             manifestList);
-    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false, locationRelativizer);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
@@ -431,7 +432,7 @@ public class TestMetadataUpdateParser {
     long snapshotId = 2L;
     String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
     MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Remove snapshots should serialize to the correct JSON value", expected, actual);
   }
@@ -454,7 +455,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "RemoveSnapshotRef should convert to the correct JSON value",
         expected,
-        MetadataUpdateParser.toJson(actual));
+        MetadataUpdateParser.toJson(actual, locationRelativizer));
   }
 
   /** SetSnapshotRef * */
@@ -595,7 +596,7 @@ public class TestMetadataUpdateParser {
     MetadataUpdate update =
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set snapshot ref should serialize to the correct JSON value for tag with default fields",
         expected,
@@ -616,7 +617,7 @@ public class TestMetadataUpdateParser {
     MetadataUpdate update =
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set snapshot ref should serialize to the correct JSON value for tag with all fields",
         expected,
@@ -636,7 +637,7 @@ public class TestMetadataUpdateParser {
     MetadataUpdate update =
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set snapshot ref should serialize to the correct JSON value for branch with default fields",
         expected,
@@ -657,7 +658,7 @@ public class TestMetadataUpdateParser {
     MetadataUpdate update =
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set snapshot ref should serialize to the correct JSON value for branch with all fields",
         expected,
@@ -715,7 +716,7 @@ public class TestMetadataUpdateParser {
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":\"val2\"}";
     String expected = String.format("{\"action\":\"%s\",\"updates\":%s}", action, propsMap);
     MetadataUpdate update = new MetadataUpdate.SetProperties(props);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Set properties should serialize to the correct JSON value", expected, actual);
   }
@@ -751,7 +752,7 @@ public class TestMetadataUpdateParser {
     String toRemoveAsJSON = "[\"prop1\",\"prop2\"]";
     String expected = String.format("{\"action\":\"%s\",\"removals\":%s}", action, toRemoveAsJSON);
     MetadataUpdate update = new MetadataUpdate.RemoveProperties(toRemove);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Remove properties should serialize to the correct JSON value", expected, actual);
   }
@@ -772,7 +773,7 @@ public class TestMetadataUpdateParser {
     String location = "s3://bucket/warehouse/tbl_location";
     String expected = String.format("{\"action\":\"%s\",\"location\":\"%s\"}", action, location);
     MetadataUpdate update = new MetadataUpdate.SetLocation(location);
-    String actual = MetadataUpdateParser.toJson(update);
+    String actual = MetadataUpdateParser.toJson(update, locationRelativizer);
     Assert.assertEquals(
         "Remove properties should serialize to the correct JSON value", expected, actual);
   }
@@ -807,7 +808,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "Set statistics should convert to the correct JSON value",
         json,
-        MetadataUpdateParser.toJson(expected));
+        MetadataUpdateParser.toJson(expected, locationRelativizer));
   }
 
   @Test
@@ -819,7 +820,7 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals(
         "Remove statistics should convert to the correct JSON value",
         json,
-        MetadataUpdateParser.toJson(expected));
+        MetadataUpdateParser.toJson(expected, locationRelativizer));
   }
 
   public void assertEquals(

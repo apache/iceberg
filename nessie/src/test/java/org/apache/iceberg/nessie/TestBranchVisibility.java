@@ -26,6 +26,7 @@ import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -338,7 +339,11 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
   private long snapshotIdFromMetadata(NessieCatalog catalog, String metadataLocation) {
     Snapshot snapshot =
-        TableMetadataParser.read(catalog.fileIO(), metadataLocation).currentSnapshot();
+        TableMetadataParser.read(
+                catalog.fileIO(),
+                metadataLocation,
+                new LocationProviders.NoActionLocationRelativizer())
+            .currentSnapshot();
     return snapshot != null ? snapshot.snapshotId() : -1;
   }
 

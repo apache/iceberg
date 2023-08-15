@@ -239,6 +239,19 @@ public class TableProperties {
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
+  /*
+  Property to enable relative paths in all references in metadata-files.
+   */
+  public static final String WRITE_METADATA_USE_RELATIVE_PATH = "write.metadata.use.relative-path";
+
+  public static final String WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT = "false";
+
+  /*
+  If WRITE_METADATA_USE_RELATIVE_PATH=true, this property defines the prefix
+  against which the paths will be relativized
+   */
+  public static final String PREFIX = "prefix";
+
   /** @deprecated Use {@link #WRITE_DATA_LOCATION} instead. */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";

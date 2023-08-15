@@ -43,6 +43,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -95,7 +96,8 @@ public class HadoopTableOperations implements TableOperations {
     if (version == null || version != newVersion) {
       this.version = newVersion;
       this.currentMetadata =
-          checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile));
+          checkUUID(
+              currentMetadata, TableMetadataParser.read(io(), metadataFile, locationProvider()));
     }
   }
 
@@ -152,7 +154,10 @@ public class HadoopTableOperations implements TableOperations {
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    TableMetadataParser.write(
+        metadata,
+        io().newOutputFile(tempMetadataFile.toString()),
+        (LocationRelativizer) locationProvider());
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
@@ -178,6 +183,9 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public LocationProvider locationProvider() {
+    if (current() == null) {
+      return new LocationProviders.NoActionLocationProvider();
+    }
     return LocationProviders.locationsFor(current().location(), current().properties());
   }
 

@@ -69,10 +69,14 @@ public class TableMetadataParserTest {
     properties.put(TableProperties.METADATA_COMPRESSION, codecName);
     String location = "file://tmp/db/table";
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
-    TableMetadataParser.write(metadata, outputFile);
+    TableMetadataParser.write(
+        metadata, outputFile, new LocationProviders.NoActionLocationRelativizer());
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
     TableMetadata actualMetadata =
-        TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
+        TableMetadataParser.read(
+            (FileIO) null,
+            Files.localInput(new File(fileName)),
+            new LocationProviders.NoActionLocationRelativizer());
     verifyMetadata(metadata, actualMetadata);
   }
 

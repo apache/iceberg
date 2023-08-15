@@ -121,7 +121,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         2,
         location ->
             NessieUtil.updateTableMetadataWithNessieSpecificProperties(
-                TableMetadataParser.read(fileIO, location),
+                TableMetadataParser.read(fileIO, location, locationProvider()),
                 location,
                 table,
                 key.toString(),

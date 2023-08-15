@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.LocationRelativizer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
@@ -78,9 +79,21 @@ public class LocationProviders {
 
   static class DefaultLocationProvider implements LocationProvider {
     private final String dataLocation;
+    private final Boolean useRelativePath;
+    private final String prefix;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
       this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+
+      String strUseRelativePath =
+          properties.getOrDefault(
+              TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
+              TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
+      useRelativePath = strUseRelativePath.equalsIgnoreCase("true");
+
+      prefix =
+          (new Path(properties.getOrDefault(TableProperties.PREFIX, tableLocation).toLowerCase()))
+              .toString();
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -102,6 +115,35 @@ public class LocationProviders {
     @Override
     public String newDataLocation(String filename) {
       return String.format("%s/%s", dataLocation, filename);
+    }
+
+    @Override
+    public boolean isRelative() {
+      return useRelativePath;
+    }
+
+    @Override
+    public String getRelativePath(String inPath) {
+      // TODO : Refine the logic to see if handling malformed path is required?
+      String path = (new Path(inPath)).toString();
+
+      if (useRelativePath) {
+        if (path.toLowerCase().startsWith(prefix)) {
+          return path.toLowerCase().replace(prefix, "");
+        }
+        throw new IllegalArgumentException(
+            String.format("Provided value for property prefix as %s is not valid.", prefix));
+      } else {
+        return inPath;
+      }
+    }
+
+    @Override
+    public String getAbsolutePath(String relativePath) {
+      /*
+      TODO: to be used for read code-paths
+       */
+      return relativePath;
     }
   }
 
@@ -176,6 +218,76 @@ public class LocationProviders {
       HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
       hash.writeBytesTo(bytes, 0, 4);
       return BASE64_ENCODER.encode(bytes);
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      /*
+      TODO: to be used for write code-paths
+       */
+      return path;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      /*
+      TODO: to be used for read code-paths
+       */
+      return path;
+    }
+
+    @Override
+    public boolean isRelative() {
+      /*
+      TODO: to be used for read code-paths
+       */
+      return false;
+    }
+  }
+
+  public static class NoActionLocationProvider implements LocationProvider {
+
+    @Override
+    public String newDataLocation(String filename) {
+      return null;
+    }
+
+    @Override
+    public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
+      return null;
+    }
+
+    @Override
+    public boolean isRelative() {
+      return false;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      return path;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      return path;
+    }
+  }
+
+  public static class NoActionLocationRelativizer implements LocationRelativizer {
+
+    @Override
+    public boolean isRelative() {
+      return false;
+    }
+
+    @Override
+    public String getRelativePath(String path) {
+      return path;
+    }
+
+    @Override
+    public String getAbsolutePath(String path) {
+      return path;
     }
   }
 }

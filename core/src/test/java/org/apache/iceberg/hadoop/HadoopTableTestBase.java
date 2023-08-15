@@ -38,6 +38,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -148,7 +149,9 @@ public class HadoopTableTestBase {
 
   TableMetadata readMetadataVersion(int version) {
     return TableMetadataParser.read(
-        new TestTables.TestTableOperations("table", tableDir).io(), localInput(version(version)));
+        new TestTables.TestTableOperations("table", tableDir).io(),
+        localInput(version(version)),
+        new LocationProviders.NoActionLocationRelativizer());
   }
 
   int readVersionHint() throws IOException {
