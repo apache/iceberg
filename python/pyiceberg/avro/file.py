@@ -165,7 +165,8 @@ class AvroFile(Generic[D]):
         Returns:
             A generator returning the AvroStructs.
         """
-        self.decoder = CythonBinaryDecoder(self.input_file.open().read())
+        with self.input_file.open() as f:
+            self.decoder = CythonBinaryDecoder(f.read())
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
