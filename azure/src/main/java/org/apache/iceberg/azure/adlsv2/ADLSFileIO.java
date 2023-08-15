@@ -90,11 +90,11 @@ public class ADLSFileIO implements FileIO {
     DataLakePathClientBuilder clientBuilder =
         new DataLakePathClientBuilder()
             .httpClient(HTTP)
-            .endpoint(location.storageAccountUrl())
+            .endpoint("https://" + location.storageAccount())
             .pathName(location.path());
 
     location.container().ifPresent(clientBuilder::fileSystemName);
-    azureProperties.applyCredentialConfiguration(clientBuilder);
+    azureProperties.applyCredentialConfiguration(location.storageAccount(), clientBuilder);
 
     return clientBuilder.buildFileClient();
   }

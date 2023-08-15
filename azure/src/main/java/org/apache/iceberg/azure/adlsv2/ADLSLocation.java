@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 class ADLSLocation {
   private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)([/?#].*)?$");
 
-  private final String storageAccountUrl;
+  private final String storageAccount;
   private final String container;
   private final String path;
 
@@ -57,10 +57,10 @@ class ADLSLocation {
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
       this.container = parts[0];
-      this.storageAccountUrl = "https://" + parts[1];
+      this.storageAccount = parts[1];
     } else {
       this.container = null;
-      this.storageAccountUrl = "https://" + authority;
+      this.storageAccount = authority;
     }
 
     String uriPath = matcher.group(2);
@@ -68,9 +68,9 @@ class ADLSLocation {
     this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
 
-  /** Returns Azure storage account URL. */
-  public String storageAccountUrl() {
-    return storageAccountUrl;
+  /** Returns Azure storage account. */
+  public String storageAccount() {
+    return storageAccount;
   }
 
   /** Returns Azure container name. */

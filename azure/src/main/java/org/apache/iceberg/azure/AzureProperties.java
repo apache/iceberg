@@ -21,22 +21,24 @@ package org.apache.iceberg.azure;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.file.datalake.DataLakePathClientBuilder;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
-  public static final String ADLS_SAS_TOKEN = "adls.sas-token";
+  public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
-  private String adlsSasToken;
+  private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
   public AzureProperties() {}
 
   public AzureProperties(Map<String, String> properties) {
-    this.adlsSasToken = properties.get(ADLS_SAS_TOKEN);
+    this.adlsSasTokens = PropertyUtil.propertiesWithPrefix(properties, ADLS_SAS_TOKEN_PREFIX);
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -54,9 +56,11 @@ public class AzureProperties implements Serializable {
     return Optional.ofNullable(adlsWriteBlockSize);
   }
 
-  public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(T builder) {
-    if (adlsSasToken != null && !adlsSasToken.isEmpty()) {
-      builder.sasToken(adlsSasToken);
+  public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(
+      String account, T builder) {
+    String sasToken = adlsSasTokens.get(account);
+    if (sasToken != null && !sasToken.isEmpty()) {
+      builder.sasToken(sasToken);
     } else {
       builder.credential(new DefaultAzureCredentialBuilder().build());
     }
