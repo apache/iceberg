@@ -29,13 +29,13 @@ import java.util.Optional;
 public class AzureProperties implements Serializable {
   public static final String ADLS_CLIENT_ID = "adls.client-id";
   public static final String ADLS_TENANT_ID = "adls.tenant-id";
-  public static final String ADLS_TOKEN = "adls.id-token";
+  public static final String ADLS_ID_TOKEN = "adls.id-token";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
   private String adlsClientId;
   private String adlsTenantId;
-  private String adlsToken;
+  private String adlsIdToken;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
@@ -44,7 +44,7 @@ public class AzureProperties implements Serializable {
   public AzureProperties(Map<String, String> properties) {
     this.adlsClientId = properties.get(ADLS_CLIENT_ID);
     this.adlsTenantId = properties.get(ADLS_TENANT_ID);
-    this.adlsToken = properties.get(ADLS_TOKEN);
+    this.adlsIdToken = properties.get(ADLS_ID_TOKEN);
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -64,12 +64,12 @@ public class AzureProperties implements Serializable {
 
   public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(T builder) {
     TokenCredential credential;
-    if (adlsToken != null && !adlsToken.isEmpty()) {
+    if (adlsIdToken != null && !adlsIdToken.isEmpty()) {
       credential =
           new ClientAssertionCredentialBuilder()
               .clientId(adlsClientId)
               .tenantId(adlsTenantId)
-              .clientAssertion(() -> adlsToken)
+              .clientAssertion(() -> adlsIdToken)
               .build();
     } else {
       credential =
