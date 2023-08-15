@@ -65,6 +65,8 @@ import org.junit.Test;
 public class TestDataStatisticsOperator {
   private final RowType rowType = RowType.of(new VarCharType());
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
+  // When operator hands events from coordinator, DataStatisticsUtil#deserializeDataStatistics
+  // deserializes bytes into BinaryRowData
   private final BinaryRowData binaryRowDataA =
       new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
   private final BinaryRowData binaryRowDataB =
@@ -166,10 +168,10 @@ public class TestDataStatisticsOperator {
         testHarness1 = createHarness(this.operator)) {
       DataStatistics<MapDataStatistics, Map<RowData, Long>> mapDataStatistics =
           new MapDataStatistics();
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("b")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("c")));
+      mapDataStatistics.add(binaryRowDataA);
+      mapDataStatistics.add(binaryRowDataA);
+      mapDataStatistics.add(binaryRowDataB);
+      mapDataStatistics.add(binaryRowDataC);
       operator.handleOperatorEvent(
           DataStatisticsEvent.create(0, mapDataStatistics, statisticsSerializer));
       assertThat(operator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);

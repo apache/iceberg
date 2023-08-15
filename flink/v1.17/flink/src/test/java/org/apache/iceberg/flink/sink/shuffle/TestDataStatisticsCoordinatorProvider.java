@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
@@ -51,7 +53,7 @@ public class TestDataStatisticsCoordinatorProvider {
             new RowDataSerializer(RowType.of(new VarCharType())));
     provider =
         new DataStatisticsCoordinatorProvider<>(
-            "DataStatisticsCoordinatorProviderTest", OPERATOR_ID, statisticsSerializer);
+            "DataStatisticsCoordinatorProvider", OPERATOR_ID, statisticsSerializer);
     receivingTasks = EventReceivingTasks.createForRunningTasks();
   }
 
@@ -98,7 +100,7 @@ public class TestDataStatisticsCoordinatorProvider {
     Assert.assertEquals(
         checkpoint1Subtask0DataStatistic.statistics(),
         checkpoint1GlobalDataStatistics.statistics());
-    byte[] bytes = TestDataStatisticsCoordinator.waitForCheckpoint(1L, dataStatisticsCoordinator);
+    byte[] bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
     checkpoint2Subtask0DataStatistic.add(binaryRowDataD);
@@ -116,7 +118,7 @@ public class TestDataStatisticsCoordinatorProvider {
     Assert.assertEquals(
         checkpoint2Subtask0DataStatistic.statistics(),
         checkpoint2GlobalDataStatistics.statistics());
-    TestDataStatisticsCoordinator.waitForCheckpoint(2L, dataStatisticsCoordinator);
+    waitForCheckpoint(2L, dataStatisticsCoordinator);
 
     // Reset coordinator to checkpoint 1
     coordinator.resetToCheckpoint(1L, bytes);
@@ -134,5 +136,14 @@ public class TestDataStatisticsCoordinatorProvider {
             restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
     Assert.assertEquals(
         checkpoint1GlobalDataStatistics.statistics(), restoredAggregateDataStatistics.statistics());
+  }
+
+  private byte[] waitForCheckpoint(
+      long checkpointId,
+      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> coordinator)
+      throws InterruptedException, ExecutionException {
+    CompletableFuture<byte[]> future = new CompletableFuture<>();
+    coordinator.checkpointCoordinator(checkpointId, future);
+    return future.get();
   }
 }

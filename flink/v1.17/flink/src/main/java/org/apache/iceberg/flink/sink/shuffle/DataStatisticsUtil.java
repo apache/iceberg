@@ -52,15 +52,11 @@ class DataStatisticsUtil {
   static <D extends DataStatistics<D, S>, S> D deserializeDataStatistics(
       byte[] bytes, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     DataInputDeserializer input = new DataInputDeserializer(bytes, 0, bytes.length);
-    D dataStatistics;
-
     try {
-      dataStatistics = (D) statisticsSerializer.deserialize(input);
+      return (D) statisticsSerializer.deserialize(input);
     } catch (IOException e) {
       throw new IllegalStateException("Fail to serialize data statistics", e);
     }
-
-    return dataStatistics;
   }
 
   static <D extends DataStatistics<D, S>, S> byte[] serializeGlobalStatistics(

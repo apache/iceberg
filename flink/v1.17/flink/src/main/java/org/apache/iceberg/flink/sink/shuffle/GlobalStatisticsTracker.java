@@ -66,26 +66,26 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
         completedStatistics = inProgressStatistics;
         LOG.info(
-            "Received data statistics from {} operators {} out of total {} for checkpoint {}. "
-                + "It's more than the expected percentage {}. Complete data statistics aggregation {}",
+            "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
+                + "Complete data statistics aggregation as it is more than the threshold of {} percentage",
             inProgressStatistics.aggregatedSubtasksCount(),
-            operatorName,
             parallelism,
+            operatorName,
             inProgressStatistics.checkpointId(),
-            EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
-            completedStatistics);
+            EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE);
       } else {
         LOG.info(
-            "Received data statistics from {} operators {} out of total {} for checkpoint {}. "
-                + "It's less than the expected percentage {}. Dropping the incomplete aggregate "
-                + "data statistics and starting collecting data statistics from new checkpoint {}",
+            "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
+                + "Aborting the incomplete aggregation for checkpoint {} "
+                + "and starting a new data statistics for checkpoint {}",
             inProgressStatistics.aggregatedSubtasksCount(),
-            operatorName,
             parallelism,
+            operatorName,
             inProgressStatistics.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
             checkpointId);
       }
+
       inProgressStatistics = null;
     }
 

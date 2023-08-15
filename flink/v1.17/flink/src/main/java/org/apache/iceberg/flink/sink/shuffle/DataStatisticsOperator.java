@@ -134,14 +134,17 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
     long checkpointId = context.getCheckpointId();
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     LOG.info(
-        "Taking data statistics operator {} snapshot for checkpoint {} in subtask {}",
+        "Snapshotting data statistics operator {} for checkpoint {} in subtask {}",
         operatorName,
         checkpointId,
         subTaskId);
 
     // Pass global statistics to partitioners so that all the operators refresh statistics
     // at same checkpoint barrier
-    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    if (!globalStatistics.isEmpty()) {
+      output.collect(
+          new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    }
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
@@ -155,15 +158,15 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
       globalStatisticsState.add(globalStatistics);
     }
 
-    // For now, we make it simple to send localStatistics at checkpoint
+    // For now, local statistics are sent to coordinator at checkpoint
     operatorEventGateway.sendEventToCoordinator(
         DataStatisticsEvent.create(checkpointId, localStatistics, statisticsSerializer));
     LOG.debug(
-        "Send operator {} local statistics {} from subtask {} at checkpoint {} to coordinator",
-        operatorName,
-        localStatistics,
+        "Subtask {} of operator {} sent local statistics to coordinator at checkpoint{}: {}",
         subTaskId,
-        checkpointId);
+        operatorName,
+        checkpointId,
+        localStatistics);
 
     // Recreate the local statistics
     localStatistics = statisticsSerializer.createInstance();

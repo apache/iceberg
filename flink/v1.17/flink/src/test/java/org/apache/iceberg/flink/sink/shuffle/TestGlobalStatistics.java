@@ -22,7 +22,6 @@ import java.util.Map;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -34,10 +33,8 @@ public class TestGlobalStatistics {
 
   @Test
   public void mergeDataStatisticTest() {
-    BinaryRowData binaryRowDataA =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
-    BinaryRowData binaryRowDataB =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
+    GenericRowData binaryRowDataA = GenericRowData.of(StringData.fromString("a"));
+    GenericRowData binaryRowDataB = GenericRowData.of(StringData.fromString("b"));
 
     GlobalStatistics<MapDataStatistics, Map<RowData, Long>> globalStatistics =
         new GlobalStatistics<>(

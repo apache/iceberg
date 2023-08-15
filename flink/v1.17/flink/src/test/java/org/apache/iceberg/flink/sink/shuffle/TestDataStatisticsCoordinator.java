@@ -36,7 +36,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -72,30 +72,30 @@ public class TestDataStatisticsCoordinator {
 
   @Test
   public void testThrowExceptionWhenNotStarted() {
-    String failureMessage =
-        "Call should fail when data statistics coordinator has not started yet.";
+    String failureMessage = "The coordinator of TestCoordinator has not started yet.";
 
-    Assert.assertThrows(
-        failureMessage,
-        IllegalStateException.class,
-        () ->
-            dataStatisticsCoordinator.handleEventFromOperator(
-                0,
-                0,
-                DataStatisticsEvent.create(0, new MapDataStatistics(), statisticsSerializer)));
-    Assert.assertThrows(
-        failureMessage,
-        IllegalStateException.class,
-        () -> dataStatisticsCoordinator.executionAttemptFailed(0, 0, null));
-    Assert.assertThrows(
-        failureMessage,
-        IllegalStateException.class,
-        () -> dataStatisticsCoordinator.checkpointCoordinator(0, null));
+    Assertions.assertThatThrownBy(
+            () ->
+                dataStatisticsCoordinator.handleEventFromOperator(
+                    0,
+                    0,
+                    DataStatisticsEvent.create(0, new MapDataStatistics(), statisticsSerializer)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(failureMessage);
+    Assertions.assertThatThrownBy(
+            () -> dataStatisticsCoordinator.executionAttemptFailed(0, 0, null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(failureMessage);
+    Assertions.assertThatThrownBy(() -> dataStatisticsCoordinator.checkpointCoordinator(0, null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(failureMessage);
   }
 
   @Test
   public void testDataStatisticsEventHandling() throws Exception {
     tasksReady();
+    // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
+    // deserializes bytes into BinaryRowData
     RowType rowType = RowType.of(new VarCharType());
     BinaryRowData binaryRowDataA =
         new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
@@ -171,14 +171,5 @@ public class TestDataStatisticsCoordinator {
     } catch (ExecutionException e) {
       ExceptionUtils.rethrow(ExceptionUtils.stripExecutionException(e));
     }
-  }
-
-  static byte[] waitForCheckpoint(
-      long checkpointId,
-      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> coordinator)
-      throws InterruptedException, ExecutionException {
-    CompletableFuture<byte[]> future = new CompletableFuture<>();
-    coordinator.checkpointCoordinator(checkpointId, future);
-    return future.get();
   }
 }

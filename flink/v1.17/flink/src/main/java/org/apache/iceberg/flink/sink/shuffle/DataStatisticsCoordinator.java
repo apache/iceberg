@@ -98,7 +98,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     // Ensure the task is done by the coordinator executor.
     if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread()) {
       try {
-        final Callable<Void> guardedCallable =
+        Callable<Void> guardedCallable =
             () -> {
               try {
                 return callable.call();
@@ -182,6 +182,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
           for (int i = 0; i < parallelism; ++i) {
             subtaskGateways.getSubtaskGateway(i).sendEvent(dataStatisticsEvent);
           }
+
           return null;
         },
         String.format("Failed to send global data statistics for checkpoint %d", checkpointId));
@@ -211,7 +212,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     runInCoordinatorThread(
         () -> {
           LOG.debug(
-              "Taking a state snapshot on data statistics coordinator {} for checkpoint {}",
+              "Snapshotting data statistics coordinator {} for checkpoint {}",
               operatorName,
               checkpointId);
           resultFuture.complete(
@@ -231,12 +232,15 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
         !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
 
     if (checkpointData == null) {
+      LOG.info(
+          "Data statistic coordinator {} checkpoint {} data is null. Cannot be restored.",
+          operatorName,
+          checkpointId);
       return;
     }
 
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
-
     completedStatistics =
         DataStatisticsUtil.deserializeGlobalStatistics(checkpointData, statisticsSerializer);
   }
