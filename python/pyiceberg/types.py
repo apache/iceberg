@@ -379,9 +379,6 @@ class ListType(IcebergType):
         ListType(element_id=3, element_type=StringType(), element_required=True)
     """
 
-    class Config:
-        fields = {"element_field": {"exclude": True}}
-
     type: Literal["list"] = Field(default="list")
     element_id: int = Field(alias="element-id")
     element_type: SerializeAsAny[IcebergType] = Field(alias="element")
@@ -439,9 +436,6 @@ class MapType(IcebergType):
     value_type: SerializeAsAny[IcebergType] = Field(alias="value")
     value_required: bool = Field(alias="value-required", default=True)
     _hash: int = PrivateAttr()
-
-    class Config:
-        fields = {"key_field": {"exclude": True}, "value_field": {"exclude": True}}
 
     def __init__(
         self,

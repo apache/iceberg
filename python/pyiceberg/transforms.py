@@ -638,7 +638,7 @@ class TruncateTransform(Transform[S, S]):
 
         return lambda v: truncate_func(v) if v else None
 
-    def satisfies_order_of(self, other: Transform[S, S]) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         if self == other:
             return True
         elif (

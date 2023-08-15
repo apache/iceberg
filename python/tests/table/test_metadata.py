@@ -227,7 +227,7 @@ def test_invalid_format_version(example_table_metadata_v1: Dict[str, Any]) -> No
     """Test the exception when trying to load an unknown version"""
 
     example_table_metadata_v22 = copy(example_table_metadata_v1)
-    example_table_metadata_v22['format-version'] = -1
+    example_table_metadata_v22["format-version"] = -1
 
     with pytest.raises(ValidationError) as exc_info:
         TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v22))
