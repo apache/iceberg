@@ -130,7 +130,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
             SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
         return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
       } catch (AnalysisException e) {
-        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
+        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
       }
     }
     return action;
