@@ -18,33 +18,38 @@
  */
 package org.apache.iceberg.azure;
 
+import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenCredential;
-import com.azure.identity.ClientAssertionCredentialBuilder;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.file.datalake.DataLakePathClientBuilder;
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
+import reactor.core.publisher.Mono;
 
 public class AzureProperties implements Serializable {
-  public static final String ADLS_CLIENT_ID = "adls.client-id";
-  public static final String ADLS_TENANT_ID = "adls.tenant-id";
-  public static final String ADLS_ID_TOKEN = "adls.id-token";
+  public static final String ADLS_OAUTH2_TOKEN = "adls.oauth2.token";
+  public static final String ADLS_OAUTH2_TOKEN_EXPIRES_AT = "adls.oauth2.token-expires-at";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
-  private String adlsClientId;
-  private String adlsTenantId;
-  private String adlsIdToken;
+  private String adlsOAuth2Token;
+  private OffsetDateTime adlsOAuth2TokenExpiresAt;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
   public AzureProperties() {}
 
   public AzureProperties(Map<String, String> properties) {
-    this.adlsClientId = properties.get(ADLS_CLIENT_ID);
-    this.adlsTenantId = properties.get(ADLS_TENANT_ID);
-    this.adlsIdToken = properties.get(ADLS_ID_TOKEN);
+    this.adlsOAuth2Token = properties.get(ADLS_OAUTH2_TOKEN);
+    if (properties.containsKey(ADLS_OAUTH2_TOKEN_EXPIRES_AT)) {
+      long epochMillis = Long.parseLong(properties.get(ADLS_OAUTH2_TOKEN_EXPIRES_AT));
+      this.adlsOAuth2TokenExpiresAt =
+          OffsetDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneOffset.UTC);
+    }
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -64,19 +69,11 @@ public class AzureProperties implements Serializable {
 
   public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(T builder) {
     TokenCredential credential;
-    if (adlsIdToken != null && !adlsIdToken.isEmpty()) {
-      credential =
-          new ClientAssertionCredentialBuilder()
-              .clientId(adlsClientId)
-              .tenantId(adlsTenantId)
-              .clientAssertion(() -> adlsIdToken)
-              .build();
+    if (adlsOAuth2Token != null && !adlsOAuth2Token.isEmpty() && adlsOAuth2TokenExpiresAt != null) {
+      AccessToken accessToken = new AccessToken(adlsOAuth2Token, adlsOAuth2TokenExpiresAt);
+      credential = context -> Mono.just(accessToken);
     } else {
-      credential =
-          new DefaultAzureCredentialBuilder()
-              .managedIdentityClientId(adlsClientId)
-              .tenantId(adlsTenantId)
-              .build();
+      credential = new DefaultAzureCredentialBuilder().build();
     }
     builder.credential(credential);
   }
