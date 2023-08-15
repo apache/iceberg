@@ -22,7 +22,6 @@ from unittest import mock
 
 import pytest
 
-from pyiceberg.exceptions import InvalidConfigurationError
 from pyiceberg.utils.concurrent import ExecutorFactory
 
 EMPTY_ENV: Dict[str, Optional[str]] = {}
@@ -49,5 +48,5 @@ def test_max_workers() -> None:
 
 @mock.patch.dict(os.environ, INVALID_ENV)
 def test_max_workers_invalid() -> None:
-    with pytest.raises(InvalidConfigurationError):
+    with pytest.raises(ValueError):
         ExecutorFactory.max_workers()

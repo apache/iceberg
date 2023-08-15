@@ -18,7 +18,6 @@
 from concurrent.futures import Executor, ThreadPoolExecutor
 from typing import Optional
 
-from pyiceberg.exceptions import InvalidConfigurationError
 from pyiceberg.utils.config import Config
 
 
@@ -46,4 +45,4 @@ class ExecutorFactory:
         try:
             return int(val)  # type: ignore
         except ValueError as err:
-            raise InvalidConfigurationError(f"Max workers should be an integer or left unset. Current value: {val}") from err
+            raise ValueError(f"Max workers should be an integer or left unset. Current value: {val}") from err
