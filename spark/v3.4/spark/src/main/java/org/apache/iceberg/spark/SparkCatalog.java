@@ -313,6 +313,10 @@ public class SparkCatalog extends BaseCatalog {
           throw new UnsupportedOperationException(
               "Cannot specify the 'sort-order' because it's a reserved table "
                   + "property. Please use the command 'ALTER TABLE ... WRITE ORDERED BY' to specify write sort-orders.");
+        } else if ("identifier-fields".equalsIgnoreCase(set.property())) {
+          throw new UnsupportedOperationException(
+              "Cannot specify the 'identifier-fields' because it's a reserved table property. "
+                  + "Please use the command 'ALTER TABLE ... SET IDENTIFIER FIELDS' to specify identifier fields.");
         } else {
           propertyChanges.add(set);
         }
