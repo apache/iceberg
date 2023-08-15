@@ -25,7 +25,6 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import datetime, time
 from typing import (
     Any,
     Dict,
@@ -36,6 +35,7 @@ from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.types import StructType
+from pyiceberg.utils.decimal import decimal_required_bytes, decimal_to_bytes
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -77,23 +77,23 @@ class DoubleWriter(Writer):
 
 
 class DateWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: Any) -> None:
-        encoder.write_date_int(val)
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimeWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: time) -> None:
-        encoder.write_time_micros_long(val)
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimestampWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        encoder.write_timestamp_micros_long(val)
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class TimestamptzWriter(Writer):
-    def write(self, encoder: BinaryEncoder, val: datetime) -> None:
-        encoder.write_timestamp_micros_long(val)
+    def write(self, encoder: BinaryEncoder, val: int) -> None:
+        encoder.write_int(val)
 
 
 class StringWriter(Writer):
@@ -103,12 +103,7 @@ class StringWriter(Writer):
 
 class UUIDWriter(Writer):
     def write(self, encoder: BinaryEncoder, val: UUID) -> None:
-        uuid_bytes = val.bytes
-
-        if len(uuid_bytes) != 16:
-            raise ValueError(f"Expected UUID to be 16 bytes, got: {len(uuid_bytes)}")
-
-        encoder.write_bytes_fixed(uuid_bytes)
+        encoder.write(val.bytes)
 
 
 @dataclass(frozen=True)
@@ -116,6 +111,8 @@ class FixedWriter(Writer):
     _len: int = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: bytes) -> None:
+        if len(val) != self._len:
+            raise ValueError(f"Expected {self._len} bytes, got {len(val)}")
         encoder.write(val)
 
     def __len__(self) -> int:
@@ -140,7 +137,7 @@ class DecimalWriter(Writer):
     scale: int = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: Any) -> None:
-        return encoder.write_decimal_bytes(val)
+        return encoder.write(decimal_to_bytes(val, byte_length=decimal_required_bytes(self.precision)))
 
     def __repr__(self) -> str:
         """Returns string representation of this object."""

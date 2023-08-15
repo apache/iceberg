@@ -54,28 +54,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
-import org.apache.spark.sql.connector.catalog.SupportsDelete;
+import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
@@ -87,7 +87,7 @@ public class SparkTable
     implements org.apache.spark.sql.connector.catalog.Table,
         SupportsRead,
         SupportsWrite,
-        SupportsDelete,
+        SupportsDeleteV2,
         SupportsRowLevelOperations,
         SupportsMetadataColumns {
 
@@ -295,14 +295,14 @@ public class SparkTable
   }
 
   @Override
-  public boolean canDeleteWhere(Filter[] filters) {
+  public boolean canDeleteWhere(Predicate[] predicates) {
     Preconditions.checkArgument(
         snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
     Expression deleteExpr = Expressions.alwaysTrue();
 
-    for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
+    for (Predicate predicate : predicates) {
+      Expression expr = SparkV2Filters.convert(predicate);
       if (expr != null) {
         deleteExpr = Expressions.and(deleteExpr, expr);
       } else {
@@ -359,8 +359,8 @@ public class SparkTable
   }
 
   @Override
-  public void deleteWhere(Filter[] filters) {
-    Expression deleteExpr = SparkFilters.convert(filters);
+  public void deleteWhere(Predicate[] predicates) {
+    Expression deleteExpr = SparkV2Filters.convert(predicates);
 
     if (deleteExpr == Expressions.alwaysFalse()) {
       LOG.info("Skipping the delete operation as the condition is always false");

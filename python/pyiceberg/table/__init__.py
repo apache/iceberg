@@ -766,7 +766,9 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
+        metrics_evaluator = _InclusiveMetricsEvaluator(
+            self.table.schema(), self.row_filter, self.case_sensitive, self.options.get("include_empty_files") == "true"
+        ).eval
 
         min_data_sequence_number = _min_data_file_sequence_number(manifests)
 

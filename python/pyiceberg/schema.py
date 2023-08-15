@@ -1367,3 +1367,12 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
             raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveError(f"Cannot promote an decimal to {read_type}")
+
+
+@promote.register(FixedType)
+def _(file_type: FixedType, read_type: IcebergType) -> IcebergType:
+    if isinstance(read_type, UUIDType) and len(file_type) == 16:
+        # Since pyarrow reads parquet UUID as fixed 16-byte binary, the promotion is needed to ensure read compatibility
+        return read_type
+    else:
+        raise ResolveError(f"Cannot promote {file_type} to {read_type}")
