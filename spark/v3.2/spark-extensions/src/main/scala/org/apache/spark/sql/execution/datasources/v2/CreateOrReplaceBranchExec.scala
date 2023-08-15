@@ -48,22 +48,29 @@ case class CreateOrReplaceBranchExec(
           .map(java.lang.Long.valueOf)
           .orNull
 
-        Preconditions.checkArgument(snapshotId != null,
-          "Cannot complete create or replace branch operation on %s, main has no snapshot", ident)
-
         val manageSnapshots = iceberg.table().manageSnapshots()
         val refExists = null != iceberg.table().refs().get(branch)
 
+        def safeCreateBranch(): Unit = {
+          if (snapshotId == null) {
+            manageSnapshots.createBranch(branch)
+          } else {
+            manageSnapshots.createBranch(branch, snapshotId)
+          }
+        }
+
         if (create && replace && !refExists) {
-          manageSnapshots.createBranch(branch, snapshotId)
+          safeCreateBranch()
         } else if (replace) {
+          Preconditions.checkArgument(snapshotId != null,
+            "Cannot complete replace branch operation on %s, main has no snapshot", ident)
           manageSnapshots.replaceBranch(branch, snapshotId)
         } else {
           if (refExists && ifNotExists) {
             return Nil
           }
 
-          manageSnapshots.createBranch(branch, snapshotId)
+          safeCreateBranch()
         }
 
         if (branchOptions.numSnapshots.nonEmpty) {

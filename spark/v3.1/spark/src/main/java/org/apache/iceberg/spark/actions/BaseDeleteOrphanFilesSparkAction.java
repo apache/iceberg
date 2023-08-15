@@ -39,8 +39,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
@@ -227,7 +227,7 @@ public class BaseDeleteOrphanFilesSparkAction
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
 
-    return new BaseDeleteOrphanFilesActionResult(orphanFiles);
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
   }
 
   private Dataset<Row> buildActualFileDF() {

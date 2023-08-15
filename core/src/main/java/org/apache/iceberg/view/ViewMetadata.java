@@ -38,7 +38,9 @@ public interface ViewMetadata extends Serializable {
 
   String location();
 
-  Integer currentSchemaId();
+  default Integer currentSchemaId() {
+    return currentVersion().schemaId();
+  }
 
   List<Schema> schemas();
 

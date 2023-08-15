@@ -311,11 +311,38 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
+#### Options
 
-See the [`RewriteDataFiles` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/RewriteDataFiles.html#field.summary),
-<br/>  [`BinPackStrategy` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/BinPackStrategy.html#field.summary)
-and <br/> [`SortStrategy` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
-for list of all the supported options for this action.
+##### General Options
+| Name | Default Value | Description |
+|------|---------------|-------------|
+| `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
+| `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
+| `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
+| `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
+| `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
+| `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](../configuration/#write-properties)) | Target output file size |
+| `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
+| `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
+| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
+| `rewrite-all` | false | Force rewriting of all provided files overriding other options |
+| `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
+
+
+##### Options for sort strategy
+
+| Name | Default Value | Description |
+|------|---------------|-------------|
+| `compression-factor` | 1.0 | The number of shuffle partitions and consequently the number of output files created by the Spark sort is based on the size of the input data files used in this file rewriter. Due to compression, the disk file sizes may not accurately represent the size of files in the output. This parameter lets the user adjust the file size used for estimating actual output data size. A factor greater than 1.0 would generate more files than we would expect based on the on-disk file size. A value less than 1.0 would create fewer files than we would expect based on the on-disk size. |
+| `shuffle-partitions-per-file` | 1 | Number of shuffle partitions to use for each output file. Iceberg will use a custom coalesce operation to stitch these sorted partitions back together into a single sorted file. |
+
+##### Options for sort strategy with zorder sort_order
+
+| Name | Default Value | Description |
+|------|---------------|-------------|
+| `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
+| `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
 
 #### Output
 
@@ -361,9 +388,6 @@ Rewrite manifests for a table to optimize scan planning.
 
 Data files in manifests are sorted by fields in the partition spec. This procedure runs in parallel using a Spark job.
 
-See the [`RewriteManifests` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/RewriteManifests.html)
-to see more configuration options.
-
 {{< hint info >}}
 This procedure invalidates all cached Spark plans that reference the affected table.
 {{< /hint >}}
@@ -407,10 +431,22 @@ Iceberg can rewrite position delete files, which serves two purposes:
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
 
-See the [`SizeBasedFileRewriter` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/SizeBasedFileRewriter.html#field.summary),
-for list of all the supported options for this procedure.
-
 Dangling deletes are always filtered out during rewriting.
+
+#### Options
+
+| Name | Default Value | Description |
+|------|---------------|-------------|
+| `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
+| `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
+| `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
+| `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
+| `target-file-size-bytes` | 67108864 (64MB, default value of `write.delete.target-file-size-bytes` from [table properties](../configuration/#write-properties)) | Target output file size |
+| `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
+| `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
+| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
+| `rewrite-all` | false | Force rewriting of all provided files overriding other options |
+| `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 
 #### Output
 

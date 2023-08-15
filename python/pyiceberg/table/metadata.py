@@ -26,7 +26,10 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, root_validator
+from pydantic import Field
+from pydantic import ValidationError as PydanticValidationError
+from pydantic import root_validator
+from typing_extensions import Annotated
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
@@ -353,7 +356,16 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     increasing long that tracks the order of snapshots in a table."""
 
 
-TableMetadata = Union[TableMetadataV1, TableMetadataV2]
+TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discriminator="format_version")]
+
+
+class TableMetadataFactory(IcebergBaseModel):
+    table_metadata: TableMetadata
+
+    @classmethod
+    def parse_data(cls, data: str) -> "TableMetadataFactory":
+        labeled_data = f'{{"table_metadata": {data}}}'
+        return cls.parse_raw(labeled_data)
 
 
 def new_table_metadata(
@@ -380,14 +392,18 @@ def new_table_metadata(
 class TableMetadataUtil:
     """Helper class for parsing TableMetadata."""
 
-    # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
-    # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]
+    @staticmethod
+    def parse_raw(data: str) -> TableMetadata:
+        try:
+            table_metadata_factory = TableMetadataFactory.parse_data(data)
+            return table_metadata_factory.table_metadata
+        except PydanticValidationError as e:
+            raise ValidationError(e) from e
 
     @staticmethod
     def parse_obj(data: Dict[str, Any]) -> TableMetadata:
         if "format-version" not in data:
             raise ValidationError(f"Missing format-version in TableMetadata: {data}")
-
         format_version = data["format-version"]
 
         if format_version == 1:

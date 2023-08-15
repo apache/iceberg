@@ -291,8 +291,6 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
-    annotationProcessor libs.immutables.value
-    compileOnly libs.immutables.value
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
   }

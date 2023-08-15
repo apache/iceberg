@@ -29,7 +29,8 @@ import org.apache.iceberg.Table;
 /**
  * A strategy for rewriting files.
  *
- * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link FileRewriter} instead.
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link FileRewriter} instead. Note: This
+ *     can only be removed once Spark 3.1 + 3.2 isn't using this API anymore.
  */
 @Deprecated
 public interface RewriteStrategy extends Serializable {

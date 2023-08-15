@@ -157,16 +157,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return deleteExpression;
   }
 
-  /**
-   * Returns added data files.
-   *
-   * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link #addedDataFiles()}.
-   */
-  @Deprecated
-  protected List<DataFile> addedFiles() {
-    return addedDataFiles();
-  }
-
   protected List<DataFile> addedDataFiles() {
     return ImmutableList.copyOf(newDataFiles);
   }
@@ -686,18 +676,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     return manifestGroup.entries();
-  }
-
-  /**
-   * Sets a data sequence number for new data files.
-   *
-   * @param sequenceNumber a data sequence number
-   * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link
-   *     #setNewDataFilesDataSequenceNumber(long)};
-   */
-  @Deprecated
-  protected void setNewFilesSequenceNumber(long sequenceNumber) {
-    setNewDataFilesDataSequenceNumber(sequenceNumber);
   }
 
   protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {

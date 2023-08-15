@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import codecs
 import gzip
-import json
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -89,9 +88,9 @@ class FromByteStream:
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            metadata = json.load(json_bytes)
+            metadata = json_bytes.read()
 
-        return TableMetadataUtil.parse_obj(metadata)
+        return TableMetadataUtil.parse_raw(metadata)
 
 
 class FromInputFile:

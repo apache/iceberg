@@ -41,7 +41,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.BaseRewriteManifestsActionResult;
+import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -151,7 +151,10 @@ public class RewriteManifestsSparkAction
   private RewriteManifests.Result doExecute() {
     List<ManifestFile> matchingManifests = findMatchingManifests();
     if (matchingManifests.isEmpty()) {
-      return BaseRewriteManifestsActionResult.empty();
+      return ImmutableRewriteManifests.Result.builder()
+          .addedManifests(ImmutableList.of())
+          .rewrittenManifests(ImmutableList.of())
+          .build();
     }
 
     long totalSizeBytes = 0L;
@@ -170,7 +173,10 @@ public class RewriteManifestsSparkAction
     int targetNumManifestEntries = targetNumManifestEntries(numEntries, targetNumManifests);
 
     if (targetNumManifests == 1 && matchingManifests.size() == 1) {
-      return BaseRewriteManifestsActionResult.empty();
+      return ImmutableRewriteManifests.Result.builder()
+          .addedManifests(ImmutableList.of())
+          .rewrittenManifests(ImmutableList.of())
+          .build();
     }
 
     Dataset<Row> manifestEntryDF = buildManifestEntryDF(matchingManifests);
@@ -186,7 +192,10 @@ public class RewriteManifestsSparkAction
 
     replaceManifests(matchingManifests, newManifests);
 
-    return new BaseRewriteManifestsActionResult(matchingManifests, newManifests);
+    return ImmutableRewriteManifests.Result.builder()
+        .addedManifests(newManifests)
+        .rewrittenManifests(matchingManifests)
+        .build();
   }
 
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {
