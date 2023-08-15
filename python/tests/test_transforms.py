@@ -17,7 +17,7 @@
 # pylint: disable=eval-used,protected-access,redefined-outer-name
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Any, Callable
+from typing import Any, Callable
 from uuid import UUID
 
 import mmh3 as mmh3
@@ -28,6 +28,7 @@ from pydantic import (
     RootModel,
     WithJsonSchema,
 )
+from typing_extensions import Annotated
 
 from pyiceberg import transforms
 from pyiceberg.expressions import (

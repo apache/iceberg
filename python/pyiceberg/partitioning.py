@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from functools import cached_property
 from typing import (
-    Annotated,
     Any,
     Dict,
     List,
@@ -32,6 +31,7 @@ from pydantic import (
     PlainSerializer,
     WithJsonSchema,
 )
+from typing_extensions import Annotated
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform, _deserialize_transform
