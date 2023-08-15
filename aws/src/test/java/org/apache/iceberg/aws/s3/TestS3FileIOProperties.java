@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import com.adobe.testing.s3mock.dto.StorageClass;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
@@ -59,6 +58,7 @@ public class TestS3FileIOProperties {
     Assertions.assertThat(s3FileIOProperties.sessionToken()).isNull();
     Assertions.assertThat(s3FileIOProperties.acl()).isNull();
     Assertions.assertThat(s3FileIOProperties.endpoint()).isNull();
+    Assertions.assertThat(s3FileIOProperties.writeStorageClass()).isNull();
 
     Assertions.assertThat(S3FileIOProperties.PRELOAD_CLIENT_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isPreloadClientEnabled());
@@ -258,8 +258,7 @@ public class TestS3FileIOProperties {
 
     Assertions.assertThat(map)
         .containsEntry(
-            S3FileIOProperties.WRITE_STORAGE_CLASS,
-            StorageClass.INTELLIGENT_TIERING.toString());
+            S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
   }
 
   @Test
@@ -405,7 +404,7 @@ public class TestS3FileIOProperties {
         S3FileIOProperties.ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME, S3_TEST_BUCKET_ACCESS_POINT);
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
-    map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, StorageClass.INTELLIGENT_TIERING.toString());
+    map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
     return map;
   }
 
