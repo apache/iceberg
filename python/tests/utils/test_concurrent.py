@@ -31,8 +31,8 @@ INVALID_ENV = {"PYICEBERG_MAX_WORKERS": "invalid"}
 
 
 def test_create_reused() -> None:
-    first = ExecutorFactory.create()
-    second = ExecutorFactory.create()
+    first = ExecutorFactory.get_or_create()
+    second = ExecutorFactory.get_or_create()
     assert isinstance(first, ThreadPoolExecutor)
     assert first is second
 

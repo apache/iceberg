@@ -26,7 +26,7 @@ class ExecutorFactory:
     _instance: Optional[Executor] = None
 
     @staticmethod
-    def create() -> Executor:
+    def get_or_create() -> Executor:
         """Returns the same executor in each call."""
         if ExecutorFactory._instance is None:
             max_workers = ExecutorFactory.max_workers()

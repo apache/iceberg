@@ -775,7 +775,7 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        executor = ExecutorFactory.create()
+        executor = ExecutorFactory.get_or_create()
         for manifest_entry in chain(
             *executor.map(
                 lambda args: _open_manifest(*args),
