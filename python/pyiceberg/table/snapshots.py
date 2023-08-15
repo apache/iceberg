@@ -61,7 +61,7 @@ class Summary(IcebergBaseModel):
     operation: Operation = Field()
     _additional_properties: Dict[str, str] = PrivateAttr()
 
-    def __init__(self, operation: Optional[Operation] = None, **data: Any) -> None:
+    def __init__(self, operation: Operation, **data: Any) -> None:
         super().__init__(operation=operation, **data)
         self._additional_properties = data
 

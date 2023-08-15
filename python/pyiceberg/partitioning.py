@@ -34,7 +34,7 @@ from pydantic import (
 from typing_extensions import Annotated
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import Transform, _deserialize_transform
+from pyiceberg.transforms import Transform, parse_transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
 
@@ -56,7 +56,7 @@ class PartitionField(IcebergBaseModel):
     field_id: int = Field(alias="field-id")
     transform: Annotated[  # type: ignore
         Transform,
-        BeforeValidator(_deserialize_transform),
+        BeforeValidator(parse_transform),
         PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
         WithJsonSchema({"type": "string"}, mode="serialization"),
     ] = Field()

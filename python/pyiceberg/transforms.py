@@ -100,7 +100,7 @@ def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
     return literal(func(lit.value))
 
 
-def _deserialize_transform(v: Any) -> Any:
+def parse_transform(v: Any) -> Any:
     if isinstance(v, str):
         if v == IDENTITY:
             return IdentityTransform()

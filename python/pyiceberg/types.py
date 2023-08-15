@@ -311,7 +311,7 @@ class NestedField(IcebergType):
 
     def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
         """A magic function for pickling the NestedField class."""
-        return self.field_id, self.name, self.field_type, self.required, self.doc
+        return (self.field_id, self.name, self.field_type, self.required, self.doc)
 
     @property
     def optional(self) -> bool:
@@ -410,7 +410,7 @@ class ListType(IcebergType):
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
         """A magic function for pickling the ListType class."""
-        return self.element_id, self.element_type, self.element_required
+        return (self.element_id, self.element_type, self.element_required)
 
     def __hash__(self) -> int:
         """Used the cache hash value of the StructType class."""
@@ -450,7 +450,7 @@ class MapType(IcebergType):
         data["key"] = data["key"] if "key" in data else key_type
         data["value-id"] = data["value-id"] if "value-id" in data else value_id
         data["value"] = data["value"] if "value" in data else value_type
-        data["value_required"] = data["value_required"] if "value_required" in data else value_required
+        data["value-required"] = data["value-required"] if "value-required" in data else value_required
         super().__init__(**data)
         self._hash = hash(self.__getnewargs__())
 
@@ -478,7 +478,7 @@ class MapType(IcebergType):
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
         """A magic function for pickling the MapType class."""
-        return self.key_id, self.key_type, self.value_id, self.value_type, self.value_required
+        return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
     def __hash__(self) -> int:
         """Returns the hash of the MapType."""

@@ -72,7 +72,7 @@ from pyiceberg.transforms import (
     UnknownTransform,
     VoidTransform,
     YearTransform,
-    _deserialize_transform,
+    parse_transform,
 )
 from pyiceberg.types import (
     BinaryType,
@@ -440,7 +440,7 @@ def test_void_transform() -> None:
 class FauxModel(RootModel):
     root: Annotated[  # type: ignore
         Transform,
-        BeforeValidator(_deserialize_transform),
+        BeforeValidator(parse_transform),
         PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
         WithJsonSchema({"type": "string"}, mode="serialization"),
     ]

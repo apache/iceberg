@@ -35,7 +35,7 @@ from pydantic import (
 from typing_extensions import Annotated
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import IdentityTransform, Transform, _deserialize_transform
+from pyiceberg.transforms import IdentityTransform, Transform, parse_transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import IcebergType
 
@@ -105,7 +105,7 @@ class SortField(IcebergBaseModel):
     source_id: int = Field(alias="source-id")
     transform: Annotated[  # type: ignore
         Transform,
-        BeforeValidator(_deserialize_transform),
+        BeforeValidator(parse_transform),
         PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
         WithJsonSchema({"type": "string"}, mode="serialization"),
     ] = Field()
