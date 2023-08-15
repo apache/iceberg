@@ -841,7 +841,11 @@ class SchemaUpdate implements UpdateSchema {
 
     @Override
     public String toString() {
-      return "Move column " + fieldId + " " + type.toString() + " field " + referenceFieldId;
+      String suffix = "";
+      if (type != MoveType.FIRST) {
+        suffix = " field " + referenceFieldId;
+      }
+      return "Move column " + fieldId + " " + type.toString() + suffix;
     }
 
     static Move first(int fieldId) {
