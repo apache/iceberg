@@ -569,6 +569,14 @@ class SchemaUpdate implements UpdateSchema {
       this.deletes = deletes;
       this.updates = updates;
       this.adds = adds;
+      this.moves = reconstructMoveOps(oldSchema, deletes, adds, moves);
+    }
+
+    private static Multimap<Integer, Move> reconstructMoveOps(
+        Schema oldSchema,
+        List<Integer> deletes,
+        Multimap<Integer, Types.NestedField> adds,
+        Multimap<Integer, Move> moves) {
       Multimap<Integer, Move> reconstructedMap = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
       Collection<Types.NestedField> addedFields = adds.values();
       for (Integer k: moves.keys()) {
@@ -589,14 +597,14 @@ class SchemaUpdate implements UpdateSchema {
               reconstructedMap.put(k, newMoveOp);
             } else {
               throw new IllegalArgumentException("cannot move the field " + deletedFieldName + " which was deleted" +
-                      " without adding it back");
+                  " without adding it back");
             }
           } else {
             reconstructedMap.put(k, move);
           }
         }
       }
-      this.moves = reconstructedMap;
+      return reconstructedMap;
     }
 
     @Override
