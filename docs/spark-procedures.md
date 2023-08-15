@@ -277,6 +277,10 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 
+{{< hint warning >}}
+The timestamp within 24 hours cannot be set to `older_than`. For testing `remove_orphan_files`, configure `spark.testing` to true in the SparkSession object.
+{{< /hint >}}
+
 #### Output
 
 | Output Name | Type | Description |
