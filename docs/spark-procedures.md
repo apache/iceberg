@@ -130,7 +130,10 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | ✔️  | long   | Snapshot ID to set as current |
+| `snapshot_id` | | long   | Snapshot ID to set as current |
+| `ref` | | string | Snapshot Referece (branch or tag) to set as current |
+
+Either `snapshot_id` or `ref` must be provided but not both.
 
 #### Output
 
@@ -144,6 +147,11 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 Set the current snapshot for `db.sample` to 1:
 ```sql
 CALL catalog_name.system.set_current_snapshot('db.sample', 1)
+```
+
+Set the current snapshot for `db.sample` to tag `s1`:
+```sql
+CALL catalog_name.system.set_current_snapshot(table => 'db.sample', tag => 's1');
 ```
 
 ### `cherrypick_snapshot`
