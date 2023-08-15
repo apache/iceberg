@@ -28,17 +28,17 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
-class ADLSv2OutputFile extends BaseADLSv2File implements OutputFile {
+class ADLSOutputFile extends BaseADLSFile implements OutputFile {
 
-  static ADLSv2OutputFile of(
+  static ADLSOutputFile of(
       String location,
       DataLakeFileClient fileClient,
       AzureProperties azureProperties,
       MetricsContext metrics) {
-    return new ADLSv2OutputFile(location, fileClient, azureProperties, metrics);
+    return new ADLSOutputFile(location, fileClient, azureProperties, metrics);
   }
 
-  ADLSv2OutputFile(
+  ADLSOutputFile(
       String location,
       DataLakeFileClient fileClient,
       AzureProperties azureProperties,
@@ -64,7 +64,7 @@ class ADLSv2OutputFile extends BaseADLSv2File implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new ADLSv2OutputStream(fileClient(), azureProperties(), metrics());
+      return new ADLSOutputStream(fileClient(), azureProperties(), metrics());
     } catch (IOException e) {
       throw new UncheckedIOException(
           "Failed to create output stream for location: " + location(), e);
@@ -73,6 +73,6 @@ class ADLSv2OutputFile extends BaseADLSv2File implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return ADLSv2InputFile.of(location(), fileClient(), azureProperties(), metrics());
+    return ADLSInputFile.of(location(), fileClient(), azureProperties(), metrics());
   }
 }

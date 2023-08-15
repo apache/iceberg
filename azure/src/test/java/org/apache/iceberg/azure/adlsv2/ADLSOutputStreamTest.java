@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class ADLSv2OutputStreamTest {
+public class ADLSOutputStreamTest {
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
@@ -60,8 +60,8 @@ public class ADLSv2OutputStreamTest {
   public void testMultipleClose() throws IOException {
     when(fileClient.getOutputStream(any())).thenReturn(new ByteArrayOutputStream());
 
-    ADLSv2OutputStream stream =
-        new ADLSv2OutputStream(fileClient, azureProperties, MetricsContext.nullMetrics());
+    ADLSOutputStream stream =
+        new ADLSOutputStream(fileClient, azureProperties, MetricsContext.nullMetrics());
     stream.close();
     stream.close();
   }
@@ -71,8 +71,8 @@ public class ADLSv2OutputStreamTest {
     ByteArrayOutputStream output = new ByteArrayOutputStream(data.length);
     when(fileClient.getOutputStream(any())).thenReturn(output);
 
-    try (ADLSv2OutputStream stream =
-        new ADLSv2OutputStream(fileClient, azureProperties, MetricsContext.nullMetrics())) {
+    try (ADLSOutputStream stream =
+        new ADLSOutputStream(fileClient, azureProperties, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertThat(stream.getPos()).isEqualTo(data.length);

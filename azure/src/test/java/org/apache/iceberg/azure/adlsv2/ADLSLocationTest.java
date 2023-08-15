@@ -26,12 +26,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class ADLSv2LocationTest {
+public class ADLSLocationTest {
   @ParameterizedTest
   @ValueSource(strings = {"abfs", "abfss"})
   public void testLocationParsing(String scheme) {
     String p1 = scheme + "://container@account.dfs.core.windows.net/path/to/file";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
@@ -41,7 +41,7 @@ public class ADLSv2LocationTest {
   @Test
   public void testEncodedString() {
     String p1 = "abfs://container@account.dfs.core.windows.net/path%20to%20file";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
@@ -50,22 +50,22 @@ public class ADLSv2LocationTest {
 
   @Test
   public void testMissingScheme() {
-    assertThatThrownBy(() -> new ADLSv2Location("/path/to/file"))
+    assertThatThrownBy(() -> new ADLSLocation("/path/to/file"))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI: /path/to/file");
+        .hasMessage("Invalid ADLS URI: /path/to/file");
   }
 
   @Test
   public void testInvalidScheme() {
-    assertThatThrownBy(() -> new ADLSv2Location("s3://bucket/path/to/file"))
+    assertThatThrownBy(() -> new ADLSLocation("s3://bucket/path/to/file"))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid ADLSv2 URI: s3://bucket/path/to/file");
+        .hasMessage("Invalid ADLS URI: s3://bucket/path/to/file");
   }
 
   @Test
   public void testNoContainer() {
     String p1 = "abfs://account.dfs.core.windows.net/path/to/file";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().isPresent()).isFalse();
@@ -75,7 +75,7 @@ public class ADLSv2LocationTest {
   @Test
   public void testNoPath() {
     String p1 = "abfs://container@account.dfs.core.windows.net";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
@@ -85,7 +85,7 @@ public class ADLSv2LocationTest {
   @Test
   public void testQueryAndFragment() {
     String p1 = "abfs://container@account.dfs.core.windows.net/path/to/file?query=foo#123";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
@@ -95,7 +95,7 @@ public class ADLSv2LocationTest {
   @Test
   public void testQueryAndFragmentNoPath() {
     String p1 = "abfs://container@account.dfs.core.windows.net?query=foo#123";
-    ADLSv2Location location = new ADLSv2Location(p1);
+    ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccountUrl()).isEqualTo("https://account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");

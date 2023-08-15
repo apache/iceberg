@@ -33,9 +33,9 @@ import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** FileIO implementation backed by Azure Data Lake Storage v2 (ADLSv2). */
-public class ADLSv2FileIO implements FileIO {
-  private static final Logger LOG = LoggerFactory.getLogger(ADLSv2FileIO.class);
+/** FileIO implementation backed by Azure Data Lake Storage Gen2. */
+public class ADLSFileIO implements FileIO {
+  private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
@@ -48,23 +48,23 @@ public class ADLSv2FileIO implements FileIO {
   /**
    * No-arg constructor to load the FileIO dynamically.
    *
-   * <p>All fields are initialized by calling {@link ADLSv2FileIO#initialize(Map)} later.
+   * <p>All fields are initialized by calling {@link ADLSFileIO#initialize(Map)} later.
    */
-  public ADLSv2FileIO() {}
+  public ADLSFileIO() {}
 
   @Override
   public InputFile newInputFile(String path) {
-    return ADLSv2InputFile.of(path, client(path), azureProperties, metrics);
+    return ADLSInputFile.of(path, client(path), azureProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return ADLSv2InputFile.of(path, length, client(path), azureProperties, metrics);
+    return ADLSInputFile.of(path, length, client(path), azureProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return ADLSv2OutputFile.of(path, client(path), azureProperties, metrics);
+    return ADLSOutputFile.of(path, client(path), azureProperties, metrics);
   }
 
   @Override
@@ -86,7 +86,7 @@ public class ADLSv2FileIO implements FileIO {
 
   @VisibleForTesting
   DataLakeFileClient client(String path) {
-    ADLSv2Location location = new ADLSv2Location(path);
+    ADLSLocation location = new ADLSLocation(path);
     DataLakePathClientBuilder clientBuilder =
         new DataLakePathClientBuilder()
             .httpClient(HTTP)

@@ -34,12 +34,12 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class ADLSv2FileIOTest {
+public class ADLSFileIOTest {
   @Test
   public void testFileOperations() {
     String location = "abfs://container@account.dfs.core.windows.net/path/to/file";
 
-    ADLSv2FileIO io = spy(new ADLSv2FileIO());
+    ADLSFileIO io = spy(new ADLSFileIO());
     io.initialize(ImmutableMap.of());
 
     DataLakeFileClient fileClient = mock(DataLakeFileClient.class);
@@ -57,7 +57,7 @@ public class ADLSv2FileIOTest {
 
   @Test
   public void testKryoSerialization() throws IOException {
-    FileIO testFileIO = new ADLSv2FileIO();
+    FileIO testFileIO = new ADLSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
     testFileIO.initialize(ImmutableMap.of("k1", "v1"));
@@ -68,7 +68,7 @@ public class ADLSv2FileIOTest {
 
   @Test
   public void testJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testFileIO = new ADLSv2FileIO();
+    FileIO testFileIO = new ADLSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
     testFileIO.initialize(ImmutableMap.of("k1", "v1"));

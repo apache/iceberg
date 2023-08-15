@@ -42,7 +42,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class ADLSv2InputStreamTest {
+public class ADLSInputStreamTest {
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
@@ -98,7 +98,7 @@ public class ADLSv2InputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
 
       readAndCheck(in, in.getPos(), readSize, data, false);
@@ -133,7 +133,7 @@ public class ADLSv2InputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
     }
@@ -174,7 +174,7 @@ public class ADLSv2InputStreamTest {
     setupData(expected);
 
     try (RangeReadable in =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
       // first 1k
       position = 0;
       offset = 0;
@@ -207,7 +207,7 @@ public class ADLSv2InputStreamTest {
   public void testClose() throws Exception {
     setupData(randomData(2));
     SeekableInputStream closed =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -221,7 +221,7 @@ public class ADLSv2InputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 
@@ -236,7 +236,7 @@ public class ADLSv2InputStreamTest {
   public void testSeekNegative() throws Exception {
     setupData(randomData(2));
     SeekableInputStream in =
-        new ADLSv2InputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
     assertThatThrownBy(() -> in.seek(-3))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot seek: position -3 is negative");

@@ -34,7 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
  * Support</a>
  */
-class ADLSv2Location {
+class ADLSLocation {
   private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)([/?#].*)?$");
 
   private final String storageAccountUrl;
@@ -42,16 +42,16 @@ class ADLSv2Location {
   private final String path;
 
   /**
-   * Creates a new ADLSv2Location from a fully qualified URI.
+   * Creates a new ADLSLocation from a fully qualified URI.
    *
    * @param location fully qualified URI
    */
-  ADLSv2Location(String location) {
+  ADLSLocation(String location) {
     Preconditions.checkArgument(location != null, "Invalid location: null");
 
     Matcher matcher = URI_PATTERN.matcher(location);
 
-    ValidationException.check(matcher.matches(), "Invalid ADLSv2 URI: %s", location);
+    ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
     String authority = matcher.group(1);
     String[] parts = authority.split("@", -1);
@@ -78,7 +78,7 @@ class ADLSv2Location {
     return Optional.ofNullable(container);
   }
 
-  /** Returns ADLSv2 path. */
+  /** Returns ADLS path. */
   public String path() {
     return path;
   }

@@ -20,51 +20,47 @@ package org.apache.iceberg.azure.adlsv2;
 
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import org.apache.iceberg.azure.AzureProperties;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
-class ADLSv2InputFile extends BaseADLSv2File implements InputFile {
-  private Long fileSize;
+abstract class BaseADLSFile {
+  private final String location;
+  private final DataLakeFileClient fileClient;
+  private final AzureProperties azureProperties;
+  private final MetricsContext metrics;
 
-  static ADLSv2InputFile of(
+  BaseADLSFile(
       String location,
       DataLakeFileClient fileClient,
       AzureProperties azureProperties,
       MetricsContext metrics) {
-    return new ADLSv2InputFile(location, null, fileClient, azureProperties, metrics);
+    this.location = location;
+    this.fileClient = fileClient;
+    this.azureProperties = azureProperties;
+    this.metrics = metrics;
   }
 
-  static ADLSv2InputFile of(
-      String location,
-      long length,
-      DataLakeFileClient fileClient,
-      AzureProperties azureProperties,
-      MetricsContext metrics) {
-    return new ADLSv2InputFile(
-        location, length > 0 ? length : null, fileClient, azureProperties, metrics);
+  protected AzureProperties azureProperties() {
+    return azureProperties;
   }
 
-  ADLSv2InputFile(
-      String location,
-      Long fileSize,
-      DataLakeFileClient fileClient,
-      AzureProperties azureProperties,
-      MetricsContext metrics) {
-    super(location, fileClient, azureProperties, metrics);
-    this.fileSize = fileSize;
+  protected MetricsContext metrics() {
+    return metrics;
+  }
+
+  protected DataLakeFileClient fileClient() {
+    return fileClient;
+  }
+
+  public String location() {
+    return location;
+  }
+
+  public boolean exists() {
+    return fileClient().exists();
   }
 
   @Override
-  public long getLength() {
-    if (fileSize == null) {
-      this.fileSize = fileClient().getProperties().getFileSize();
-    }
-    return fileSize;
-  }
-
-  @Override
-  public SeekableInputStream newStream() {
-    return new ADLSv2InputStream(fileClient(), fileSize, azureProperties(), metrics());
+  public String toString() {
+    return location;
   }
 }

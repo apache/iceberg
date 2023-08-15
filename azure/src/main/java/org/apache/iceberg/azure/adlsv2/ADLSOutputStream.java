@@ -34,8 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class ADLSv2OutputStream extends PositionOutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(ADLSv2OutputStream.class);
+class ADLSOutputStream extends PositionOutputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(ADLSOutputStream.class);
 
   private final StackTraceElement[] createStack;
   private final DataLakeFileClient fileClient;
@@ -49,7 +49,7 @@ class ADLSv2OutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
-  ADLSv2OutputStream(
+  ADLSOutputStream(
       DataLakeFileClient fileClient, AzureProperties azureProperties, MetricsContext metrics)
       throws IOException {
     this.fileClient = fileClient;
@@ -92,7 +92,7 @@ class ADLSv2OutputStream extends PositionOutputStream {
   private void openStream() {
     DataLakeFileOutputStreamOptions options = new DataLakeFileOutputStreamOptions();
     ParallelTransferOptions transferOptions = new ParallelTransferOptions();
-    azureProperties.adlsv2WriteBlockSize().ifPresent(transferOptions::setBlockSizeLong);
+    azureProperties.adlsWriteBlockSize().ifPresent(transferOptions::setBlockSizeLong);
     stream = fileClient.getOutputStream(options);
   }
 

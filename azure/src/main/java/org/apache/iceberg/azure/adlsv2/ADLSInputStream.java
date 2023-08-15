@@ -39,8 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class ADLSv2InputStream extends SeekableInputStream implements RangeReadable {
-  private static final Logger LOG = LoggerFactory.getLogger(ADLSv2InputStream.class);
+class ADLSInputStream extends SeekableInputStream implements RangeReadable {
+  private static final Logger LOG = LoggerFactory.getLogger(ADLSInputStream.class);
 
   // max skip size, if skip is larger, then the stream will be reopened at new position
   private static final int SKIP_SIZE = 1024 * 1024;
@@ -58,7 +58,7 @@ class ADLSv2InputStream extends SeekableInputStream implements RangeReadable {
   private final Counter readBytes;
   private final Counter readOperations;
 
-  ADLSv2InputStream(
+  ADLSInputStream(
       DataLakeFileClient fileClient,
       Long fileSize,
       AzureProperties azureProperties,
@@ -84,7 +84,7 @@ class ADLSv2InputStream extends SeekableInputStream implements RangeReadable {
 
   private DataLakeFileInputStreamOptions getInputOptions(FileRange range) {
     DataLakeFileInputStreamOptions options = new DataLakeFileInputStreamOptions();
-    azureProperties.adlsv2ReadBlockSize().ifPresent(options::setBlockSize);
+    azureProperties.adlsReadBlockSize().ifPresent(options::setBlockSize);
     options.setRange(range);
     return options;
   }

@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.azure;
 
-import com.azure.identity.DefaultAzureCredential;
+import com.azure.core.credential.TokenCredential;
+import com.azure.identity.ClientAssertionCredentialBuilder;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.file.datalake.DataLakePathClientBuilder;
 import java.io.Serializable;
@@ -26,34 +27,57 @@ import java.util.Map;
 import java.util.Optional;
 
 public class AzureProperties implements Serializable {
-  public static final String ADLSV2_READ_BLOCK_SIZE = "adlsv2.read.block-size-bytes";
-  public static final String ADLSV2_WRITE_BLOCK_SIZE = "adlsv2.write.block-size-bytes";
-  private static final DefaultAzureCredential DEFAULT_CREDENTIAL =
-      new DefaultAzureCredentialBuilder().build();
+  public static final String ADLS_CLIENT_ID = "adls.client-id";
+  public static final String ADLS_TENANT_ID = "adls.tenant-id";
+  public static final String ADLS_TOKEN = "adls.id-token";
+  public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
+  public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
-  private Integer adlsv2ReadBlockSize;
-  private Long adlsv2WriteBlockSize;
+  private String adlsClientId;
+  private String adlsTenantId;
+  private String adlsToken;
+  private Integer adlsReadBlockSize;
+  private Long adlsWriteBlockSize;
 
   public AzureProperties() {}
 
   public AzureProperties(Map<String, String> properties) {
-    if (properties.containsKey(ADLSV2_READ_BLOCK_SIZE)) {
-      adlsv2ReadBlockSize = Integer.parseInt(properties.get(ADLSV2_READ_BLOCK_SIZE));
+    this.adlsClientId = properties.get(ADLS_CLIENT_ID);
+    this.adlsTenantId = properties.get(ADLS_TENANT_ID);
+    this.adlsToken = properties.get(ADLS_TOKEN);
+
+    if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
+      this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
     }
-    if (properties.containsKey(ADLSV2_WRITE_BLOCK_SIZE)) {
-      adlsv2WriteBlockSize = Long.parseLong(properties.get(ADLSV2_WRITE_BLOCK_SIZE));
+    if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
+      this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
   }
 
-  public Optional<Integer> adlsv2ReadBlockSize() {
-    return Optional.ofNullable(adlsv2ReadBlockSize);
+  public Optional<Integer> adlsReadBlockSize() {
+    return Optional.ofNullable(adlsReadBlockSize);
   }
 
-  public Optional<Long> adlsv2WriteBlockSize() {
-    return Optional.ofNullable(adlsv2WriteBlockSize);
+  public Optional<Long> adlsWriteBlockSize() {
+    return Optional.ofNullable(adlsWriteBlockSize);
   }
 
   public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(T builder) {
-    builder.credential(DEFAULT_CREDENTIAL);
+    TokenCredential credential;
+    if (adlsToken != null && !adlsToken.isEmpty()) {
+      credential =
+          new ClientAssertionCredentialBuilder()
+              .clientId(adlsClientId)
+              .tenantId(adlsTenantId)
+              .clientAssertion(() -> adlsToken)
+              .build();
+    } else {
+      credential =
+          new DefaultAzureCredentialBuilder()
+              .managedIdentityClientId(adlsClientId)
+              .tenantId(adlsTenantId)
+              .build();
+    }
+    builder.credential(credential);
   }
 }
