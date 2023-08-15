@@ -575,14 +575,16 @@ class SchemaUpdate implements UpdateSchema {
         List<Integer> deletes,
         Multimap<Integer, Types.NestedField> adds,
         Multimap<Integer, Move> moves) {
-      Multimap<Integer, Move> reconstructedMap = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+      Multimap<Integer, Move> reconstructedMap =
+          Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
       Collection<Types.NestedField> addedFields = adds.values();
-      for (Integer k: moves.keys()) {
+      for (Integer k : moves.keys()) {
         Collection<Move> moveOps = moves.get(k);
-        for (Move move: moveOps) {
+        for (Move move : moveOps) {
           if (deletes.contains(move.fieldId)) {
             String deletedFieldName = oldSchema.findField(move.fieldId).name();
-            Optional<Types.NestedField> addedBackField = findFieldWithName(addedFields, deletedFieldName);
+            Optional<Types.NestedField> addedBackField =
+                findFieldWithName(addedFields, deletedFieldName);
             if (addedBackField.isPresent()) {
               Move newMoveOp = null;
               if (move.type == Move.MoveType.FIRST) {
@@ -594,8 +596,11 @@ class SchemaUpdate implements UpdateSchema {
               }
               reconstructedMap.put(k, newMoveOp);
             } else {
-              throw new IllegalArgumentException("cannot move the field " + deletedFieldName + " which was deleted" +
-                  " without adding it back");
+              throw new IllegalArgumentException(
+                  "cannot move the field "
+                      + deletedFieldName
+                      + " which was deleted"
+                      + " without adding it back");
             }
           } else {
             reconstructedMap.put(k, move);
@@ -781,10 +786,11 @@ class SchemaUpdate implements UpdateSchema {
     return newFields;
   }
 
-  private static Optional<Types.NestedField> findFieldWithName(Collection<Types.NestedField> addedFields, String fieldName) {
+  private static Optional<Types.NestedField> findFieldWithName(
+      Collection<Types.NestedField> addedFields, String fieldName) {
     return addedFields.stream()
-            .filter(nestedField -> nestedField.name().equals(fieldName))
-            .findFirst();
+        .filter(nestedField -> nestedField.name().equals(fieldName))
+        .findFirst();
   }
 
   @SuppressWarnings({"checkstyle:IllegalType", "JdkObsolete"})
