@@ -943,7 +943,10 @@ def project_table(
 
     result = pa.concat_tables(tables)
 
-    return result.slice(0, limit)
+    if limit is not None:
+        return result.slice(0, limit)
+
+    return result
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
