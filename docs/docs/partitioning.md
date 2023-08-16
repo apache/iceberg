@@ -84,7 +84,7 @@ This leads to several problems:
 
 Iceberg produces partition values by taking a column value and optionally transforming it. Iceberg is responsible for converting `event_time` into `event_date`, and keeps track of the relationship.
 
-Table partitioning is configured using these relationships. The `logs` table would be partitioned by `date(event_time)` and `level`.
+Table partitioning is configured using these relationships. The `logs` table would be partitioned by `day(event_time)` and `level`.
 
 Because Iceberg doesn't require user-maintained partition columns, it can hide partitioning. Partition values are produced correctly every time and always used to speed up queries, when possible. Producers and consumers wouldn't even see `event_date`.
 
