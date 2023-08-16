@@ -51,7 +51,7 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   }
 
   /**
-   * Sets a table name for the backup of the original table
+   * Sets a table name for the backup of the original table.
    *
    * @param tableName the table name for backup
    * @return this for method chaining

@@ -57,15 +57,16 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
 
+  private Identifier backupIdent;
   private boolean dropBackup = false;
-
-  private String backupTableName = "";
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
+    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
+    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
   }
 
   @Override
@@ -103,7 +104,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   @Override
   public MigrateTableSparkAction withBackupTableName(String tableName) {
-    this.backupTableName = tableName;
+    if (!tableName.isEmpty()) {
+      this.backupIdent = Identifier.of(destTableIdent.namespace(), tableName);
+    }
     return this;
   }
 
@@ -117,18 +120,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private MigrateTable.Result doExecute() {
     LOG.info("Starting the migration of {} to Iceberg", sourceTableIdent());
 
-    String backupName;
-    if (backupTableName.isEmpty()) {
-      backupName = this.destTableIdent.name() + BACKUP_SUFFIX;
-    } else {
-      backupName = this.backupTableName;
-    }
-
-    Identifier backupIdent = Identifier.of(destTableIdent.namespace(), backupName);
-
     // move the source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
-    renameAndBackupSourceTable(backupIdent);
+    renameAndBackupSourceTable();
 
     StagedSparkTable stagedTable = null;
     Table icebergTable;
@@ -155,7 +149,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
         LOG.error(
             "Failed to perform the migration, aborting table creation and restoring the original table");
 
-        restoreSourceTable(backupIdent);
+        restoreSourceTable();
 
         if (stagedTable != null) {
           try {
@@ -165,7 +159,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
           }
         }
       } else if (dropBackup) {
-        dropBackupTable(backupIdent);
+        dropBackupTable();
       }
     }
 
@@ -214,7 +208,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     return (TableCatalog) catalog;
   }
 
-  private void renameAndBackupSourceTable(Identifier backupIdent) {
+  private void renameAndBackupSourceTable() {
     try {
       LOG.info("Renaming {} as {} for backup", sourceTableIdent(), backupIdent);
       destCatalog().renameTable(sourceTableIdent(), backupIdent);
@@ -229,7 +223,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     }
   }
 
-  private void restoreSourceTable(Identifier backupIdent) {
+  private void restoreSourceTable() {
     try {
       LOG.info("Restoring {} from {}", sourceTableIdent(), backupIdent);
       destCatalog().renameTable(backupIdent, sourceTableIdent());
@@ -247,7 +241,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     }
   }
 
-  private void dropBackupTable(Identifier backupIdent) {
+  private void dropBackupTable() {
     try {
       destCatalog().dropTable(backupIdent);
     } catch (Exception e) {
