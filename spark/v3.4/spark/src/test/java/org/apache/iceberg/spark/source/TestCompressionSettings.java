@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.FileFormat.AVRO;
 import static org.apache.iceberg.FileFormat.ORC;
 import static org.apache.iceberg.FileFormat.PARQUET;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_CODEC;
@@ -54,6 +56,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
@@ -64,6 +67,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.FieldReference;
+import org.apache.spark.sql.connector.expressions.LiteralValue;
+import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.AlwaysTrue;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.types.DataTypes;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -123,6 +132,7 @@ public class TestCompressionSettings {
     tableProperties.put(PARQUET_COMPRESSION, "gzip");
     tableProperties.put(AVRO_COMPRESSION, "gzip");
     tableProperties.put(ORC_COMPRESSION, "zlib");
+    tableProperties.put(DELETE_MODE, MERGE_ON_READ.modeName());
     Table table =
         tables.create(SCHEMA, PartitionSpec.unpartitioned(), tableProperties, location.toString());
     List<SimpleRecord> expectedOrigin = Lists.newArrayList();
@@ -149,6 +159,15 @@ public class TestCompressionSettings {
       InputFile inputFile = table.io().newInputFile(file.path().toString());
       Assertions.assertThat(getCompressionType(format, inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
+    }
+    Predicate[] predicates = new Predicate[] { new AlwaysTrue() };
+    new SparkTable(table, false).newRowLevelOperationBuilder();
+    List<ManifestFile> deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(deleteManifestFiles.get(0), table.io())) {
+      DataFile file = reader.iterator().next();
+      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      Assertions.assertThat(getCompressionType(format, inputFile))
+         .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }
 
