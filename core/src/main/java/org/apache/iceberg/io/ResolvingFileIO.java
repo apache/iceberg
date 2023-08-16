@@ -31,6 +31,7 @@ import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,7 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation that uses location scheme to choose the correct FileIO implementation. */
-public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulkOperations {
+public class ResolvingFileIO
+    implements FileIO, HadoopConfigurable, SupportsBulkOperations, SupportsPrefixOperations {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -251,5 +253,23 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
         LOG.warn("Unclosed ResolvingFileIO instance created by:\n\t{}", trace);
       }
     }
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    return withPrefixSupport(io(prefix)).listPrefix(prefix);
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    withPrefixSupport(io(prefix)).deletePrefix(prefix);
+  }
+
+  private SupportsPrefixOperations withPrefixSupport(FileIO io) {
+    Preconditions.checkState(
+        io instanceof SupportsPrefixOperations,
+        "FileIO implementation does not support prefix-based operations: %s",
+        io.getClass().getSimpleName());
+    return ((SupportsPrefixOperations) io);
   }
 }

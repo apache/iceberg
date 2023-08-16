@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -152,5 +153,51 @@ public class TestResolvingIO {
     for (String path : randomFilePaths) {
       assertThat(delegation.fileExists(path)).isFalse();
     }
+  }
+
+  @Test
+  public void delegateFileIOWithPrefixBasedSupport() throws IOException {
+    ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
+    Configuration hadoopConf = new Configuration();
+    FileSystem fs = FileSystem.getLocal(hadoopConf);
+    Path parent = new Path(temp.toUri());
+    HadoopFileIO delegate = new HadoopFileIO(hadoopConf);
+    doReturn(delegate).when(resolvingFileIO).io(anyString());
+
+    List<Path> paths =
+        IntStream.range(1, 10)
+            .mapToObj(i -> new Path(parent, "random-" + i + "-" + UUID.randomUUID()))
+            .collect(Collectors.toList());
+    for (Path path : paths) {
+      fs.createNewFile(path);
+      assertThat(delegate.newInputFile(path.toString()).exists()).isTrue();
+    }
+
+    paths.stream()
+        .map(Path::toString)
+        .forEach(
+            path -> {
+              // HadoopFileIO can only list prefixes that match the full path
+              assertThat(resolvingFileIO.listPrefix(path)).hasSize(1);
+              resolvingFileIO.deletePrefix(path);
+              assertThat(delegate.newInputFile(path).exists()).isFalse();
+            });
+  }
+
+  @Test
+  public void delegateFileIOWithoutPrefixBasedSupport() {
+    ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
+    InMemoryFileIO delegate = new InMemoryFileIO();
+    doReturn(delegate).when(resolvingFileIO).io(anyString());
+
+    assertThatThrownBy(() -> resolvingFileIO.deletePrefix("foo"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "FileIO implementation does not support prefix-based operations: InMemoryFileIO");
+
+    assertThatThrownBy(() -> resolvingFileIO.listPrefix("foo"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "FileIO implementation does not support prefix-based operations: InMemoryFileIO");
   }
 }
