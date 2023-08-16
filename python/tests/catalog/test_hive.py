@@ -290,7 +290,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
         last_sequence_number=0,
     )
 
-    assert metadata.dict() == expected.dict()
+    assert metadata.model_dump() == expected.model_dump()
 
 
 def test_load_table(hive_table: HiveTable) -> None:

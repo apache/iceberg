@@ -783,7 +783,7 @@ def _task_to_table(
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
         #  see https://github.com/apache/iceberg/issues/7451
-        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
+        file_schema = Schema.model_validate_json(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
         if bound_row_filter is not AlwaysTrue():

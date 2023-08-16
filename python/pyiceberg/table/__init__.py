@@ -36,7 +36,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field
+from pydantic import Field, SerializeAsAny
 from sortedcontainers import SortedList
 
 from pyiceberg.expressions import (
@@ -365,8 +365,8 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 class CommitTableRequest(IcebergBaseModel):
     identifier: Identifier = Field()
-    requirements: List[TableRequirement] = Field(default_factory=list)
-    updates: List[TableUpdate] = Field(default_factory=list)
+    requirements: List[SerializeAsAny[TableRequirement]] = Field(default_factory=list)
+    updates: List[SerializeAsAny[TableUpdate]] = Field(default_factory=list)
 
 
 class CommitTableResponse(IcebergBaseModel):

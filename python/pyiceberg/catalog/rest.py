@@ -177,8 +177,8 @@ class OAuthErrorResponse(IcebergBaseModel):
     error: Literal[
         "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope"
     ]
-    error_description: Optional[str]
-    error_uri: Optional[str]
+    error_description: Optional[str] = None
+    error_uri: Optional[str] = None
 
 
 class RestCatalog(Catalog):
@@ -430,7 +430,7 @@ class RestCatalog(Catalog):
             write_order=sort_order,
             properties=properties,
         )
-        serialized_json = request.json()
+        serialized_json = request.model_dump_json().encode("utf-8")
         response = self._session.post(
             self.url(Endpoints.create_table, namespace=namespace_and_table["namespace"]),
             data=serialized_json,
@@ -507,7 +507,7 @@ class RestCatalog(Catalog):
         """
         response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
-            data=table_request.json(),
+            data=table_request.model_dump_json().encode("utf-8"),
         )
         try:
             response.raise_for_status()

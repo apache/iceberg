@@ -42,18 +42,18 @@ def sort_order() -> SortOrder:
 
 
 def test_serialize_sort_order_unsorted() -> None:
-    assert UNSORTED_SORT_ORDER.json() == '{"order-id": 0, "fields": []}'
+    assert UNSORTED_SORT_ORDER.model_dump_json() == '{"order-id":0,"fields":[]}'
 
 
 def test_serialize_sort_order(sort_order: SortOrder) -> None:
-    expected = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
-    assert sort_order.json() == expected
+    expected = '{"order-id":22,"fields":[{"source-id":19,"transform":"identity","direction":"asc","null-order":"nulls-first"},{"source-id":25,"transform":"bucket[4]","direction":"desc","null-order":"nulls-last"},{"source-id":22,"transform":"void","direction":"asc","null-order":"nulls-first"}]}'
+    assert sort_order.model_dump_json() == expected
 
 
 def test_deserialize_sort_order(sort_order: SortOrder) -> None:
     payload = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
 
-    assert SortOrder.parse_raw(payload) == sort_order
+    assert SortOrder.model_validate_json(payload) == sort_order
 
 
 def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]) -> None:

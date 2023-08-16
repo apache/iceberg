@@ -708,7 +708,7 @@ def _write_table_to_file(filepath: str, schema: pa.Schema, table: pa.Table) -> s
 
 @pytest.fixture
 def file_int(schema_int: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/a.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
     )
@@ -716,7 +716,7 @@ def file_int(schema_int: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/a.parquet",
         pyarrow_schema,
@@ -726,7 +726,7 @@ def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_string(schema_str: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/b.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
     )
@@ -734,7 +734,7 @@ def file_string(schema_str: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_long(schema_long: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/c.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
     )
@@ -742,7 +742,7 @@ def file_long(schema_long: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_struct(schema_struct: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/d.parquet",
         pyarrow_schema,
@@ -759,7 +759,7 @@ def file_struct(schema_struct: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_list(schema_list: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
         pyarrow_schema,
@@ -777,7 +777,7 @@ def file_list(schema_list: Schema, tmpdir: str) -> str:
 @pytest.fixture
 def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(
-        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.json()}
+        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.model_dump_json()}
     )
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
@@ -795,7 +795,7 @@ def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_map(schema_map: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
         pyarrow_schema,

@@ -18,6 +18,7 @@
 
 import io
 import json
+from copy import copy
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 from uuid import UUID
@@ -30,7 +31,6 @@ from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromByteStream
 from pyiceberg.table import SortOrder
 from pyiceberg.table.metadata import (
-    TableMetadataFactory,
     TableMetadataUtil,
     TableMetadataV1,
     TableMetadataV2,
@@ -50,7 +50,6 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from tests.conftest import EXAMPLE_TABLE_METADATA_V2
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
@@ -98,19 +97,6 @@ def test_from_dict_v2_parse_raw(example_table_metadata_v2: Dict[str, Any]) -> No
     TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v2))
 
 
-@pytest.mark.parametrize(
-    "table_metadata, expected_version",
-    [
-        (EXAMPLE_TABLE_METADATA_V1, 1),
-        (EXAMPLE_TABLE_METADATA_V2, 2),
-    ],
-)
-def test_table_metadata_factory(table_metadata: Dict[str, Any], expected_version: int) -> None:
-    """Test initialization of a TableMetadataFactory instance"""
-    factory = TableMetadataFactory(table_metadata=table_metadata)
-    assert factory.table_metadata.format_version == expected_version
-
-
 def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test generating a TableMetadata instance from a file-like byte stream"""
     data = bytes(json.dumps(example_table_metadata_v2), encoding="utf-8")
@@ -120,7 +106,7 @@ def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test retrieving values from a TableMetadata instance of version 2"""
-    table_metadata = TableMetadataFactory(table_metadata=example_table_metadata_v2).table_metadata
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1")
@@ -195,7 +181,7 @@ def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]) -> None:
         ],
     }
 
-    mutable_table_metadata = table_metadata.dict()
+    mutable_table_metadata = table_metadata.model_dump()
     mutable_table_metadata["schemas"].append(new_schema)
     mutable_table_metadata["current-schema-id"] = 1
 
@@ -207,14 +193,14 @@ def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]) -> None:
 
 def test_serialize_v1(example_table_metadata_v1: Dict[str, Any]) -> None:
     table_metadata = TableMetadataV1(**example_table_metadata_v1)
-    table_metadata_json = table_metadata.json()
-    expected = """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
+    table_metadata_json = table_metadata.model_dump_json()
+    expected = """{"location":"s3://bucket/test/location","table-uuid":"d20125c8-7284-442c-9aea-15fee620737c","last-updated-ms":1602638573874,"last-column-id":3,"schemas":[{"type":"struct","fields":[{"id":1,"name":"x","type":"long","required":true},{"id":2,"name":"y","type":"long","required":true,"doc":"comment"},{"id":3,"name":"z","type":"long","required":true}],"schema-id":0,"identifier-field-ids":[]}],"current-schema-id":0,"partition-specs":[{"spec-id":0,"fields":[{"source-id":1,"field-id":1000,"transform":"identity","name":"x"}]}],"default-spec-id":0,"last-partition-id":1000,"properties":{},"snapshots":[{"snapshot-id":1925,"timestamp-ms":1602638573822}],"snapshot-log":[],"metadata-log":[],"sort-orders":[{"order-id":0,"fields":[]}],"default-sort-order-id":0,"refs":{},"format-version":1,"schema":{"type":"struct","fields":[{"id":1,"name":"x","type":"long","required":true},{"id":2,"name":"y","type":"long","required":true,"doc":"comment"},{"id":3,"name":"z","type":"long","required":true}],"schema-id":0,"identifier-field-ids":[]},"partition-spec":[{"name":"x","transform":"identity","source-id":1,"field-id":1000}]}"""
     assert table_metadata_json == expected
 
 
 def test_serialize_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
-    table_metadata = TableMetadataV2(**example_table_metadata_v2).json()
-    expected = """{"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}, "main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}"""
+    table_metadata = TableMetadataV2(**example_table_metadata_v2).model_dump_json()
+    expected = """{"location":"s3://bucket/test/location","table-uuid":"9c12d441-03fe-4693-9a96-a0705ddf69c1","last-updated-ms":1602638573590,"last-column-id":3,"schemas":[{"type":"struct","fields":[{"id":1,"name":"x","type":"long","required":true}],"schema-id":0,"identifier-field-ids":[]},{"type":"struct","fields":[{"id":1,"name":"x","type":"long","required":true},{"id":2,"name":"y","type":"long","required":true,"doc":"comment"},{"id":3,"name":"z","type":"long","required":true}],"schema-id":1,"identifier-field-ids":[1,2]}],"current-schema-id":1,"partition-specs":[{"spec-id":0,"fields":[{"source-id":1,"field-id":1000,"transform":"identity","name":"x"}]}],"default-spec-id":0,"last-partition-id":1000,"properties":{"read.split.target.size":"134217728"},"current-snapshot-id":3055729675574597004,"snapshots":[{"snapshot-id":3051729675574597004,"sequence-number":0,"timestamp-ms":1515100955770,"manifest-list":"s3://a/b/1.avro","summary":{"operation":"append"}},{"snapshot-id":3055729675574597004,"parent-snapshot-id":3051729675574597004,"sequence-number":1,"timestamp-ms":1555100955770,"manifest-list":"s3://a/b/2.avro","summary":{"operation":"append"},"schema-id":1}],"snapshot-log":[{"snapshot-id":3051729675574597004,"timestamp-ms":1515100955770},{"snapshot-id":3055729675574597004,"timestamp-ms":1555100955770}],"metadata-log":[{"metadata-file":"s3://bucket/.../v1.json","timestamp-ms":1515100}],"sort-orders":[{"order-id":3,"fields":[{"source-id":2,"transform":"identity","direction":"asc","null-order":"nulls-first"},{"source-id":3,"transform":"bucket[4]","direction":"desc","null-order":"nulls-last"}]}],"default-sort-order-id":3,"refs":{"test":{"snapshot-id":3051729675574597004,"type":"tag","max-ref-age-ms":10000000},"main":{"snapshot-id":3055729675574597004,"type":"branch"}},"format-version":2,"last-sequence-number":34}"""
     assert table_metadata == expected
 
 
@@ -237,32 +223,16 @@ def test_migrate_v1_partition_specs(example_table_metadata_v1: Dict[str, Any]) -
     ]
 
 
-def test_invalid_format_version() -> None:
+def test_invalid_format_version(example_table_metadata_v1: Dict[str, Any]) -> None:
     """Test the exception when trying to load an unknown version"""
-    table_metadata_invalid_format_version = {
-        "format-version": -1,
-        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
-        "location": "s3://bucket/test/location",
-        "last-updated-ms": 1602638573874,
-        "last-column-id": 3,
-        "schema": {
-            "type": "struct",
-            "fields": [
-                {"id": 1, "name": "x", "required": True, "type": "long"},
-                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-                {"id": 3, "name": "z", "required": True, "type": "long"},
-            ],
-        },
-        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-        "properties": {},
-        "current-snapshot-id": -1,
-        "snapshots": [],
-    }
+
+    example_table_metadata_v22 = copy(example_table_metadata_v1)
+    example_table_metadata_v22["format-version"] = -1
 
     with pytest.raises(ValidationError) as exc_info:
-        TableMetadataUtil.parse_raw(json.dumps(table_metadata_invalid_format_version))
+        TableMetadataUtil.parse_raw(json.dumps(example_table_metadata_v22))
 
-    assert "No match for discriminator 'format_version' and value -1 (allowed values: 1, 2)" in str(exc_info.value)
+    assert "Input tag '-1' found using 'format_version'" in str(exc_info.value)
 
 
 def test_current_schema_not_found() -> None:
@@ -430,7 +400,7 @@ def test_v1_writing_metadata(example_table_metadata_v1: Dict[str, Any]) -> None:
     """
 
     table_metadata = TableMetadataV1(**example_table_metadata_v1)
-    metadata_v1_json = table_metadata.json()
+    metadata_v1_json = table_metadata.model_dump_json()
     metadata_v1 = json.loads(metadata_v1_json)
 
     assert "last-sequence-number" not in metadata_v1
@@ -487,7 +457,7 @@ def test_v1_write_metadata_for_v2() -> None:
     }
 
     table_metadata = TableMetadataV1(**minimal_example_v1).to_v2()
-    metadata_v2_json = table_metadata.json()
+    metadata_v2_json = table_metadata.model_dump_json()
     metadata_v2 = json.loads(metadata_v2_json)
 
     assert metadata_v2["last-sequence-number"] == 0
@@ -740,4 +710,4 @@ def test_make_metadata_fresh() -> None:
         last_sequence_number=0,
     )
 
-    assert actual.dict() == expected.dict()
+    assert actual.model_dump() == expected.model_dump()

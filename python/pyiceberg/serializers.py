@@ -126,6 +126,6 @@ class ToOutputFile:
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
         with output_file.create(overwrite=overwrite) as output_stream:
-            json_bytes = metadata.json().encode("utf-8")
+            json_bytes = metadata.model_dump_json().encode("utf-8")
             json_bytes = Compressor.get_compressor(output_file.location).bytes_compressor()(json_bytes)
             output_stream.write(json_bytes)

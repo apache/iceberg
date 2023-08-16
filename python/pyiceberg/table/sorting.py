@@ -25,10 +25,17 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, root_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+    model_validator,
+)
+from typing_extensions import Annotated
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import IdentityTransform, Transform
+from pyiceberg.transforms import IdentityTransform, Transform, parse_transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import IcebergType
 
@@ -88,7 +95,7 @@ class SortField(IcebergBaseModel):
             data["null-order"] = null_order
         super().__init__(**data)
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def set_null_order(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         values["direction"] = values["direction"] if values.get("direction") else SortDirection.ASC
         if not values.get("null-order"):
@@ -96,7 +103,12 @@ class SortField(IcebergBaseModel):
         return values
 
     source_id: int = Field(alias="source-id")
-    transform: Transform[Any, Any] = Field()
+    transform: Annotated[  # type: ignore
+        Transform,
+        BeforeValidator(parse_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ] = Field()
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
