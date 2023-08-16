@@ -60,6 +60,7 @@ public class WritePropertiesUtil {
       default:
         throw new IllegalArgumentException(String.format("Unknown file format %s", format));
     }
+
     return writeProperties;
   }
 }
