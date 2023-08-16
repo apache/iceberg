@@ -96,10 +96,12 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
         table -> {
           RewritePositionDeleteFiles action =
               actions().rewritePositionDeletes(table).options(options);
+
           if (where != null) {
             Expression whereExpression = filterExpression(tableIdent, where);
             action = action.filter(whereExpression);
           }
+
           Result result = action.execute();
           return new InternalRow[] {toOutputRow(result)};
         });

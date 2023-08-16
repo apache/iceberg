@@ -165,9 +165,9 @@ abstract class BaseProcedure implements Procedure {
 
   protected Expression filterExpression(Identifier ident, String where) {
     try {
-      String name = Spark3Util.quotedFullIdentifier(tableCatalog().name(), ident);
+      String name = Spark3Util.quotedFullIdentifier(tableCatalog.name(), ident);
       org.apache.spark.sql.catalyst.expressions.Expression expression =
-          SparkExpressionConverter.collectResolvedSparkExpression(spark(), name, where);
+          SparkExpressionConverter.collectResolvedSparkExpression(spark, name, where);
       return SparkExpressionConverter.convertToIcebergExpression(expression);
     } catch (AnalysisException e) {
       throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);

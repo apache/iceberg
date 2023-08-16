@@ -158,7 +158,6 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
     sql("DELETE FROM %s WHERE id = 3 and data='g'", tableName);
     sql("DELETE FROM %s WHERE id = 3 and data='h'", tableName);
 
-
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals(6, TestHelpers.deleteFiles(table).size());
 
