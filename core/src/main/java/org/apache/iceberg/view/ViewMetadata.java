@@ -48,7 +48,16 @@ public interface ViewMetadata extends Serializable {
   String location();
 
   default Integer currentSchemaId() {
-    return currentVersion().schemaId();
+    // fail when accessing the current schema if ViewMetadata was created through the
+    // ViewMetadataParser with an invalid schema id
+    int currentSchemaId = currentVersion().schemaId();
+    Preconditions.checkArgument(
+        schemasById().containsKey(currentSchemaId),
+        "Cannot find current schema with id %s in schemas: %s",
+        currentSchemaId,
+        schemasById().keySet());
+
+    return currentSchemaId;
   }
 
   List<Schema> schemas();
@@ -68,27 +77,25 @@ public interface ViewMetadata extends Serializable {
   }
 
   default ViewVersion currentVersion() {
+    // fail when accessing the current version if ViewMetadata was created through the
+    // ViewMetadataParser with an invalid view version id
+    Preconditions.checkArgument(
+        versionsById().containsKey(currentVersionId()),
+        "Cannot find current version %s in view versions: %s",
+        currentVersionId(),
+        versionsById().keySet());
+
     return versionsById().get(currentVersionId());
   }
 
   @Value.Derived
   default Map<Integer, ViewVersion> versionsById() {
-    ImmutableMap.Builder<Integer, ViewVersion> builder = ImmutableMap.builder();
-    for (ViewVersion version : versions()) {
-      builder.put(version.versionId(), version);
-    }
-
-    return builder.build();
+    return Builder.indexVersions(versions());
   }
 
   @Value.Derived
   default Map<Integer, Schema> schemasById() {
-    ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
-    for (Schema schema : schemas()) {
-      builder.put(schema.schemaId(), schema);
-    }
-
-    return builder.build();
+    return Builder.indexSchemas(schemas());
   }
 
   default Schema schema() {
@@ -101,61 +108,6 @@ public interface ViewMetadata extends Serializable {
         formatVersion() > 0 && formatVersion() <= ViewMetadata.SUPPORTED_VIEW_FORMAT_VERSION,
         "Unsupported format version: %s",
         formatVersion());
-
-    Preconditions.checkArgument(versions().size() > 0, "Invalid view versions: empty");
-    Preconditions.checkArgument(history().size() > 0, "Invalid view history: empty");
-    Preconditions.checkArgument(schemas().size() > 0, "Invalid schemas: empty");
-
-    Preconditions.checkArgument(
-        versionsById().containsKey(currentVersionId()),
-        "Cannot find current version %s in view versions: %s",
-        currentVersionId(),
-        versionsById().keySet());
-
-    Preconditions.checkArgument(
-        schemasById().containsKey(currentSchemaId()),
-        "Cannot find current schema with id %s in schemas: %s",
-        currentSchemaId(),
-        schemasById().keySet());
-
-    int versionHistorySizeToKeep =
-        PropertyUtil.propertyAsInt(
-            properties(),
-            ViewProperties.VERSION_HISTORY_SIZE,
-            ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
-
-    if (versionHistorySizeToKeep <= 0) {
-      LOG.warn(
-          "{} must be positive but was {}",
-          ViewProperties.VERSION_HISTORY_SIZE,
-          versionHistorySizeToKeep);
-    } else if (versions().size() > versionHistorySizeToKeep) {
-      List<ViewVersion> versionsToKeep =
-          versions().subList(versions().size() - versionHistorySizeToKeep, versions().size());
-      List<ViewHistoryEntry> historyToKeep =
-          history().subList(history().size() - versionHistorySizeToKeep, history().size());
-      List<MetadataUpdate> changesToKeep = Lists.newArrayList(changes());
-      Set<MetadataUpdate.AddViewVersion> toRemove =
-          changesToKeep.stream()
-              .filter(update -> update instanceof MetadataUpdate.AddViewVersion)
-              .map(update -> (MetadataUpdate.AddViewVersion) update)
-              .filter(
-                  update ->
-                      update.viewVersion().versionId() != currentVersionId()
-                          && !versionsToKeep.contains(update.viewVersion()))
-              .collect(Collectors.toSet());
-      changesToKeep.removeAll(toRemove);
-
-      return ImmutableViewMetadata.of(
-          formatVersion(),
-          location(),
-          schemas(),
-          currentVersionId(),
-          versionsToKeep,
-          historyToKeep,
-          properties(),
-          changesToKeep);
-    }
 
     return this;
   }
@@ -208,6 +160,7 @@ public interface ViewMetadata extends Serializable {
     }
 
     public Builder setLocation(String newLocation) {
+      Preconditions.checkArgument(null != newLocation, "Invalid location: null");
       if (null != this.location && this.location.equals(newLocation)) {
         return this;
       }
@@ -234,8 +187,14 @@ public interface ViewMetadata extends Serializable {
     }
 
     public Builder setSchemas(Iterable<Schema> schemasToAdd) {
+      int highestFieldId =
+          Lists.newArrayList(schemasToAdd).stream()
+              .map(Schema::highestFieldId)
+              .max(Integer::compareTo)
+              .orElse(0);
       for (Schema schema : schemasToAdd) {
-        addSchema(schema);
+        this.schemas.add(schema);
+        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
       }
 
       return this;
@@ -272,7 +231,84 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
+    private static Map<Integer, ViewVersion> indexVersions(List<ViewVersion> versionsToIndex) {
+      ImmutableMap.Builder<Integer, ViewVersion> builder = ImmutableMap.builder();
+      for (ViewVersion version : versionsToIndex) {
+        builder.put(version.versionId(), version);
+      }
+
+      return builder.build();
+    }
+
+    private static Map<Integer, Schema> indexSchemas(List<Schema> schemasToIndex) {
+      ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
+      for (Schema schema : schemasToIndex) {
+        builder.put(schema.schemaId(), schema);
+      }
+
+      return builder.build();
+    }
+
     public ViewMetadata build() {
+      Preconditions.checkArgument(null != location, "Invalid location: null");
+      Preconditions.checkArgument(versions.size() > 0, "Invalid view versions: empty");
+      Preconditions.checkArgument(history.size() > 0, "Invalid view history: empty");
+      Preconditions.checkArgument(schemas.size() > 0, "Invalid schemas: empty");
+
+      Map<Integer, ViewVersion> versionsById = indexVersions(versions);
+      Preconditions.checkArgument(
+          versionsById.containsKey(currentVersionId),
+          "Cannot find current version %s in view versions: %s",
+          currentVersionId,
+          versionsById.keySet());
+
+      int currentSchemaId = versionsById.get(currentVersionId).schemaId();
+      Map<Integer, Schema> schemasById = indexSchemas(schemas);
+      Preconditions.checkArgument(
+          schemasById.containsKey(currentSchemaId),
+          "Cannot find current schema with id %s in schemas: %s",
+          currentSchemaId,
+          schemasById.keySet());
+
+      int versionHistorySizeToKeep =
+          PropertyUtil.propertyAsInt(
+              properties,
+              ViewProperties.VERSION_HISTORY_SIZE,
+              ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
+
+      if (versionHistorySizeToKeep <= 0) {
+        LOG.warn(
+            "{} must be positive but was {}",
+            ViewProperties.VERSION_HISTORY_SIZE,
+            versionHistorySizeToKeep);
+      } else if (versions.size() > versionHistorySizeToKeep) {
+        List<ViewVersion> versionsToKeep =
+            versions.subList(versions.size() - versionHistorySizeToKeep, versions.size());
+        List<ViewHistoryEntry> historyToKeep =
+            history.subList(history.size() - versionHistorySizeToKeep, history.size());
+        List<MetadataUpdate> changesToKeep = Lists.newArrayList(changes);
+        Set<MetadataUpdate.AddViewVersion> toRemove =
+            changesToKeep.stream()
+                .filter(update -> update instanceof MetadataUpdate.AddViewVersion)
+                .map(update -> (MetadataUpdate.AddViewVersion) update)
+                .filter(
+                    update ->
+                        update.viewVersion().versionId() != currentVersionId
+                            && !versionsToKeep.contains(update.viewVersion()))
+                .collect(Collectors.toSet());
+        changesToKeep.removeAll(toRemove);
+
+        return ImmutableViewMetadata.of(
+            formatVersion,
+            location,
+            schemas,
+            currentVersionId,
+            versionsToKeep,
+            historyToKeep,
+            properties,
+            changesToKeep);
+      }
+
       return ImmutableViewMetadata.of(
           formatVersion,
           location,

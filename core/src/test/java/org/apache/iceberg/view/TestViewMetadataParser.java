@@ -121,16 +121,6 @@ public class TestViewMetadataParser {
   }
 
   @Test
-  public void readViewMetadataWithLimitedNumberVersionEntries() throws Exception {
-    String json =
-        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataLimitedVersions.json");
-
-    ViewMetadata viewMetadata = ViewMetadataParser.fromJson(json);
-    assertThat(viewMetadata.versions()).hasSize(1);
-    assertThat(viewMetadata.history()).hasSize(1);
-  }
-
-  @Test
   public void failReadingViewMetadataMissingLocation() throws Exception {
     String json =
         readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataMissingLocation.json");
@@ -143,7 +133,8 @@ public class TestViewMetadataParser {
   public void failReadingViewMetadataInvalidSchemaId() throws Exception {
     String json =
         readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentSchema.json");
-    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+    ViewMetadata metadata = ViewMetadataParser.fromJson(json);
+    assertThatThrownBy(metadata::currentSchemaId)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current schema with id 1234 in schemas: [1]");
   }
@@ -161,7 +152,8 @@ public class TestViewMetadataParser {
   public void failReadingViewMetadataInvalidVersionId() throws Exception {
     String json =
         readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentVersion.json");
-    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+    ViewMetadata metadata = ViewMetadataParser.fromJson(json);
+    assertThatThrownBy(metadata::currentVersion)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current version 1234 in view versions: [1, 2]");
   }

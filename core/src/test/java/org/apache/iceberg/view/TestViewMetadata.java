@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -37,8 +36,8 @@ public class TestViewMetadata {
   @Test
   public void nullAndMissingFields() {
     assertThatThrownBy(() -> ViewMetadata.builder().build())
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("location");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
 
     assertThatThrownBy(() -> ViewMetadata.builder().setLocation("location").build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -58,6 +57,16 @@ public class TestViewMetadata {
                     .upgradeFormatVersion(23)
                     .setLocation("location")
                     .setCurrentVersionId(1)
+                    .addVersion(
+                        ImmutableViewVersion.builder()
+                            .schemaId(1)
+                            .versionId(1)
+                            .timestampMillis(23L)
+                            .putSummary("operation", "op")
+                            .defaultNamespace(Namespace.of("ns"))
+                            .build())
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported format version: 23");
@@ -182,39 +191,6 @@ public class TestViewMetadata {
 
     assertThat(viewMetadata.versions()).hasSize(3);
     assertThat(viewMetadata.history()).hasSize(3);
-  }
-
-  @Test
-  public void emptyHistory() {
-    List<ViewVersion> versions =
-        ImmutableList.of(
-            ImmutableViewVersion.builder()
-                .schemaId(1)
-                .versionId(1)
-                .timestampMillis(23L)
-                .putSummary("operation", "op")
-                .defaultNamespace(Namespace.of("ns"))
-                .build(),
-            ImmutableViewVersion.builder()
-                .schemaId(1)
-                .versionId(2)
-                .timestampMillis(24L)
-                .putSummary("operation", "op")
-                .defaultNamespace(Namespace.of("ns"))
-                .build());
-    List<Schema> schemas =
-        ImmutableList.of(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())));
-    List<ViewHistoryEntry> history = ImmutableList.of();
-    Map<String, String> properties = ImmutableMap.of();
-    List<MetadataUpdate> changes = ImmutableList.of();
-
-    // History can't be set through the builder, so instantiate ViewMetadata directly
-    assertThatThrownBy(
-            () ->
-                ImmutableViewMetadata.of(
-                    1, "location", schemas, 2, versions, history, properties, changes))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view history: empty");
   }
 
   @Test
