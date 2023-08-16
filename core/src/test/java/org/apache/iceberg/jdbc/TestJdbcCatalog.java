@@ -604,6 +604,27 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // Test with no metadata
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testD_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb."))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb.ns"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb.ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isFalse();
+
+    Namespace underscore = Namespace.of("te%t_b");
+    assertThat(catalog.namespaceExists(underscore))
+        .as("Should false to namespace doesn't exist")
+        .isFalse();
+
+    Namespace underscore2 = Namespace.of("special_name%space");
+    catalog.createNamespace(underscore2);
+    assertThat(catalog.namespaceExists(underscore2)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("special_name%spa_e")))
+        .as("Should false to namespace doesn't exist")
+        .isFalse();
   }
 
   @Test

@@ -134,8 +134,13 @@ final class JdbcUtil {
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
+          + " ( "
           + TABLE_NAMESPACE
-          + " LIKE ? LIMIT 1";
+          + " = ? OR "
+          + TABLE_NAMESPACE
+          + " LIKE ? ESCAPE '\\' "
+          + " ) "
+          + " LIMIT 1";
   static final String LIST_NAMESPACES_SQL =
       "SELECT DISTINCT "
           + TABLE_NAMESPACE
@@ -204,8 +209,12 @@ final class JdbcUtil {
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
+          + " ( "
           + NAMESPACE_NAME
-          + " LIKE ? LIMIT 1";
+          + " = ? OR "
+          + NAMESPACE_NAME
+          + " LIKE ? ESCAPE '\\' "
+          + " ) ";
   static final String INSERT_NAMESPACE_PROPERTIES_SQL =
       "INSERT INTO "
           + NAMESPACE_PROPERTIES_TABLE_NAME
@@ -345,11 +354,18 @@ final class JdbcUtil {
 
   static boolean namespaceExists(
       String catalogName, JdbcClientPool connections, Namespace namespace) {
+
+    String namespaceEquals = JdbcUtil.namespaceToString(namespace);
+    // when namespace has sub-namespace then additionally checking it with LIKE statement.
+    // catalog.db can exists as: catalog.db.ns1 or catalog.db.ns1.ns2
+    String namespaceStartsWith =
+        namespaceEquals.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%") + ".%";
     if (exists(
         connections,
         JdbcUtil.GET_NAMESPACE_SQL,
         catalogName,
-        JdbcUtil.namespaceToString(namespace) + "%")) {
+        namespaceEquals,
+        namespaceStartsWith)) {
       return true;
     }
 
@@ -357,7 +373,8 @@ final class JdbcUtil {
         connections,
         JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL,
         catalogName,
-        JdbcUtil.namespaceToString(namespace) + "%")) {
+        namespaceEquals,
+        namespaceStartsWith)) {
       return true;
     }
 
