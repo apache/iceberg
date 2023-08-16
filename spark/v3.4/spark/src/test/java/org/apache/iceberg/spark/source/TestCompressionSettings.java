@@ -135,12 +135,15 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     tableProperties.put(DELETE_MODE, MERGE_ON_READ.modeName());
     tableProperties.put(FORMAT_VERSION, "2");
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, format);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')", tableName, DELETE_DEFAULT_FILE_FORMAT, format);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
+        tableName, DELETE_DEFAULT_FILE_FORMAT, format);
     for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
           tableName, entry.getKey(), entry.getValue());
     }
+
     List<SimpleRecord> expectedOrigin = Lists.newArrayList();
     for (int i = 0; i < 1000; i++) {
       expectedOrigin.add(new SimpleRecord(i, "hello world" + i));
@@ -164,6 +167,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
       Assertions.assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
+
     sql("DELETE from %s where id < 100", tableName);
 
     table.refresh();
@@ -177,6 +181,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
       Assertions.assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
+
     if (PARQUET.equals(format)) {
       SparkActions.get(spark)
           .rewritePositionDeletes(table)
@@ -185,7 +190,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
       table.refresh();
       deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
       try (ManifestReader<DeleteFile> reader =
-               ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
+          ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
         DeleteFile file = reader.iterator().next();
         InputFile inputFile = table.io().newInputFile(file.path().toString());
         Assertions.assertThat(getCompressionType(inputFile))
