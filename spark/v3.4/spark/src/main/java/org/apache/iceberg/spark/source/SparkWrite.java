@@ -20,12 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
 import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -185,31 +179,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    Map<String, String> writeProperties = Maps.newHashMap();
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, writeConf.parquetCompressionCodec());
-        String parquetCompressionLevel = writeConf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, writeConf.avroCompressionCodec());
-        String avroCompressionLevel = writeConf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, writeConf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, writeConf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, writeConf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
 
     return new WriterFactory(
         tableBroadcast,
@@ -220,7 +189,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         writeSchema,
         dsSchema,
         partitionedFanoutEnabled,
-        writeProperties);
+        WritePropertiesUtil.writeProperties(format, writeConf));
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {

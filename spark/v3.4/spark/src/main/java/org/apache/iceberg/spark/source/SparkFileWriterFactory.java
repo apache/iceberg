@@ -79,12 +79,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     this.dataSparkType = dataSparkType;
     this.equalityDeleteSparkType = equalityDeleteSparkType;
     this.positionDeleteSparkType = positionDeleteSparkType;
-
-    if (writeProperties != null) {
-      this.writeProperties = writeProperties;
-    } else {
-      this.writeProperties = ImmutableMap.of();
-    }
+    this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
   }
 
   static Builder builderFor(Table table) {

@@ -65,7 +65,7 @@ public class SparkSQLProperties {
   public static final String WAP_BRANCH = "spark.wap.branch";
 
   // Controls write compress options
-  public static final String COMPRESSION_CODEC = "spark.sql.iceberg.write.compression-codec";
-  public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.write.compression-level";
-  public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.write.compression-strategy";
+  public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
+  public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
+  public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.compression-strategy";
 }
