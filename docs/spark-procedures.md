@@ -246,6 +246,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](../configuration/#table-behavior-properties) will be used.
+Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
 
 #### Output
 
