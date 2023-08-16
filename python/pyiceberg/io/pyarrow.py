@@ -24,9 +24,10 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import os
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor
+from concurrent.futures import Future
 from functools import lru_cache, singledispatch
 from itertools import chain
 from typing import (
@@ -63,6 +64,7 @@ from pyarrow.fs import (
     PyFileSystem,
     S3FileSystem,
 )
+from sortedcontainers import SortedList
 
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
@@ -133,7 +135,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.concurrent import ManagedThreadPoolExecutor, Synchronized
+from pyiceberg.utils.concurrent import ExecutorFactory
 from pyiceberg.utils.datetime import millis_to_datetime
 from pyiceberg.utils.singleton import Singleton
 
@@ -765,10 +767,10 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    rows_counter: Synchronized[int],
+    row_counts: List[int],
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and rows_counter.value >= limit:
+    if limit and sum(row_counts) >= limit:
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -830,23 +832,22 @@ def _task_to_table(
             else:
                 arrow_table = fragment_scanner.to_table()
 
-        if limit:
-            with rows_counter:
-                if rows_counter.value >= limit:
-                    return None
-                rows_counter.value += len(arrow_table)
-
-        # If there is no data, we don't have to go through the schema
-        if len(arrow_table) > 0:
-            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
-        else:
+        if len(arrow_table) < 1:
             return None
 
+        if limit is not None and sum(row_counts) >= limit:
+            return None
 
-def _read_all_delete_files(fs: FileSystem, executor: Executor, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+        row_counts.append(len(arrow_table))
+
+        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+
+
+def _read_all_delete_files(fs: FileSystem, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
     deletes_per_file: Dict[str, List[ChunkedArray]] = {}
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
+        executor = ExecutorFactory.get_or_create()
         deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
             lambda args: _read_deletes(*args), [(fs, delete) for delete in unique_deletes]
         )
@@ -902,39 +903,50 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    with ManagedThreadPoolExecutor() as executor:
-        rows_counter = executor.synchronized(0)
-        deletes_per_file = _read_all_delete_files(fs, executor, tasks)
-        tables = [
-            table
-            for table in executor.map(
-                lambda args: _task_to_table(*args),
-                [
-                    (
-                        fs,
-                        task,
-                        bound_row_filter,
-                        projected_schema,
-                        projected_field_ids,
-                        deletes_per_file.get(task.file.file_path),
-                        case_sensitive,
-                        rows_counter,
-                        limit,
-                    )
-                    for task in tasks
-                ],
-            )
-            if table is not None
-        ]
+    row_counts: List[int] = []
+    deletes_per_file = _read_all_delete_files(fs, tasks)
+    executor = ExecutorFactory.get_or_create()
+    futures = [
+        executor.submit(
+            _task_to_table,
+            fs,
+            task,
+            bound_row_filter,
+            projected_schema,
+            projected_field_ids,
+            deletes_per_file.get(task.file.file_path),
+            case_sensitive,
+            row_counts,
+            limit,
+        )
+        for task in tasks
+    ]
 
-    if len(tables) > 1:
-        final_table = pa.concat_tables(tables)
-    elif len(tables) == 1:
-        final_table = tables[0]
-    else:
-        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+    # for consistent ordering, we need to maintain future order
+    futures_index = {f: i for i, f in enumerate(futures)}
+    completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
+    for future in concurrent.futures.as_completed(futures):
+        completed_futures.add(future)
 
-    return final_table.slice(0, limit)
+        # stop early if limit is satisfied
+        if limit is not None and sum(row_counts) >= limit:
+            break
+
+    # by now, we've either completed all tasks or satisfied the limit
+    if limit is not None:
+        _ = [f.cancel() for f in futures if not f.done()]
+
+    tables = [f.result() for f in completed_futures if f.result()]
+
+    if len(tables) < 1:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+
+    result = pa.concat_tables(tables)
+
+    if limit is not None:
+        return result.slice(0, limit)
+
+    return result
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
@@ -70,6 +69,7 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
+from pyiceberg.utils.concurrent import ExecutorFactory
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -775,33 +775,31 @@ class DataScan(TableScan):
         data_entries: List[ManifestEntry] = []
         positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
-        with ThreadPoolExecutor() as executor:
-            for manifest_entry in chain(
-                *executor.map(
-                    lambda args: _open_manifest(*args),
-                    [
-                        (
-                            io,
-                            manifest,
-                            partition_evaluators[manifest.partition_spec_id],
-                            metrics_evaluator,
-                        )
-                        for manifest in manifests
-                        if self._check_sequence_number(min_data_sequence_number, manifest)
-                    ],
-                )
-            ):
-                data_file = manifest_entry.data_file
-                if data_file.content == DataFileContent.DATA:
-                    data_entries.append(manifest_entry)
-                elif data_file.content == DataFileContent.POSITION_DELETES:
-                    positional_delete_entries.add(manifest_entry)
-                elif data_file.content == DataFileContent.EQUALITY_DELETES:
-                    raise ValueError(
-                        "PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568"
+        executor = ExecutorFactory.get_or_create()
+        for manifest_entry in chain(
+            *executor.map(
+                lambda args: _open_manifest(*args),
+                [
+                    (
+                        io,
+                        manifest,
+                        partition_evaluators[manifest.partition_spec_id],
+                        metrics_evaluator,
                     )
-                else:
-                    raise ValueError(f"Unknown DataFileContent ({data_file.content}): {manifest_entry}")
+                    for manifest in manifests
+                    if self._check_sequence_number(min_data_sequence_number, manifest)
+                ],
+            )
+        ):
+            data_file = manifest_entry.data_file
+            if data_file.content == DataFileContent.DATA:
+                data_entries.append(manifest_entry)
+            elif data_file.content == DataFileContent.POSITION_DELETES:
+                positional_delete_entries.add(manifest_entry)
+            elif data_file.content == DataFileContent.EQUALITY_DELETES:
+                raise ValueError("PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568")
+            else:
+                raise ValueError(f"Unknown DataFileContent ({data_file.content}): {manifest_entry}")
 
         return [
             FileScanTask(

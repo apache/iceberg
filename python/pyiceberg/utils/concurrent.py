@@ -14,54 +14,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name,arguments-renamed,fixme
-"""Concurrency concepts that support multi-threading."""
-import threading
+"""Concurrency concepts that support efficient multi-threading."""
 from concurrent.futures import Executor, ThreadPoolExecutor
-from contextlib import AbstractContextManager
-from typing import Any, Generic, TypeVar
+from typing import Optional
 
-from typing_extensions import Self
-
-T = TypeVar("T")
+from pyiceberg.utils.config import Config
 
 
-class Synchronized(Generic[T], AbstractContextManager):  # type: ignore
-    """A context manager that provides concurrency-safe access to a value."""
+class ExecutorFactory:
+    _instance: Optional[Executor] = None
 
-    value: T
-    lock: threading.Lock
+    @staticmethod
+    def get_or_create() -> Executor:
+        """Returns the same executor in each call."""
+        if ExecutorFactory._instance is None:
+            max_workers = ExecutorFactory.max_workers()
+            ExecutorFactory._instance = ThreadPoolExecutor(max_workers=max_workers)
 
-    def __init__(self, value: T, lock: threading.Lock):
-        super().__init__()
-        self.value = value
-        self.lock = lock
+        return ExecutorFactory._instance
 
-    def __enter__(self) -> T:
-        """Acquires a lock, allowing access to the wrapped value."""
-        self.lock.acquire()
-        return self.value
+    @staticmethod
+    def max_workers() -> Optional[int]:
+        """Returns the max number of workers configured."""
+        config = Config()
+        val = config.config.get("max-workers")
 
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        """Releases the lock, allowing other threads to access the value."""
-        self.lock.release()
+        if val is None:
+            return None
 
-
-class ManagedExecutor(Executor):
-    """An executor that provides synchronization."""
-
-    def synchronized(self, value: T) -> Synchronized[T]:
-        raise NotImplementedError
-
-
-class ManagedThreadPoolExecutor(ThreadPoolExecutor, ManagedExecutor):
-    """A thread pool executor that provides synchronization."""
-
-    def __enter__(self) -> Self:
-        """Returns the executor itself as a context manager."""
-        super().__enter__()
-        return self
-
-    def synchronized(self, value: T) -> Synchronized[T]:
-        lock = threading.Lock()
-        return Synchronized(value, lock)
+        try:
+            return int(val)  # type: ignore
+        except ValueError as err:
+            raise ValueError(f"Max workers should be an integer or left unset. Current value: {val}") from err
