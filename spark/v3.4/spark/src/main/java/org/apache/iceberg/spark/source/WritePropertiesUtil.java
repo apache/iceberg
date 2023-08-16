@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
@@ -26,12 +25,10 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps
-import org.apache.iceberg.spark.SparkWriteConf;
-
 import java.util.Map;
-
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkWriteConf;
 
 public class WritePropertiesUtil {
 

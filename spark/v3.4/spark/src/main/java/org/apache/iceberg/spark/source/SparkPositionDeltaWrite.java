@@ -157,7 +157,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       // broadcast the table metadata as the writer factory will be sent to executors
       Broadcast<Table> tableBroadcast =
           sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-      return new PositionDeltaWriteFactory(tableBroadcast, command, context, );
+      return new PositionDeltaWriteFactory(tableBroadcast, command, context, writeProperties);
     }
 
     @Override
@@ -330,7 +330,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final Context context;
     private final Map<String, String> writeProperties;
 
-    PositionDeltaWriteFactory(Broadcast<Table> tableBroadcast, Command command, Context context, Map<String, String> writeProperties) {
+    PositionDeltaWriteFactory(
+        Broadcast<Table> tableBroadcast,
+        Command command,
+        Context context,
+        Map<String, String> writeProperties) {
       this.tableBroadcast = tableBroadcast;
       this.command = command;
       this.context = context;
