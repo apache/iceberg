@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
-import static java.lang.String.format;
-
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,6 +85,6 @@ class ADLSLocation {
 
   /** Returns blob URL for use with Blob API. */
   public String blobUrl() {
-    return format("https://%s/%s/%s", storageAccount, container, path);
+    return String.format("https://%s/%s/%s", storageAccount, container, path);
   }
 }
