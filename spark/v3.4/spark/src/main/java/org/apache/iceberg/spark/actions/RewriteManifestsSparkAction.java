@@ -394,7 +394,14 @@ public class RewriteManifestsSparkAction
     }
 
     private ManifestWriter<DataFile> newManifestWriter() {
-      return ManifestFiles.write(formatVersion, spec(), newOutputFile(), null);
+      return ManifestFiles.write(
+          formatVersion,
+          spec(),
+          newOutputFile(),
+          null,
+          table().properties().get(TableProperties.AVRO_COMPRESSION),
+          PropertyUtil.propertyAsNullableInt(
+              table().properties(), TableProperties.AVRO_COMPRESSION_LEVEL));
     }
 
     private PartitionSpec spec() {
