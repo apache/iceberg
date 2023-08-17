@@ -19,22 +19,37 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import com.azure.core.http.HttpClient;
+import com.azure.core.util.Context;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.batch.BlobBatchClient;
+import com.azure.storage.blob.batch.BlobBatchClientBuilder;
+import com.azure.storage.blob.models.DeleteSnapshotsOptionType;
 import com.azure.storage.file.datalake.DataLakeFileClient;
-import com.azure.storage.file.datalake.DataLakePathClientBuilder;
+import com.azure.storage.file.datalake.DataLakeFileSystemClient;
+import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
+import com.azure.storage.file.datalake.models.ListPathsOptions;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements FileIO {
+public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations {
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -54,17 +69,17 @@ public class ADLSFileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return ADLSInputFile.of(path, client(path), azureProperties, metrics);
+    return ADLSInputFile.of(path, fileClient(path), azureProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return ADLSInputFile.of(path, length, client(path), azureProperties, metrics);
+    return ADLSInputFile.of(path, length, fileClient(path), azureProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return ADLSOutputFile.of(path, client(path), azureProperties, metrics);
+    return ADLSOutputFile.of(path, fileClient(path), azureProperties, metrics);
   }
 
   @Override
@@ -73,7 +88,7 @@ public class ADLSFileIO implements FileIO {
     // and other FileIO providers ignore failure.  Log the failure for
     // now as it is not a required operation for Iceberg.
     try {
-      client(path).delete();
+      fileClient(path).delete();
     } catch (Exception e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
@@ -84,19 +99,27 @@ public class ADLSFileIO implements FileIO {
     return properties.immutableMap();
   }
 
-  @VisibleForTesting
-  DataLakeFileClient client(String path) {
+  public DataLakeFileSystemClient client(String path) {
     ADLSLocation location = new ADLSLocation(path);
-    DataLakePathClientBuilder clientBuilder =
-        new DataLakePathClientBuilder()
+    return client(location);
+  }
+
+  @VisibleForTesting
+  DataLakeFileSystemClient client(ADLSLocation location) {
+    DataLakeFileSystemClientBuilder clientBuilder =
+        new DataLakeFileSystemClientBuilder()
             .httpClient(HTTP)
-            .endpoint("https://" + location.storageAccount())
-            .pathName(location.path());
+            .endpoint("https://" + location.storageAccount());
 
     location.container().ifPresent(clientBuilder::fileSystemName);
     azureProperties.applyCredentialConfiguration(location.storageAccount(), clientBuilder);
 
-    return clientBuilder.buildFileClient();
+    return clientBuilder.buildClient();
+  }
+
+  private DataLakeFileClient fileClient(String path) {
+    ADLSLocation location = new ADLSLocation(path);
+    return client(location).getFileClient(location.path());
   }
 
   @Override
@@ -119,5 +142,64 @@ public class ADLSFileIO implements FileIO {
           DEFAULT_METRICS_IMPL,
           e);
     }
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    Map<String, BlobBatchClient> batchClients = Maps.newHashMap();
+    Iterators.partition(pathsToDelete.iterator(), azureProperties.adlsDeleteBatchSize())
+        .forEachRemaining(
+            batch -> {
+              Map<String, List<ADLSLocation>> groups =
+                  batch.stream()
+                      .map(ADLSLocation::new)
+                      .collect(Collectors.groupingBy(ADLSLocation::storageAccount));
+              groups.forEach(
+                  (account, list) -> {
+                    BlobBatchClient batchClient =
+                        batchClients.computeIfAbsent(account, notUsed -> batchClient(account));
+                    List<String> urlList =
+                        list.stream().map(ADLSLocation::blobUrl).collect(Collectors.toList());
+                    batchClient.deleteBlobs(urlList, DeleteSnapshotsOptionType.INCLUDE);
+                  });
+            });
+  }
+
+  @VisibleForTesting
+  BlobBatchClient batchClient(String storageAccount) {
+    BlobServiceClientBuilder serviceClientBuilder =
+        new BlobServiceClientBuilder().httpClient(HTTP).endpoint("https://" + storageAccount);
+
+    azureProperties.applyCredentialConfiguration(storageAccount, serviceClientBuilder);
+
+    return new BlobBatchClientBuilder(serviceClientBuilder.buildClient()).buildClient();
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    ADLSLocation location = new ADLSLocation(prefix);
+
+    ListPathsOptions options = new ListPathsOptions();
+    options.setPath(location.path());
+    options.setRecursive(true);
+
+    return () ->
+        client(location).listPaths(options, null).stream()
+            .filter(pathItem -> !pathItem.isDirectory())
+            .map(
+                pathItem ->
+                    new FileInfo(
+                        pathItem.getName(),
+                        pathItem.getContentLength(),
+                        pathItem.getCreationTime().toInstant().toEpochMilli()))
+            .iterator();
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    ADLSLocation location = new ADLSLocation(prefix);
+    client(location)
+        .deleteDirectoryWithResponse(location.path(), true, null, null, Context.NONE)
+        .getValue();
   }
 }

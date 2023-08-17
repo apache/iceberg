@@ -19,7 +19,8 @@
 package org.apache.iceberg.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.storage.file.datalake.DataLakePathClientBuilder;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
@@ -30,10 +31,18 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
+  public static final String ADLS_DELETE_BATCH_SIZE = "adls.delete.batch-size";
+
+  /**
+   * Max possible batch size for deletion. Currently, a max of 256 keys is advised, so we default to
+   * a number below that. https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch
+   */
+  public static final int ALDS_DELETE_BATCH_SIZE_DEFAULT = 128;
 
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
+  private int adlsDeleteBatchSize = ALDS_DELETE_BATCH_SIZE_DEFAULT;
 
   public AzureProperties() {}
 
@@ -46,6 +55,10 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
       this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
+
+    this.adlsDeleteBatchSize =
+        PropertyUtil.propertyAsInt(
+            properties, ADLS_DELETE_BATCH_SIZE, ALDS_DELETE_BATCH_SIZE_DEFAULT);
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -56,8 +69,21 @@ public class AzureProperties implements Serializable {
     return Optional.ofNullable(adlsWriteBlockSize);
   }
 
-  public <T extends DataLakePathClientBuilder> void applyCredentialConfiguration(
-      String account, T builder) {
+  public int adlsDeleteBatchSize() {
+    return adlsDeleteBatchSize;
+  }
+
+  public void applyCredentialConfiguration(
+      String account, DataLakeFileSystemClientBuilder builder) {
+    String sasToken = adlsSasTokens.get(account);
+    if (sasToken != null && !sasToken.isEmpty()) {
+      builder.sasToken(sasToken);
+    } else {
+      builder.credential(new DefaultAzureCredentialBuilder().build());
+    }
+  }
+
+  public void applyCredentialConfiguration(String account, BlobServiceClientBuilder builder) {
     String sasToken = adlsSasTokens.get(account);
     if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);

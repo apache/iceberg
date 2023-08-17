@@ -531,6 +531,7 @@ project(':iceberg-azure') {
 
     compileOnly platform(libs.azuresdk.bom)
     compileOnly "com.azure:azure-storage-file-datalake"
+    compileOnly "com.azure:azure-storage-blob-batch"
     compileOnly "com.azure:azure-identity"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')

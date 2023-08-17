@@ -24,7 +24,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.azure.core.credential.TokenCredential;
-import com.azure.storage.file.datalake.DataLakePathClientBuilder;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -32,30 +33,48 @@ public class AzurePropertiesTest {
 
   @Test
   public void testWithSasToken() {
-    DataLakePathClientBuilder clientBuilder = mock(DataLakePathClientBuilder.class);
     AzureProperties props =
         new AzureProperties(ImmutableMap.of("adls.sas-token.account1", "token"));
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyCredentialConfiguration("account1", clientBuilder);
     verify(clientBuilder).sasToken(any());
     verify(clientBuilder, times(0)).credential(any(TokenCredential.class));
+
+    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
+    props.applyCredentialConfiguration("account1", blobClientBuilder);
+    verify(blobClientBuilder).sasToken(any());
+    verify(blobClientBuilder, times(0)).credential(any(TokenCredential.class));
   }
 
   @Test
   public void testNoMatchingSasToken() {
-    DataLakePathClientBuilder clientBuilder = mock(DataLakePathClientBuilder.class);
     AzureProperties props =
         new AzureProperties(ImmutableMap.of("adls.sas-token.account1", "token"));
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyCredentialConfiguration("account2", clientBuilder);
     verify(clientBuilder, times(0)).sasToken(any());
     verify(clientBuilder).credential(any(TokenCredential.class));
+
+    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
+    props.applyCredentialConfiguration("account2", blobClientBuilder);
+    verify(blobClientBuilder, times(0)).sasToken(any());
+    verify(blobClientBuilder).credential(any(TokenCredential.class));
   }
 
   @Test
   public void testNoSasToken() {
-    DataLakePathClientBuilder clientBuilder = mock(DataLakePathClientBuilder.class);
     AzureProperties props = new AzureProperties();
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyCredentialConfiguration("account", clientBuilder);
     verify(clientBuilder, times(0)).sasToken(any());
     verify(clientBuilder).credential(any(TokenCredential.class));
+
+    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
+    props.applyCredentialConfiguration("account", blobClientBuilder);
+    verify(blobClientBuilder, times(0)).sasToken(any());
+    verify(blobClientBuilder).credential(any(TokenCredential.class));
   }
 }
