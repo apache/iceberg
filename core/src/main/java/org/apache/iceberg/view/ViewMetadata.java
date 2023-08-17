@@ -125,6 +125,7 @@ public interface ViewMetadata extends Serializable {
     private String location;
     private List<Schema> schemas = Lists.newArrayList();
     private int currentVersionId;
+    private int lastAddedVersionId;
     private List<ViewVersion> versions = Lists.newArrayList();
     private List<ViewHistoryEntry> history = Lists.newArrayList();
     private Map<String, String> properties = Maps.newHashMap();
@@ -175,10 +176,18 @@ public interface ViewMetadata extends Serializable {
         return this;
       }
 
+      checkCurrentVersionIdIsValid(newVersionId);
+
       this.currentVersionId = newVersionId;
       this.changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       return this;
     }
+
+    //    public Builder setCurrentVersion(ViewVersion version) {
+    //      Schema schema = schemasById.get(version.schemaId());
+    //      int newSchemaId = addSchemaInternal(schema);
+    //      return setCurrentVersionId(addVersionInternal(version), newSchemaId);
+    //    }
 
     public Builder addSchema(Schema schema) {
       // adding schema to changes is handled in build()
@@ -238,23 +247,8 @@ public interface ViewMetadata extends Serializable {
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
-      // TODO: remove this method?
-      Preconditions.checkArgument(schemas.size() > 0, "Invalid view: no schemas were added");
 
-      Map<Integer, ViewVersion> versionsById = indexVersions(versions);
-      Preconditions.checkArgument(
-          versionsById.containsKey(currentVersionId),
-          "Cannot find current version %s in view versions: %s",
-          currentVersionId,
-          versionsById.keySet());
-
-      int currentSchemaId = versionsById.get(currentVersionId).schemaId();
-      Map<Integer, Schema> schemasById = indexSchemas(schemas);
-      Preconditions.checkArgument(
-          schemasById.containsKey(currentSchemaId),
-          "Cannot find current schema with id %s in schemas: %s",
-          currentSchemaId,
-          schemasById.keySet());
+      checkCurrentVersionIdIsValid(currentVersionId);
 
       int highestFieldId =
           Lists.newArrayList(schemas).stream()
@@ -270,8 +264,6 @@ public interface ViewMetadata extends Serializable {
               properties,
               ViewProperties.VERSION_HISTORY_SIZE,
               ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
-
-      // TODO add a test
 
       Preconditions.checkArgument(
           versionHistorySizeToKeep > 0,
@@ -310,6 +302,23 @@ public interface ViewMetadata extends Serializable {
           history,
           properties,
           changes);
+    }
+
+    private void checkCurrentVersionIdIsValid(int versionId) {
+      Map<Integer, ViewVersion> versionsById = indexVersions(versions);
+      Preconditions.checkArgument(
+          versionsById.containsKey(versionId),
+          "Cannot find current version %s in view versions: %s",
+          versionId,
+          versionsById.keySet());
+
+      int currentSchemaId = versionsById.get(versionId).schemaId();
+      Map<Integer, Schema> schemasById = indexSchemas(schemas);
+      Preconditions.checkArgument(
+          schemasById.containsKey(currentSchemaId),
+          "Cannot find current schema with id %s in schemas: %s",
+          currentSchemaId,
+          schemasById.keySet());
     }
   }
 }

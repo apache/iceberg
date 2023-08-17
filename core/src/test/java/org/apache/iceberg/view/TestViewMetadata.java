@@ -46,7 +46,7 @@ public class TestViewMetadata {
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view: no versions were added");
+        .hasMessage("Cannot find current version 1 in view versions: []");
   }
 
   @Test
@@ -56,7 +56,6 @@ public class TestViewMetadata {
                 ViewMetadata.builder()
                     .upgradeFormatVersion(23)
                     .setLocation("location")
-                    .setCurrentVersionId(1)
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -67,6 +66,7 @@ public class TestViewMetadata {
                             .build())
                     .addSchema(
                         new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported format version: 23");
@@ -87,7 +87,7 @@ public class TestViewMetadata {
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view: no versions were added");
+        .hasMessage("Cannot find current version 1 in view versions: []");
   }
 
   @Test
@@ -96,7 +96,6 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
-                    .setCurrentVersionId(1)
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -105,9 +104,10 @@ public class TestViewMetadata {
                             .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
+                    .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view: no schemas were added");
+        .hasMessage("Cannot find current schema with id 1 in schemas: []");
   }
 
   @Test
@@ -116,7 +116,6 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
-                    .setCurrentVersionId(23)
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -127,6 +126,7 @@ public class TestViewMetadata {
                             .build())
                     .addSchema(
                         new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .setCurrentVersionId(23)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current version 23 in view versions: [1]");
@@ -138,7 +138,6 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
-                    .setCurrentVersionId(1)
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(23)
@@ -149,6 +148,7 @@ public class TestViewMetadata {
                             .build())
                     .addSchema(
                         new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current schema with id 23 in schemas: [1]");
@@ -161,7 +161,6 @@ public class TestViewMetadata {
                 ViewMetadata.builder()
                     .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
                     .setLocation("location")
-                    .setCurrentVersionId(3)
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -188,6 +187,7 @@ public class TestViewMetadata {
                             .build())
                     .addSchema(
                         new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .setCurrentVersionId(3)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("version.history.num-entries must be positive but was 0");
@@ -225,11 +225,11 @@ public class TestViewMetadata {
         ViewMetadata.builder()
             .setProperties(properties)
             .setLocation("location")
-            .setCurrentVersionId(3)
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
             .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .setCurrentVersionId(3)
             .build();
 
     assertThat(viewMetadata.versions()).hasSize(2);
@@ -255,24 +255,24 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
-        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
-        .isEqualTo(viewVersionThree.versionId());
-
-    assertThat(changes)
-        .element(3)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
         .isEqualTo(viewVersionTwo);
 
     assertThat(changes)
-        .element(4)
+        .element(3)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
         .isEqualTo(viewVersionThree);
+
+    assertThat(changes)
+        .element(4)
+        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
+        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
+        .isEqualTo(viewVersionThree.versionId());
 
     assertThat(changes)
         .element(5)
@@ -317,12 +317,12 @@ public class TestViewMetadata {
         ViewMetadata.builder()
             .setLocation("custom-location")
             .setProperties(properties)
-            .setCurrentVersionId(3)
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
             .addSchema(schemaOne)
             .addSchema(schemaTwo)
+            .setCurrentVersionId(3)
             .build();
 
     assertThat(viewMetadata.versions())
@@ -356,31 +356,31 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
-        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
-        .isEqualTo(viewVersionThree.versionId());
-
-    assertThat(changes)
-        .element(3)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
         .isEqualTo(viewVersionOne);
 
     assertThat(changes)
-        .element(4)
+        .element(3)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
         .isEqualTo(viewVersionTwo);
 
     assertThat(changes)
-        .element(5)
+        .element(4)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
         .isEqualTo(viewVersionThree);
+
+    assertThat(changes)
+        .element(5)
+        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
+        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
+        .isEqualTo(viewVersionThree.versionId());
 
     assertThat(changes)
         .element(6)
