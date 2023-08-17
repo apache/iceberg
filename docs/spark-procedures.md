@@ -130,7 +130,10 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | ✔️  | long   | Snapshot ID to set as current |
+| `snapshot_id` | | long   | Snapshot ID to set as current |
+| `ref` | | string | Snapshot Referece (branch or tag) to set as current |
+
+Either `snapshot_id` or `ref` must be provided but not both.
 
 #### Output
 
@@ -144,6 +147,11 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 Set the current snapshot for `db.sample` to 1:
 ```sql
 CALL catalog_name.system.set_current_snapshot('db.sample', 1)
+```
+
+Set the current snapshot for `db.sample` to tag `s1`:
+```sql
+CALL catalog_name.system.set_current_snapshot(table => 'db.sample', tag => 's1');
 ```
 
 ### `cherrypick_snapshot`
@@ -238,6 +246,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](../configuration/#table-behavior-properties) will be used.
+Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
 
 #### Output
 
@@ -351,6 +360,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewritten_data_files_count` | int | Number of data which were re-written by this command |
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
 | `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
+| `failed_data_files_count`    | int | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
 
 #### Examples
 

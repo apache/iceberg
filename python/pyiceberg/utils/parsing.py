@@ -17,6 +17,8 @@
 import re
 from re import Pattern
 
+from pyiceberg.exceptions import ValidationError
+
 
 class ParseNumberFromBrackets:
     """Extracts the size from a string in the form of prefix[22]."""
@@ -32,4 +34,4 @@ class ParseNumberFromBrackets:
         matches = self.regex.search(str_repr)
         if matches:
             return int(matches.group(1))
-        raise ValueError(f"Could not match {str_repr}, expected format {self.prefix}[22]")
+        raise ValidationError(f"Could not match {str_repr}, expected format {self.prefix}[22]")

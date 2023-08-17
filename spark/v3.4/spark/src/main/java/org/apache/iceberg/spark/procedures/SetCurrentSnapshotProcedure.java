@@ -19,6 +19,10 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -42,7 +46,8 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("snapshot_id", DataTypes.LongType)
+        ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
+        ProcedureParameter.optional("ref", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -78,7 +83,11 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    long snapshotId = args.getLong(1);
+    Long snapshotId = args.isNullAt(1) ? null : args.getLong(1);
+    String ref = args.isNullAt(2) ? null : args.getString(2);
+    Preconditions.checkArgument(
+        (snapshotId != null && ref == null) || (snapshotId == null && ref != null),
+        "Either snapshot_id or ref must be provided, not both");
 
     return modifyIcebergTable(
         tableIdent,
@@ -86,9 +95,10 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
           Snapshot previousSnapshot = table.currentSnapshot();
           Long previousSnapshotId = previousSnapshot != null ? previousSnapshot.snapshotId() : null;
 
-          table.manageSnapshots().setCurrentSnapshot(snapshotId).commit();
+          long targetSnapshotId = snapshotId != null ? snapshotId : toSnapshotId(table, ref);
+          table.manageSnapshots().setCurrentSnapshot(targetSnapshotId).commit();
 
-          InternalRow outputRow = newInternalRow(previousSnapshotId, snapshotId);
+          InternalRow outputRow = newInternalRow(previousSnapshotId, targetSnapshotId);
           return new InternalRow[] {outputRow};
         });
   }
@@ -96,5 +106,11 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "SetCurrentSnapshotProcedure";
+  }
+
+  private long toSnapshotId(Table table, String refName) {
+    SnapshotRef ref = table.refs().get(refName);
+    ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref " + refName);
+    return ref.snapshotId();
   }
 }

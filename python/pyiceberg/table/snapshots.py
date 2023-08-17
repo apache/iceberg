@@ -20,10 +20,9 @@ from typing import (
     Dict,
     List,
     Optional,
-    Union,
 )
 
-from pydantic import Field, PrivateAttr, root_validator
+from pydantic import Field, PrivateAttr, model_serializer
 
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
@@ -59,34 +58,19 @@ class Summary(IcebergBaseModel):
     like snapshot expiration, to skip processing certain snapshots.
     """
 
-    __root__: Dict[str, Union[str, Operation]]
+    operation: Operation = Field()
     _additional_properties: Dict[str, str] = PrivateAttr()
 
-    @root_validator
-    def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[str, Dict[str, Union[str, Operation]]]:
-        if operation := values["__root__"].get(OPERATION):
-            if isinstance(operation, str):
-                values["__root__"][OPERATION] = Operation(operation.lower())
-        else:
-            raise ValueError("Operation not set")
-        return values
+    def __init__(self, operation: Operation, **data: Any) -> None:
+        super().__init__(operation=operation, **data)
+        self._additional_properties = data
 
-    def __init__(
-        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
-    ) -> None:
-        super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
-        self._additional_properties = {
-            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
+    @model_serializer
+    def ser_model(self) -> Dict[str, str]:
+        return {
+            "operation": str(self.operation.value),
+            **self._additional_properties,
         }
-
-    @property
-    def operation(self) -> Operation:
-        operation = self.__root__[OPERATION]
-        if isinstance(operation, Operation):
-            return operation
-        else:
-            # Should never happen
-            raise ValueError(f"Unknown type of operation: {operation}")
 
     @property
     def additional_properties(self) -> Dict[str, str]:
