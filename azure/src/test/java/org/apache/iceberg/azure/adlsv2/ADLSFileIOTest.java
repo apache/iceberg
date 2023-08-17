@@ -20,8 +20,8 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -32,14 +32,12 @@ import static org.mockito.Mockito.when;
 
 import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.http.rest.Response;
-import com.azure.storage.blob.batch.BlobBatchClient;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.models.PathItem;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
-import java.util.List;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -47,7 +45,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 public class ADLSFileIOTest {
   @Test
@@ -129,35 +126,20 @@ public class ADLSFileIOTest {
 
   @Test
   public void testBulkDeleteFiles() {
-    BlobBatchClient batchClient1 = mock(BlobBatchClient.class);
-    BlobBatchClient batchClient2 = mock(BlobBatchClient.class);
+    String location1 = "abfs://container@account.dfs.core.windows.net/path/to/file1";
+    String location2 = "abfs://container@account.dfs.core.windows.net/path/to/file2";
+
+    DataLakeFileClient fileClient = mock(DataLakeFileClient.class);
+
+    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
+    doReturn(fileClient).when(client).getFileClient(any());
 
     ADLSFileIO io = spy(new ADLSFileIO());
     io.initialize(ImmutableMap.of());
-    doReturn(batchClient1).when(io).batchClient(startsWith("account1"));
-    doReturn(batchClient2).when(io).batchClient(startsWith("account2"));
+    doReturn(client).when(io).client(any(ADLSLocation.class));
 
-    String file1 = "abfs://container1@account1.dfs.core.windows.net/dir/file1";
-    String file2 = "abfs://container2@account1.dfs.core.windows.net/dir/file2";
-    String file3 = "abfs://container3@account2.dfs.core.windows.net/dir/file3";
-
-    io.deleteFiles(ImmutableList.of(file1, file2, file3));
-
-    ArgumentCaptor<List<String>> listCaptor = ArgumentCaptor.forClass(List.class);
-    verify(batchClient1).deleteBlobs(listCaptor.capture(), any());
-
-    List<String> blobUrls = listCaptor.getValue();
-    assertThat(blobUrls).hasSize(2);
-    assertThat(blobUrls)
-        .contains(
-            "https://account1.dfs.core.windows.net/container1/dir/file1",
-            "https://account1.dfs.core.windows.net/container2/dir/file2");
-
-    verify(batchClient2).deleteBlobs(listCaptor.capture(), any());
-
-    blobUrls = listCaptor.getValue();
-    assertThat(blobUrls).hasSize(1);
-    assertThat(blobUrls).contains("https://account2.dfs.core.windows.net/container3/dir/file3");
+    io.deleteFiles(ImmutableList.of(location1, location2));
+    verify(io, times(2)).deleteFile(anyString());
   }
 
   @Test

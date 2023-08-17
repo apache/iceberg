@@ -26,7 +26,6 @@ project(":iceberg-azure-bundle") {
   dependencies {
     implementation platform(libs.azuresdk.bom)
     implementation "com.azure:azure-storage-file-datalake"
-    implementation "com.azure:azure-storage-blob-batch"
     implementation "com.azure:azure-identity"
   }
 

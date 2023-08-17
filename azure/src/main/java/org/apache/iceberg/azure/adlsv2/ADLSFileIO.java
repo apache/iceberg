@@ -20,17 +20,12 @@ package org.apache.iceberg.azure.adlsv2;
 
 import com.azure.core.http.HttpClient;
 import com.azure.core.util.Context;
-import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.blob.batch.BlobBatchClient;
-import com.azure.storage.blob.batch.BlobBatchClientBuilder;
-import com.azure.storage.blob.models.DeleteSnapshotsOptionType;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -42,14 +37,15 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
 public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations {
+
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -146,33 +142,24 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    Map<String, BlobBatchClient> batchClients = Maps.newHashMap();
-    Iterators.partition(pathsToDelete.iterator(), azureProperties.adlsDeleteBatchSize())
-        .forEachRemaining(
-            batch -> {
-              Map<String, List<ADLSLocation>> groups =
-                  batch.stream()
-                      .map(ADLSLocation::new)
-                      .collect(Collectors.groupingBy(ADLSLocation::storageAccount));
-              groups.forEach(
-                  (account, list) -> {
-                    BlobBatchClient batchClient =
-                        batchClients.computeIfAbsent(account, notUsed -> batchClient(account));
-                    List<String> urlList =
-                        list.stream().map(ADLSLocation::blobUrl).collect(Collectors.toList());
-                    batchClient.deleteBlobs(urlList, DeleteSnapshotsOptionType.INCLUDE);
-                  });
-            });
-  }
+    // Azure batch operations are not supported in all cases, e.g. with a user
+    // delegation SAS token, so avoid using it for now
 
-  @VisibleForTesting
-  BlobBatchClient batchClient(String storageAccount) {
-    BlobServiceClientBuilder serviceClientBuilder =
-        new BlobServiceClientBuilder().httpClient(HTTP).endpoint("https://" + storageAccount);
+    AtomicInteger failureCount = new AtomicInteger();
+    Tasks.foreach(pathsToDelete)
+        .executeWith(ThreadPools.getWorkerPool())
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .onFailure(
+            (file, exc) -> {
+              failureCount.incrementAndGet();
+              LOG.warn("Failed to delete file {}", file, exc);
+            })
+        .run(this::deleteFile);
 
-    azureProperties.applyCredentialConfiguration(storageAccount, serviceClientBuilder);
-
-    return new BlobBatchClientBuilder(serviceClientBuilder.buildClient()).buildClient();
+    if (failureCount.get() > 0) {
+      throw new BulkDeletionFailureException(failureCount.get());
+    }
   }
 
   @Override
