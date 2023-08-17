@@ -164,7 +164,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     )
 
 
-def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
+def load_catalog(name: Optional[str] = None, **properties: Optional[str]) -> Catalog:
     """Load the catalog based on the properties.
 
     Will look up the properties from the config, based on the name.
