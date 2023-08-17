@@ -20,7 +20,9 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -42,9 +44,11 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
       ProcedureParameter.optional("options", STRING_MAP);
+  private static final ProcedureParameter WHERE_PARAM =
+      ProcedureParameter.optional("where", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM, WHERE_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -85,11 +89,20 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
+    String where = input.asString(WHERE_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Result result = actions().rewritePositionDeletes(table).options(options).execute();
+          RewritePositionDeleteFiles action =
+              actions().rewritePositionDeletes(table).options(options);
+
+          if (where != null) {
+            Expression whereExpression = filterExpression(tableIdent, where);
+            action = action.filter(whereExpression);
+          }
+
+          Result result = action.execute();
           return new InternalRow[] {toOutputRow(result)};
         });
   }
