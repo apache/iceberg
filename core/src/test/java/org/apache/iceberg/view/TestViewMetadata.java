@@ -269,25 +269,25 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(4)
-        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
-        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
-        .isEqualTo(viewVersionThree.versionId());
-
-    assertThat(changes)
-        .element(5)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
         .isEqualTo(1);
+
+    assertThat(changes)
+        .element(5)
+        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
+        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
+        .isEqualTo(-1);
   }
 
   @Test
   public void viewMetadataAndMetadataChanges() {
     Map<String, String> properties = ImmutableMap.of("key1", "prop1", "key2", "prop2");
     Schema schemaOne = new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(2, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(2, Types.NestedField.required(1, "y", Types.LongType.get()));
     ViewVersion viewVersionOne =
         ImmutableViewVersion.builder()
             .schemaId(schemaOne.schemaId())
@@ -377,13 +377,6 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(5)
-        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
-        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
-        .isEqualTo(viewVersionThree.versionId());
-
-    assertThat(changes)
-        .element(6)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
@@ -391,11 +384,18 @@ public class TestViewMetadata {
         .isEqualTo(1);
 
     assertThat(changes)
-        .element(7)
+        .element(6)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
         .isEqualTo(2);
+
+    assertThat(changes)
+        .element(7)
+        .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
+        .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
+        .isEqualTo(-1);
   }
 }

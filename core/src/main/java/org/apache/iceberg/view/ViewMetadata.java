@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -121,11 +123,13 @@ public interface ViewMetadata extends Serializable {
   }
 
   class Builder {
+    private static final int LAST_ADDED = -1;
     private int formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
     private String location;
     private List<Schema> schemas = Lists.newArrayList();
     private int currentVersionId;
-    private int lastAddedVersionId;
+    private Integer lastAddedVersionId;
+    private Integer lastAddedSchemaId;
     private List<ViewVersion> versions = Lists.newArrayList();
     private List<ViewHistoryEntry> history = Lists.newArrayList();
     private Map<String, String> properties = Maps.newHashMap();
@@ -172,37 +176,149 @@ public interface ViewMetadata extends Serializable {
     }
 
     public Builder setCurrentVersionId(int newVersionId) {
+      if (newVersionId == -1) {
+        ValidationException.check(
+            lastAddedVersionId != null,
+            "Cannot set last version id: no current version id has been set");
+        return setCurrentVersionId(lastAddedVersionId);
+      }
+
       if (this.currentVersionId == newVersionId) {
         return this;
       }
 
       checkCurrentVersionIdIsValid(newVersionId);
 
+      // by that time, schemas are defined and the highestFieldId can be determined and schema
+      // changes can be added
+      int highestFieldId = highestFieldId();
+      for (Schema schema : schemas) {
+        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
+      }
+
       this.currentVersionId = newVersionId;
-      this.changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
+
+      if (lastAddedVersionId != null && lastAddedVersionId == newVersionId) {
+        this.changes.add(new MetadataUpdate.SetCurrentViewVersion(LAST_ADDED));
+      } else {
+        this.changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
+      }
+
       return this;
     }
 
-    //    public Builder setCurrentVersion(ViewVersion version) {
-    //      Schema schema = schemasById.get(version.schemaId());
-    //      int newSchemaId = addSchemaInternal(schema);
-    //      return setCurrentVersionId(addVersionInternal(version), newSchemaId);
-    //    }
+    private int highestFieldId() {
+      return schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0);
+    }
+
+    public Builder setCurrentVersion(ViewVersion version) {
+      Schema schema = indexSchemas(schemas).get(version.schemaId());
+      int newSchemaId = addSchemaInternal(schema);
+      return setCurrentVersionId(
+          addVersionInternal(
+              ImmutableViewVersion.builder().from(version).schemaId(newSchemaId).build()));
+    }
+
+    private int reuseOrCreateNewViewVersionId(ViewVersion viewVersion) {
+      // if the view version already exists, use its id; otherwise use the highest id + 1
+      int newVersionId = viewVersion.versionId();
+      for (ViewVersion version : versions) {
+        if (version.equals(viewVersion)) {
+          return version.versionId();
+        } else if (version.versionId() >= newVersionId) {
+          newVersionId = viewVersion.versionId() + 1;
+        }
+      }
+
+      return newVersionId;
+    }
+
+    private int addVersionInternal(ViewVersion version) {
+      int newVersionId = reuseOrCreateNewViewVersionId(version);
+
+      if (versions.stream().anyMatch(v -> v.versionId() == newVersionId)) {
+        boolean isNewVersion =
+            lastAddedVersionId != null
+                && changes(MetadataUpdate.AddViewVersion.class)
+                    .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
+        this.lastAddedVersionId = isNewVersion ? newVersionId : null;
+        return newVersionId;
+      }
+
+      ViewVersion newVersion;
+      if (newVersionId != version.versionId()) {
+        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      } else {
+        newVersion = version;
+      }
+
+      this.versions.add(newVersion);
+      this.changes.add(new MetadataUpdate.AddViewVersion(newVersion));
+      this.history.add(
+          ImmutableViewHistoryEntry.builder()
+              .timestampMillis(newVersion.timestampMillis())
+              .versionId(newVersion.versionId())
+              .build());
+      this.lastAddedVersionId = newVersionId;
+
+      return newVersionId;
+    }
+
+    private int addSchemaInternal(Schema schema) {
+      if (schema.schemaId() == -1) {
+        ValidationException.check(
+            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
+
+        return addSchemaInternal(
+            new Schema(lastAddedSchemaId, schema.columns(), schema.identifierFieldIds()));
+      }
+
+      int newSchemaId = reuseOrCreateNewSchemaId(schema);
+      if (schemas.stream().anyMatch(s -> s.schemaId() == newSchemaId)) {
+        boolean isNewSchema =
+            lastAddedSchemaId != null
+                && changes(MetadataUpdate.AddSchema.class)
+                    .anyMatch(added -> added.schema().schemaId() == newSchemaId);
+        this.lastAddedSchemaId = isNewSchema ? newSchemaId : null;
+        return newSchemaId;
+      }
+
+      Schema newSchema;
+      if (newSchemaId != schema.schemaId()) {
+        newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
+      } else {
+        newSchema = schema;
+      }
+
+      this.schemas.add(newSchema);
+      // AddSchema changes can only be added once all schemas are known, thus this is done in
+      // setCurrentVersionId(..)
+      this.lastAddedSchemaId = newSchemaId;
+
+      return newSchemaId;
+    }
+
+    private int reuseOrCreateNewSchemaId(Schema newSchema) {
+      // if the schema already exists, use its id; otherwise use the highest id + 1
+      int newSchemaId = newSchema.schemaId();
+      for (Schema schema : schemas) {
+        if (schema.sameSchema(newSchema)) {
+          return schema.schemaId();
+        } else if (schema.schemaId() >= newSchemaId) {
+          newSchemaId = schema.schemaId() + 1;
+        }
+      }
+
+      return newSchemaId;
+    }
 
     public Builder addSchema(Schema schema) {
-      // adding schema to changes is handled in build()
-      this.schemas.add(schema);
+      addSchemaInternal(schema);
       return this;
     }
 
     public Builder addVersion(ViewVersion version) {
-      this.versions.add(version);
-      this.changes.add(new MetadataUpdate.AddViewVersion(version));
-      this.history.add(
-          ImmutableViewHistoryEntry.builder()
-              .timestampMillis(version.timestampMillis())
-              .versionId(version.versionId())
-              .build());
+      addVersionInternal(version);
       return this;
     }
 
@@ -249,15 +365,6 @@ public interface ViewMetadata extends Serializable {
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
 
       checkCurrentVersionIdIsValid(currentVersionId);
-
-      int highestFieldId =
-          Lists.newArrayList(schemas).stream()
-              .map(Schema::highestFieldId)
-              .max(Integer::compareTo)
-              .orElse(0);
-      for (Schema schema : schemas) {
-        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
-      }
 
       int versionHistorySizeToKeep =
           PropertyUtil.propertyAsInt(
@@ -319,6 +426,10 @@ public interface ViewMetadata extends Serializable {
           "Cannot find current schema with id %s in schemas: %s",
           currentSchemaId,
           schemasById.keySet());
+    }
+
+    private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
+      return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
     }
   }
 }
