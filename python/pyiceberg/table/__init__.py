@@ -390,6 +390,10 @@ class Table:
         self.io = io
         self.catalog = catalog
 
+    def __repr__(self) -> str:
+        """Returns the string representation of the Table class."""
+        return f"Table({self.identifier})"
+
     def transaction(self) -> Transaction:
         return Transaction(self)
 
