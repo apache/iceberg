@@ -28,9 +28,10 @@ public final class StandardBlobTypes {
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
 
   /**
-   * A serialized form of Hive column stats object. The full list of available stats are provided in the
-   * <a href="https://cwiki.apache.org/confluence/display/Hive/StatsDev#StatsDev-ColumnStatistics">
-   *     Hive columns stats wiki </a>
+   * A serialized form of Hive column stats object. The full list of available stats are provided in
+   * the <a
+   * href="https://cwiki.apache.org/confluence/display/Hive/StatsDev#StatsDev-ColumnStatistics">Hive
+   * columns stats wiki </a>
    */
   public static final String HIVE_COLUMN_STATS_OBJ = "hive-column-statistics-obj";
 
