@@ -360,6 +360,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewritten_data_files_count` | int | Number of data which were re-written by this command |
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
 | `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
+| `failed_data_files_count`    | int | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
 
 #### Examples
 
