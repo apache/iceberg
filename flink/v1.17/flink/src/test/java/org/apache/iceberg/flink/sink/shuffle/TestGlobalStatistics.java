@@ -29,12 +29,11 @@ import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
 public class TestGlobalStatistics {
-  private final RowType rowType = RowType.of(new VarCharType());
 
   @Test
   public void mergeDataStatisticTest() {
-    GenericRowData binaryRowDataA = GenericRowData.of(StringData.fromString("a"));
-    GenericRowData binaryRowDataB = GenericRowData.of(StringData.fromString("b"));
+    GenericRowData rowDataA = GenericRowData.of(StringData.fromString("a"));
+    GenericRowData rowDataB = GenericRowData.of(StringData.fromString("b"));
 
     GlobalStatistics<MapDataStatistics, Map<RowData, Long>> globalStatistics =
         new GlobalStatistics<>(
@@ -42,21 +41,20 @@ public class TestGlobalStatistics {
             MapDataStatisticsSerializer.fromKeySerializer(
                 new RowDataSerializer(RowType.of(new VarCharType()))));
     MapDataStatistics mapDataStatistics1 = new MapDataStatistics();
-    mapDataStatistics1.add(binaryRowDataA);
-    mapDataStatistics1.add(binaryRowDataA);
-    mapDataStatistics1.add(binaryRowDataB);
-    globalStatistics.mergeDataStatistic("testOperator", 1, 1, mapDataStatistics1);
+    mapDataStatistics1.add(rowDataA);
+    mapDataStatistics1.add(rowDataA);
+    mapDataStatistics1.add(rowDataB);
+    globalStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics1);
     MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
-    mapDataStatistics2.add(binaryRowDataA);
-    globalStatistics.mergeDataStatistic("testOperator", 2, 1, mapDataStatistics2);
-    globalStatistics.mergeDataStatistic("testOperator", 1, 1, mapDataStatistics1);
+    mapDataStatistics2.add(rowDataA);
+    globalStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics2);
     Assertions.assertEquals(
-        mapDataStatistics1.statistics().get(binaryRowDataA)
-            + mapDataStatistics2.statistics().get(binaryRowDataA),
-        globalStatistics.dataStatistics().statistics().get(binaryRowDataA));
+        mapDataStatistics1.statistics().get(rowDataA)
+            + mapDataStatistics2.statistics().get(rowDataA),
+        globalStatistics.dataStatistics().statistics().get(rowDataA));
     Assertions.assertEquals(
-        mapDataStatistics1.statistics().get(binaryRowDataB)
-            + mapDataStatistics2.statistics().getOrDefault(binaryRowDataB, 0L),
-        globalStatistics.dataStatistics().statistics().get(binaryRowDataB));
+        mapDataStatistics1.statistics().get(rowDataB)
+            + mapDataStatistics2.statistics().getOrDefault(rowDataB, 0L),
+        globalStatistics.dataStatistics().statistics().get(rowDataB));
   }
 }

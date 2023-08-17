@@ -19,13 +19,9 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
-import java.util.Set;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * GlobalStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
@@ -33,22 +29,18 @@ import org.slf4j.LoggerFactory;
  * DataStatistics} result and uses set to keep a record of all reported subtasks.
  */
 class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
-  private static final Logger LOG = LoggerFactory.getLogger(GlobalStatistics.class);
 
   private final long checkpointId;
   private final DataStatistics<D, S> dataStatistics;
-  private final Set<Integer> subtaskSet;
 
   GlobalStatistics(long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpoint;
     this.dataStatistics = statisticsSerializer.createInstance();
-    this.subtaskSet = Sets.newHashSet();
   }
 
-  GlobalStatistics(long checkpoint, DataStatistics<D, S> dataStatistics, Set<Integer> subtaskSet) {
+  GlobalStatistics(long checkpoint, DataStatistics<D, S> dataStatistics) {
     this.checkpointId = checkpoint;
     this.dataStatistics = dataStatistics;
-    this.subtaskSet = subtaskSet;
   }
 
   long checkpointId() {
@@ -59,32 +51,14 @@ class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializabl
     return dataStatistics;
   }
 
-  void mergeDataStatistic(
-      String operatorName, int subtask, long eventCheckpointId, D eventDataStatistics) {
+  void mergeDataStatistic(String operatorName, long eventCheckpointId, D eventDataStatistics) {
     Preconditions.checkArgument(
         checkpointId == eventCheckpointId,
         "Received unexpected event from operator %s checkpoint %s. Expected checkpoint %s",
         operatorName,
         eventCheckpointId,
         checkpointId);
-    if (!subtaskSet.add(subtask)) {
-      LOG.debug(
-          "Ignore duplicated data statistics from operator {} subtask {} for checkpoint {}.",
-          operatorName,
-          subtask,
-          checkpointId);
-      return;
-    }
-
     dataStatistics.merge(eventDataStatistics);
-  }
-
-  int aggregatedSubtasksCount() {
-    return subtaskSet.size();
-  }
-
-  Set<Integer> subtaskSet() {
-    return subtaskSet;
   }
 
   @Override
@@ -92,7 +66,6 @@ class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializabl
     return MoreObjects.toStringHelper(this)
         .add("checkpointId", checkpointId)
         .add("dataStatistics", dataStatistics)
-        .add("subtaskSet", subtaskSet)
         .toString();
   }
 }

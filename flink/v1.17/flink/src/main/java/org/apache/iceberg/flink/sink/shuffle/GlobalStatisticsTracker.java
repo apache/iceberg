@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -37,6 +39,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final int parallelism;
   private volatile GlobalStatistics<D, S> inProgressStatistics;
+  private final Set<Integer> inProgressSubtaskSet;
 
   GlobalStatisticsTracker(
       String operatorName,
@@ -45,6 +48,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
     this.operatorName = operatorName;
     this.statisticsSerializer = statisticsSerializer;
     this.parallelism = parallelism;
+    this.inProgressSubtaskSet = new HashSet<>();
   }
 
   GlobalStatistics<D, S> receiveDataStatisticEventAndCheckCompletion(
@@ -62,13 +66,13 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
 
     GlobalStatistics<D, S> completedStatistics = null;
     if (inProgressStatistics != null && inProgressStatistics.checkpointId() < checkpointId) {
-      if ((double) inProgressStatistics.aggregatedSubtasksCount() / parallelism * 100
+      if ((double) inProgressSubtaskSet.size() / parallelism * 100
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
         completedStatistics = inProgressStatistics;
         LOG.info(
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
                 + "Complete data statistics aggregation as it is more than the threshold of {} percentage",
-            inProgressStatistics.aggregatedSubtasksCount(),
+            inProgressSubtaskSet.size(),
             parallelism,
             operatorName,
             inProgressStatistics.checkpointId(),
@@ -78,7 +82,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
                 + "Aborting the incomplete aggregation for checkpoint {} "
                 + "and starting a new data statistics for checkpoint {}",
-            inProgressStatistics.aggregatedSubtasksCount(),
+            inProgressSubtaskSet.size(),
             parallelism,
             operatorName,
             inProgressStatistics.checkpointId(),
@@ -87,20 +91,29 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
       }
 
       inProgressStatistics = null;
+      inProgressSubtaskSet.clear();
     }
 
     if (inProgressStatistics == null) {
       inProgressStatistics = new GlobalStatistics<>(checkpointId, statisticsSerializer);
+      inProgressSubtaskSet.clear();
     }
 
-    inProgressStatistics.mergeDataStatistic(
-        operatorName,
-        subtask,
-        event.checkpointId(),
-        DataStatisticsUtil.deserializeDataStatistics(
-            event.statisticsBytes(), statisticsSerializer));
+    if (!inProgressSubtaskSet.add(subtask)) {
+      LOG.debug(
+          "Ignore duplicated data statistics from operator {} subtask {} for checkpoint {}.",
+          operatorName,
+          subtask,
+          checkpointId);
+    } else {
+      inProgressStatistics.mergeDataStatistic(
+          operatorName,
+          event.checkpointId(),
+          DataStatisticsUtil.deserializeDataStatistics(
+              event.statisticsBytes(), statisticsSerializer));
+    }
 
-    if (inProgressStatistics.aggregatedSubtasksCount() == parallelism) {
+    if (inProgressSubtaskSet.size() == parallelism) {
       completedStatistics = inProgressStatistics;
       LOG.info(
           "Received data statistics from all {} operators {} for checkpoint {}. Return last completed aggregator {}.",
@@ -109,7 +122,9 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
           inProgressStatistics.checkpointId(),
           completedStatistics.dataStatistics());
       inProgressStatistics = new GlobalStatistics<>(checkpointId + 1, statisticsSerializer);
+      inProgressSubtaskSet.clear();
     }
+
     return completedStatistics;
   }
 

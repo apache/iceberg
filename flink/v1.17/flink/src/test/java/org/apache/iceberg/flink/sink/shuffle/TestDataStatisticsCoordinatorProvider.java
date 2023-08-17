@@ -61,6 +61,8 @@ public class TestDataStatisticsCoordinatorProvider {
   @SuppressWarnings("unchecked")
   public void testCheckpointAndReset() throws Exception {
     RowType rowType = RowType.of(new VarCharType());
+    // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
+    // deserializes bytes into BinaryRowData
     BinaryRowData binaryRowDataA =
         new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
     BinaryRowData binaryRowDataB =

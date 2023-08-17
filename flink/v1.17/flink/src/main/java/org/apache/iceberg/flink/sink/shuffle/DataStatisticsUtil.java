@@ -23,7 +23,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.Set;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
@@ -72,7 +71,6 @@ class DataStatisticsUtil {
     byte[] statisticsBytes = outSerializer.getCopyOfBuffer();
     out.writeInt(statisticsBytes.length);
     out.write(statisticsBytes);
-    out.writeObject(globalStatistics.subtaskSet());
     out.flush();
 
     return bytes.toByteArray();
@@ -92,8 +90,7 @@ class DataStatisticsUtil {
     DataInputDeserializer input =
         new DataInputDeserializer(statisticsBytes, 0, statisticsBytesLength);
     DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
-    Set<Integer> subtaskSet = (Set<Integer>) in.readObject();
 
-    return new GlobalStatistics<>(completedCheckpointId, dataStatistics, subtaskSet);
+    return new GlobalStatistics<>(completedCheckpointId, dataStatistics);
   }
 }
