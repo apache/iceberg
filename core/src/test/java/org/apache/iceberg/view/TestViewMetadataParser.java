@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -90,7 +89,7 @@ public class TestViewMetadataParser {
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
         ViewMetadata.builder()
-            .setSchemas(ImmutableList.of(TEST_SCHEMA))
+            .addSchema(TEST_SCHEMA)
             .addVersion(version1)
             .addVersion(version2)
             .setLocation("s3://bucket/test/location")

@@ -181,22 +181,8 @@ public interface ViewMetadata extends Serializable {
     }
 
     public Builder addSchema(Schema schema) {
+      // adding schema to changes is handled in build()
       this.schemas.add(schema);
-      this.changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
-      return this;
-    }
-
-    public Builder setSchemas(Iterable<Schema> schemasToAdd) {
-      int highestFieldId =
-          Lists.newArrayList(schemasToAdd).stream()
-              .map(Schema::highestFieldId)
-              .max(Integer::compareTo)
-              .orElse(0);
-      for (Schema schema : schemasToAdd) {
-        this.schemas.add(schema);
-        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
-      }
-
       return this;
     }
 
@@ -251,9 +237,9 @@ public interface ViewMetadata extends Serializable {
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(versions.size() > 0, "Invalid view versions: empty");
-      Preconditions.checkArgument(history.size() > 0, "Invalid view history: empty");
-      Preconditions.checkArgument(schemas.size() > 0, "Invalid schemas: empty");
+      Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+      // TODO: remove this method?
+      Preconditions.checkArgument(schemas.size() > 0, "Invalid view: no schemas were added");
 
       Map<Integer, ViewVersion> versionsById = indexVersions(versions);
       Preconditions.checkArgument(
@@ -270,18 +256,30 @@ public interface ViewMetadata extends Serializable {
           currentSchemaId,
           schemasById.keySet());
 
+      int highestFieldId =
+          Lists.newArrayList(schemas).stream()
+              .map(Schema::highestFieldId)
+              .max(Integer::compareTo)
+              .orElse(0);
+      for (Schema schema : schemas) {
+        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
+      }
+
       int versionHistorySizeToKeep =
           PropertyUtil.propertyAsInt(
               properties,
               ViewProperties.VERSION_HISTORY_SIZE,
               ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
 
-      if (versionHistorySizeToKeep <= 0) {
-        LOG.warn(
-            "{} must be positive but was {}",
-            ViewProperties.VERSION_HISTORY_SIZE,
-            versionHistorySizeToKeep);
-      } else if (versions.size() > versionHistorySizeToKeep) {
+      // TODO add a test
+
+      Preconditions.checkArgument(
+          versionHistorySizeToKeep > 0,
+          "%s must be positive but was %s",
+          ViewProperties.VERSION_HISTORY_SIZE,
+          versionHistorySizeToKeep);
+
+      if (versions.size() > versionHistorySizeToKeep) {
         List<ViewVersion> versionsToKeep =
             versions.subList(versions.size() - versionHistorySizeToKeep, versions.size());
         List<ViewHistoryEntry> historyToKeep =
@@ -298,15 +296,9 @@ public interface ViewMetadata extends Serializable {
                 .collect(Collectors.toSet());
         changesToKeep.removeAll(toRemove);
 
-        return ImmutableViewMetadata.of(
-            formatVersion,
-            location,
-            schemas,
-            currentVersionId,
-            versionsToKeep,
-            historyToKeep,
-            properties,
-            changesToKeep);
+        versions = versionsToKeep;
+        history = historyToKeep;
+        changes = changesToKeep;
       }
 
       return ImmutableViewMetadata.of(

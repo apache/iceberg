@@ -41,12 +41,12 @@ public class TestViewMetadata {
 
     assertThatThrownBy(() -> ViewMetadata.builder().setLocation("location").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view versions: empty");
+        .hasMessage("Invalid view: no versions were added");
 
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view versions: empty");
+        .hasMessage("Invalid view: no versions were added");
   }
 
   @Test
@@ -87,7 +87,7 @@ public class TestViewMetadata {
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view versions: empty");
+        .hasMessage("Invalid view: no versions were added");
   }
 
   @Test
@@ -107,7 +107,7 @@ public class TestViewMetadata {
                             .build())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid schemas: empty");
+        .hasMessage("Invalid view: no schemas were added");
   }
 
   @Test
@@ -156,41 +156,41 @@ public class TestViewMetadata {
 
   @Test
   public void invalidVersionHistorySizeToKeep() {
-    ViewMetadata viewMetadata =
-        ViewMetadata.builder()
-            // setting history to < 1 shouldn't do anything and only issue a WARN
-            .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
-            .setLocation("location")
-            .setCurrentVersionId(3)
-            .addVersion(
-                ImmutableViewVersion.builder()
-                    .schemaId(1)
-                    .versionId(1)
-                    .timestampMillis(23L)
-                    .putSummary("operation", "a")
-                    .defaultNamespace(Namespace.of("ns"))
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
+                    .setLocation("location")
+                    .setCurrentVersionId(3)
+                    .addVersion(
+                        ImmutableViewVersion.builder()
+                            .schemaId(1)
+                            .versionId(1)
+                            .timestampMillis(23L)
+                            .putSummary("operation", "a")
+                            .defaultNamespace(Namespace.of("ns"))
+                            .build())
+                    .addVersion(
+                        ImmutableViewVersion.builder()
+                            .schemaId(1)
+                            .versionId(2)
+                            .timestampMillis(24L)
+                            .putSummary("operation", "b")
+                            .defaultNamespace(Namespace.of("ns"))
+                            .build())
+                    .addVersion(
+                        ImmutableViewVersion.builder()
+                            .schemaId(1)
+                            .versionId(3)
+                            .timestampMillis(25L)
+                            .putSummary("operation", "c")
+                            .defaultNamespace(Namespace.of("ns"))
+                            .build())
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .build())
-            .addVersion(
-                ImmutableViewVersion.builder()
-                    .schemaId(1)
-                    .versionId(2)
-                    .timestampMillis(24L)
-                    .putSummary("operation", "b")
-                    .defaultNamespace(Namespace.of("ns"))
-                    .build())
-            .addVersion(
-                ImmutableViewVersion.builder()
-                    .schemaId(1)
-                    .versionId(3)
-                    .timestampMillis(25L)
-                    .putSummary("operation", "c")
-                    .defaultNamespace(Namespace.of("ns"))
-                    .build())
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
-            .build();
-
-    assertThat(viewMetadata.versions()).hasSize(3);
-    assertThat(viewMetadata.history()).hasSize(3);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("version.history.num-entries must be positive but was 0");
   }
 
   @Test
