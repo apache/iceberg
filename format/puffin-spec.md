@@ -181,6 +181,23 @@ for Puffin v1.
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
 
+#### `hive-column-statistics-obj` blob type
+
+A serialized form of Hive ColumnStatsObject.
+
+The columnStatsObject supports Histograms, NDV, Min and Max values, Number of nulls, Number of trues, column name, type.
+A full list of supported statistics is listed in the table here:
+[ColumnStatistics](https://cwiki.apache.org/confluence/display/Hive/StatsDev#StatsDev-ColumnStatistics)
+
+#### `apache-datasketches-KLL-sketch` blob type
+
+A serialized form of a "compact" KLL-sketch produced by the [Apache
+DataSketches](https://datasketches.apache.org/) library.
+Apache-Datasketches-KLL-sketch is an implementation of a very compact quantiles
+sketch with lazy compaction scheme and nearly optimal accuracy per bit.
+
+Histograms are derived from this sketch.
+
 ### Compression codecs
 
 The data can also be uncompressed. If it is compressed the codec should be one of
