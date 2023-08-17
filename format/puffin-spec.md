@@ -185,7 +185,7 @@ for Puffin v1.
 
 A serialized form of Hive ColumnStatsObject.
 
-The columnStatsObject supports Histograms, NDV, Min and Max values, Number of nulls, Number of trues, column name, type.
+The ColumnStatsObject supports Histograms, NDV, Min and Max values, Number of nulls, Number of trues, column name, type.
 A full list of supported statistics is listed in the table here:
 [ColumnStatistics](https://cwiki.apache.org/confluence/display/Hive/StatsDev#StatsDev-ColumnStatistics)
 
