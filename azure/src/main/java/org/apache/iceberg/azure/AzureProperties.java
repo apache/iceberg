@@ -29,10 +29,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
+  public static final String ADLS_CONNECTION_STRING = "adls.connection-string";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
+  private String adlsConnectionString;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
@@ -40,6 +42,7 @@ public class AzureProperties implements Serializable {
 
   public AzureProperties(Map<String, String> properties) {
     this.adlsSasTokens = PropertyUtil.propertiesWithPrefix(properties, ADLS_SAS_TOKEN_PREFIX);
+    this.adlsConnectionString = properties.get(ADLS_CONNECTION_STRING);
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -47,6 +50,10 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
       this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
+  }
+
+  public Optional<String> adlsConnectionString() {
+    return Optional.ofNullable(adlsConnectionString);
   }
 
   public Optional<Integer> adlsReadBlockSize() {

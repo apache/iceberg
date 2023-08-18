@@ -103,12 +103,17 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
     DataLakeFileSystemClientBuilder clientBuilder =
-        new DataLakeFileSystemClientBuilder()
-            .httpClient(HTTP)
-            .endpoint("https://" + location.storageAccount());
+        new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
     azureProperties.applyCredentialConfiguration(location.storageAccount(), clientBuilder);
+
+    // apply connection string last so its parameters take precedence, e.g. SAS token
+    String endpoint =
+        azureProperties
+            .adlsConnectionString()
+            .orElseGet(() -> "https://" + location.storageAccount());
+    clientBuilder.endpoint(endpoint);
 
     return clientBuilder.buildClient();
   }
