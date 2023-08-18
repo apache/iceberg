@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -47,6 +48,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -54,6 +56,9 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
@@ -204,14 +209,23 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
   }
 
-  @Test
-  public void testCreateTableWithLocationConflict() throws IOException {
+  public static Stream<Arguments> fileIOClassProvider() {
+    return Stream.of(
+        Arguments.of(HadoopFileIO.class.getCanonicalName()),
+        Arguments.of(ResolvingFileIO.class.getCanonicalName()));
+  }
+
+  @ParameterizedTest
+  @MethodSource("fileIOClassProvider")
+  public void testCreateTableWithLocationConflict(String fileIOClass) throws IOException {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "tbl");
     TableIdentifier tableIdentWithLocationConflict = TableIdentifier.of("db", "ns1");
     ImmutableMap<String, String> catalogProps =
         ImmutableMap.of(
             String.format("table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
-            "true");
+            "true",
+            CatalogProperties.FILE_IO_IMPL,
+            fileIOClass);
 
     HadoopCatalog catalog = hadoopCatalog(catalogProps);
 
