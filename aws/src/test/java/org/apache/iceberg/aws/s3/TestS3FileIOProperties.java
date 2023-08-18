@@ -257,8 +257,7 @@ public class TestS3FileIOProperties {
             String.valueOf(s3FileIOProperties.isRemoteSigningEnabled()));
 
     Assertions.assertThat(map)
-        .containsEntry(
-            S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
+        .containsEntry(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
   }
 
   @Test
