@@ -103,10 +103,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
-  public MigrateTableSparkAction withBackupTableName(String tableName) {
-    if (!tableName.isEmpty()) {
-      this.backupIdent = Identifier.of(destTableIdent.namespace(), tableName);
-    }
+  public MigrateTableSparkAction backupTableName(String tableName) {
+    this.backupIdent = Identifier.of(sourceTableIdent().namespace(), tableName);
     return this;
   }
 

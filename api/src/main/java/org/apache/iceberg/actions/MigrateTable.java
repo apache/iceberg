@@ -56,7 +56,7 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
    * @param tableName the table name for backup
    * @return this for method chaining
    */
-  default MigrateTable withBackupTableName(String tableName) {
+  default MigrateTable backupTableName(String tableName) {
     throw new UnsupportedOperationException("Backup table name cannot be specified");
   }
 
