@@ -16,23 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg.metrics;
 
-/**
- * @deprecated will be removed in 1.4.0; use {@link ImmutableDeleteOrphanFiles.Result#builder()}
- *     instead.
- */
-@Deprecated
-public class BaseDeleteOrphanFilesActionResult implements DeleteOrphanFiles.Result {
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 
-  private final Iterable<String> orphanFileLocations;
+public class ScanMetricsUtil {
 
-  public BaseDeleteOrphanFilesActionResult(Iterable<String> orphanFileLocations) {
-    this.orphanFileLocations = orphanFileLocations;
-  }
+  private ScanMetricsUtil() {}
 
-  @Override
-  public Iterable<String> orphanFileLocations() {
-    return orphanFileLocations;
+  public static void indexedDeleteFile(ScanMetrics metrics, DeleteFile deleteFile) {
+    metrics.indexedDeleteFiles().increment();
+
+    if (deleteFile.content() == FileContent.POSITION_DELETES) {
+      metrics.positionalDeleteFiles().increment();
+    } else if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+      metrics.equalityDeleteFiles().increment();
+    }
   }
 }

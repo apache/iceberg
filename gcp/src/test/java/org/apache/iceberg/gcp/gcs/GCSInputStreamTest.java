@@ -31,8 +31,10 @@ import java.util.Arrays;
 import java.util.Random;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class GCSInputStreamTest {
@@ -51,7 +53,7 @@ public class GCSInputStreamTest {
     writeGCSData(uri, data);
 
     try (SeekableInputStream in =
-        new GCSInputStream(storage, uri, gcpProperties, MetricsContext.nullMetrics())) {
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
       byte[] actual = new byte[readSize];
 
@@ -88,7 +90,7 @@ public class GCSInputStreamTest {
     writeGCSData(uri, data);
 
     try (SeekableInputStream in =
-        new GCSInputStream(storage, uri, gcpProperties, MetricsContext.nullMetrics())) {
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
     }
@@ -117,10 +119,53 @@ public class GCSInputStreamTest {
   }
 
   @Test
+  public void testRangeRead() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read.dat");
+    int dataSize = 1024 * 1024 * 10;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize];
+
+    long position;
+    int offset;
+    int length;
+
+    writeGCSData(uri, expected);
+
+    try (RangeReadable in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      // first 1k
+      position = 0;
+      offset = 0;
+      length = 1024;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+
+      // last 1k
+      position = dataSize - 1024;
+      offset = dataSize - 1024;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+
+      // middle 2k
+      position = dataSize / 2 - 1024;
+      offset = dataSize / 2 - 1024;
+      length = 1024 * 2;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+    }
+  }
+
+  private void readAndCheckRanges(
+      RangeReadable in, byte[] original, long position, byte[] buffer, int offset, int length)
+      throws IOException {
+    in.readFully(position, buffer, offset, length);
+
+    Assertions.assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
+        .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
+  }
+
+  @Test
   public void testClose() throws Exception {
     BlobId blobId = BlobId.fromGsUtilUri("gs://bucket/path/to/closed.dat");
     SeekableInputStream closed =
-        new GCSInputStream(storage, blobId, gcpProperties, MetricsContext.nullMetrics());
+        new GCSInputStream(storage, blobId, null, gcpProperties, MetricsContext.nullMetrics());
     closed.close();
     assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
   }
@@ -133,7 +178,7 @@ public class GCSInputStreamTest {
     writeGCSData(blobId, data);
 
     try (SeekableInputStream in =
-        new GCSInputStream(storage, blobId, gcpProperties, MetricsContext.nullMetrics())) {
+        new GCSInputStream(storage, blobId, null, gcpProperties, MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 

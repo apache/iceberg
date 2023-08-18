@@ -28,6 +28,7 @@ import os
 import re
 import string
 import uuid
+from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
@@ -56,7 +57,15 @@ from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
-from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.io import (
+    GCS_ENDPOINT,
+    GCS_PROJECT_ID,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT_MS,
+    OutputFile,
+    OutputStream,
+    fsspec,
+)
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
@@ -78,6 +87,7 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from pyiceberg.utils.datetime import datetime_to_millis
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -113,6 +123,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
         help="The ADLS secret account key for tests marked as adlfs",
     )
+    parser.addoption(
+        "--gcs.endpoint", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+    )
+    parser.addoption(
+        "--gcs.oauth2.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs"
+    )
+    parser.addoption("--gcs.project-id", action="store", default="test", help="The GCP project for tests marked gcs")
 
 
 @pytest.fixture(scope="session")
@@ -294,7 +311,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
             ],
         }
     ],
-    "properties": {"read.split.target.size": 134217728},
+    "properties": {"read.split.target.size": "134217728"},
     "current-snapshot-id": 3055729675574597004,
     "snapshots": [
         {
@@ -1297,6 +1314,27 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     return fsspec.FsspecFileIO(properties=properties)
 
 
+@pytest.fixture
+def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)
+
+
+@pytest.fixture
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+        GCS_TOKEN_EXPIRES_AT_MS: datetime_to_millis(datetime.now()) + 60 * 1000,
+    }
+    return PyArrowFileIO(properties=properties)
+
+
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
     """A mocked aws response implementation (for test use only).
 
@@ -1510,7 +1548,7 @@ def clean_up(test_catalog: Catalog) -> None:
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
-        metadata={"iceberg.schema": table_schema_simple.json()},
+        metadata={"iceberg.schema": table_schema_simple.model_dump_json()},
     )
 
     file_path = f"{tmp_path}/0000-data.parquet"

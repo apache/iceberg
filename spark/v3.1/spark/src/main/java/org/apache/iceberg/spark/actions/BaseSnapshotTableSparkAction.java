@@ -23,7 +23,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.BaseSnapshotTableActionResult;
+import org.apache.iceberg.actions.ImmutableSnapshotTable;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -163,7 +163,9 @@ public class BaseSnapshotTableSparkAction
         "Successfully loaded Iceberg metadata for {} files to {}",
         importedDataFilesCount,
         destTableIdent());
-    return new BaseSnapshotTableActionResult(importedDataFilesCount);
+    return ImmutableSnapshotTable.Result.builder()
+        .importedDataFilesCount(importedDataFilesCount)
+        .build();
   }
 
   @Override

@@ -136,6 +136,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
 
     assertEquals(
         "Should have expected changed rows only from snapshot 3",
@@ -166,6 +167,26 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
             row(2, "b", "DELETE", 1, snap3.snapshotId()),
             row(-2, "b", "INSERT", 1, snap3.snapshotId())),
         changelogRecords(rightAfterSnap1, null));
+
+    assertEquals(
+        "Should have empty changed rows if end time is before the first snapshot",
+        ImmutableList.of(),
+        changelogRecords(null, snap1.timestampMillis() - 1));
+
+    assertEquals(
+        "Should have empty changed rows if start time is after the current snapshot",
+        ImmutableList.of(),
+        changelogRecords(rightAfterSnap3, null));
+
+    assertEquals(
+        "Should have empty changed rows if end time is before the first snapshot",
+        ImmutableList.of(),
+        changelogRecords(null, snap1.timestampMillis() - 1));
+
+    assertEquals(
+        "Should have empty changed rows if there are no snapshots between start time and end time",
+        ImmutableList.of(),
+        changelogRecords(rightAfterSnap2, snap3.timestampMillis() - 1));
   }
 
   @Test
@@ -185,11 +206,6 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         "Should fail if start time is after end time",
         IllegalArgumentException.class,
         () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()));
-
-    assertThrows(
-        "Should fail if start time is after the current snapshot",
-        IllegalArgumentException.class,
-        () -> changelogRecords(rightAfterSnap3, null));
   }
 
   @Test

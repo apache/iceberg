@@ -37,7 +37,12 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import StaticTable, Table, _match_deletes_to_datafile
+from pyiceberg.table import (
+    SetPropertiesUpdate,
+    StaticTable,
+    Table,
+    _match_deletes_to_datafile,
+)
 from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadataV2
 from pyiceberg.table.snapshots import (
     Operation,
@@ -379,3 +384,7 @@ def test_match_deletes_to_datafile_duplicate_number() -> None:
         delete_entry_1.data_file,
         delete_entry_2.data_file,
     }
+
+
+def test_serialize_set_properties_updates() -> None:
+    assert SetPropertiesUpdate(updates={"abc": "🤪"}).model_dump_json() == """{"action":"set-properties","updates":{"abc":"🤪"}}"""

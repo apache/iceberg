@@ -164,7 +164,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     )
 
 
-def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
+def load_catalog(name: Optional[str] = None, **properties: Optional[str]) -> Catalog:
     """Load the catalog based on the properties.
 
     Will look up the properties from the config, based on the name.
@@ -537,7 +537,7 @@ class Catalog(ABC):
         io = load_file_io(self.properties, table.metadata_location)
         metadata = table.metadata
         manifest_lists_to_delete = set()
-        manifests_to_delete = []
+        manifests_to_delete: List[ManifestFile] = []
         for snapshot in metadata.snapshots:
             manifests_to_delete += snapshot.manifests(io)
             if snapshot.manifest_list is not None:

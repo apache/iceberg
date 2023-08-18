@@ -15,7 +15,6 @@
 #  specific language governing permissions and limitations
 #  under the License.
 # pylint: disable=protected-access,redefined-outer-name
-import json
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -255,9 +254,9 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
     )
 
     with open(metadata_location, encoding="utf-8") as f:
-        payload = json.load(f)
+        payload = f.read()
 
-    metadata = TableMetadataUtil.parse_obj(payload)
+    metadata = TableMetadataUtil.parse_raw(payload)
 
     assert "database/table" in metadata.location
 
@@ -291,7 +290,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
         last_sequence_number=0,
     )
 
-    assert metadata.dict() == expected.dict()
+    assert metadata.model_dump() == expected.model_dump()
 
 
 def test_load_table(hive_table: HiveTable) -> None:

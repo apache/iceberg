@@ -227,7 +227,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
-      int parallelism = sparkContext.defaultParallelism();
+      int parallelism = readConf.parallelism();
       return TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
     } else {
       return splitSize;
