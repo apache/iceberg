@@ -20,9 +20,12 @@ package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.withSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +37,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -131,31 +133,6 @@ public class TestResolvingIO {
   }
 
   @Test
-  public void resolveFileIONonBulkDeletion() {
-    ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
-    String parentPath = "inmemory://foo.db/bar";
-    // configure delegation IO
-    InMemoryFileIO delegation = new InMemoryFileIO();
-    doReturn(delegation).when(resolvingFileIO).io(anyString());
-    // write
-    byte[] someData = "some data".getBytes();
-    List<String> randomFilePaths =
-        IntStream.range(1, 10)
-            .mapToObj(i -> parentPath + "-" + i + "-" + UUID.randomUUID())
-            .collect(Collectors.toList());
-    for (String randomFilePath : randomFilePaths) {
-      delegation.addFile(randomFilePath, someData);
-      assertThat(delegation.fileExists(randomFilePath)).isTrue();
-    }
-    // non-bulk deletion
-    resolvingFileIO.deleteFiles(randomFilePaths);
-
-    for (String path : randomFilePaths) {
-      assertThat(delegation.fileExists(path)).isFalse();
-    }
-  }
-
-  @Test
   public void delegateFileIOWithPrefixBasedSupport() throws IOException {
     ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
     Configuration hadoopConf = new Configuration();
@@ -185,19 +162,24 @@ public class TestResolvingIO {
   }
 
   @Test
-  public void delegateFileIOWithoutPrefixBasedSupport() {
+  public void delegateFileIOWithAndWithoutMixins() {
     ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
-    InMemoryFileIO delegate = new InMemoryFileIO();
-    doReturn(delegate).when(resolvingFileIO).io(anyString());
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
 
-    assertThatThrownBy(() -> resolvingFileIO.deletePrefix("foo"))
+    String fileIONoMixins = mock(FileIO.class).getClass().getName();
+    doReturn(fileIONoMixins).when(resolvingFileIO).implFromLocation(any());
+    assertThatThrownBy(() -> resolvingFileIO.newInputFile("/file"))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "FileIO implementation does not support prefix-based operations: InMemoryFileIO");
+        .hasMessageStartingWith(
+            "FileIO does not implement DelegateFileIO: org.apache.iceberg.io.FileIO");
 
-    assertThatThrownBy(() -> resolvingFileIO.listPrefix("foo"))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "FileIO implementation does not support prefix-based operations: InMemoryFileIO");
+    String fileIOWithMixins =
+        mock(FileIO.class, withSettings().extraInterfaces(DelegateFileIO.class))
+            .getClass()
+            .getName();
+    doReturn(fileIOWithMixins).when(resolvingFileIO).implFromLocation(any());
+    // being null is ok here as long as the code doesn't throw an exception
+    assertThat(resolvingFileIO.newInputFile("/file")).isNull();
   }
 }

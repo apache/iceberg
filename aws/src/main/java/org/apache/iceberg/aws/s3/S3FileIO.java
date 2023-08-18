@@ -33,6 +33,7 @@ import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -76,7 +77,11 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO
-    implements FileIO, SupportsBulkOperations, SupportsPrefixOperations, CredentialSupplier {
+    implements FileIO,
+        SupportsBulkOperations,
+        SupportsPrefixOperations,
+        CredentialSupplier,
+        DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
