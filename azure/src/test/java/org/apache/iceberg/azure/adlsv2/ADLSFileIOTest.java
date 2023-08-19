@@ -20,13 +20,11 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,40 +34,73 @@ import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.models.PathItem;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class ADLSFileIOTest {
+public class ADLSFileIOTest extends BaseAzuriteTest {
+
   @Test
-  public void testFileOperations() {
-    String location = "abfs://container@account.dfs.core.windows.net/path/to/file";
+  public void testFileOperations() throws IOException {
+    String path = "path/to/file";
+    String location = AZURITE_CONTAINER.location(path);
+    ADLSFileIO io = createFileIO();
+    DataLakeFileClient fileClient = AZURITE_CONTAINER.fileClient(path);
 
-    DataLakeFileClient fileClient = mock(DataLakeFileClient.class);
+    assertThat(fileClient.exists()).isFalse();
+    OutputFile outputFile = io.newOutputFile(location);
+    try (OutputStream out = outputFile.create()) {
+      out.write(123);
+    }
+    assertThat(fileClient.exists()).isTrue();
 
-    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
-    doReturn(fileClient).when(client).getFileClient(any());
+    InputFile inputFile = io.newInputFile(location);
+    try (InputStream in = inputFile.newStream()) {
+      int byteVal = in.read();
+      assertThat(byteVal).isEqualTo(123);
+    }
 
-    ADLSFileIO io = spy(new ADLSFileIO());
-    io.initialize(ImmutableMap.of());
-    doReturn(client).when(io).client(any(ADLSLocation.class));
-
-    InputFile in = io.newInputFile(location);
-    verify(fileClient, times(0)).openInputStream(any());
-
-    io.newOutputFile(location);
-    verify(fileClient, times(0)).getOutputStream(any());
-
-    io.deleteFile(in);
-    verify(fileClient).delete();
+    io.deleteFile(location);
+    assertThat(fileClient.exists()).isFalse();
   }
 
+  @Test
+  public void testBulkDeleteFiles() {
+    String path1 = "path/to/file1";
+    String location1 = AZURITE_CONTAINER.location(path1);
+    AZURITE_CONTAINER.createFile(path1, new byte[] {123});
+    assertThat(AZURITE_CONTAINER.fileClient(path1).exists()).isTrue();
+
+    String path2 = "path/to/file2";
+    String location2 = AZURITE_CONTAINER.location(path2);
+    AZURITE_CONTAINER.createFile(path2, new byte[] {123});
+    assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isTrue();
+
+    ADLSFileIO io = createFileIO();
+    io.deleteFiles(ImmutableList.of(location1, location2));
+
+    assertThat(AZURITE_CONTAINER.fileClient(path1).exists()).isFalse();
+    assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isFalse();
+  }
+
+  @Test
+  public void testGetClient() {
+    String location = AZURITE_CONTAINER.location("path/to/file");
+    ADLSFileIO io = createFileIO();
+    DataLakeFileSystemClient client = io.client(location);
+    assertThat(client.exists()).isTrue();
+  }
+
+  /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
   @Test
   public void testListPrefixOperations() {
     String prefix = "abfs://container@account.dfs.core.windows.net/dir";
@@ -104,6 +135,7 @@ public class ADLSFileIOTest {
     assertThat(result.hasNext()).isFalse();
   }
 
+  /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
   @Test
   public void testDeletePrefixOperations() {
     String prefix = "abfs://container@account.dfs.core.windows.net/dir";
@@ -122,38 +154,6 @@ public class ADLSFileIOTest {
 
     // assert that recursive delete was called for the directory
     verify(client).deleteDirectoryWithResponse(eq("dir"), eq(true), any(), any(), any());
-  }
-
-  @Test
-  public void testBulkDeleteFiles() {
-    String location1 = "abfs://container@account.dfs.core.windows.net/path/to/file1";
-    String location2 = "abfs://container@account.dfs.core.windows.net/path/to/file2";
-
-    DataLakeFileClient fileClient = mock(DataLakeFileClient.class);
-
-    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
-    doReturn(fileClient).when(client).getFileClient(any());
-
-    ADLSFileIO io = spy(new ADLSFileIO());
-    doReturn(client).when(io).client(any(ADLSLocation.class));
-    io.initialize(ImmutableMap.of());
-
-    io.deleteFiles(ImmutableList.of(location1, location2));
-    verify(io, times(2)).deleteFile(anyString());
-  }
-
-  @Test
-  public void testGetClient() {
-    String location = "abfs://container@account.dfs.core.windows.net/path/to/file";
-
-    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
-
-    ADLSFileIO io = spy(new ADLSFileIO());
-    io.initialize(ImmutableMap.of());
-    doReturn(client).when(io).client(any(ADLSLocation.class));
-
-    io.client(location);
-    verify(io).client(any(ADLSLocation.class));
   }
 
   @Test

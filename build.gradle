@@ -535,6 +535,7 @@ project(':iceberg-azure') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.testcontainers
   }
 }
 

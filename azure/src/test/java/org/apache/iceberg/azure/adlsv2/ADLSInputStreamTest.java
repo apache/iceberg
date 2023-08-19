@@ -20,17 +20,8 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import com.azure.storage.file.datalake.DataLakeFileClient;
-import com.azure.storage.file.datalake.models.DataLakeFileOpenInputStreamResult;
-import com.azure.storage.file.datalake.models.FileRange;
-import com.azure.storage.file.datalake.models.PathProperties;
-import com.azure.storage.file.datalake.options.DataLakeFileInputStreamOptions;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
@@ -39,55 +30,21 @@ import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class ADLSInputStreamTest {
+public class ADLSInputStreamTest extends BaseAzuriteTest {
+
+  private static final String FILE_PATH = "path/to/file";
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
-  private DataLakeFileClient fileClient;
 
-  @BeforeEach
-  public void before() {
-    fileClient = mock(DataLakeFileClient.class);
+  private DataLakeFileClient fileClient() {
+    return AZURITE_CONTAINER.fileClient(FILE_PATH);
   }
 
   private void setupData(byte[] data) {
-    PathProperties pathProps = mock(PathProperties.class);
-    when(pathProps.getFileSize()).thenReturn((long) data.length);
-
-    DataLakeFileOpenInputStreamResult openResult = mock(DataLakeFileOpenInputStreamResult.class);
-    when(openResult.getProperties()).thenReturn(pathProps);
-
-    when(fileClient.openInputStream(any()))
-        .thenAnswer(
-            i -> {
-              DataLakeFileInputStreamOptions options =
-                  (DataLakeFileInputStreamOptions) i.getArguments()[0];
-              FileRange range = options.getRange();
-
-              byte[] streamData;
-              if (range == null) {
-                streamData = data;
-              } else {
-                int start = (int) range.getOffset();
-                int maxLen = data.length - start;
-                int len =
-                    range.getCount() == null
-                        ? data.length - start
-                        : Math.min(maxLen, range.getCount().intValue());
-                streamData = new byte[len];
-                System.arraycopy(data, start, streamData, 0, len);
-              }
-
-              // disable available() so large seek will trigger new stream
-              ByteArrayInputStream in = spy(new ByteArrayInputStream(streamData));
-              when(in.available()).thenReturn(0);
-
-              when(openResult.getInputStream()).thenReturn(in);
-              return openResult;
-            });
+    AZURITE_CONTAINER.createFile(FILE_PATH, data);
   }
 
   @Test
@@ -98,7 +55,7 @@ public class ADLSInputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
 
       readAndCheck(in, in.getPos(), readSize, data, false);
@@ -133,7 +90,7 @@ public class ADLSInputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
     }
@@ -174,7 +131,7 @@ public class ADLSInputStreamTest {
     setupData(expected);
 
     try (RangeReadable in =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       // first 1k
       position = 0;
       offset = 0;
@@ -207,7 +164,7 @@ public class ADLSInputStreamTest {
   public void testClose() throws Exception {
     setupData(randomData(2));
     SeekableInputStream closed =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics());
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -221,7 +178,7 @@ public class ADLSInputStreamTest {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 
@@ -236,7 +193,7 @@ public class ADLSInputStreamTest {
   public void testSeekNegative() throws Exception {
     setupData(randomData(2));
     SeekableInputStream in =
-        new ADLSInputStream(fileClient, null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics());
     assertThatThrownBy(() -> in.seek(-3))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot seek: position -3 is negative");

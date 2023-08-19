@@ -63,6 +63,11 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
    */
   public ADLSFileIO() {}
 
+  @VisibleForTesting
+  ADLSFileIO(AzureProperties azureProperties) {
+    this.azureProperties = azureProperties;
+  }
+
   @Override
   public InputFile newInputFile(String path) {
     return ADLSInputFile.of(path, fileClient(path), azureProperties, metrics);

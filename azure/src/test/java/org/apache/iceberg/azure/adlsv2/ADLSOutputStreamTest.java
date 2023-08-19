@@ -19,32 +19,24 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.azure.storage.file.datalake.DataLakeFileClient;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Random;
+import java.util.UUID;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class ADLSOutputStreamTest {
+public class ADLSOutputStreamTest extends BaseAzuriteTest {
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
-  private DataLakeFileClient fileClient;
-
-  @BeforeEach
-  public void before() {
-    fileClient = mock(DataLakeFileClient.class);
-  }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
@@ -58,8 +50,7 @@ public class ADLSOutputStreamTest {
 
   @Test
   public void testMultipleClose() throws IOException {
-    when(fileClient.getOutputStream(any())).thenReturn(new ByteArrayOutputStream());
-
+    DataLakeFileClient fileClient = AZURITE_CONTAINER.fileClient(randomPath());
     ADLSOutputStream stream =
         new ADLSOutputStream(fileClient, azureProperties, MetricsContext.nullMetrics());
     stream.close();
@@ -67,9 +58,8 @@ public class ADLSOutputStreamTest {
   }
 
   private void writeAndVerify(byte[] data, boolean arrayWrite) {
-    // reset the output stream
-    ByteArrayOutputStream output = new ByteArrayOutputStream(data.length);
-    when(fileClient.getOutputStream(any())).thenReturn(output);
+    String path = randomPath();
+    DataLakeFileClient fileClient = AZURITE_CONTAINER.fileClient(path);
 
     try (ADLSOutputStream stream =
         new ADLSOutputStream(fileClient, azureProperties, MetricsContext.nullMetrics())) {
@@ -86,8 +76,19 @@ public class ADLSOutputStreamTest {
       throw new UncheckedIOException(e);
     }
 
-    byte[] actual = output.toByteArray();
+    byte[] actual = new byte[data.length];
+
+    try (InputStream in = fileClient.openInputStream().getInputStream()) {
+      IOUtil.readFully(in, actual, 0, data.length);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
     assertThat(actual).isEqualTo(data);
+  }
+
+  private String randomPath() {
+    return "dir/" + UUID.randomUUID();
   }
 
   private byte[] randomData(int size) {

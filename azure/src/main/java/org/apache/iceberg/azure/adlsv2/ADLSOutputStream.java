@@ -21,6 +21,7 @@ package org.apache.iceberg.azure.adlsv2;
 import com.azure.storage.common.ParallelTransferOptions;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.options.DataLakeFileOutputStreamOptions;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -93,7 +94,7 @@ class ADLSOutputStream extends PositionOutputStream {
     DataLakeFileOutputStreamOptions options = new DataLakeFileOutputStreamOptions();
     ParallelTransferOptions transferOptions = new ParallelTransferOptions();
     azureProperties.adlsWriteBlockSize().ifPresent(transferOptions::setBlockSizeLong);
-    stream = fileClient.getOutputStream(options);
+    stream = new BufferedOutputStream(fileClient.getOutputStream(options));
   }
 
   @Override
