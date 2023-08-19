@@ -72,6 +72,8 @@ public class AzureProperties implements Serializable {
     String connectionString = adlsConnectionStrings.get(account);
     if (connectionString != null && !connectionString.isEmpty()) {
       builder.endpoint(connectionString);
+    } else {
+      builder.endpoint("https://" + account);
     }
   }
 }

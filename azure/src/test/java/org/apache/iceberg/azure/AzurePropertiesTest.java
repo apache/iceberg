@@ -20,7 +20,6 @@ package org.apache.iceberg.azure;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -40,7 +39,6 @@ public class AzurePropertiesTest {
     props.applyClientConfiguration("account1", clientBuilder);
     verify(clientBuilder).sasToken(any());
     verify(clientBuilder, times(0)).credential(any(TokenCredential.class));
-    verify(clientBuilder, times(0)).endpoint(any());
   }
 
   @Test
@@ -71,14 +69,25 @@ public class AzurePropertiesTest {
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
-    verify(clientBuilder).endpoint(any());
+    verify(clientBuilder).endpoint("http://endpoint");
+  }
 
-    // no matching account
-    props =
+  @Test
+  public void testNoMatchingConnectionString() {
+    AzureProperties props =
         new AzureProperties(ImmutableMap.of("adls.connection-string.account2", "http://endpoint"));
 
-    reset(clientBuilder);
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
-    verify(clientBuilder, times(0)).endpoint(any());
+    verify(clientBuilder).endpoint("https://account1");
+  }
+
+  @Test
+  public void testNoConnectionString() {
+    AzureProperties props = new AzureProperties();
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
+    props.applyClientConfiguration("account", clientBuilder);
+    verify(clientBuilder).endpoint("https://account");
   }
 }
