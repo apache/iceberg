@@ -20,11 +20,11 @@ package org.apache.iceberg.azure;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.azure.core.credential.TokenCredential;
-import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -37,14 +37,10 @@ public class AzurePropertiesTest {
         new AzureProperties(ImmutableMap.of("adls.sas-token.account1", "token"));
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
-    props.applyCredentialConfiguration("account1", clientBuilder);
+    props.applyClientConfiguration("account1", clientBuilder);
     verify(clientBuilder).sasToken(any());
     verify(clientBuilder, times(0)).credential(any(TokenCredential.class));
-
-    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
-    props.applyCredentialConfiguration("account1", blobClientBuilder);
-    verify(blobClientBuilder).sasToken(any());
-    verify(blobClientBuilder, times(0)).credential(any(TokenCredential.class));
+    verify(clientBuilder, times(0)).endpoint(any());
   }
 
   @Test
@@ -53,14 +49,9 @@ public class AzurePropertiesTest {
         new AzureProperties(ImmutableMap.of("adls.sas-token.account1", "token"));
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
-    props.applyCredentialConfiguration("account2", clientBuilder);
+    props.applyClientConfiguration("account2", clientBuilder);
     verify(clientBuilder, times(0)).sasToken(any());
     verify(clientBuilder).credential(any(TokenCredential.class));
-
-    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
-    props.applyCredentialConfiguration("account2", blobClientBuilder);
-    verify(blobClientBuilder, times(0)).sasToken(any());
-    verify(blobClientBuilder).credential(any(TokenCredential.class));
   }
 
   @Test
@@ -68,13 +59,26 @@ public class AzurePropertiesTest {
     AzureProperties props = new AzureProperties();
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
-    props.applyCredentialConfiguration("account", clientBuilder);
+    props.applyClientConfiguration("account", clientBuilder);
     verify(clientBuilder, times(0)).sasToken(any());
     verify(clientBuilder).credential(any(TokenCredential.class));
+  }
 
-    BlobServiceClientBuilder blobClientBuilder = mock(BlobServiceClientBuilder.class);
-    props.applyCredentialConfiguration("account", blobClientBuilder);
-    verify(blobClientBuilder, times(0)).sasToken(any());
-    verify(blobClientBuilder).credential(any(TokenCredential.class));
+  @Test
+  public void testWithConnectionString() {
+    AzureProperties props =
+        new AzureProperties(ImmutableMap.of("adls.connection-string.account1", "http://endpoint"));
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
+    props.applyClientConfiguration("account1", clientBuilder);
+    verify(clientBuilder).endpoint(any());
+
+    // no matching account
+    props =
+        new AzureProperties(ImmutableMap.of("adls.connection-string.account2", "http://endpoint"));
+
+    reset(clientBuilder);
+    props.applyClientConfiguration("account1", clientBuilder);
+    verify(clientBuilder, times(0)).endpoint(any());
   }
 }

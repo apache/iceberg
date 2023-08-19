@@ -19,7 +19,6 @@
 package org.apache.iceberg.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.util.Collections;
@@ -29,12 +28,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
-  public static final String ADLS_CONNECTION_STRING = "adls.connection-string";
+  public static final String ADLS_CONNECTION_STRING_PREFIX = "adls.connection-string.";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
 
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
-  private String adlsConnectionString;
+  private Map<String, String> adlsConnectionStrings = Collections.emptyMap();
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
@@ -42,7 +41,8 @@ public class AzureProperties implements Serializable {
 
   public AzureProperties(Map<String, String> properties) {
     this.adlsSasTokens = PropertyUtil.propertiesWithPrefix(properties, ADLS_SAS_TOKEN_PREFIX);
-    this.adlsConnectionString = properties.get(ADLS_CONNECTION_STRING);
+    this.adlsConnectionStrings =
+        PropertyUtil.propertiesWithPrefix(properties, ADLS_CONNECTION_STRING_PREFIX);
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -50,10 +50,6 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
       this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
-  }
-
-  public Optional<String> adlsConnectionString() {
-    return Optional.ofNullable(adlsConnectionString);
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -64,22 +60,18 @@ public class AzureProperties implements Serializable {
     return Optional.ofNullable(adlsWriteBlockSize);
   }
 
-  public void applyCredentialConfiguration(
-      String account, DataLakeFileSystemClientBuilder builder) {
+  public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
     String sasToken = adlsSasTokens.get(account);
     if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
     } else {
       builder.credential(new DefaultAzureCredentialBuilder().build());
     }
-  }
 
-  public void applyCredentialConfiguration(String account, BlobServiceClientBuilder builder) {
-    String sasToken = adlsSasTokens.get(account);
-    if (sasToken != null && !sasToken.isEmpty()) {
-      builder.sasToken(sasToken);
-    } else {
-      builder.credential(new DefaultAzureCredentialBuilder().build());
+    // apply connection string last so its parameters take precedence, e.g. SAS token
+    String connectionString = adlsConnectionStrings.get(account);
+    if (connectionString != null && !connectionString.isEmpty()) {
+      builder.endpoint(connectionString);
     }
   }
 }

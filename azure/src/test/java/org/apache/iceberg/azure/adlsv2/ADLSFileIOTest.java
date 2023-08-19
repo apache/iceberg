@@ -135,8 +135,8 @@ public class ADLSFileIOTest {
     doReturn(fileClient).when(client).getFileClient(any());
 
     ADLSFileIO io = spy(new ADLSFileIO());
-    io.initialize(ImmutableMap.of());
     doReturn(client).when(io).client(any(ADLSLocation.class));
+    io.initialize(ImmutableMap.of());
 
     io.deleteFiles(ImmutableList.of(location1, location2));
     verify(io, times(2)).deleteFile(anyString());
@@ -146,8 +146,11 @@ public class ADLSFileIOTest {
   public void testGetClient() {
     String location = "abfs://container@account.dfs.core.windows.net/path/to/file";
 
+    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
+
     ADLSFileIO io = spy(new ADLSFileIO());
     io.initialize(ImmutableMap.of());
+    doReturn(client).when(io).client(any(ADLSLocation.class));
 
     io.client(location);
     verify(io).client(any(ADLSLocation.class));
