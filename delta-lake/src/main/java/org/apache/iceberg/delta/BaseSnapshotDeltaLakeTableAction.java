@@ -386,18 +386,18 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
 
-    String partition =
+    List<String> partitionValueList =
         spec.fields().stream()
             .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
-            .collect(Collectors.joining("/"));
+            .map(partitionValues::get)
+            .collect(Collectors.toList());
 
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
         .withFormat(format)
         .withFileSizeInBytes(fileSize)
         .withMetrics(metrics)
-        .withPartitionPath(partition)
+        .withPartitionValues(partitionValueList)
         .build();
   }
 
