@@ -251,7 +251,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     // Relocate dependencies to avoid conflicts
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.google.errorprone', 'org.apache.iceberg.shaded.com.google.errorprone'
+    relocate 'com.google.flatbuffers', 'org.apache.iceberg.shaded.com.google.flatbuffers'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
