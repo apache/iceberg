@@ -125,21 +125,23 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
     this.azureProperties = new AzureProperties(properties);
+    initMetrics(properties);
+  }
 
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class)
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
-      MetricsContext context = ctor.newInstance("abfs");
-      context.initialize(properties);
+      MetricsContext context = ctor.newInstance("adls");
+      context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
-          "Unable to load metrics class: '{}', falling back to null metrics",
-          DEFAULT_METRICS_IMPL,
-          e);
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
     }
   }
 
