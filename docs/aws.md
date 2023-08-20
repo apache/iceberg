@@ -31,7 +31,7 @@ This section describes how to use Iceberg with AWS.
 
 ## Enabling AWS Integration
 
-The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.
+The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.ƒ
 However, the AWS clients are not bundled so that you can use the same client version as your application.
 You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
@@ -574,9 +574,9 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
-By default, AWS clients use **URL Connection** HTTP Client to communicate with the service. 
-This HTTP client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations. 
-In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency. 
+By default, AWS clients use **Apache** HTTP Client to communicate with the service. 
+This HTTP client supports various functionalities and customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency.
+In contrast, URL Connection HTTP Client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations.
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
