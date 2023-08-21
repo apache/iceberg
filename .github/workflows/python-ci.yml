@@ -44,7 +44,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install poetry
-      run: pip install poetry
+      working-directory: ./python
+      run: make install-poetry
     - uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
@@ -53,7 +54,7 @@ jobs:
           ./python/poetry.lock
     - name: Install
       working-directory: ./python
-      run: make install
+      run: make install-dependencies
     - name: Linters
       working-directory: ./python
       run: make lint
