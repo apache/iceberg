@@ -233,6 +233,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
       Assert.assertNull(deleteFile.lowerBounds());
       Assert.assertNull(deleteFile.upperBounds());
     } else {
+      Assert.assertEquals(1, referencedDataFiles.size());
       Assert.assertEquals(2, deleteFile.lowerBounds().size());
       Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_PATH.fieldId()));
       Assert.assertEquals(2, deleteFile.upperBounds().size());
@@ -332,6 +333,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     CharSequenceSet referencedDataFiles = result.second();
 
     // verify the written delete file has NO lower and upper bounds
+    Assert.assertEquals(2, referencedDataFiles.size());
     Assert.assertNull(deleteFile.lowerBounds());
     Assert.assertNull(deleteFile.upperBounds());
 
