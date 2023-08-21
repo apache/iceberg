@@ -311,7 +311,7 @@ public class ArrayUtil {
     return Array.newInstance(newArrayComponentType, 1);
   }
 
-  public static boolean isStrictlyOrdered(long[] array) {
+  public static boolean isStrictlyAscending(long[] array) {
     for (int index = 1; index < array.length; index++) {
       if (array[index] <= array[index - 1]) {
         return false;

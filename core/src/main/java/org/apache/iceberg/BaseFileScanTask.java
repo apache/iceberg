@@ -102,7 +102,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
 
     @Override
     public long estimatedRowsCount() {
-      return BaseContentScanTask.estimatedRowsCount(len, fileScanTask.file());
+      return BaseContentScanTask.estimateRowsCount(len, fileScanTask.file());
     }
 
     @Override

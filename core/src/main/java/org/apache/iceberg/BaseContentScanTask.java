@@ -92,14 +92,14 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
 
   @Override
   public long estimatedRowsCount() {
-    return estimatedRowsCount(length(), file);
+    return estimateRowsCount(length(), file);
   }
 
   @Override
   public Iterable<ThisT> split(long targetSplitSize) {
     if (file.format().isSplittable()) {
       long[] splitOffsets = splitOffsets(file);
-      if (splitOffsets != null && ArrayUtil.isStrictlyOrdered(splitOffsets)) {
+      if (splitOffsets != null && ArrayUtil.isStrictlyAscending(splitOffsets)) {
         return () ->
             new OffsetsAwareSplitScanTaskIterator<>(
                 self(), length(), splitOffsets, this::newSplitTask);
@@ -122,7 +122,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
         .toString();
   }
 
-  public static long estimatedRowsCount(long length, ContentFile<?> file) {
+  static long estimateRowsCount(long length, ContentFile<?> file) {
     long[] splitOffsets = splitOffsets(file);
     long splitOffset = splitOffsets != null ? splitOffsets[0] : 0L;
     double scannedFileFraction = ((double) length) / (file.fileSizeInBytes() - splitOffset);
