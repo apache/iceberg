@@ -54,6 +54,7 @@ from pyiceberg.io.pyarrow import (
     compute_statistics_plan,
     fill_parquet_file_metadata,
     match_metrics_mode,
+    parquet_path_to_id_mapping,
     schema_to_pyarrow,
 )
 from pyiceberg.manifest import DataFile
@@ -172,7 +173,9 @@ def test_record_count() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
     assert datafile.record_count == 4
 
 
@@ -180,7 +183,9 @@ def test_file_size() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert datafile.file_size_in_bytes == len(file_bytes)
 
@@ -189,7 +194,9 @@ def test_value_counts() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 7
     assert datafile.value_counts[1] == 4
@@ -205,7 +212,9 @@ def test_column_sizes() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.column_sizes) == 7
     # these values are an artifact of how the write_table encodes the columns
@@ -220,7 +229,9 @@ def test_null_and_nan_counts() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.null_value_counts) == 7
     assert datafile.null_value_counts[1] == 1
@@ -242,7 +253,9 @@ def test_bounds() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.lower_bounds) == 2
     assert datafile.lower_bounds[1].decode() == "aaaaaaaaaaaaaaaa"
@@ -281,7 +294,9 @@ def test_metrics_mode_none() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "none"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 0
     assert len(datafile.null_value_counts) == 0
@@ -295,7 +310,9 @@ def test_metrics_mode_counts() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "counts"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 7
     assert len(datafile.null_value_counts) == 7
@@ -309,7 +326,9 @@ def test_metrics_mode_full() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "full"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 7
     assert len(datafile.null_value_counts) == 7
@@ -329,7 +348,9 @@ def test_metrics_mode_non_default_trunc() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 7
     assert len(datafile.null_value_counts) == 7
@@ -350,7 +371,9 @@ def test_column_metrics_mode() -> None:
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 6
     assert len(datafile.null_value_counts) == 6
@@ -445,7 +468,9 @@ def test_metrics_primitive_types() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 12
     assert len(datafile.null_value_counts) == 12
@@ -538,7 +563,9 @@ def test_metrics_invalid_upper_bound() -> None:
 
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert len(datafile.value_counts) == 4
     assert len(datafile.null_value_counts) == 4
@@ -559,7 +586,9 @@ def test_offsets() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
     datafile = DataFile()
-    fill_parquet_file_metadata(datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata))
+    fill_parquet_file_metadata(
+        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+    )
 
     assert datafile.split_offsets is not None
     assert len(datafile.split_offsets) == 1

@@ -1223,8 +1223,7 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
 
     def field(self, field: NestedField, field_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
         self._field_id = field.field_id
-        result = field_result()
-        return result
+        return field_result()
 
     def list(self, list_type: ListType, element_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
         self._field_id = list_type.element_id
@@ -1272,7 +1271,7 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
 
 def compute_statistics_plan(
     table_metadata: TableMetadata,
-) -> List[StatisticsCollector]:
+) -> Dict[int, StatisticsCollector]:
     """
     Computes the statistics plan for all columns.
 
@@ -1289,14 +1288,93 @@ def compute_statistics_plan(
     """
     schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
 
-    return pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
+    stats_cols = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
+    result: Dict[int, StatisticsCollector] = {}
+    for stats_col in stats_cols:
+        result[stats_col.field_id] = stats_col
+    return result
+
+
+@dataclass(frozen=True)
+class ID2ParquetPath:
+    field_id: int
+    parquet_path: str
+
+
+class ID2ParquetPathVisitor(PreOrderSchemaVisitor[List[ID2ParquetPath]]):
+    _field_id: int = 0
+    _path: List[str]
+
+    def __init__(self) -> None:
+        self._path = []
+
+    def schema(self, schema: Schema, struct_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        return struct_result()
+
+    def struct(self, struct: StructType, field_results: List[Callable[[], List[ID2ParquetPath]]]) -> List[ID2ParquetPath]:
+        return list(chain(*[result() for result in field_results]))
+
+    def field(self, field: NestedField, field_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        self._field_id = field.field_id
+        self._path.append(field.name)
+        result = field_result()
+        self._path.pop()
+        return result
+
+    def list(self, list_type: ListType, element_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        self._field_id = list_type.element_id
+        self._path.append("list.element")
+        result = element_result()
+        self._path.pop()
+        return result
+
+    def map(
+        self,
+        map_type: MapType,
+        key_result: Callable[[], List[ID2ParquetPath]],
+        value_result: Callable[[], List[ID2ParquetPath]],
+    ) -> List[ID2ParquetPath]:
+        self._field_id = map_type.key_id
+        self._path.append("key_value.key")
+        k = key_result()
+        self._path.pop()
+        self._field_id = map_type.value_id
+        self._path.append("key_value.value")
+        v = value_result()
+        self._path.pop()
+        return k + v
+
+    def primitive(self, primitive: PrimitiveType) -> List[ID2ParquetPath]:
+        return [ID2ParquetPath(field_id=self._field_id, parquet_path=".".join(self._path))]
+
+
+def parquet_path_to_id_mapping(
+    table_metadata: TableMetadata,
+) -> Dict[str, int]:
+    """
+    Computes the mapping of parquet column path to Iceberg ID.
+
+    For each column, the parquet file metadata has a path_in_schema attribute that follows
+    a specific naming scheme for nested columnds. This function computes a mapping of
+    the full paths to the corresponding Iceberg IDs.
+
+    Args:
+        table_metadata (pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata.
+    """
+    schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
+
+    result: Dict[str, int] = {}
+    for pair in pre_order_visit(schema, ID2ParquetPathVisitor()):
+        result[pair.parquet_path] = pair.field_id
+    return result
 
 
 def fill_parquet_file_metadata(
     df: DataFile,
     parquet_metadata: pq.FileMetaData,
     file_size: int,
-    stats_columns: List[StatisticsCollector],
+    stats_columns: Dict[int, StatisticsCollector],
+    parquet_column_mapping: Dict[str, int],
 ) -> None:
     """
     Computes and fills the following fields of the DataFile object.
@@ -1318,13 +1396,17 @@ def fill_parquet_file_metadata(
         file_size (int): The total compressed file size cannot be retrieved from the metadata and hence has to
             be passed here. Depending on the kind of file system and pyarrow library call used, different
             ways to obtain this value might be appropriate.
-        stats_columns (List[StatisticsCollector]): The statistics gathering plan. It is required to
-            map from column position to iceberg schema type id. It's also used to set the mode
-            for column metrics collection
+        stats_columns (Dict[int, StatisticsCollector]): The statistics gathering plan. It is required to
+            set the mode for column metrics collection
     """
     if parquet_metadata.num_columns != len(stats_columns):
         raise ValueError(
-            f"Number of columns in metadata ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+            f"Number of columns in statistics configuration ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+        )
+
+    if parquet_metadata.num_columns != len(parquet_column_mapping):
+        raise ValueError(
+            f"Number of columns in column mapping ({len(parquet_column_mapping)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
         )
 
     column_sizes: Dict[int, int] = {}
@@ -1353,10 +1435,11 @@ def fill_parquet_file_metadata(
 
         invalidate_col: Set[int] = set()
 
-        for pos, stats_col in enumerate(stats_columns):
-            field_id = stats_col.field_id
-
+        for pos in range(0, parquet_metadata.num_columns):
             column = row_group.column(pos)
+            field_id = parquet_column_mapping[column.path_in_schema]
+
+            stats_col = stats_columns[field_id]
 
             column_sizes.setdefault(field_id, 0)
             column_sizes[field_id] += column.total_compressed_size
