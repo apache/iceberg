@@ -21,6 +21,8 @@ package org.apache.iceberg.aws.s3.signer;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
@@ -55,6 +57,8 @@ import software.amazon.awssdk.auth.signer.params.AwsS3V4SignerParams;
 import software.amazon.awssdk.core.checksums.SdkChecksum;
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.utils.IoUtils;
 
 @Value.Immutable
 public abstract class S3V4RestSignerClient
@@ -286,6 +290,7 @@ public abstract class S3V4RestSignerClient
             .uri(request.getUri())
             .headers(request.headers())
             .properties(requestPropertiesSupplier().get())
+            .body(bodyAsString(request))
             .build();
 
     Key cacheKey = Key.from(remoteSigningRequest);
@@ -326,6 +331,27 @@ public abstract class S3V4RestSignerClient
     reconstructHeaders(signedComponent.headers(), mutableRequest);
 
     return mutableRequest.build();
+  }
+
+  /**
+   * Only add body for DeleteObjectsRequest. Refer to
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_RequestSyntax
+   */
+  private String bodyAsString(SdkHttpFullRequest request) {
+    if (isDeleteObjectsRequest(request) && request.contentStreamProvider().isPresent()) {
+      try (InputStream is = request.contentStreamProvider().get().newStream()) {
+        return IoUtils.toUtf8String(is);
+      } catch (IOException e) {
+        LOG.debug("Failed to determine body for S3 sign request", e);
+      }
+    }
+
+    return null;
+  }
+
+  private boolean isDeleteObjectsRequest(SdkHttpFullRequest request) {
+    return request.method() == SdkHttpMethod.POST
+        && request.rawQueryParameters().containsKey("delete");
   }
 
   private void reconstructHeaders(
