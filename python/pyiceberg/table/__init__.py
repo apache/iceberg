@@ -111,6 +111,7 @@ class Transaction:
         requirements: Optional[Tuple[TableRequirement, ...]] = None,
     ):
         self._table = table
+        self._table_metadata = table.metadata
         self._updates = actions or ()
         self._requirements = requirements or ()
 
@@ -174,7 +175,7 @@ class Transaction:
         Returns:
             A new UpdateSchema.
         """
-        return UpdateSchema(self._table.metadata.schema_, self._table)
+        return UpdateSchema(self._table.schema(), self._table, self)
 
     def remove_properties(self, *removals: str) -> Transaction:
         """Removes properties.
@@ -204,6 +205,9 @@ class Transaction:
         Returns:
             The table with the updates applied.
         """
+        if self._table.metadata != self._table_metadata:
+            raise RuntimeError("Table metadata refresh is required")
+
         # Strip the catalog name
         if len(self._updates) > 0:
             response = self._table.catalog._commit_table(  # pylint: disable=W0212
@@ -871,22 +875,30 @@ class DataScan(TableScan):
 
 
 class UpdateSchema:
-    def __init__(self, schema: Schema, table: Table, last_column_id: Optional[int] = None):
+    _table: Table
+    _schema: Schema
+    _last_column_id: itertools.count[int]
+    _identifier_field_names: List[str]
+    _adds: Dict[int, List[NestedField]]
+    _added_name_to_id: Dict[str, int]
+    _id_to_parent: Dict[int, str]
+    _allow_incompatible_changes: bool
+    _case_sensitive: bool
+    _transaction: Optional[Transaction]
+
+    def __init__(self, schema: Schema, table: Table, transaction: Optional[Transaction] = None):
         self._table = table
         self._schema = schema
-        if last_column_id:
-            self._last_column_id = itertools.count(last_column_id + 1)
-        else:
-            self._last_column_id = itertools.count(schema.highest_field_id + 1)
-
+        self._last_column_id = itertools.count(schema.highest_field_id + 1)
         self._identifier_field_names = schema.column_names
-        self._adds: Dict[int, List[NestedField]] = {}
-        self._added_name_to_id: Dict[str, int] = {}
-        self._id_to_parent: Dict[int, str] = {}
-        self._allow_incompatible_changes: bool = False
-        self._case_sensitive: bool = True
+        self._adds = {}
+        self._added_name_to_id = {}
+        self._id_to_parent = {}
+        self._allow_incompatible_changes = False
+        self._case_sensitive = True
+        self._transaction = transaction
 
-    def __exit__(self, _: Any, value: Any, traceback: Any) -> Table:
+    def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
         """Closes and commits the change."""
         return self.commit()
 
@@ -940,10 +952,17 @@ class UpdateSchema:
         self._allow_incompatible_changes = True
         return self
 
-    def commit(self) -> Table:
+    def commit(self) -> None:
         """Apply the pending changes and commit."""
-        if self._table is None:
-            raise ValueError("Cannot commit schema update, table is not set")
+        if self._transaction is not None:
+            if self._table.metadata != self._transaction._table_metadata:  # pylint: disable=W0212
+                raise RuntimeError("Table metadata refresh is required")
+            new_schema = self._apply()
+            self._transaction._append_updates(  # pylint: disable=W0212
+                AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id)
+            )
+            return
+
         # Strip the catalog name
         new_schema = self._apply()
         table_update_response = self._table.catalog._commit_table(  # pylint: disable=W0212
@@ -958,8 +977,6 @@ class UpdateSchema:
 
         self._table.metadata = table_update_response.metadata
         self._table.metadata_location = table_update_response.metadata_location
-
-        return self._table
 
     def _apply(self) -> Schema:
         """Apply the pending changes to the original schema and returns the result.

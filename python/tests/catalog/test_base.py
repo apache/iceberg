@@ -46,6 +46,7 @@ from pyiceberg.table import (
     AddSchemaUpdate,
     CommitTableRequest,
     CommitTableResponse,
+    SetCurrentSchemaUpdate,
     Table,
 )
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, new_table_metadata
@@ -138,7 +139,8 @@ class InMemoryCatalog(Catalog):
                 metadata_location = f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json'
 
         return CommitTableResponse(
-            metadata=new_metadata.model_dump() if new_metadata else {}, metadata_location=metadata_location if metadata_location else ""
+            metadata=new_metadata.model_dump() if new_metadata else {},
+            metadata_location=metadata_location if metadata_location else "",
         )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
@@ -524,7 +526,10 @@ def test_commit_table(catalog: InMemoryCatalog) -> None:
     response = given_table.catalog._commit_table(  # pylint: disable=W0212
         CommitTableRequest(
             identifier=given_table.identifier[1:],
-            updates=[AddSchemaUpdate(schema=new_schema)],
+            updates=[
+                AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id),
+                SetCurrentSchemaUpdate(schema_id=-1),
+            ],
         )
     )
 
@@ -535,64 +540,76 @@ def test_commit_table(catalog: InMemoryCatalog) -> None:
 
 
 def test_add_column(catalog: InMemoryCatalog) -> None:
-    # Given
     given_table = given_catalog_has_a_table(catalog)
-    field_name1 = "new_column1"
-    field_name2 = "new_column2"
 
-    # When
-    table: Table = (
-        given_table.update_schema()
-        .add_column(name=field_name1, type_var=IntegerType(), doc="doc")
-        .add_column(name=field_name2, type_var=LongType())
-        .commit()
+    given_table.update_schema().add_column(name="new_column1", type_var=IntegerType()).commit()
+
+    assert given_table.schema() == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        NestedField(field_id=4, name="new_column1", field_type=IntegerType(), required=False),
+        schema_id=0,
+        identifier_field_ids=[],
     )
 
-    # Then
-    assert table.schema().find_field(field_name1).name == field_name1
-    assert table.schema().find_field(field_name1).field_type == IntegerType()
-    assert table.schema().find_field(field_name2).name == field_name2
-    assert table.schema().find_field(field_name2).field_type == LongType()
+    transaction = given_table.transaction()
+    transaction.update_schema().add_column(name="new_column2", type_var=IntegerType(), doc="doc").commit()
+    transaction.commit_transaction()
 
-
-def test_add_column_with(catalog: InMemoryCatalog) -> None:
-    # Given
-    given_table = given_catalog_has_a_table(catalog)
-    field_name1 = "new_column1"
-    field_name2 = "new_column2"
-
-    # When
-    with given_table.update_schema() as update:
-        update.add_column(name=field_name1, type_var=IntegerType(), doc="doc").add_column(name=field_name2, type_var=LongType())
-
-    table: Table = catalog.load_table(TEST_TABLE_IDENTIFIER[1:])
-
-    # Then
-    assert table.schema().find_field(field_name1).name == field_name1
-    assert table.schema().find_field(field_name1).field_type == IntegerType()
-    assert table.schema().find_field(field_name2).name == field_name2
-    assert table.schema().find_field(field_name2).field_type == LongType()
-
-
-def test_add_column_via_transaction(catalog: InMemoryCatalog) -> None:
-    # Given
-    given_table = given_catalog_has_a_table(catalog)
-    field_name1 = "new_column1"
-    field_name2 = "new_column2"
-
-    # When
-    (
-        given_table.transaction()
-        .update_schema()
-        .add_column(name=field_name1, type_var=IntegerType(), doc="doc")
-        .add_column(name=field_name2, type_var=LongType())
-        .commit()
+    assert given_table.schema() == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        NestedField(field_id=4, name="new_column1", field_type=IntegerType(), required=False),
+        NestedField(field_id=5, name="new_column2", field_type=IntegerType(), required=False, doc="doc"),
+        schema_id=0,
+        identifier_field_ids=[],
     )
 
-    table: Table = catalog.load_table(TEST_TABLE_IDENTIFIER[1:])
+
+def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
+    given_table = given_catalog_has_a_table(catalog)
+
+    with given_table.update_schema() as tx:
+        tx.add_column(name="new_column1", type_var=IntegerType())
+
+    assert given_table.schema() == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        NestedField(field_id=4, name="new_column1", field_type=IntegerType(), required=False),
+        schema_id=0,
+        identifier_field_ids=[],
+    )
+
+    with given_table.transaction() as tx:
+        tx.update_schema().add_column(name="new_column2", type_var=IntegerType(), doc="doc").commit()
+
+    assert given_table.schema() == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        NestedField(field_id=4, name="new_column1", field_type=IntegerType(), required=False),
+        NestedField(field_id=5, name="new_column2", field_type=IntegerType(), required=False, doc="doc"),
+        schema_id=0,
+        identifier_field_ids=[],
+    )
+
+
+def test_transaction_conflict(catalog: InMemoryCatalog) -> None:
+    # Given
+    given_table = given_catalog_has_a_table(catalog)
+    field_name1 = "new_column1"
+    field_name2 = "new_column2"
+
+    # When
+    transaction = given_table.transaction()
+    (transaction.update_schema().add_column(name=field_name1, type_var=IntegerType(), doc="doc").commit())
+
+    given_table.update_schema().add_column(name=field_name2, type_var=LongType()).commit()
 
     # Then
-    assert table.schema().find_field(field_name1).name == field_name1
-    assert table.schema().find_field(field_name1).field_type == IntegerType()
-    assert table.schema().find_field(field_name2).name == field_name2
-    assert table.schema().find_field(field_name2).field_type == LongType()
+    with pytest.raises(RuntimeError) as exc_info:
+        transaction.commit_transaction()
+    assert "Table metadata refresh is required" in str(exc_info.value)

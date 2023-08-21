@@ -382,13 +382,31 @@ def test_schema_evolution(catalog: Catalog) -> None:
         schema_id=1,
     )
 
+
+@pytest.mark.integration
+def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
+    try:
+        catalog.drop_table("default.test_schema_evolution")
+    except NoSuchTableError:
+        pass
+
+    schema = Schema(
+        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
+        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
+    )
+
+    t = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
+
+    assert t.schema() == schema
+
     with t.transaction() as tx:
-        tx.update_schema().add_column("col_int", IntegerType()).commit()
+        tx.update_schema().add_column("col_string", StringType()).commit()
+
+    t = catalog.load_table("default.test_schema_evolution")
 
     assert t.schema() == Schema(
         NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
         NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        NestedField(field_id=4, name="col_int", field_type=IntegerType(), required=False),
-        schema_id=2,
+        schema_id=1,
     )

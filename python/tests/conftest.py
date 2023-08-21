@@ -57,6 +57,7 @@ from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.io import (
     GCS_ENDPOINT,
     GCS_PROJECT_ID,
@@ -65,13 +66,14 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
     fsspec,
+    load_file_io,
 )
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import FileScanTask
+from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
@@ -1617,4 +1619,16 @@ def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
 def example_task(data_file: str) -> FileScanTask:
     return FileScanTask(
         data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )
+
+
+@pytest.fixture
+def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
+    return Table(
+        identifier=("database", "table"),
+        metadata=table_metadata,
+        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
+        io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )

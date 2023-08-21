@@ -153,10 +153,19 @@ Add new columns through the `Transaction` or `UpdateSchema` API:
 Use the Transaction API:
 
 ```python
-table.transaction().update_schema().add_column("x", IntegerType(), "doc").commit()
+with table.transaction() as transaction:
+    transaction.update_schema().add_column("x", IntegerType(), "doc").commit()
 ```
 
-Or, use the UpdateSchema API instead of Transaction:
+Or, without a context manager:
+
+```python
+transaction = table.transaction()
+transaction.update_schema().add_column("x", IntegerType(), "doc").commit()
+transaction.commit_transaction()
+```
+
+Or, use the UpdateSchema API directly:
 
 ```python
 with table.update_schema() as update:

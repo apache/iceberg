@@ -15,19 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name
-from typing import Any, Dict
+from typing import Dict
 
 import pytest
 from sortedcontainers import SortedList
 
-from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     EqualTo,
     In,
 )
-from pyiceberg.io import PY_IO_IMPL, load_file_io
+from pyiceberg.io import PY_IO_IMPL
 from pyiceberg.manifest import (
     DataFile,
     DataFileContent,
@@ -44,7 +43,7 @@ from pyiceberg.table import (
     UpdateSchema,
     _match_deletes_to_datafile,
 )
-from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadataV2
+from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER
 from pyiceberg.table.snapshots import (
     Operation,
     Snapshot,
@@ -77,18 +76,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-
-
-@pytest.fixture
-def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
-    table_metadata = TableMetadataV2(**example_table_metadata_v2)
-    return Table(
-        identifier=("database", "table"),
-        metadata=table_metadata,
-        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
-        io=load_file_io(),
-        catalog=NoopCatalog("NoopCatalog"),
-    )
 
 
 def test_schema(table: Table) -> None:
@@ -455,7 +442,7 @@ def test_add_primitive_type_column(table_schema_simple: Schema, table: Table) ->
 def test_add_nested_type_column(table_schema_simple: Schema, table: Table) -> None:
     # add struct type column
     field_name = "new_column_struct"
-    update = UpdateSchema(table_schema_simple, table, last_column_id=table_schema_simple.highest_field_id)
+    update = UpdateSchema(table_schema_simple, table)
     struct_ = StructType(
         NestedField(1, "lat", DoubleType()),
         NestedField(2, "long", DoubleType()),
@@ -473,7 +460,7 @@ def test_add_nested_type_column(table_schema_simple: Schema, table: Table) -> No
 def test_add_nested_map_type_column(table_schema_simple: Schema, table: Table) -> None:
     # add map type column
     field_name = "new_column_map"
-    update = UpdateSchema(table_schema_simple, table, last_column_id=table_schema_simple.highest_field_id)
+    update = UpdateSchema(table_schema_simple, table)
     map_ = MapType(1, StringType(), 2, IntegerType(), False)
     update.add_column(parent=None, name=field_name, type_var=map_)
     new_schema = update._apply()  # pylint: disable=W0212
@@ -540,12 +527,12 @@ def test_add_required_column(table: Table) -> None:
     )
 
     with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(schema_, table, last_column_id=1)
+        update = UpdateSchema(schema_, table)
         update.add_column(name="data", type_var=IntegerType(), required=True)
     assert "Incompatible change: cannot add required column: data" in str(exc_info.value)
 
     new_schema = (
-        UpdateSchema(schema_, table, last_column_id=1)  # pylint: disable=W0212
+        UpdateSchema(schema_, table)  # pylint: disable=W0212
         .allow_incompatible_changes()
         .add_column(name="data", type_var=IntegerType(), required=True)
         ._apply()
@@ -564,12 +551,12 @@ def test_add_required_column_case_insensitive(table: Table) -> None:
     )
 
     with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(schema_, table, last_column_id=1)
+        update = UpdateSchema(schema_, table)
         update.allow_incompatible_changes().case_sensitive(False).add_column(name="ID", type_var=IntegerType(), required=True)
     assert "already exists: ID" in str(exc_info.value)
 
     new_schema = (
-        UpdateSchema(schema_, table, last_column_id=1)  # pylint: disable=W0212
+        UpdateSchema(schema_, table)  # pylint: disable=W0212
         .allow_incompatible_changes()
         .add_column(name="ID", type_var=IntegerType(), required=True)
         ._apply()
