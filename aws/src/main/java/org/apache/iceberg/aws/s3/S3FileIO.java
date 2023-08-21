@@ -379,21 +379,23 @@ public class S3FileIO
       }
     }
 
+    initMetrics(properties);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class)
-              .loader(S3FileIO.class.getClassLoader())
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(properties);
+      context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
-          "Unable to load metrics class: '{}', falling back to null metrics",
-          DEFAULT_METRICS_IMPL,
-          e);
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
     }
   }
 

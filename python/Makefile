@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-install:
-	pip install poetry
+install-poetry:
+	pip install poetry==1.5.1
+
+install-dependencies:
 	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray -E sql-postgres -E gcsfs
 
+install: | install-poetry install-dependencies
 
 check-license:
 	./dev/check-license
