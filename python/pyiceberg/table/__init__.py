@@ -251,6 +251,8 @@ class UpgradeFormatVersionUpdate(TableUpdate):
 class AddSchemaUpdate(TableUpdate):
     action: TableUpdateAction = TableUpdateAction.add_schema
     schema_: Schema = Field(alias="schema")
+    # This field is required: https://github.com/apache/iceberg/pull/7445
+    last_column_id: int = Field(alias="last-column-id")
 
 
 class SetCurrentSchemaUpdate(TableUpdate):
@@ -331,13 +333,13 @@ class TableRequirement(IcebergBaseModel):
 class AssertCreate(TableRequirement):
     """The table must not already exist; used for create transactions."""
 
-    type: Literal["assert-create"]
+    type: Literal["assert-create"] = Field(default="assert-create")
 
 
 class AssertTableUUID(TableRequirement):
     """The table UUID must match the requirement's `uuid`."""
 
-    type: Literal["assert-table-uuid"]
+    type: Literal["assert-table-uuid"] = Field(default="assert-table-uuid")
     uuid: str
 
 
@@ -347,7 +349,7 @@ class AssertRefSnapshotId(TableRequirement):
     if `snapshot-id` is `null` or missing, the ref must not already exist.
     """
 
-    type: Literal["assert-ref-snapshot-id"]
+    type: Literal["assert-ref-snapshot-id"] = Field(default="assert-ref-snapshot-id")
     ref: str
     snapshot_id: int = Field(..., alias="snapshot-id")
 
@@ -355,35 +357,35 @@ class AssertRefSnapshotId(TableRequirement):
 class AssertLastAssignedFieldId(TableRequirement):
     """The table's last assigned column id must match the requirement's `last-assigned-field-id`."""
 
-    type: Literal["assert-last-assigned-field-id"]
+    type: Literal["assert-last-assigned-field-id"] = Field(default="assert-last-assigned-field-id")
     last_assigned_field_id: int = Field(..., alias="last-assigned-field-id")
 
 
 class AssertCurrentSchemaId(TableRequirement):
     """The table's current schema id must match the requirement's `current-schema-id`."""
 
-    type: Literal["assert-current-schema-id"]
+    type: Literal["assert-current-schema-id"] = Field(default="assert-current-schema-id")
     current_schema_id: int = Field(..., alias="current-schema-id")
 
 
 class AssertLastAssignedPartitionId(TableRequirement):
     """The table's last assigned partition id must match the requirement's `last-assigned-partition-id`."""
 
-    type: Literal["assert-last-assigned-partition-id"]
+    type: Literal["assert-last-assigned-partition-id"] = Field(default="assert-last-assigned-partition-id")
     last_assigned_partition_id: int = Field(..., alias="last-assigned-partition-id")
 
 
 class AssertDefaultSpecId(TableRequirement):
     """The table's default spec id must match the requirement's `default-spec-id`."""
 
-    type: Literal["assert-default-spec-id"]
+    type: Literal["assert-default-spec-id"] = Field(default="assert-default-spec-id")
     default_spec_id: int = Field(..., alias="default-spec-id")
 
 
 class AssertDefaultSortOrderId(TableRequirement):
     """The table's default sort order id must match the requirement's `default-sort-order-id`."""
 
-    type: Literal["assert-default-sort-order-id"]
+    type: Literal["assert-default-sort-order-id"] = Field(default="assert-default-sort-order-id")
     default_sort_order_id: int = Field(..., alias="default-sort-order-id")
 
 
@@ -943,10 +945,14 @@ class UpdateSchema:
         if self._table is None:
             raise ValueError("Cannot commit schema update, table is not set")
         # Strip the catalog name
+        new_schema = self._apply()
         table_update_response = self._table.catalog._commit_table(  # pylint: disable=W0212
             CommitTableRequest(
                 identifier=self._table.identifier[1:],
-                updates=[AddSchemaUpdate(schema=self._apply())],
+                updates=[
+                    AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id),
+                    SetCurrentSchemaUpdate(schema_id=-1),
+                ],
             )
         )
 
