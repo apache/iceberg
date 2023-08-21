@@ -152,24 +152,27 @@ public class GCSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefix
                     builder.setCredentials(OAuth2Credentials.create(accessToken));
                   });
 
-          // Report Hadoop metrics if Hadoop is available
-          try {
-            DynConstructors.Ctor<MetricsContext> ctor =
-                DynConstructors.builder(MetricsContext.class)
-                    .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
-                    .buildChecked();
-            MetricsContext context = ctor.newInstance("gcs");
-            context.initialize(properties);
-            this.metrics = context;
-          } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-            LOG.warn(
-                "Unable to load metrics class: '{}', falling back to null metrics",
-                DEFAULT_METRICS_IMPL,
-                e);
-          }
-
           return builder.build().getService();
         };
+
+    initMetrics(properties);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
+    // Report Hadoop metrics if Hadoop is available
+    try {
+      DynConstructors.Ctor<MetricsContext> ctor =
+          DynConstructors.builder(MetricsContext.class)
+              .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+              .buildChecked();
+      MetricsContext context = ctor.newInstance("gcs");
+      context.initialize(props);
+      this.metrics = context;
+    } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
+      LOG.warn(
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
+    }
   }
 
   @Override
