@@ -388,11 +388,19 @@ TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(discrim
 
 
 def new_table_metadata(
-    schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str, properties: Properties = EMPTY_DICT
+    schema: Schema,
+    partition_spec: PartitionSpec,
+    sort_order: SortOrder,
+    location: str,
+    properties: Properties = EMPTY_DICT,
+    table_uuid: Optional[uuid.UUID] = None,
 ) -> TableMetadata:
     fresh_schema = assign_fresh_schema_ids(schema)
     fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, schema, fresh_schema)
     fresh_sort_order = assign_fresh_sort_order_ids(sort_order, schema, fresh_schema)
+
+    if table_uuid is None:
+        table_uuid = uuid.uuid4()
 
     return TableMetadataV2(
         location=location,
@@ -405,6 +413,7 @@ def new_table_metadata(
         default_sort_order_id=fresh_sort_order.order_id,
         properties=properties,
         last_partition_id=fresh_partition_spec.last_assigned_field_id,
+        table_uuid=table_uuid,
     )
 
 
