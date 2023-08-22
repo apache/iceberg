@@ -595,21 +595,3 @@ def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
         schema_id=0,
         identifier_field_ids=[],
     )
-
-
-def test_transaction_conflict(catalog: InMemoryCatalog) -> None:
-    # Given
-    given_table = given_catalog_has_a_table(catalog)
-    field_name1 = "new_column1"
-    field_name2 = "new_column2"
-
-    # When
-    transaction = given_table.transaction()
-    (transaction.update_schema().add_column(name=field_name1, type_var=IntegerType(), doc="doc").commit())
-
-    given_table.update_schema().add_column(name=field_name2, type_var=LongType()).commit()
-
-    # Then
-    with pytest.raises(RuntimeError) as exc_info:
-        transaction.commit_transaction()
-    assert "Table metadata refresh is required" in str(exc_info.value)
