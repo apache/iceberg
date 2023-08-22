@@ -89,6 +89,25 @@ public class TestS3RequestUtil {
   }
 
   @Test
+  public void testConfigureDualLayerServerSideKmsEncryption() {
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    s3FileIOProperties.setSseType(S3FileIOProperties.DSSE_TYPE_KMS);
+    s3FileIOProperties.setSseKey("key");
+    S3RequestUtil.configureEncryption(
+            s3FileIOProperties,
+            this::setServerSideEncryption,
+            this::setKmsKeyId,
+            this::setCustomAlgorithm,
+            this::setCustomKey,
+            this::setCustomMd5);
+    Assertions.assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AWS_KMS_DSSE);
+    Assertions.assertThat(kmsKeyId).isEqualTo("key");
+    Assertions.assertThat(customAlgorithm).isNull();
+    Assertions.assertThat(customKey).isNull();
+    Assertions.assertThat(customMd5).isNull();
+  }
+
+  @Test
   public void testConfigureEncryptionSkipNullSetters() {
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
