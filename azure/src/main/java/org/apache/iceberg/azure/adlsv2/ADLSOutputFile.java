@@ -30,14 +30,6 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class ADLSOutputFile extends BaseADLSFile implements OutputFile {
 
-  static ADLSOutputFile of(
-      String location,
-      DataLakeFileClient fileClient,
-      AzureProperties azureProperties,
-      MetricsContext metrics) {
-    return new ADLSOutputFile(location, fileClient, azureProperties, metrics);
-  }
-
   ADLSOutputFile(
       String location,
       DataLakeFileClient fileClient,
@@ -73,6 +65,6 @@ class ADLSOutputFile extends BaseADLSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return ADLSInputFile.of(location(), fileClient(), azureProperties(), metrics());
+    return new ADLSInputFile(location(), fileClient(), azureProperties(), metrics());
   }
 }

@@ -51,9 +51,9 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   private final AzureProperties azureProperties;
 
   private InputStream stream;
-  private long pos = 0;
-  private long next = 0;
-  private boolean closed = false;
+  private long pos;
+  private long next;
+  private boolean closed;
 
   private final Counter readBytes;
   private final Counter readOperations;
@@ -70,7 +70,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.createStack = Thread.currentThread().getStackTrace();
 
     openStream();
   }
@@ -78,8 +78,8 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   private void openStream() {
     DataLakeFileOpenInputStreamResult result =
         fileClient.openInputStream(getInputOptions(new FileRange(pos)));
-    fileSize = result.getProperties().getFileSize();
-    stream = result.getInputStream();
+    this.fileSize = result.getProperties().getFileSize();
+    this.stream = result.getInputStream();
   }
 
   private DataLakeFileInputStreamOptions getInputOptions(FileRange range) {
@@ -100,7 +100,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkArgument(newPos >= 0, "Cannot seek: position %s is negative", newPos);
 
     // this allows a seek beyond the end of the stream but the next read will fail
-    next = newPos;
+    this.next = newPos;
   }
 
   @Override
@@ -143,7 +143,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
         // already buffered or seek is small enough
         try {
           ByteStreams.skipFully(stream, skip);
-          pos = next;
+          this.pos = next;
           return;
         } catch (IOException ignored) {
           // will retry by re-opening the stream
@@ -152,7 +152,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     }
 
     // close the stream and open at desired position
-    pos = next;
+    this.pos = next;
     openStream();
   }
 
@@ -169,8 +169,8 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
 
-    if (fileSize == null) {
-      fileSize = fileClient.getProperties().getFileSize();
+    if (this.fileSize == null) {
+      this.fileSize = fileClient.getProperties().getFileSize();
     }
     long readStart = fileSize - length;
 
@@ -184,7 +184,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public void close() throws IOException {
     super.close();
-    closed = true;
+    this.closed = true;
     if (stream != null) {
       stream.close();
     }

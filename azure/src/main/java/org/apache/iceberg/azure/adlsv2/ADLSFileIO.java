@@ -54,7 +54,7 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
 
   private AzureProperties azureProperties;
   private MetricsContext metrics = MetricsContext.nullMetrics();
-  private SerializableMap<String, String> properties = null;
+  private SerializableMap<String, String> properties;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -70,17 +70,17 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
 
   @Override
   public InputFile newInputFile(String path) {
-    return ADLSInputFile.of(path, fileClient(path), azureProperties, metrics);
+    return new ADLSInputFile(path, fileClient(path), azureProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return ADLSInputFile.of(path, length, fileClient(path), azureProperties, metrics);
+    return new ADLSInputFile(path, length, fileClient(path), azureProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return ADLSOutputFile.of(path, fileClient(path), azureProperties, metrics);
+    return new ADLSOutputFile(path, fileClient(path), azureProperties, metrics);
   }
 
   @Override

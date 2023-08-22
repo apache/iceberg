@@ -82,9 +82,4 @@ class ADLSLocation {
   public String path() {
     return path;
   }
-
-  /** Returns blob URL for use with Blob API. */
-  public String blobUrl() {
-    return String.format("https://%s/%s/%s", storageAccount, container, path);
-  }
 }

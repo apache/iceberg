@@ -47,8 +47,8 @@ class ADLSOutputStream extends PositionOutputStream {
   private final Counter writeBytes;
   private final Counter writeOperations;
 
-  private long pos = 0;
-  private boolean closed = false;
+  private long pos;
+  private boolean closed;
 
   ADLSOutputStream(
       DataLakeFileClient fileClient, AzureProperties azureProperties, MetricsContext metrics)
@@ -56,7 +56,7 @@ class ADLSOutputStream extends PositionOutputStream {
     this.fileClient = fileClient;
     this.azureProperties = azureProperties;
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.createStack = Thread.currentThread().getStackTrace();
 
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
     this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
@@ -94,7 +94,7 @@ class ADLSOutputStream extends PositionOutputStream {
     DataLakeFileOutputStreamOptions options = new DataLakeFileOutputStreamOptions();
     ParallelTransferOptions transferOptions = new ParallelTransferOptions();
     azureProperties.adlsWriteBlockSize().ifPresent(transferOptions::setBlockSizeLong);
-    stream = new BufferedOutputStream(fileClient.getOutputStream(options));
+    this.stream = new BufferedOutputStream(fileClient.getOutputStream(options));
   }
 
   @Override
@@ -104,7 +104,7 @@ class ADLSOutputStream extends PositionOutputStream {
     }
 
     super.close();
-    closed = true;
+    this.closed = true;
     stream.close();
   }
 
