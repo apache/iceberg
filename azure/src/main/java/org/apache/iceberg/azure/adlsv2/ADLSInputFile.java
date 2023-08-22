@@ -42,7 +42,7 @@ class ADLSInputFile extends BaseADLSFile implements InputFile {
       AzureProperties azureProperties,
       MetricsContext metrics) {
     super(location, fileClient, azureProperties, metrics);
-    this.fileSize = fileSize > 0 ? fileSize : null;
+    this.fileSize = fileSize != null && fileSize > 0 ? fileSize : null;
   }
 
   @Override
