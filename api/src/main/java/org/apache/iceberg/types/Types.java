@@ -566,14 +566,6 @@ public class Types {
       return lazyIdToAccessor().get(id);
     }
 
-    private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
-      if (idToAccessor == null) {
-        idToAccessor = Accessors.forStruct(this);
-      }
-
-      return idToAccessor;
-    }
-
     @Override
     public List<NestedField> fields() {
       return lazyFieldList();
@@ -636,6 +628,14 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(NestedField.class, Arrays.hashCode(fields));
+    }
+
+    private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
+      if (idToAccessor == null) {
+        idToAccessor = Accessors.forStruct(this);
+      }
+
+      return idToAccessor;
     }
 
     private List<NestedField> lazyFieldList() {
