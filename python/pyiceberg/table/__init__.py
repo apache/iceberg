@@ -222,15 +222,13 @@ class Transaction:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            response = self._table.catalog._commit_table(  # pylint: disable=W0212
+            self._table._do_commit(  # pylint: disable=W0212
                 CommitTableRequest(
                     identifier=self._table.identifier[1:],
                     requirements=self._requirements,
                     updates=self._updates,
                 )
             )
-            self._table._update_table(response)  # pylint: disable=W0212
-
             return self._table
         else:
             return self._table
@@ -525,7 +523,8 @@ class Table:
     def update_schema(self) -> UpdateSchema:
         return UpdateSchema(self.schema(), self)
 
-    def _update_table(self, response: CommitTableResponse) -> None:
+    def _do_commit(self, request: CommitTableRequest) -> None:
+        response = self.catalog._commit_table(request)  # pylint: disable=W0212
         self.metadata = response.metadata
         self.metadata_location = response.metadata_location
 
@@ -956,6 +955,9 @@ class UpdateSchema:
         if isinstance(name, str):
             name = (name,)
 
+        if "." in name[-1]:
+            raise ValueError(f"Cannot add column with ambiguous name: {name[-1]}, provide a tuple instead")
+
         if required and not self._allow_incompatible_changes:
             # Table format version 1 and 2 cannot add required column because there is no initial value
             raise ValueError(f'Incompatible change: cannot add required column: {".".join(name)}')
@@ -985,10 +987,9 @@ class UpdateSchema:
             self._transaction._append_updates(*updates)  # pylint: disable=W0212
             self._transaction._append_requirements(*requirements)  # pylint: disable=W0212
         else:
-            response = self._table.catalog._commit_table(  # pylint: disable=W0212
+            self._table._do_commit(  # pylint: disable=W0212
                 CommitTableRequest(identifier=self._table.identifier[1:], updates=updates, requirements=requirements)
             )
-            self._table._update_table(response)  # pylint: disable=W0212
 
     def _apply(self) -> Schema:
         """Apply the pending changes to the original schema and returns the result.

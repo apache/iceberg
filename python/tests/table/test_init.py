@@ -510,8 +510,16 @@ def test_add_already_exists(table_schema_nested: Schema, table: Table) -> None:
     assert "already exists: foo" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        update.add_column(name="location.latitude", type_var=IntegerType())
+        update.add_column(name=("location", "latitude"), type_var=IntegerType())
     assert "already exists: location.latitude" in str(exc_info.value)
+
+
+def test_ambigous_column(table_schema_nested: Schema, table: Table) -> None:
+    update = UpdateSchema(table_schema_nested, table)
+
+    with pytest.raises(ValueError) as exc_info:
+        update.add_column(name="location.latitude", type_var=IntegerType())
+    assert "Cannot add column with ambiguous name: location.latitude, provide a tuple instead" in str(exc_info.value)
 
 
 def test_add_to_non_struct_type(table_schema_simple: Schema, table: Table) -> None:
