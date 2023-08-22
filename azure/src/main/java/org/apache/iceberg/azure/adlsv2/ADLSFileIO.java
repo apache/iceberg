@@ -23,6 +23,7 @@ import com.azure.core.util.Context;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
+import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -90,7 +91,7 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
     // now as it is not a required operation for Iceberg.
     try {
       fileClient(path).delete();
-    } catch (Exception e) {
+    } catch (DataLakeStorageException e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
   }
