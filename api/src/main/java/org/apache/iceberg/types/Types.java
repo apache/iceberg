@@ -647,9 +647,10 @@ public class Types {
 
     private Map<String, NestedField> lazyFieldsByName() {
       if (fieldsByName == null) {
+        Map<String, Integer> nameToId = TypeUtil.indexByName(this);
         ImmutableMap.Builder<String, NestedField> byNameBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byNameBuilder.put(field.name(), field);
+        for (Map.Entry<String, Integer> entry : nameToId.entrySet()) {
+          byNameBuilder.put(entry.getKey(), field(entry.getValue()));
         }
         fieldsByName = byNameBuilder.build();
       }
@@ -658,9 +659,10 @@ public class Types {
 
     private Map<String, NestedField> lazyFieldsByLowerCaseName() {
       if (fieldsByLowerCaseName == null) {
+        Map<String, Integer> nameToId = TypeUtil.indexByLowerCaseName(this);
         ImmutableMap.Builder<String, NestedField> byLowerCaseNameBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
+        for (Map.Entry<String, Integer> entry : nameToId.entrySet()) {
+          byLowerCaseNameBuilder.put(entry.getKey(), field(entry.getValue()));
         }
         fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
       }
@@ -669,11 +671,7 @@ public class Types {
 
     private Map<Integer, NestedField> lazyFieldsById() {
       if (fieldsById == null) {
-        ImmutableMap.Builder<Integer, NestedField> byIdBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byIdBuilder.put(field.fieldId(), field);
-        }
-        this.fieldsById = byIdBuilder.build();
+        this.fieldsById = ImmutableMap.copyOf(TypeUtil.indexById(this));
       }
       return fieldsById;
     }
