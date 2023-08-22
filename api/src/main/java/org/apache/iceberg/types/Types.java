@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.Accessors;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -541,6 +544,7 @@ public class Types {
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
+    private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
 
     private StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
@@ -548,6 +552,26 @@ public class Types {
       for (int i = 0; i < this.fields.length; i += 1) {
         this.fields[i] = fields.get(i);
       }
+    }
+
+    /**
+     * Returns an accessor for retrieving the data from {@link StructLike}.
+     *
+     * <p>Accessors do not retrieve data contained in lists or maps.
+     *
+     * @param id a column id in this schema
+     * @return an {@link Accessor} to retrieve values from a {@link StructLike} row
+     */
+    public Accessor<StructLike> accessorForField(int id) {
+      return lazyIdToAccessor().get(id);
+    }
+
+    private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
+      if (idToAccessor == null) {
+        idToAccessor = Accessors.forStruct(this);
+      }
+
+      return idToAccessor;
     }
 
     @Override
