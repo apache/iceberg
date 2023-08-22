@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: "Python release"
+name: "Python Release"
 
 on:
   workflow_dispatch:
@@ -57,11 +57,9 @@ jobs:
         working-directory: ./python
 
       - name: Set version
-        run: python3 -m poetry version $PYTHON_VERSION
+        run: python3 -m poetry version "${{ inputs.version }}"
         working-directory: ./python
         if: "${{ github.event.inputs.version != 'master' }}"
-        env:
-          PYTHON_VERSION: ${{ inputs.version }}
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
