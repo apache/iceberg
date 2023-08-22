@@ -41,6 +41,37 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
+   * Copies a metrics object without lower and upper bounds for given fields.
+   *
+   * @param excludedFieldIds field IDs for which the lower and upper bounds must be dropped
+   * @return a new metrics object without lower and upper bounds for given fields
+   */
+  public static Metrics copyWithoutFieldBounds(Metrics metrics, Set<Integer> excludedFieldIds) {
+    return new Metrics(
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        metrics.valueCounts(),
+        metrics.nullValueCounts(),
+        metrics.nanValueCounts(),
+        copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+  }
+
+  private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
+    if (map == null) {
+      return null;
+    }
+
+    Map<K, V> filteredMap = Maps.newHashMap(map);
+
+    for (K key : keys) {
+      filteredMap.remove(key);
+    }
+
+    return filteredMap.isEmpty() ? null : filteredMap;
+  }
+
+  /**
    * Construct mapping relationship between column id to NaN value counts from input metrics and
    * metrics config.
    */
