@@ -43,7 +43,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
 | [DataFrame append](#appending-data)              | ✔️        |                                                                             |
 | [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |                                      
+| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
 
 
 ## Writing with SQL
