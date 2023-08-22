@@ -44,9 +44,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /**
  * Defines an exponential HTTP request retry strategy and provides the same characteristics as the
- * {@link org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy},
- *
- * <p>using the following list of non-retriable I/O exception classes:<br>
+ * {@link org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, using the following list
+ * of non-retriable I/O exception classes:
  *
  * <ul>
  *   <li>InterruptedIOException
@@ -57,12 +56,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SSLException
  * </ul>
  *
- * and retriable HTTP status codes:<br>
+ * The following retriable HTTP status codes are defined:
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
  *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
+ *
+ * Most code and behavior is taken from {@link
+ * org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, with minor modifications to
+ * {@link #getRetryInterval(HttpResponse, int, HttpContext)} to achieve exponential backoff.
  */
 class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   private final int maxRetries;

@@ -26,12 +26,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
-import org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -49,7 +47,6 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
-import org.apache.hc.core5.util.TimeValue;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
@@ -74,11 +71,7 @@ public class HTTPClient implements RESTClient {
   @VisibleForTesting
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
-  private static final String RETRY_STRATEGY = "rest.client.retry-strategy";
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
-  private static final String REST_RETRY_INTERVAL_MILLIS = "rest.client.retry-interval-millis";
-  private static final String RETRY_STRATEGY_DEFAULT = "default";
-  private static final String RETRY_STRATEGY_EXPONENTIAL = "exponential";
 
   private final String uri;
   private final CloseableHttpClient httpClient;
@@ -106,23 +99,8 @@ public class HTTPClient implements RESTClient {
       clientBuilder.addRequestInterceptorLast(requestInterceptor);
     }
 
-    if (properties.containsKey(RETRY_STRATEGY)) {
-      String retryStrategy = properties.getOrDefault(RETRY_STRATEGY, RETRY_STRATEGY_DEFAULT);
-      if (RETRY_STRATEGY_DEFAULT.equalsIgnoreCase(retryStrategy)) {
-        // max retries = 1 and retry interval = 1000L are the defaults defined by
-        // DefaultHttpRequestRetryStrategy
-        int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 1);
-        long retryIntervalMillis =
-            PropertyUtil.propertyAsLong(properties, REST_RETRY_INTERVAL_MILLIS, 1000L);
-
-        clientBuilder.setRetryStrategy(
-            new DefaultHttpRequestRetryStrategy(
-                maxRetries, TimeValue.of(retryIntervalMillis, TimeUnit.MILLISECONDS)));
-      } else if (RETRY_STRATEGY_EXPONENTIAL.equalsIgnoreCase(retryStrategy)) {
-        int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
-        clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
-      }
-    }
+    int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
+    clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
 
     this.httpClient = clientBuilder.build();
   }
