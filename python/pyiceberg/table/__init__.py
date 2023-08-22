@@ -120,10 +120,7 @@ class Transaction:
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
         """Closes and commits the transaction."""
-        fresh_table = self.commit_transaction()
-        # Update the new data in place
-        self._table.metadata = fresh_table.metadata
-        self._table.metadata_location = fresh_table.metadata_location
+        self.commit_transaction()
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates.
@@ -158,7 +155,7 @@ class Transaction:
         """
         for requirement in new_requirements:
             type_new_requirement = type(requirement)
-            if any(type(update) == type_new_requirement for update in self._updates):
+            if any(type(requirement) == type_new_requirement for update in self._requirements):
                 raise ValueError(f"Requirements in a single commit need to be unique, duplicate: {type_new_requirement}")
         self._requirements = self._requirements + new_requirements
         return self
@@ -232,9 +229,7 @@ class Transaction:
                     updates=self._updates,
                 )
             )
-            # Update the metadata with the new one
-            self._table.metadata = response.metadata
-            self._table.metadata_location = response.metadata_location
+            self._table._update_table(response)  # pylint: disable=W0212
 
             return self._table
         else:
@@ -529,6 +524,10 @@ class Table:
 
     def update_schema(self) -> UpdateSchema:
         return UpdateSchema(self.schema(), self)
+
+    def _update_table(self, response: CommitTableResponse) -> None:
+        self.metadata = response.metadata
+        self.metadata_location = response.metadata_location
 
     def __eq__(self, other: Any) -> bool:
         """Returns the equality of two instances of the Table class."""
@@ -901,7 +900,14 @@ class UpdateSchema:
     _case_sensitive: bool
     _transaction: Optional[Transaction]
 
-    def __init__(self, schema: Schema, table: Table, transaction: Optional[Transaction] = None):
+    def __init__(
+        self,
+        schema: Schema,
+        table: Table,
+        transaction: Optional[Transaction] = None,
+        allow_incompatible_changes: bool = False,
+        case_sensitive: bool = True,
+    ) -> None:
         self._table = table
         self._schema = schema
         self._last_column_id = itertools.count(schema.highest_field_id + 1)
@@ -909,8 +915,8 @@ class UpdateSchema:
         self._adds = {}
         self._added_name_to_id = {}
         self._id_to_parent = {}
-        self._allow_incompatible_changes = False
-        self._case_sensitive = True
+        self._allow_incompatible_changes = allow_incompatible_changes
+        self._case_sensitive = case_sensitive
         self._transaction = transaction
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
@@ -934,7 +940,7 @@ class UpdateSchema:
         return self
 
     def add_column(
-        self, name: str, type_var: IcebergType, doc: Optional[str] = None, parent: Optional[str] = None, required: bool = False
+        self, name: Union[str, Tuple[str, ...]], type_var: IcebergType, doc: Optional[str] = None, required: bool = False
     ) -> UpdateSchema:
         """Add a new column to a nested struct or Add a new top-level column.
 
@@ -942,20 +948,19 @@ class UpdateSchema:
             name: Name for the new column.
             type_var: Type for the new column.
             doc: Documentation string for the new column.
-            parent: Name of the parent struct to the column will be added to.
             required: Whether the new column is required.
 
         Returns:
             This for method chaining
         """
-        if "." in name:
-            raise ValueError(f"Cannot add column with ambiguous name: {name}")
+        if isinstance(name, str):
+            name = (name,)
 
         if required and not self._allow_incompatible_changes:
             # Table format version 1 and 2 cannot add required column because there is no initial value
-            raise ValueError(f"Incompatible change: cannot add required column: {name}")
+            raise ValueError(f'Incompatible change: cannot add required column: {".".join(name)}')
 
-        self._internal_add_column(parent, name, not required, type_var, doc)
+        self._internal_add_column(name, not required, type_var, doc)
         return self
 
     def allow_incompatible_changes(self) -> UpdateSchema:
@@ -980,11 +985,10 @@ class UpdateSchema:
             self._transaction._append_updates(*updates)  # pylint: disable=W0212
             self._transaction._append_requirements(*requirements)  # pylint: disable=W0212
         else:
-            table_update_response = self._table.catalog._commit_table(  # pylint: disable=W0212
+            response = self._table.catalog._commit_table(  # pylint: disable=W0212
                 CommitTableRequest(identifier=self._table.identifier[1:], updates=updates, requirements=requirements)
             )
-            self._table.metadata = table_update_response.metadata
-            self._table.metadata_location = table_update_response.metadata_location
+            self._table._update_table(response)  # pylint: disable=W0212
 
     def _apply(self) -> Schema:
         """Apply the pending changes to the original schema and returns the result.
@@ -995,14 +999,16 @@ class UpdateSchema:
         return _apply_changes(self._schema, self._adds, self._identifier_field_names)
 
     def _internal_add_column(
-        self, parent: Optional[str], name: str, is_optional: bool, type_var: IcebergType, doc: Optional[str]
+        self, field_path: Tuple[str, ...], is_optional: bool, type_var: IcebergType, doc: Optional[str]
     ) -> None:
-        full_name: str = name
+        name = field_path[-1]
+        parent = field_path[:-1]
+
+        full_name = ".".join(field_path)
         parent_id: int = TABLE_ROOT_ID
 
-        exist_field: Optional[NestedField] = None
-        if parent:
-            parent_field = self._schema.find_field(parent, self._case_sensitive)
+        if len(parent) > 0:
+            parent_field = self._schema.find_field(".".join(parent), self._case_sensitive)
             parent_type = parent_field.field_type
             if isinstance(parent_type, MapType):
                 parent_field = parent_type.value_field
@@ -1014,24 +1020,14 @@ class UpdateSchema:
 
             parent_id = parent_field.field_id
 
-            try:
-                exist_field = self._schema.find_field(parent + "." + name, self._case_sensitive)
-            except ValueError:
-                pass
+        exists = False
+        try:
+            exists = self._schema.find_field(full_name, self._case_sensitive) is not None
+        except ValueError:
+            pass
 
-            if exist_field:
-                raise ValueError(f"Cannot add column, name already exists: {parent}.{name}")
-
-            full_name = parent_field.name + "." + name
-
-        else:
-            try:
-                exist_field = self._schema.find_field(name, self._case_sensitive)
-            except ValueError:
-                pass
-
-            if exist_field:
-                raise ValueError(f"Cannot add column, name already exists: {name}")
+        if exists:
+            raise ValueError(f"Cannot add column, name already exists: {full_name}")
 
         # assign new IDs in order
         new_id = self.assign_new_column_id()

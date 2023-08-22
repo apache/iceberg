@@ -892,12 +892,6 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._field_names: List[str] = []
         self._short_field_names: List[str] = []
 
-    def before_map_key(self, key: NestedField) -> None:
-        self.before_field(key)
-
-    def after_map_key(self, key: NestedField) -> None:
-        self.after_field(key)
-
     def before_map_value(self, value: NestedField) -> None:
         if not isinstance(value.field_type, StructType):
             self._short_field_names.append(value.name)
