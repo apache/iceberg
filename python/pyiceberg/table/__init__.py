@@ -111,7 +111,6 @@ class Transaction:
         requirements: Optional[Tuple[TableRequirement, ...]] = None,
     ):
         self._table = table
-        self._table_metadata = table.metadata
         self._updates = actions or ()
         self._requirements = requirements or ()
 
@@ -136,13 +135,32 @@ class Transaction:
             ValueError: When the type of update is not unique.
 
         Returns:
-            A new AlterTable object with the new updates appended.
+            Transaction object with the new updates appended.
         """
         for new_update in new_updates:
             type_new_update = type(new_update)
             if any(type(update) == type_new_update for update in self._updates):
                 raise ValueError(f"Updates in a single commit need to be unique, duplicate: {type_new_update}")
         self._updates = self._updates + new_updates
+        return self
+
+    def _append_requirements(self, *new_requirements: TableRequirement) -> Transaction:
+        """Appends requirements to the set of staged requirements.
+
+        Args:
+            *new_requirements: Any new requirements.
+
+        Raises:
+            ValueError: When the type of requirement is not unique.
+
+        Returns:
+            Transaction object with the new requirements appended.
+        """
+        for requirement in new_requirements:
+            type_new_requirement = type(requirement)
+            if any(type(update) == type_new_requirement for update in self._updates):
+                raise ValueError(f"Requirements in a single commit need to be unique, duplicate: {type_new_requirement}")
+        self._requirements = self._requirements + new_requirements
         return self
 
     def set_table_version(self, format_version: Literal[1, 2]) -> Transaction:
@@ -205,9 +223,6 @@ class Transaction:
         Returns:
             The table with the updates applied.
         """
-        if self._table.metadata != self._table_metadata:
-            raise RuntimeError("Table metadata refresh is required")
-
         # Strip the catalog name
         if len(self._updates) > 0:
             response = self._table.catalog._commit_table(  # pylint: disable=W0212
@@ -954,29 +969,22 @@ class UpdateSchema:
 
     def commit(self) -> None:
         """Apply the pending changes and commit."""
-        if self._transaction is not None:
-            if self._table.metadata != self._transaction._table_metadata:  # pylint: disable=W0212
-                raise RuntimeError("Table metadata refresh is required")
-            new_schema = self._apply()
-            self._transaction._append_updates(  # pylint: disable=W0212
-                AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id)
-            )
-            return
-
-        # Strip the catalog name
         new_schema = self._apply()
-        table_update_response = self._table.catalog._commit_table(  # pylint: disable=W0212
-            CommitTableRequest(
-                identifier=self._table.identifier[1:],
-                updates=[
-                    AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id),
-                    SetCurrentSchemaUpdate(schema_id=-1),
-                ],
-            )
-        )
+        updates = [
+            AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id),
+            SetCurrentSchemaUpdate(schema_id=-1),
+        ]
+        requirements = [AssertCurrentSchemaId(current_schema_id=self._schema.schema_id)]
 
-        self._table.metadata = table_update_response.metadata
-        self._table.metadata_location = table_update_response.metadata_location
+        if self._transaction is not None:
+            self._transaction._append_updates(*updates)  # pylint: disable=W0212
+            self._transaction._append_requirements(*requirements)  # pylint: disable=W0212
+        else:
+            table_update_response = self._table.catalog._commit_table(  # pylint: disable=W0212
+                CommitTableRequest(identifier=self._table.identifier[1:], updates=updates, requirements=requirements)
+            )
+            self._table.metadata = table_update_response.metadata
+            self._table.metadata_location = table_update_response.metadata_location
 
     def _apply(self) -> Schema:
         """Apply the pending changes to the original schema and returns the result.

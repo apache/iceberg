@@ -25,7 +25,7 @@ import pytest
 from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.exceptions import NoSuchTableError
+from pyiceberg.exceptions import CommitFailedException, NoSuchTableError
 from pyiceberg.expressions import (
     And,
     EqualTo,
@@ -40,8 +40,10 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.types import (
     BooleanType,
+    DoubleType,
     FixedType,
     IntegerType,
+    LongType,
     NestedField,
     StringType,
     TimestampType,
@@ -395,18 +397,48 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
     )
 
-    t = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
+    tbl = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
 
-    assert t.schema() == schema
+    assert tbl.schema() == schema
 
-    with t.transaction() as tx:
+    with tbl.transaction() as tx:
         tx.update_schema().add_column("col_string", StringType()).commit()
 
-    t = catalog.load_table("default.test_schema_evolution")
-
-    assert t.schema() == Schema(
+    assert tbl.schema() == Schema(
         NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
         NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
+        schema_id=1,
+    )
+
+    tbl.update_schema().add_column("col_integer", IntegerType()).commit()
+
+    assert tbl.schema() == Schema(
+        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
+        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
+        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
+        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
+        schema_id=1,
+    )
+
+    with pytest.raises(CommitFailedException) as exc_info:
+        with tbl.transaction() as tx:
+            # Start a new update
+            schema_update = tx.update_schema()
+
+            # Do a concurrent update
+            tbl.update_schema().add_column("col_long", LongType()).commit()
+
+            # stage another update in the transaction
+            schema_update.add_column("col_double", DoubleType()).commit()
+
+    assert "Requirement failed: current schema changed: expected id 2 != 3" in str(exc_info.value)
+
+    assert tbl.schema() == Schema(
+        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
+        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
+        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
+        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
+        NestedField(field_id=5, name="col_long", field_type=LongType(), required=False),
         schema_id=1,
     )
