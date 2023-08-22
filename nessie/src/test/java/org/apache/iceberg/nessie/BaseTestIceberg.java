@@ -124,7 +124,7 @@ public abstract class BaseTestIceberg {
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
     if (!branch.equals(defaultBranch.getName())) {
-      api.createReference().reference(Branch.of(branch, null)).create();
+      createBranch(branch, initialHashOfDefaultBranch);
     }
 
     hadoopConfig = new Configuration();
