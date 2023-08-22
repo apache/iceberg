@@ -202,6 +202,10 @@ public abstract class BaseTestIceberg {
     return new Schema(Types.StructType.of(fields).fields());
   }
 
+  void createBranch(String name) throws NessieNotFoundException, NessieConflictException {
+    createBranch(name, catalog.currentHash());
+  }
+
   void createBranch(String name, String hash)
       throws NessieNotFoundException, NessieConflictException {
     createBranch(name, hash, "main");
