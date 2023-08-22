@@ -559,7 +559,7 @@ public class Types {
      *
      * <p>Accessors do not retrieve data contained in lists or maps.
      *
-     * @param id a column id in this schema
+     * @param id the field id in this struct
      * @return an {@link Accessor} to retrieve values from a {@link StructLike} row
      */
     public Accessor<StructLike> accessorForField(int id) {
