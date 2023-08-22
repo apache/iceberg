@@ -295,6 +295,13 @@ public class TestLocalScan {
         Sets.newHashSet(file1FirstSnapshotRecords),
         Sets.newHashSet(result));
 
+    result = IcebergGenerics.read(sharedTable).where(lessThan("iD", 3)).caseInsensitive().build();
+
+    Assert.assertEquals(
+        "Records should match file 1",
+        Sets.newHashSet(file1FirstSnapshotRecords),
+        Sets.newHashSet(result));
+
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
     Assert.assertEquals(
@@ -306,6 +313,7 @@ public class TestLocalScan {
   @Test
   public void testProject() {
     verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("id").build());
+    verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("iD").caseInsensitive().build());
   }
 
   private void verifyProjectIdColumn(Iterable<Record> results) {
