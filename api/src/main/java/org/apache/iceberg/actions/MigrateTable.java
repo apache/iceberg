@@ -19,10 +19,8 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
-import org.immutables.value.Value;
 
 /** An action that migrates an existing table to Iceberg. */
-@Value.Enclosing
 public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> {
   /**
    * Sets table properties in the newly created Iceberg table. Any properties with the same key name
@@ -52,8 +50,17 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Dropping a backup is not supported");
   }
 
+  /**
+   * Sets a table name for the backup of the original table.
+   *
+   * @param tableName the table name for backup
+   * @return this for method chaining
+   */
+  default MigrateTable backupTableName(String tableName) {
+    throw new UnsupportedOperationException("Backup table name cannot be specified");
+  }
+
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     /** Returns the number of migrated data files. */
     long migratedDataFilesCount();

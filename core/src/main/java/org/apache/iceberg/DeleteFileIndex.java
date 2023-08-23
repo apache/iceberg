@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -74,6 +76,8 @@ class DeleteFileIndex {
   private final Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition;
   private final boolean isEmpty;
 
+  /** @deprecated since 1.4.0, will be removed in 1.5.0. */
+  @Deprecated
   DeleteFileIndex(
       Map<Integer, PartitionSpec> specs,
       long[] globalSeqs,
@@ -89,7 +93,7 @@ class DeleteFileIndex {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specs.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
-    this.wrapperById = Maps.newConcurrentMap();
+    this.wrapperById = wrappers(specs);
     this.globalDeletes = globalDeletes;
     this.deletesByPartition = deletesByPartition;
     this.isEmpty = globalDeletes == null && deletesByPartition.isEmpty();
@@ -113,13 +117,20 @@ class DeleteFileIndex {
     return deleteFiles;
   }
 
-  private StructLikeWrapper newWrapper(int specId) {
-    return StructLikeWrapper.forType(partitionTypeById.get(specId));
+  // use HashMap with precomputed values instead of thread-safe collections loaded on demand
+  // as the cache is being accessed for each data file and the lookup speed is critical
+  private Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers(Map<Integer, PartitionSpec> specs) {
+    Map<Integer, ThreadLocal<StructLikeWrapper>> wrappers = Maps.newHashMap();
+    specs.forEach((specId, spec) -> wrappers.put(specId, newWrapper(specId)));
+    return wrappers;
+  }
+
+  private ThreadLocal<StructLikeWrapper> newWrapper(int specId) {
+    return ThreadLocal.withInitial(() -> StructLikeWrapper.forType(partitionTypeById.get(specId)));
   }
 
   private Pair<Integer, StructLikeWrapper> partition(int specId, StructLike struct) {
-    ThreadLocal<StructLikeWrapper> wrapper =
-        wrapperById.computeIfAbsent(specId, id -> ThreadLocal.withInitial(() -> newWrapper(id)));
+    ThreadLocal<StructLikeWrapper> wrapper = wrapperById.get(specId);
     return Pair.of(specId, wrapper.get().set(struct));
   }
 
@@ -366,9 +377,14 @@ class DeleteFileIndex {
     return new Builder(io, Sets.newHashSet(deleteManifests));
   }
 
+  static Builder builderFor(Iterable<DeleteFile> deleteFiles) {
+    return new Builder(deleteFiles);
+  }
+
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
+    private final Iterable<DeleteFile> deleteFiles;
     private long minSequenceNumber = 0L;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
@@ -381,6 +397,13 @@ class DeleteFileIndex {
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
+      this.deleteFiles = null;
+    }
+
+    Builder(Iterable<DeleteFile> deleteFiles) {
+      this.io = null;
+      this.deleteManifests = null;
+      this.deleteFiles = deleteFiles;
     }
 
     Builder afterSequenceNumber(long seq) {
@@ -394,16 +417,22 @@ class DeleteFileIndex {
     }
 
     Builder filterData(Expression newDataFilter) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support data filters");
       this.dataFilter = Expressions.and(dataFilter, newDataFilter);
       return this;
     }
 
     Builder filterPartitions(Expression newPartitionFilter) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support partition filters");
       this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
       return this;
     }
 
     Builder filterPartitions(PartitionSet newPartitionSet) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support partition filters");
       this.partitionSet = newPartitionSet;
       return this;
     }
@@ -423,7 +452,11 @@ class DeleteFileIndex {
       return this;
     }
 
-    DeleteFileIndex build() {
+    private Iterable<DeleteFile> filterDeleteFiles() {
+      return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
+    }
+
+    private Collection<DeleteFile> loadDeleteFiles() {
       // read all of the matching delete manifests in parallel and accumulate the matching files in
       // a queue
       Queue<DeleteFile> files = new ConcurrentLinkedQueue<>();
@@ -444,6 +477,11 @@ class DeleteFileIndex {
                   throw new RuntimeIOException(e, "Failed to close");
                 }
               });
+      return files;
+    }
+
+    DeleteFileIndex build() {
+      Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
       // build a map from (specId, partition) to delete file entries
       Map<Integer, StructLikeWrapper> wrappersBySpecId = Maps.newHashMap();
@@ -457,6 +495,7 @@ class DeleteFileIndex {
                 .computeIfAbsent(specId, id -> StructLikeWrapper.forType(spec.partitionType()))
                 .copyFor(file.partition());
         deleteFilesByPartition.put(Pair.of(specId, wrapper), new IndexedDeleteFile(spec, file));
+        ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }
 
       // sort the entries in each map value by sequence number and split into sequence numbers and
@@ -495,19 +534,6 @@ class DeleteFileIndex {
           sortedDeletesByPartition.put(partition, new DeleteFileGroup(filesSortedBySeq));
         }
       }
-
-      scanMetrics.indexedDeleteFiles().increment(files.size());
-      deleteFilesByPartition
-          .values()
-          .forEach(
-              file -> {
-                FileContent content = file.content();
-                if (content == FileContent.EQUALITY_DELETES) {
-                  scanMetrics.equalityDeleteFiles().increment();
-                } else if (content == FileContent.POSITION_DELETES) {
-                  scanMetrics.positionalDeleteFiles().increment();
-                }
-              });
 
       return new DeleteFileIndex(specsById, globalDeletes, sortedDeletesByPartition);
     }

@@ -28,6 +28,7 @@ import os
 import re
 import string
 import uuid
+from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
@@ -56,13 +57,23 @@ from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
-from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.catalog.noop import NoopCatalog
+from pyiceberg.io import (
+    GCS_ENDPOINT,
+    GCS_PROJECT_ID,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT_MS,
+    OutputFile,
+    OutputStream,
+    fsspec,
+    load_file_io,
+)
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import FileScanTask
+from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
@@ -78,6 +89,7 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from pyiceberg.utils.datetime import datetime_to_millis
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -113,6 +125,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
         help="The ADLS secret account key for tests marked as adlfs",
     )
+    parser.addoption(
+        "--gcs.endpoint", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+    )
+    parser.addoption(
+        "--gcs.oauth2.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs"
+    )
+    parser.addoption("--gcs.project-id", action="store", default="test", help="The GCP project for tests marked gcs")
 
 
 @pytest.fixture(scope="session")
@@ -160,6 +179,63 @@ def table_schema_nested() -> Schema:
                     NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
                 ),
                 element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+@pytest.fixture(scope="session")
+def table_schema_nested_with_struct_key_map() -> Schema:
+    return schema.Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=11,
+            name="location",
+            field_type=MapType(
+                key_id=18,
+                value_id=19,
+                key_type=StructType(
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=False),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=False),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=False),
+                ),
+                value_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                ),
+                value_required=True,
             ),
             required=True,
         ),
@@ -294,7 +370,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
             ],
         }
     ],
-    "properties": {"read.split.target.size": 134217728},
+    "properties": {"read.split.target.size": "134217728"},
     "current-snapshot-id": 3055729675574597004,
     "snapshots": [
         {
@@ -1297,6 +1373,27 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     return fsspec.FsspecFileIO(properties=properties)
 
 
+@pytest.fixture
+def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)
+
+
+@pytest.fixture
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+        GCS_TOKEN_EXPIRES_AT_MS: datetime_to_millis(datetime.now()) + 60 * 1000,
+    }
+    return PyArrowFileIO(properties=properties)
+
+
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
     """A mocked aws response implementation (for test use only).
 
@@ -1510,7 +1607,7 @@ def clean_up(test_catalog: Catalog) -> None:
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
-        metadata={"iceberg.schema": table_schema_simple.json()},
+        metadata={"iceberg.schema": table_schema_simple.model_dump_json()},
     )
 
     file_path = f"{tmp_path}/0000-data.parquet"
@@ -1522,4 +1619,16 @@ def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
 def example_task(data_file: str) -> FileScanTask:
     return FileScanTask(
         data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )
+
+
+@pytest.fixture
+def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
+    return Table(
+        identifier=("database", "table"),
+        metadata=table_metadata,
+        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
+        io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )

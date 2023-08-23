@@ -373,7 +373,7 @@ def test_string_to_uuid_literal() -> None:
     uuid_str = literal(str(expected))
     uuid_lit = uuid_str.to(UUIDType())
 
-    assert expected == uuid_lit.value
+    assert expected.bytes == uuid_lit.value
 
 
 def test_string_to_decimal_literal() -> None:
@@ -503,6 +503,22 @@ def test_binary_to_smaller_fixed_none() -> None:
     assert "Cannot convert BinaryLiteral into fixed[2], different length: 2 <> 3" in str(e.value)
 
 
+def test_binary_to_uuid() -> None:
+    test_uuid = uuid.uuid4()
+    lit = literal(test_uuid.bytes)
+    uuid_lit = lit.to(UUIDType())
+    assert uuid_lit is not None
+    assert lit.value == uuid_lit.value
+    assert uuid_lit.value == test_uuid.bytes
+
+
+def test_incompatible_binary_to_uuid() -> None:
+    lit = literal(bytes([0x00, 0x01, 0x02]))
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(UUIDType())
+        assert "Cannot convert BinaryLiteral into uuid, different length: 16 <> 3" in str(e.value)
+
+
 def test_fixed_to_binary() -> None:
     lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
     binary_lit = lit.to(BinaryType())
@@ -515,6 +531,22 @@ def test_fixed_to_smaller_fixed_none() -> None:
     with pytest.raises(ValueError) as e:
         lit.to(lit.to(FixedType(2)))
     assert "Could not convert b'\\x00\\x01\\x02' into a fixed[2]" in str(e.value)
+
+
+def test_fixed_to_uuid() -> None:
+    test_uuid = uuid.uuid4()
+    lit = literal(test_uuid.bytes).to(FixedType(16))
+    uuid_lit = lit.to(UUIDType())
+    assert uuid_lit is not None
+    assert lit.value == uuid_lit.value
+    assert uuid_lit.value == test_uuid.bytes
+
+
+def test_incompatible_fixed_to_uuid() -> None:
+    lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(UUIDType())
+        assert "Cannot convert BinaryLiteral into uuid, different length: 16 <> 3" in str(e.value)
 
 
 def test_above_max_float() -> None:
@@ -843,6 +875,13 @@ def test_decimal_literal_dencrement() -> None:
     assert dec.decrement().value.as_tuple() == Decimal("10.122").as_tuple()
 
 
+def test_uuid_literal_initialization() -> None:
+    test_uuid = uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")
+    uuid_literal = literal(test_uuid)
+    assert isinstance(uuid_literal, Literal)
+    assert test_uuid.bytes == uuid_literal.value
+
+
 #   __  __      ___
 #  |  \/  |_  _| _ \_  _
 #  | |\/| | || |  _/ || |
@@ -853,7 +892,6 @@ assert_type(literal("str"), Literal[str])
 assert_type(literal(True), Literal[bool])
 assert_type(literal(123), Literal[int])
 assert_type(literal(123.4), Literal[float])
-assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
 assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
 assert_type(literal(Decimal("19.25")), Literal[Decimal])
 assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])

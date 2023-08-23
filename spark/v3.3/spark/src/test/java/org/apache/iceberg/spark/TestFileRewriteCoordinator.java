@@ -99,7 +99,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
           taskSetManager.fetchTasks(table, fileSetID).stream()
               .map(t -> t.asFileScanTask().file())
               .collect(Collectors.toSet());
-      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
+      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
 
@@ -169,7 +169,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
           taskSetManager.fetchTasks(table, fileSetID).stream()
               .map(t -> t.asFileScanTask().file())
               .collect(Collectors.toSet());
-      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
+      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
 
@@ -247,7 +247,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
             .collect(Collectors.toSet());
     Set<DataFile> addedFiles =
         fileSetIDs.stream()
-            .flatMap(fileSetID -> rewriteCoordinator.fetchNewDataFiles(table, fileSetID).stream())
+            .flatMap(fileSetID -> rewriteCoordinator.fetchNewFiles(table, fileSetID).stream())
             .collect(Collectors.toSet());
     table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
 

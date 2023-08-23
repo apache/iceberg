@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -130,18 +132,28 @@ public class PositionDeletesTable extends BaseMetadataTable {
   public static class PositionDeletesBatchScan
       extends SnapshotScan<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> implements BatchScan {
 
+    private Expression baseTableFilter = Expressions.alwaysTrue();
+
     protected PositionDeletesBatchScan(Table table, Schema schema) {
       super(table, schema, TableScanContext.empty());
     }
 
+    /** @deprecated the API will be removed in v1.5.0 */
+    @Deprecated
     protected PositionDeletesBatchScan(Table table, Schema schema, TableScanContext context) {
       super(table, schema, context);
+    }
+
+    protected PositionDeletesBatchScan(
+        Table table, Schema schema, TableScanContext context, Expression baseTableFilter) {
+      super(table, schema, context);
+      this.baseTableFilter = baseTableFilter;
     }
 
     @Override
     protected PositionDeletesBatchScan newRefinedScan(
         Table newTable, Schema newSchema, TableScanContext newContext) {
-      return new PositionDeletesBatchScan(newTable, newSchema, newContext);
+      return new PositionDeletesBatchScan(newTable, newSchema, newContext, baseTableFilter);
     }
 
     @Override
@@ -155,6 +167,32 @@ public class PositionDeletesTable extends BaseMetadataTable {
       return context().returnColumnStats() ? DELETE_SCAN_WITH_STATS_COLUMNS : DELETE_SCAN_COLUMNS;
     }
 
+    /**
+     * Sets a filter that applies on base table of this position deletes table, to use for this
+     * scan.
+     *
+     * <p>Only the partition expressions part of the filter will be applied to the position deletes
+     * table, as the schema of the base table does not otherwise match the schema of position
+     * deletes table.
+     *
+     * <ul>
+     *   <li>Only the partition expressions of the filter that can be projected on the base table
+     *       partition specs, via {@link
+     *       org.apache.iceberg.expressions.Projections.ProjectionEvaluator#project(Expression)}
+     *       will be evaluated. Note, not all partition expressions can be projected.
+     *   <li>Because it cannot apply beyond the partition expression, this filter will not
+     *       contribute to the residuals of tasks returned by this scan. (See {@link
+     *       PositionDeletesScanTask#residual()})
+     * </ul>
+     *
+     * @param expr expression filter that applies on the base table of this posiiton deletes table
+     * @return this for method chaining
+     */
+    public BatchScan baseTableFilter(Expression expr) {
+      return new PositionDeletesBatchScan(
+          table(), schema(), context(), Expressions.and(baseTableFilter, expr));
+    }
+
     @Override
     protected CloseableIterable<ScanTask> doPlanFiles() {
       String schemaString = SchemaParser.toJson(tableSchema());
@@ -162,22 +200,26 @@ public class PositionDeletesTable extends BaseMetadataTable {
       // prepare transformed partition specs and caches
       Map<Integer, PartitionSpec> transformedSpecs = transformSpecs(tableSchema(), table().specs());
 
+      LoadingCache<Integer, String> specStringCache =
+          partitionCacheOf(transformedSpecs, PartitionSpecParser::toJson);
+      LoadingCache<Integer, ManifestEvaluator> deletesTableEvalCache =
+          partitionCacheOf(
+              transformedSpecs,
+              spec -> ManifestEvaluator.forRowFilter(filter(), spec, isCaseSensitive()));
+      LoadingCache<Integer, ManifestEvaluator> baseTableEvalCache =
+          partitionCacheOf(
+              table().specs(), // evaluate base table filters on base table specs
+              spec -> ManifestEvaluator.forRowFilter(baseTableFilter, spec, isCaseSensitive()));
       LoadingCache<Integer, ResidualEvaluator> residualCache =
           partitionCacheOf(
               transformedSpecs,
               spec ->
                   ResidualEvaluator.of(
                       spec,
+                      // there are no applicable filters in the base table's filter
+                      // that we can use to evaluate on the position deletes table
                       shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter(),
                       isCaseSensitive()));
-
-      LoadingCache<Integer, String> specStringCache =
-          partitionCacheOf(transformedSpecs, PartitionSpecParser::toJson);
-
-      LoadingCache<Integer, ManifestEvaluator> evalCache =
-          partitionCacheOf(
-              transformedSpecs,
-              spec -> ManifestEvaluator.forRowFilter(filter(), spec, isCaseSensitive()));
 
       // iterate through delete manifests
       List<ManifestFile> manifests = snapshot().deleteManifests(table().io());
@@ -186,8 +228,9 @@ public class PositionDeletesTable extends BaseMetadataTable {
           CloseableIterable.filter(
               scanMetrics().skippedDeleteManifests(),
               CloseableIterable.withNoopClose(manifests),
-              manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
+              manifest ->
+                  baseTableEvalCache.get(manifest.partitionSpecId()).eval(manifest)
+                      && deletesTableEvalCache.get(manifest.partitionSpecId()).eval(manifest));
       matchingManifests =
           CloseableIterable.count(scanMetrics().scannedDeleteManifests(), matchingManifests);
 
@@ -196,7 +239,12 @@ public class PositionDeletesTable extends BaseMetadataTable {
               matchingManifests,
               manifest ->
                   posDeletesScanTasks(
-                      manifest, schemaString, transformedSpecs, residualCache, specStringCache));
+                      manifest,
+                      table().specs().get(manifest.partitionSpecId()),
+                      schemaString,
+                      transformedSpecs,
+                      residualCache,
+                      specStringCache));
 
       if (planExecutor() != null) {
         return new ParallelIterable<>(tasks, planExecutor());
@@ -207,6 +255,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
     private CloseableIterable<ScanTask> posDeletesScanTasks(
         ManifestFile manifest,
+        PartitionSpec spec,
         String schemaString,
         Map<Integer, PartitionSpec> transformedSpecs,
         LoadingCache<Integer, ResidualEvaluator> residualCache,
@@ -223,12 +272,16 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
         @Override
         public CloseableIterator<ScanTask> iterator() {
+          Expression partitionFilter =
+              Projections.inclusive(spec, isCaseSensitive()).project(baseTableFilter);
+
           // Filter partitions
           CloseableIterable<ManifestEntry<DeleteFile>> deleteFileEntries =
               ManifestFiles.readDeleteManifest(manifest, table().io(), transformedSpecs)
                   .caseSensitive(isCaseSensitive())
                   .select(scanColumns())
                   .filterRows(filter())
+                  .filterPartitions(partitionFilter)
                   .scanMetrics(scanMetrics())
                   .liveEntries();
 

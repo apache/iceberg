@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-mkdocs==1.4.3
-griffe==0.32.3
+mkdocs==1.5.2
+griffe==0.33.0
 jinja2==3.1.2
 mkdocstrings==0.22.0
-mkdocstrings-python==1.1.2
+mkdocstrings-python==1.4.0
 mkdocs-literate-nav==0.6.0
-mkdocs-autorefs==0.4.1
+mkdocs-autorefs==0.5.0
 mkdocs-gen-files==0.5.0
-mkdocs-material==9.1.19
+mkdocs-material==9.1.21
 mkdocs-material-extensions==1.1.1
 mkdocs-section-index==0.3.5

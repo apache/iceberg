@@ -75,11 +75,22 @@ statement
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     | ALTER TABLE multipartIdentifier createReplaceBranchClause                             #createOrReplaceBranch
     | ALTER TABLE multipartIdentifier DROP BRANCH (IF EXISTS)? identifier                   #dropBranch
+    | ALTER TABLE multipartIdentifier createReplaceTagClause                                #createOrReplaceTag
+    | ALTER TABLE multipartIdentifier DROP TAG (IF EXISTS)? identifier                      #dropTag
     ;
 
 createReplaceBranchClause
     : (CREATE OR)? REPLACE BRANCH identifier branchOptions
     | CREATE BRANCH (IF NOT EXISTS)? identifier branchOptions
+    ;
+
+createReplaceTagClause
+    : (CREATE OR)? REPLACE TAG identifier tagOptions
+    | CREATE TAG (IF NOT EXISTS)? identifier tagOptions
+    ;
+
+tagOptions
+    : (AS OF VERSION snapshotId)? (refRetain)?
     ;
 
 branchOptions
@@ -200,7 +211,7 @@ fieldList
 nonReserved
     : ADD | ALTER | AS | ASC | BRANCH | BY | CALL | CREATE | DAYS | DESC | DROP | EXISTS | FIELD | FIRST | HOURS | IF | LAST | NOT | NULLS | OF | OR | ORDERED | PARTITION | TABLE | WRITE
     | DISTRIBUTED | LOCALLY | MINUTES | MONTHS | UNORDERED | REPLACE | RETAIN | RETENTION | VERSION | WITH | IDENTIFIER_KW | FIELDS | SET | SNAPSHOT | SNAPSHOTS
-    | TRUE | FALSE
+    |  TAG | TRUE | FALSE
     | MAP
     ;
 
@@ -250,6 +261,7 @@ SET: 'SET';
 SNAPSHOT: 'SNAPSHOT';
 SNAPSHOTS: 'SNAPSHOTS';
 TABLE: 'TABLE';
+TAG: 'TAG';
 UNORDERED: 'UNORDERED';
 VERSION: 'VERSION';
 WITH: 'WITH';

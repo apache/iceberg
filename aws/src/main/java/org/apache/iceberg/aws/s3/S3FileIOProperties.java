@@ -246,6 +246,17 @@ public class S3FileIOProperties implements Serializable {
   public static final boolean WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
 
   /**
+   * Used by {@link S3FileIO} to tag objects' storage class when writing. To set, we can pass a
+   * catalog property. After set, x-amz-storage-class header will be set to this property
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/storage-class-intro.html
+   *
+   * <p>Example: s3.write.storage-class=INTELLIGENT_TIERING
+   */
+  public static final String WRITE_STORAGE_CLASS = "s3.write.storage-class";
+
+  /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
    * property.
    *
@@ -368,6 +379,7 @@ public class S3FileIOProperties implements Serializable {
   private boolean isAccelerationEnabled;
   private String endpoint;
   private final boolean isRemoteSigningEnabled;
+  private String writeStorageClass;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -486,6 +498,7 @@ public class S3FileIOProperties implements Serializable {
     this.isRemoteSigningEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
+    this.writeStorageClass = properties.get(WRITE_STORAGE_CLASS);
     this.allProperties = SerializableMap.copyOf(properties);
 
     ValidationException.check(
@@ -659,6 +672,10 @@ public class S3FileIOProperties implements Serializable {
 
   public String sessionToken() {
     return sessionToken;
+  }
+
+  public String writeStorageClass() {
+    return writeStorageClass;
   }
 
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {

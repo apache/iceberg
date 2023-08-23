@@ -22,12 +22,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 
 class ViewVersionParser {
@@ -55,10 +53,8 @@ class ViewVersionParser {
       generator.writeStringField(DEFAULT_CATALOG, version.defaultCatalog());
     }
 
-    if (version.defaultNamespace() != null) {
-      JsonUtil.writeStringArray(
-          DEFAULT_NAMESPACE, Arrays.asList(version.defaultNamespace().levels()), generator);
-    }
+    JsonUtil.writeStringArray(
+        DEFAULT_NAMESPACE, Arrays.asList(version.defaultNamespace().levels()), generator);
 
     generator.writeArrayFieldStart(REPRESENTATIONS);
     for (ViewRepresentation representation : version.representations()) {
@@ -98,11 +94,8 @@ class ViewVersionParser {
 
     String defaultCatalog = JsonUtil.getStringOrNull(DEFAULT_CATALOG, node);
 
-    List<String> namespace = JsonUtil.getStringListOrNull(DEFAULT_NAMESPACE, node);
-    Namespace defaultNamespace = null;
-    if (namespace != null && !namespace.isEmpty()) {
-      defaultNamespace = Namespace.of(Iterables.toArray(namespace, String.class));
-    }
+    Namespace defaultNamespace =
+        Namespace.of(JsonUtil.getStringArray(JsonUtil.get(DEFAULT_NAMESPACE, node)));
 
     return ImmutableViewVersion.builder()
         .versionId(versionId)

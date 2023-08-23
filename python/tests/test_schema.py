@@ -21,19 +21,55 @@ from typing import Any, Dict
 import pytest
 
 from pyiceberg import schema
+from pyiceberg.exceptions import ResolveError
 from pyiceberg.expressions import Accessor
-from pyiceberg.schema import Schema, build_position_accessors, prune_columns
+from pyiceberg.schema import (
+    Schema,
+    build_position_accessors,
+    promote,
+    prune_columns,
+)
 from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
+    BinaryType,
     BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
+    LongType,
     MapType,
     NestedField,
     StringType,
     StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
 )
+
+TEST_PRIMITIVE_TYPES = [
+    BooleanType(),
+    IntegerType(),
+    LongType(),
+    FloatType(),
+    DoubleType(),
+    DecimalType(10, 2),
+    DecimalType(100, 2),
+    StringType(),
+    DateType(),
+    TimeType(),
+    TimestamptzType(),
+    TimestampType(),
+    BinaryType(),
+    FixedType(16),
+    FixedType(20),
+    UUIDType(),
+]
 
 
 def test_schema_str(table_schema_simple: Schema) -> None:
@@ -50,7 +86,7 @@ def test_schema_str(table_schema_simple: Schema) -> None:
 
 def test_schema_repr_single_field() -> None:
     """Test schema representation"""
-    actual = repr(schema.Schema(NestedField(1, "foo", StringType()), schema_id=1))
+    actual = repr(schema.Schema(NestedField(field_id=1, name="foo", field_type=StringType()), schema_id=1))
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
 
@@ -58,7 +94,11 @@ def test_schema_repr_single_field() -> None:
 def test_schema_repr_two_fields() -> None:
     """Test schema representation"""
     actual = repr(
-        schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1)
+        schema.Schema(
+            NestedField(field_id=1, name="foo", field_type=StringType()),
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), required=False),
+            schema_id=1,
+        )
     )
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
@@ -154,6 +194,53 @@ def test_schema_index_by_id_visitor(table_schema_nested: Schema) -> None:
 
 def test_schema_index_by_name_visitor(table_schema_nested: Schema) -> None:
     """Test index_by_name visitor function"""
+    table_schema_nested = schema.Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=11,
+            name="location",
+            field_type=ListType(
+                element_id=12,
+                element_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
     index = schema.index_by_name(table_schema_nested)
     assert index == {
         "foo": 1,
@@ -247,78 +334,6 @@ def test_schema_find_field_type_by_id(table_schema_simple: Schema) -> None:
     assert index[3] == NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False)
 
 
-def test_index_by_id_schema_visitor(table_schema_nested: Schema) -> None:
-    """Test the index_by_id function that uses the IndexById schema visitor"""
-    assert schema.index_by_id(table_schema_nested) == {
-        1: NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-        2: NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-        3: NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        4: NestedField(
-            field_id=4,
-            name="qux",
-            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
-            required=True,
-        ),
-        5: NestedField(field_id=5, name="element", field_type=StringType(), required=True),
-        6: NestedField(
-            field_id=6,
-            name="quux",
-            field_type=MapType(
-                key_id=7,
-                key_type=StringType(),
-                value_id=8,
-                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
-                value_required=True,
-            ),
-            required=True,
-        ),
-        7: NestedField(field_id=7, name="key", field_type=StringType(), required=True),
-        8: NestedField(
-            field_id=8,
-            name="value",
-            field_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
-            required=True,
-        ),
-        9: NestedField(field_id=9, name="key", field_type=StringType(), required=True),
-        10: NestedField(field_id=10, name="value", field_type=IntegerType(), required=True),
-        11: NestedField(
-            field_id=11,
-            name="location",
-            field_type=ListType(
-                element_id=12,
-                element_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-                ),
-                element_required=True,
-            ),
-            required=True,
-        ),
-        12: NestedField(
-            field_id=12,
-            name="element",
-            field_type=StructType(
-                NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-            ),
-            required=True,
-        ),
-        13: NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-        14: NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-        15: NestedField(
-            field_id=15,
-            name="person",
-            field_type=StructType(
-                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-            ),
-            required=False,
-        ),
-        16: NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-        17: NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-    }
-
-
 def test_index_by_id_schema_visitor_raise_on_unregistered_type() -> None:
     """Test raising a NotImplementedError when an invalid type is provided to the index_by_id function"""
     with pytest.raises(NotImplementedError) as exc_info:
@@ -403,13 +418,13 @@ def test_build_position_accessors_with_struct(table_schema_nested: Schema) -> No
 
 
 def test_serialize_schema(table_schema_simple: Schema) -> None:
-    actual = table_schema_simple.json()
-    expected = """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
+    actual = table_schema_simple.model_dump_json()
+    expected = """{"type":"struct","fields":[{"id":1,"name":"foo","type":"string","required":false},{"id":2,"name":"bar","type":"int","required":true},{"id":3,"name":"baz","type":"boolean","required":false}],"schema-id":1,"identifier-field-ids":[2]}"""
     assert actual == expected
 
 
 def test_deserialize_schema(table_schema_simple: Schema) -> None:
-    actual = Schema.parse_raw(
+    actual = Schema.model_validate_json(
         """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
     )
     expected = table_schema_simple
@@ -691,3 +706,37 @@ def test_schema_select_cant_be_found(table_schema_nested: Schema) -> None:
     with pytest.raises(ValueError) as exc_info:
         table_schema_nested.select("BAZ", case_sensitive=True)
     assert "Could not find column: 'BAZ'" in str(exc_info.value)
+
+
+def should_promote(file_type: IcebergType, read_type: IcebergType) -> bool:
+    if isinstance(file_type, IntegerType) and isinstance(read_type, LongType):
+        return True
+    if isinstance(file_type, FloatType) and isinstance(read_type, DoubleType):
+        return True
+    if isinstance(file_type, StringType) and isinstance(read_type, BinaryType):
+        return True
+    if isinstance(file_type, BinaryType) and isinstance(read_type, StringType):
+        return True
+    if isinstance(file_type, DecimalType) and isinstance(read_type, DecimalType):
+        return file_type.precision <= read_type.precision and file_type.scale == file_type.scale
+    if isinstance(file_type, FixedType) and isinstance(read_type, UUIDType) and len(file_type) == 16:
+        return True
+    return False
+
+
+@pytest.mark.parametrize(
+    "file_type",
+    TEST_PRIMITIVE_TYPES,
+)
+@pytest.mark.parametrize(
+    "read_type",
+    TEST_PRIMITIVE_TYPES,
+)
+def test_promotion(file_type: IcebergType, read_type: IcebergType) -> None:
+    if file_type == read_type:
+        return
+    if should_promote(file_type, read_type):
+        assert promote(file_type, read_type) == read_type
+    else:
+        with pytest.raises(ResolveError):
+            promote(file_type, read_type)

@@ -63,7 +63,8 @@ public interface ContentFile<F> {
   Map<Integer, Long> columnSizes();
 
   /**
-   * Returns if collected, map from column ID to the count of its non-null values, null otherwise.
+   * Returns if collected, map from column ID to the count of its values (including null and NaN
+   * values), null otherwise.
    */
   Map<Integer, Long> valueCounts();
 

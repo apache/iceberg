@@ -658,7 +658,7 @@ public class SparkScanBuilder
 
   @Override
   public Statistics estimateStatistics() {
-    return ((SparkScan) build()).estimateStatistics();
+    return ((SupportsReportStatistics) build()).estimateStatistics();
   }
 
   @Override

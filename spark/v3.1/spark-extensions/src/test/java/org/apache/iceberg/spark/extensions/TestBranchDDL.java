@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -100,11 +101,25 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testCreateBranchOnEmptyTable() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot complete create or replace branch operation on %s, main has no snapshot",
-            tableName);
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1");
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
+    Assertions.assertThat(mainRef).isNull();
+
+    SnapshotRef ref = table.refs().get(branchName);
+    Assertions.assertThat(ref).isNotNull();
+    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
+    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
+    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+
+    Snapshot snapshot = table.snapshot(ref.snapshotId());
+    Assertions.assertThat(snapshot.parentId()).isNull();
+    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
   }
 
   @Test
@@ -527,6 +542,29 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
         tableName, branchName, first);
     table.refresh();
     assertThat(table.refs().get(branchName).snapshotId()).isEqualTo(second);
+  }
+
+  @Test
+  public void testCreateOrReplaceBranchOnEmptyTable() {
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE OR REPLACE BRANCH %s", tableName, "b1");
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
+    Assertions.assertThat(mainRef).isNull();
+
+    SnapshotRef ref = table.refs().get(branchName);
+    Assertions.assertThat(ref).isNotNull();
+    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
+    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
+    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+
+    Snapshot snapshot = table.snapshot(ref.snapshotId());
+    Assertions.assertThat(snapshot.parentId()).isNull();
+    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
   }
 
   @Test
