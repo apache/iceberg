@@ -997,7 +997,13 @@ class UpdateSchema:
         Returns:
             the result Schema when all pending updates are applied
         """
-        return _apply_changes(self._schema, self._adds, self._identifier_field_names)
+        struct = visit(self._schema, _ApplySchemaChanges(self._adds))
+        name_to_id: Dict[str, int] = index_by_name(struct)
+        for name in self._identifier_field_names:
+            if name not in name_to_id:
+                raise ValueError(f"Cannot add field {name} as an identifier field: not found in current schema or added columns")
+
+        return Schema(*struct.fields)
 
     def _internal_add_column(
         self, field_path: Tuple[str, ...], is_optional: bool, type_var: IcebergType, doc: Optional[str]
@@ -1017,7 +1023,7 @@ class UpdateSchema:
                 parent_field = parent_type.element_field
 
             if not parent_field.field_type.is_struct:
-                raise ValueError(f"Cannot add column to non-struct type: {parent}")
+                raise ValueError(f"Cannot add column {name} to non-struct type: {parent}")
 
             parent_id = parent_field.field_id
 
@@ -1039,77 +1045,50 @@ class UpdateSchema:
         new_type = assign_fresh_schema_ids(type_var, self.assign_new_column_id)
         field = NestedField(new_id, name, new_type, not is_optional, doc)
 
-        self._adds.setdefault(parent_id, []).append(field)
+        self._adds[parent_id] = self._adds.get(parent_id, []) + [field]
 
     def assign_new_column_id(self) -> int:
         return next(self._last_column_id)
 
 
-def _apply_changes(schema_: Schema, adds: Dict[int, List[NestedField]], identifier_field_names: List[str]) -> Schema:
-    struct = visit(schema_, _ApplyChanges(adds))
-    name_to_id: Dict[str, int] = index_by_name(struct)
-    for name in identifier_field_names:
-        if name not in name_to_id:
-            raise ValueError(f"Cannot add field {name} as an identifier field: not found in current schema or added columns")
+class _ApplySchemaChanges(SchemaVisitor[IcebergType]):
+    _adds: Dict[int, List[NestedField]]
 
-    return Schema(*struct.fields)
-
-
-class _ApplyChanges(SchemaVisitor[IcebergType]):
-    def __init__(self, adds: Dict[int, List[NestedField]]):
-        self.adds = adds
+    def __init__(self, adds: Dict[int, List[NestedField]]) -> None:
+        self._adds = adds
 
     def schema(self, schema: Schema, struct_result: IcebergType) -> IcebergType:
-        fields = _ApplyChanges.add_fields(schema.as_struct().fields, self.adds.get(TABLE_ROOT_ID))
-        if len(fields) > 0:
-            return StructType(*fields)
-
-        return struct_result
+        if new_fields := _ApplySchemaChanges.add_fields(struct_result.fields, self._adds.get(TABLE_ROOT_ID, [])):
+            return StructType(*new_fields)
+        else:
+            return struct_result
 
     def struct(self, struct: StructType, field_results: List[IcebergType]) -> IcebergType:
-        has_change = False
-        new_fields: List[NestedField] = []
-        for i in range(len(field_results)):
-            type_: Optional[IcebergType] = field_results[i]
-            if type_ is None:
-                has_change = True
-                continue
-
-            field: NestedField = struct.fields[i]
-            new_fields.append(field)
-
-        if has_change:
-            return StructType(*new_fields)
-
-        return struct
+        return StructType(*field_results)
 
     def field(self, field: NestedField, field_result: IcebergType) -> IcebergType:
-        field_id: int = field.field_id
-        if field_id in self.adds:
-            new_fields = self.adds[field_id]
-            if len(new_fields) > 0:
-                fields = _ApplyChanges.add_fields(field_result.fields, new_fields)
-                if len(fields) > 0:
-                    return StructType(*fields)
+        if field.field_id in self._adds and isinstance(field_result, StructType):
+            new_types = _ApplySchemaChanges.add_fields(field_result.fields, self._adds[field.field_id])
+            field_result = StructType(*new_types)
 
-        return field_result
+        return NestedField(
+            field_id=field.field_id, name=field.name, field_type=field_result, required=field.required, doc=field.doc
+        )
 
     def list(self, list_type: ListType, element_result: IcebergType) -> IcebergType:
-        element_field: NestedField = list_type.element_field
-        element_type = self.field(element_field, element_result)
-        if element_type is None:
+        element_field: NestedField = self.field(list_type.element_field, element_result)
+        element_type = element_field.field_type
+        if element_field is None:
             raise ValueError(f"Cannot delete element type from list: {element_field}")
 
-        is_element_optional = not list_type.element_required
-
-        if is_element_optional == element_field.required and list_type.element_type == element_type:
+        if list_type.element_required == element_field.required and list_type.element_type == element_type:
             return list_type
 
-        return ListType(list_type.element_id, element_type, is_element_optional)
+        return ListType(element_id=list_type.element_id, element=element_type, element_required=element_field.required)
 
     def map(self, map_type: MapType, key_result: IcebergType, value_result: IcebergType) -> IcebergType:
         key_id: int = map_type.key_field.field_id
-        if key_id in self.adds:
+        if key_id in self._adds:
             raise ValueError(f"Cannot add fields to map keys: {map_type}")
 
         value_field: NestedField = map_type.value_field
@@ -1117,20 +1096,20 @@ class _ApplyChanges(SchemaVisitor[IcebergType]):
         if value_type is None:
             raise ValueError(f"Cannot delete value type from map: {value_field}")
 
-        is_value_optional = not map_type.value_required
-
-        if is_value_optional != value_field.required and map_type.value_type == value_type:
+        if map_type.value_required == value_field.required and map_type.value_type == value_type:
             return map_type
 
-        return MapType(map_type.key_id, map_type.key_field, map_type.value_id, value_type, not is_value_optional)
+        return MapType(
+            key_id=map_type.key_id,
+            key_type=map_type.key_type,
+            value_id=map_type.value_id,
+            value_type=value_type.field_type,
+            value_required=map_type.value_required
+        )
 
     def primitive(self, primitive: PrimitiveType) -> IcebergType:
         return primitive
 
     @staticmethod
-    def add_fields(fields: Tuple[NestedField, ...], adds: Optional[List[NestedField]]) -> List[NestedField]:
-        new_fields: List[NestedField] = []
-        new_fields.extend(fields)
-        if adds:
-            new_fields.extend(adds)
-        return new_fields
+    def add_fields(fields: Tuple[NestedField, ...], adds: List[NestedField]) -> Optional[List[NestedField]]:
+        return None if len(adds) == 0 else list(fields) + adds

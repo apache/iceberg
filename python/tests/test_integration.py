@@ -42,10 +42,14 @@ from pyiceberg.types import (
     BooleanType,
     DoubleType,
     FixedType,
+    FloatType,
     IntegerType,
+    ListType,
     LongType,
+    MapType,
     NestedField,
     StringType,
+    StructType,
     TimestampType,
     UUIDType,
 )
@@ -387,8 +391,9 @@ def test_schema_evolution(catalog: Catalog) -> None:
 
 @pytest.mark.integration
 def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
+    tbl_name = "default.test_schema_evolution_via_transaction"
     try:
-        catalog.drop_table("default.test_schema_evolution")
+        catalog.drop_table(tbl_name)
     except NoSuchTableError:
         pass
 
@@ -397,7 +402,7 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
     )
 
-    tbl = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
+    tbl = catalog.create_table(identifier=tbl_name, schema=schema)
 
     assert tbl.schema() == schema
 
@@ -442,3 +447,115 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=5, name="col_long", field_type=LongType(), required=False),
         schema_id=1,
     )
+
+
+@pytest.mark.integration
+def test_schema_evolution_nested(catalog: Catalog) -> None:
+    tbl_name = "default.test_schema_evolution_nested"
+    try:
+        catalog.drop_table(tbl_name)
+    except NoSuchTableError:
+        pass
+
+    nested_schema = Schema(
+        NestedField(
+            field_id=1,
+            name="location_lookup",
+            field_type=MapType(
+                key_id=10,
+                key_type=StringType(),
+                value_id=11,
+                value_type=StructType(
+                    NestedField(field_id=110, name="x", field_type=FloatType(), required=False),
+                    NestedField(field_id=111, name="y", field_type=FloatType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=2,
+            name="locations",
+            field_type=ListType(
+                element_id=20,
+                element_type=StructType(
+                    NestedField(field_id=200, name="x", field_type=FloatType(), required=False),
+                    NestedField(field_id=201, name="y", field_type=FloatType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=3,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=30, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=31, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        schema_id=1,
+    )
+
+    tbl = catalog.create_table(identifier=tbl_name, schema=nested_schema)
+
+    assert tbl.schema().highest_field_id == 12
+
+    with tbl.update_schema() as schema_update:
+        schema_update.add_column(("location_lookup", "z"), FloatType())
+        schema_update.add_column(("locations", "z"), FloatType())
+        schema_update.add_column(("person", "address"), StringType())
+
+    assert str(tbl.schema()) == str(Schema(
+        NestedField(
+            field_id=1,
+            name="location_lookup",
+            field_type=MapType(
+                type="map",
+                key_id=4,
+                key_type=StringType(),
+                value_id=5,
+                value_type=StructType(
+                    fields=(
+                        NestedField(field_id=6, name="x", field_type=FloatType(), required=False),
+                        NestedField(field_id=7, name="y", field_type=FloatType(), required=False),
+                        NestedField(field_id=13, name="z", field_type=FloatType(), required=False),
+                    )
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=2,
+            name="locations",
+            field_type=ListType(
+                type="list",
+                element_id=8,
+                element_type=StructType(
+                    fields=(
+                        NestedField(field_id=9, name="x", field_type=FloatType(), required=False),
+                        NestedField(field_id=10, name="y", field_type=FloatType(), required=False),
+                        NestedField(field_id=14, name="z", field_type=FloatType(), required=False),
+                    )
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=3,
+            name="person",
+            field_type=StructType(
+                fields=(
+                    NestedField(field_id=11, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=12, name="age", field_type=IntegerType(), required=True),
+                    NestedField(field_id=15, name="address", field_type=StringType(), required=False),
+                )
+            ),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[],
+    ))
