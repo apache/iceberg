@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.HashSet;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +48,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
     this.operatorName = operatorName;
     this.statisticsSerializer = statisticsSerializer;
     this.parallelism = parallelism;
-    this.inProgressSubtaskSet = new HashSet<>();
+    this.inProgressSubtaskSet = Sets.newHashSet();
   }
 
   GlobalStatistics<D, S> receiveDataStatisticEventAndCheckCompletion(
