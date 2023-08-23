@@ -21,6 +21,7 @@ package org.apache.iceberg.azure.adlsv2;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 abstract class BaseADLSFile {
   private final String location;
@@ -33,6 +34,12 @@ abstract class BaseADLSFile {
       DataLakeFileClient fileClient,
       AzureProperties azureProperties,
       MetricsContext metrics) {
+    Preconditions.checkArgument(location != null, "Cannot initialize ADLS file with null location");
+    Preconditions.checkArgument(
+        fileClient != null, "Cannot initialize ADLS file with null file client");
+    Preconditions.checkArgument(
+        azureProperties != null, "Cannot initialize ADLS file with null properties");
+    Preconditions.checkArgument(metrics != null, "Cannot initialize ADLS file with null metrics");
     this.location = location;
     this.fileClient = fileClient;
     this.azureProperties = azureProperties;

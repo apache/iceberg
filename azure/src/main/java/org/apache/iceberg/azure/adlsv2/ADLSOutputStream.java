@@ -105,7 +105,9 @@ class ADLSOutputStream extends PositionOutputStream {
 
     super.close();
     this.closed = true;
-    stream.close();
+    if (stream != null) {
+      stream.close();
+    }
   }
 
   @SuppressWarnings("checkstyle:NoFinalizer")
