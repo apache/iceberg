@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Files;
@@ -393,7 +394,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       dataFileWriter.append(record);
     }
 
-    Iterable<Record> records =
+    Iterable<GenericData.Record> records =
         Avro.read(Files.localInput(file)).project(readSchema).withNameMapping(nameMapping).build();
 
     return Iterables.getOnlyElement(records);

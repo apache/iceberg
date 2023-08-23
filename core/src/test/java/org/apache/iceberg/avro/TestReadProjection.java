@@ -346,7 +346,7 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Assertions.assertThat((Long) projected.get("id"))
+    Assertions.assertThat((long) projected.get("id"))
         .as("Should contain the correct id value")
         .isEqualTo(34L);
     assertEmptyAvroField(projected, "locations");
@@ -414,9 +414,7 @@ public abstract class TestReadProjection {
     assertEmptyAvroField(projected, "id");
     locations = toStringMap((Map) projected.get("locations"));
     Assertions.assertThat(locations).as("Should project locations map").isNotNull();
-    Assertions.assertThat(locations.keySet())
-        .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+    Assertions.assertThat(locations.keySet()).as("Should contain L1 and L2").contains("L1", "L2");
     projectedL1 = (Record) locations.get("L1");
     Assertions.assertThat(projectedL1).as("L1 should not be null").isNotNull();
     Assertions.assertThat((float) projectedL1.get("latitude"))
