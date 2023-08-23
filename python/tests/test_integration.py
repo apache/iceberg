@@ -507,55 +507,51 @@ def test_schema_evolution_nested(catalog: Catalog) -> None:
         schema_update.add_column(("locations", "z"), FloatType())
         schema_update.add_column(("person", "address"), StringType())
 
-    assert str(tbl.schema()) == str(Schema(
-        NestedField(
-            field_id=1,
-            name="location_lookup",
-            field_type=MapType(
-                type="map",
-                key_id=4,
-                key_type=StringType(),
-                value_id=5,
-                value_type=StructType(
-                    fields=(
+    assert str(tbl.schema()) == str(
+        Schema(
+            NestedField(
+                field_id=1,
+                name="location_lookup",
+                field_type=MapType(
+                    type="map",
+                    key_id=4,
+                    key_type=StringType(),
+                    value_id=5,
+                    value_type=StructType(
                         NestedField(field_id=6, name="x", field_type=FloatType(), required=False),
                         NestedField(field_id=7, name="y", field_type=FloatType(), required=False),
                         NestedField(field_id=13, name="z", field_type=FloatType(), required=False),
-                    )
+                    ),
+                    value_required=True,
                 ),
-                value_required=True,
+                required=True,
             ),
-            required=True,
-        ),
-        NestedField(
-            field_id=2,
-            name="locations",
-            field_type=ListType(
-                type="list",
-                element_id=8,
-                element_type=StructType(
-                    fields=(
+            NestedField(
+                field_id=2,
+                name="locations",
+                field_type=ListType(
+                    type="list",
+                    element_id=8,
+                    element_type=StructType(
                         NestedField(field_id=9, name="x", field_type=FloatType(), required=False),
                         NestedField(field_id=10, name="y", field_type=FloatType(), required=False),
                         NestedField(field_id=14, name="z", field_type=FloatType(), required=False),
-                    )
+                    ),
+                    element_required=True,
                 ),
-                element_required=True,
+                required=True,
             ),
-            required=True,
-        ),
-        NestedField(
-            field_id=3,
-            name="person",
-            field_type=StructType(
-                fields=(
+            NestedField(
+                field_id=3,
+                name="person",
+                field_type=StructType(
                     NestedField(field_id=11, name="name", field_type=StringType(), required=False),
                     NestedField(field_id=12, name="age", field_type=IntegerType(), required=True),
                     NestedField(field_id=15, name="address", field_type=StringType(), required=False),
-                )
+                ),
+                required=False,
             ),
-            required=False,
-        ),
-        schema_id=1,
-        identifier_field_ids=[],
-    ))
+            schema_id=1,
+            identifier_field_ids=[],
+        )
+    )

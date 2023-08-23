@@ -526,7 +526,7 @@ def test_add_to_non_struct_type(table_schema_simple: Schema, table: Table) -> No
     update = UpdateSchema(table_schema_simple, table)
     with pytest.raises(ValueError) as exc_info:
         update.add_column(name=("foo", "lat"), type_var=IntegerType())
-    assert "Cannot add column to non-struct type" in str(exc_info.value)
+    assert "Cannot add column 'lat' to non-struct type" in str(exc_info.value)
 
 
 def test_add_required_column(table: Table) -> None:
