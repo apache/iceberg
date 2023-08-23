@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
@@ -62,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -948,6 +950,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(
+        PropertyUtil.propertyAsBoolean(
+            catalogConfig,
+            CatalogProperties.CACHE_ENABLED,
+            CatalogProperties.CACHE_ENABLED_DEFAULT));
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1036,6 +1045,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(
+        PropertyUtil.propertyAsBoolean(
+            catalogConfig,
+            CatalogProperties.CACHE_ENABLED,
+            CatalogProperties.CACHE_ENABLED_DEFAULT));
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());

@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -61,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -600,6 +602,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public synchronized void testUpdateWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(
+        PropertyUtil.propertyAsBoolean(
+            catalogConfig,
+            CatalogProperties.CACHE_ENABLED,
+            CatalogProperties.CACHE_ENABLED_DEFAULT));
 
     createAndInitTable("id INT, dep STRING");
 
@@ -687,6 +696,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(
+        PropertyUtil.propertyAsBoolean(
+            catalogConfig,
+            CatalogProperties.CACHE_ENABLED,
+            CatalogProperties.CACHE_ENABLED_DEFAULT));
 
     createAndInitTable("id INT, dep STRING");
 
