@@ -67,8 +67,8 @@ public class TestSparkOrcReadMetadataColumns {
   private static final Schema PROJECTION_SCHEMA =
       new Schema(
           required(100, "id", Types.LongType.get()),
-          required(101, "data", Types.StringType.get()),
           MetadataColumns.ROW_POSITION,
+          required(101, "data", Types.StringType.get()),
           MetadataColumns.IS_DELETED);
 
   private static final int NUM_ROWS = 1000;
