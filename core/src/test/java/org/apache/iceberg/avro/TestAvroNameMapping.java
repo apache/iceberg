@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("unchecked")
@@ -80,11 +79,13 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     // field id 5 comes from read schema
-    Assert.assertNotNull(
-        "Field missing from table mapping is renamed",
-        projected.getSchema().getField("location_r5"));
-    Assert.assertNull("location field should not be read", projected.get("location_r5"));
-    Assert.assertEquals(34L, projected.get("id"));
+    Assertions.assertThat(projected.getSchema().getField("location_r5"))
+        .as("Field missing from table mapping is renamed")
+        .isNotNull();
+    Assertions.assertThat(projected.get("location_r5"))
+        .as("location field should not be read")
+        .isNull();
+    Assertions.assertThat(projected.get("id")).isEqualTo(34L);
 
     // Table mapping partially project `location` map value
     nameMapping =
@@ -103,9 +104,12 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     Record projectedL1 = ((Map<String, Record>) projected.get("location")).get("l1");
-    Assert.assertNotNull(
-        "Field missing from table mapping is renamed", projectedL1.getSchema().getField("long_r2"));
-    Assert.assertNull("location.value.long, should not be read", projectedL1.get("long_r2"));
+    Assertions.assertThat(projectedL1.getSchema().getField("long_r2"))
+        .as("Field missing from table mapping is renamed")
+        .isNotNull();
+    Assertions.assertThat(projectedL1.get("long_r2"))
+        .as("location.value.long, should not be read")
+        .isNull();
   }
 
   @Test
@@ -175,13 +179,15 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Map<Record, Record> projectedLocation = (Map<Record, Record>) projected.get("location");
     Record projectedKey = projectedLocation.keySet().iterator().next();
     Record projectedValue = projectedLocation.values().iterator().next();
-    Assert.assertEquals(
-        0, Comparators.charSequences().compare("k1", (CharSequence) projectedKey.get("k1")));
-    Assert.assertEquals(
-        0, Comparators.charSequences().compare("k2", (CharSequence) projectedKey.get("k2")));
-    Assert.assertEquals(52.995143f, projectedValue.get("lat"));
-    Assert.assertNotNull(projectedValue.getSchema().getField("long_r2"));
-    Assert.assertNull(projectedValue.get("long_r2"));
+    Assertions.assertThat(
+            Comparators.charSequences().compare("k1", (CharSequence) projectedKey.get("k1")))
+        .isEqualTo(0);
+    Assertions.assertThat(
+            Comparators.charSequences().compare("k2", (CharSequence) projectedKey.get("k2")))
+        .isEqualTo(0);
+    Assertions.assertThat(projectedValue.get("lat")).isEqualTo(52.995143f);
+    Assertions.assertThat(projectedValue.getSchema().getField("long_r2")).isNotNull();
+    Assertions.assertThat(projectedValue.get("long_r2")).isNull();
   }
 
   @Test
@@ -242,11 +248,11 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Schema readSchema = writeSchema;
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
-    Assert.assertNotNull(
-        "Field missing from table mapping is renamed", projected.getSchema().getField("point_r22"));
-    Assert.assertNull("point field is not projected", projected.get("point_r22"));
-    Assert.assertEquals(34L, projected.get("id"));
-
+    Assertions.assertThat(projected.getSchema().getField("point_r22"))
+        .as("Field missing from table mapping is renamed")
+        .isNotNull();
+    Assertions.assertThat(projected.get("point_r22")).as("point field is not projected").isNull();
+    Assertions.assertThat(projected.get("id")).isEqualTo(34L);
     // point array is partially projected
     nameMapping =
         MappingUtil.create(
@@ -262,12 +268,12 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     Record point = ((List<Record>) projected.get("point")).get(0);
-
-    Assert.assertNotNull(
-        "Field missing from table mapping is renamed", point.getSchema().getField("y_r18"));
-    Assert.assertEquals("point.x is projected", 1, point.get("x"));
-    Assert.assertNull("point.y is not projected", point.get("y_r18"));
-    Assert.assertEquals(34L, projected.get("id"));
+    Assertions.assertThat(point.getSchema().getField("y_r18"))
+        .as("Field missing from table mapping is renamed")
+        .isNotNull();
+    Assertions.assertThat(point.get("x")).as("point.x is projected").isEqualTo(1);
+    Assertions.assertThat(point.get("y_r18")).as("point.y is not projected").isNull();
+    Assertions.assertThat(projected.get("id")).isEqualTo(34L);
   }
 
   @Test
@@ -315,8 +321,9 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
                         Types.NestedField.required(19, "y", Types.IntegerType.get())))));
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
-    Assert.assertEquals(
-        "x is read as y", 1, ((List<Record>) projected.get("points")).get(0).get("y"));
+    Assertions.assertThat(((List<Record>) projected.get("points")).get(0).get("y"))
+        .as("x is read as y")
+        .isEqualTo(1);
 
     readSchema =
         new Schema(
@@ -330,8 +337,9 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
                         Types.NestedField.required(19, "z", Types.IntegerType.get())))));
 
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
-    Assert.assertEquals(
-        "x is read as z", 1, ((List<Record>) projected.get("points")).get(0).get("z"));
+    Assertions.assertThat(((List<Record>) projected.get("points")).get(0).get("z"))
+        .as("x is read as z")
+        .isEqualTo(1);
   }
 
   @Test
@@ -348,7 +356,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Schema readSchema = writeSchema;
     // Pass null for nameMapping so that it is automatically inferred from read schema
     Record projected = writeAndRead(writeSchema, readSchema, record, null);
-    Assert.assertEquals(record, projected);
+    Assertions.assertThat(projected).isEqualTo(record);
   }
 
   @Test
@@ -368,7 +376,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Record record = super.writeAndRead(desc, writeSchema, readSchema, inputRecord);
     Record projectedWithNameMapping =
         writeAndRead(writeSchema, readSchema, inputRecord, MappingUtil.create(writeSchema));
-    Assert.assertEquals(record, projectedWithNameMapping);
+    Assertions.assertThat(projectedWithNameMapping).isEqualTo(record);
     return record;
   }
 
