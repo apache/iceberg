@@ -25,6 +25,7 @@ import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.azure.AzureProperties;
@@ -176,8 +177,9 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
     options.setPath(location.path());
     options.setRecursive(true);
 
-    return () ->
-        client(location).listPaths(options, null).stream()
+    return () -> {
+      try {
+        return client(location).listPaths(options, null).stream()
             .filter(pathItem -> !pathItem.isDirectory())
             .map(
                 pathItem ->
@@ -186,13 +188,30 @@ public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefi
                         pathItem.getContentLength(),
                         pathItem.getCreationTime().toInstant().toEpochMilli()))
             .iterator();
+      } catch (DataLakeStorageException e) {
+        // other FileIO implementations return an empty iterator if nothing
+        // is found, so mimic that behavior here
+        if (e.getStatusCode() != 404) {
+          throw e;
+        }
+        return Collections.emptyIterator();
+      }
+    };
   }
 
   @Override
   public void deletePrefix(String prefix) {
     ADLSLocation location = new ADLSLocation(prefix);
-    client(location)
-        .deleteDirectoryWithResponse(location.path(), true, null, null, Context.NONE)
-        .getValue();
+    try {
+      client(location)
+          .deleteDirectoryWithResponse(location.path(), true, null, null, Context.NONE)
+          .getValue();
+    } catch (DataLakeStorageException e) {
+      // other FileIO implementations skip the delete if nothing is found,
+      // so mimic that behavior here
+      if (e.getStatusCode() != 404) {
+        throw e;
+      }
+    }
   }
 }
