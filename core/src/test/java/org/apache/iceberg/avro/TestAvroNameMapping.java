@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Files;
@@ -42,7 +41,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("unchecked")
 public class TestAvroNameMapping extends TestAvroReadProjection {
@@ -377,7 +376,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       Schema writeSchema, Schema readSchema, Record record, NameMapping nameMapping)
       throws IOException {
 
-    File file = temp.newFile();
+    File file = new File(temp, "test.avro");
     // Write without file ids
     org.apache.avro.Schema writeAvroSchema = RemoveIds.removeIds(writeSchema);
     DatumWriter<Record> datumWriter = new GenericDatumWriter<>(writeAvroSchema);
@@ -386,7 +385,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       dataFileWriter.append(record);
     }
 
-    Iterable<GenericData.Record> records =
+    Iterable<Record> records =
         Avro.read(Files.localInput(file)).project(readSchema).withNameMapping(nameMapping).build();
 
     return Iterables.getOnlyElement(records);

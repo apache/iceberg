@@ -31,15 +31,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAvroReadProjection extends TestReadProjection {
   @Override
   protected GenericData.Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
-    File file = temp.newFile(desc + ".avro");
-    file.delete();
+    File file = new File(temp, desc + ".avro");
 
     try (FileAppender<GenericData.Record> appender =
         Avro.write(Files.localOutput(file)).schema(writeSchema).build()) {

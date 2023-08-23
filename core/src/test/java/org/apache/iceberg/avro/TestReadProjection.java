@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.avro;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -33,15 +34,14 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public abstract class TestReadProjection {
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir File temp;
 
   @Test
   public void testFullProjection() throws Exception {
