@@ -1187,10 +1187,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution
-      // behavior
-      // that's why the number of changed partitions is 4 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }

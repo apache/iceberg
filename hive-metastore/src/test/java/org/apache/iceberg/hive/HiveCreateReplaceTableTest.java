@@ -32,16 +32,20 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
@@ -143,20 +147,30 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
         .hasMessage("Table already exists: hivedb.tbl");
   }
 
-  @Test
-  public void testReplaceTableTxn() {
-    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTableTxn(int formatVersion) {
+    catalog.createTable(
+        TABLE_IDENTIFIER,
+        SCHEMA,
+        SPEC,
+        tableLocation,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should exist").isTrue();
 
     Transaction txn = catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, false);
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    PartitionSpec v1Expected =
-        PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
-    assertThat(table.spec())
-        .as("Table should have a spec with one void field")
-        .isEqualTo(v1Expected);
+    if (formatVersion == 1) {
+      PartitionSpec v1Expected =
+          PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
+      assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
+    } else {
+      assertThat(table.spec().isUnpartitioned()).as("Table spec must be unpartitioned").isTrue();
+    }
   }
 
   @Test
@@ -217,20 +231,30 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     assertThat(table.properties()).as("Table props should match").containsEntry("prop", "value");
   }
 
-  @Test
-  public void testCreateOrReplaceTableTxnTableExists() {
-    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testCreateOrReplaceTableTxnTableExists(int formatVersion) {
+    catalog.createTable(
+        TABLE_IDENTIFIER,
+        SCHEMA,
+        SPEC,
+        tableLocation,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should exist").isTrue();
 
     Transaction txn = catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, true);
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    PartitionSpec v1Expected =
-        PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
-    assertThat(table.spec())
-        .as("Table should have a spec with one void field")
-        .isEqualTo(v1Expected);
+    if (formatVersion == 1) {
+      PartitionSpec v1Expected =
+          PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
+      assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
+    } else {
+      assertThat(table.spec().isUnpartitioned()).as("Table spec must be unpartitioned").isTrue();
+    }
   }
 
   @Test

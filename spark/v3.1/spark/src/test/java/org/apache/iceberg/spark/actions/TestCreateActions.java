@@ -30,6 +30,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -517,7 +518,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_reserved_properties_table");
     String dest = destName(destTableName);
     createSourceTable(CREATE_PARQUET, source);
-    assertSnapshotFileCount(SparkActions.get().snapshotTable(source).as(dest), source, dest);
+    SnapshotTable action = SparkActions.get().snapshotTable(source).as(dest);
+    action.tableProperty(TableProperties.FORMAT_VERSION, "1");
+    assertSnapshotFileCount(action, source, dest);
     SparkTable table = loadTable(dest);
     // set sort orders
     table.table().replaceSortOrder().asc("id").desc("data").commit();
