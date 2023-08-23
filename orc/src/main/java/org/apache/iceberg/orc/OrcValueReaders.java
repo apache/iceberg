@@ -176,13 +176,14 @@ public class OrcValueReaders {
     }
 
     private T readInternal(T struct, ColumnVector[] columnVectors, int row) {
-      for (int c = 0; c < readers.length; ++c) {
+      for (int c = 0, vectorIndex = 0; c < readers.length; c++) {
         ColumnVector vector;
         if (isConstantOrMetadataField[c]) {
           vector = null;
         } else {
-          vector = columnVectors[c];
+          vector = columnVectors[vectorIndex];
         }
+        vectorIndex++;
         set(struct, c, reader(c).read(vector, row));
       }
       return struct;
