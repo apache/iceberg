@@ -161,7 +161,7 @@ Or, without a context manager by calling the `.commit()` explicitly:
 table.update_schema().add_column("x", IntegerType(), "doc").commit()
 ```
 
-Use the Transaction API:
+Alternatively, use the transaction API to combine changes from multiple operations:
 
 ```python
 from datetime import datetime
