@@ -245,6 +245,21 @@ class Schema(IcebergBaseModel):
 
         return self._lazy_id_to_accessor[field_id]
 
+    def identifier_field_names(self) -> Set[str]:
+        """Returns the names of the identifier fields.
+
+        Returns:
+            Set of names of the identifier fields
+        """
+        ids = set()
+        for field_id in self.identifier_field_ids:
+            column_name = self.find_column_name(field_id)
+            if column_name is None:
+                raise ValueError(f"Could not find identifier column id: {field_id}")
+            ids.add(column_name)
+
+        return ids
+
     def select(self, *names: str, case_sensitive: bool = True) -> Schema:
         """Return a new schema instance pruned to a subset of columns.
 
@@ -1155,6 +1170,16 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
 
 def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
+    """Prunes a column by only selecting a set of field-ids.
+
+    Args:
+        schema: The schema to be pruned.
+        selected: The field-ids to be included.
+        select_full_types: Return the full struct when a subset is recorded
+
+    Returns:
+        The pruned schema.
+    """
     result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
     return Schema(
         *(result or StructType()).fields,

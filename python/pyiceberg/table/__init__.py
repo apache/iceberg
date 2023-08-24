@@ -189,7 +189,7 @@ class Transaction:
         Returns:
             A new UpdateSchema.
         """
-        return UpdateSchema(self._table.schema(), self._table, self)
+        return UpdateSchema(self._table, self)
 
     def remove_properties(self, *removals: str) -> Transaction:
         """Removes properties.
@@ -519,8 +519,8 @@ class Table:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
 
-    def update_schema(self) -> UpdateSchema:
-        return UpdateSchema(self.schema(), self)
+    def update_schema(self, allow_incompatible_changes: bool = False, case_sensitive: bool = True) -> UpdateSchema:
+        return UpdateSchema(self, allow_incompatible_changes=allow_incompatible_changes, case_sensitive=case_sensitive)
 
     def _do_commit(self, request: CommitTableRequest) -> None:
         response = self.catalog._commit_table(request)  # pylint: disable=W0212
@@ -903,7 +903,7 @@ class UpdateSchema:
     _table: Table
     _schema: Schema
     _last_column_id: itertools.count[int]
-    _identifier_field_names: List[str]
+    _identifier_field_names: Set[str]
 
     _adds: Dict[int, List[NestedField]] = {}
     _updates: Dict[int, NestedField] = {}
@@ -918,16 +918,15 @@ class UpdateSchema:
 
     def __init__(
         self,
-        schema: Schema,
         table: Table,
         transaction: Optional[Transaction] = None,
         allow_incompatible_changes: bool = False,
         case_sensitive: bool = True,
     ) -> None:
         self._table = table
-        self._schema = schema
-        self._last_column_id = itertools.count(schema.highest_field_id + 1)
-        self._identifier_field_names = schema.column_names
+        self._schema = table.schema()
+        self._last_column_id = itertools.count(self._schema.highest_field_id + 1)
+        self._identifier_field_names = self._schema.identifier_field_names()
 
         self._adds = {}
         self._updates = {}
@@ -1088,7 +1087,7 @@ class UpdateSchema:
 
         if path_from in self._identifier_field_names:
             self._identifier_field_names.remove(full_name_from)
-            self._identifier_field_names.append(full_name_to)
+            self._identifier_field_names.add(full_name_to)
 
         return self
 
@@ -1123,7 +1122,7 @@ class UpdateSchema:
         path = (path,) if isinstance(path, str) else path
         name = ".".join(path)
 
-        field = self._schema.find_field(name)
+        field = self._schema.find_field(name, self._case_sensitive)
 
         if (field.required and required) or (field.optional and not required):
             # if the change is a noop, allow it even if allowIncompatibleChanges is false
@@ -1165,7 +1164,7 @@ class UpdateSchema:
         path = (path,) if isinstance(path, str) else path
         full_name = ".".join(path)
 
-        field = self._schema.find_field(full_name)
+        field = self._schema.find_field(full_name, self._case_sensitive)
 
         if field.field_id in self._deletes:
             raise ValueError(f"Cannot update a column that will be deleted: {full_name}")
@@ -1206,7 +1205,7 @@ class UpdateSchema:
         path = (path,) if isinstance(path, str) else path
         full_name = ".".join(path)
 
-        field = self._schema.find_field(full_name)
+        field = self._schema.find_field(full_name, self._case_sensitive)
 
         if field.field_id in self._deletes:
             raise ValueError(f"Cannot update a column that will be deleted: {full_name}")
@@ -1244,7 +1243,7 @@ class UpdateSchema:
 
     def _move(self, full_name: str, move: Move) -> None:
         if parent_name := self._id_to_parent.get(move.field_id):
-            parent_field = self._schema.find_field(parent_name)
+            parent_field = self._schema.find_field(parent_name, self._case_sensitive)
             if not parent_field.is_struct:
                 raise ValueError(f"Cannot move fields in non-struct type: {parent_field}")
 
@@ -1361,19 +1360,22 @@ class UpdateSchema:
     def commit(self) -> None:
         """Apply the pending changes and commit."""
         new_schema = self._apply()
-        updates = [
-            AddSchemaUpdate(schema=new_schema, last_column_id=new_schema.highest_field_id),
-            SetCurrentSchemaUpdate(schema_id=-1),
-        ]
-        requirements = [AssertCurrentSchemaId(current_schema_id=self._schema.schema_id)]
 
-        if self._transaction is not None:
-            self._transaction._append_updates(*updates)  # pylint: disable=W0212
-            self._transaction._append_requirements(*requirements)  # pylint: disable=W0212
-        else:
-            self._table._do_commit(  # pylint: disable=W0212
-                CommitTableRequest(identifier=self._table.identifier[1:], updates=updates, requirements=requirements)
-            )
+        if new_schema != self._schema:
+            last_column_id = max(self._schema.highest_field_id, new_schema.highest_field_id)
+            updates = [
+                AddSchemaUpdate(schema=new_schema, last_column_id=last_column_id),
+                SetCurrentSchemaUpdate(schema_id=-1),
+            ]
+            requirements = [AssertCurrentSchemaId(current_schema_id=self._schema.schema_id)]
+
+            if self._transaction is not None:
+                self._transaction._append_updates(*updates)  # pylint: disable=W0212
+                self._transaction._append_requirements(*requirements)  # pylint: disable=W0212
+            else:
+                self._table._do_commit(  # pylint: disable=W0212
+                    CommitTableRequest(identifier=self._table.identifier[1:], updates=updates, requirements=requirements)
+                )
 
     def _apply(self) -> Schema:
         """Apply the pending changes to the original schema and returns the result.
@@ -1386,16 +1388,26 @@ class UpdateSchema:
             # Should never happen
             raise ValueError("Could not apply changes")
 
-        schema = Schema(*struct.fields)
+        # @TODO: This differs still a bit from the Java side,
+        # The validate identifier field is missing
+        field_ids = set()
         for name in self._identifier_field_names:
-            try:
-                _ = schema.find_field(name)
-            except ValueError as e:
-                raise ValueError(
-                    f"Cannot add field {name} as an identifier field: not found in current schema or added columns"
-                ) from e
+            field = self._schema.find_field(name, self._case_sensitive)
+            field_ids.add(field.field_id)
+            if field.field_id in self._deletes:
+                raise ValueError(f"Cannot delete identifier field {name}. To force deletion, update the identifier fields first.")
 
-        return schema
+            # If it nested, also check if the parents aren't deleted
+            column_name = self._id_to_parent.get(field.field_id)
+            while column_name is not None:
+                parent = self._schema.find_field(column_name)
+                if parent.field_id in self._deletes:
+                    raise ValueError(
+                        f"Cannot delete field {parent.field_id} as it will delete nested identifier field {name}",
+                    )
+                column_name = self._id_to_parent.get(parent.field_id)
+
+        return Schema(*struct.fields, identifier_field_ids=field_ids)
 
     def assign_new_column_id(self) -> int:
         return next(self._last_column_id)
@@ -1514,7 +1526,7 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
 
 def _add_fields(fields: Tuple[NestedField, ...], adds: Optional[List[NestedField]]) -> Optional[Tuple[NestedField, ...]]:
     adds = adds or []
-    return None if len(adds) == 0 else tuple(*fields, *adds)
+    return None if len(adds) == 0 else fields + tuple(adds)
 
 
 def _move_fields(fields: Tuple[NestedField, ...], moves: List[Move]) -> Tuple[NestedField, ...]:

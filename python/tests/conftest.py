@@ -192,7 +192,7 @@ def table_schema_nested() -> Schema:
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
 
 

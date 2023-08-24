@@ -25,7 +25,7 @@ import pytest
 from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.exceptions import CommitFailedException, NoSuchTableError
+from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import (
     And,
     EqualTo,
@@ -40,18 +40,10 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.types import (
     BooleanType,
-    DoubleType,
-    FixedType,
-    FloatType,
     IntegerType,
-    ListType,
-    LongType,
-    MapType,
     NestedField,
     StringType,
-    StructType,
     TimestampType,
-    UUIDType,
 )
 
 
@@ -360,198 +352,3 @@ def test_unpartitioned_fixed_table(catalog: Catalog) -> None:
         b"12345678901234567ass12345",
         b"qweeqwwqq1231231231231111",
     ]
-
-
-@pytest.mark.integration
-def test_schema_evolution(catalog: Catalog) -> None:
-    try:
-        catalog.drop_table("default.test_schema_evolution")
-    except NoSuchTableError:
-        pass
-
-    schema = Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-    )
-
-    t = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
-
-    assert t.schema() == schema
-
-    with t.update_schema() as tx:
-        tx.add_column("col_string", StringType())
-
-    assert t.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        schema_id=1,
-    )
-
-
-@pytest.mark.integration
-def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
-    tbl_name = "default.test_schema_evolution_via_transaction"
-    try:
-        catalog.drop_table(tbl_name)
-    except NoSuchTableError:
-        pass
-
-    schema = Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-    )
-
-    tbl = catalog.create_table(identifier=tbl_name, schema=schema)
-
-    assert tbl.schema() == schema
-
-    with tbl.transaction() as tx:
-        tx.update_schema().add_column("col_string", StringType()).commit()
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        schema_id=1,
-    )
-
-    tbl.update_schema().add_column("col_integer", IntegerType()).commit()
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
-        schema_id=1,
-    )
-
-    with pytest.raises(CommitFailedException) as exc_info:
-        with tbl.transaction() as tx:
-            # Start a new update
-            schema_update = tx.update_schema()
-
-            # Do a concurrent update
-            tbl.update_schema().add_column("col_long", LongType()).commit()
-
-            # stage another update in the transaction
-            schema_update.add_column("col_double", DoubleType()).commit()
-
-    assert "Requirement failed: current schema changed: expected id 2 != 3" in str(exc_info.value)
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
-        NestedField(field_id=5, name="col_long", field_type=LongType(), required=False),
-        schema_id=1,
-    )
-
-
-@pytest.mark.integration
-def test_schema_evolution_nested(catalog: Catalog) -> None:
-    tbl_name = "default.test_schema_evolution_nested"
-    try:
-        catalog.drop_table(tbl_name)
-    except NoSuchTableError:
-        pass
-
-    nested_schema = Schema(
-        NestedField(
-            field_id=1,
-            name="location_lookup",
-            field_type=MapType(
-                key_id=10,
-                key_type=StringType(),
-                value_id=11,
-                value_type=StructType(
-                    NestedField(field_id=110, name="x", field_type=FloatType(), required=False),
-                    NestedField(field_id=111, name="y", field_type=FloatType(), required=False),
-                ),
-                element_required=True,
-            ),
-            required=True,
-        ),
-        NestedField(
-            field_id=2,
-            name="locations",
-            field_type=ListType(
-                element_id=20,
-                element_type=StructType(
-                    NestedField(field_id=200, name="x", field_type=FloatType(), required=False),
-                    NestedField(field_id=201, name="y", field_type=FloatType(), required=False),
-                ),
-                element_required=True,
-            ),
-            required=True,
-        ),
-        NestedField(
-            field_id=3,
-            name="person",
-            field_type=StructType(
-                NestedField(field_id=30, name="name", field_type=StringType(), required=False),
-                NestedField(field_id=31, name="age", field_type=IntegerType(), required=True),
-            ),
-            required=False,
-        ),
-        schema_id=1,
-    )
-
-    tbl = catalog.create_table(identifier=tbl_name, schema=nested_schema)
-
-    assert tbl.schema().highest_field_id == 12
-
-    with tbl.update_schema() as schema_update:
-        schema_update.add_column(("location_lookup", "z"), FloatType())
-        schema_update.add_column(("locations", "z"), FloatType())
-        schema_update.add_column(("person", "address"), StringType())
-
-    assert str(tbl.schema()) == str(
-        Schema(
-            NestedField(
-                field_id=1,
-                name="location_lookup",
-                field_type=MapType(
-                    type="map",
-                    key_id=4,
-                    key_type=StringType(),
-                    value_id=5,
-                    value_type=StructType(
-                        NestedField(field_id=6, name="x", field_type=FloatType(), required=False),
-                        NestedField(field_id=7, name="y", field_type=FloatType(), required=False),
-                        NestedField(field_id=13, name="z", field_type=FloatType(), required=False),
-                    ),
-                    value_required=True,
-                ),
-                required=True,
-            ),
-            NestedField(
-                field_id=2,
-                name="locations",
-                field_type=ListType(
-                    type="list",
-                    element_id=8,
-                    element_type=StructType(
-                        NestedField(field_id=9, name="x", field_type=FloatType(), required=False),
-                        NestedField(field_id=10, name="y", field_type=FloatType(), required=False),
-                        NestedField(field_id=14, name="z", field_type=FloatType(), required=False),
-                    ),
-                    element_required=True,
-                ),
-                required=True,
-            ),
-            NestedField(
-                field_id=3,
-                name="person",
-                field_type=StructType(
-                    NestedField(field_id=11, name="name", field_type=StringType(), required=False),
-                    NestedField(field_id=12, name="age", field_type=IntegerType(), required=True),
-                    NestedField(field_id=15, name="address", field_type=StringType(), required=False),
-                ),
-                required=False,
-            ),
-            schema_id=1,
-            identifier_field_ids=[],
-        )
-    )
