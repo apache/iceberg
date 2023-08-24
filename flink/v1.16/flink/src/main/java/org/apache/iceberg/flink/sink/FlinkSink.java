@@ -488,7 +488,7 @@ public class FlinkSink {
         PartitionSpec partitionSpec,
         Schema iSchema,
         RowType flinkRowType) {
-      DistributionMode writeMode = flinkWriteConf.distributionMode();
+      DistributionMode writeMode = flinkWriteConf.distributionMode(equalityFieldIds);
 
       LOG.info("Write distribution mode is '{}'", writeMode.modeName());
       switch (writeMode) {
@@ -547,7 +547,7 @@ public class FlinkSink {
           } else {
             LOG.info(
                 "Distribute rows by equality fields, because there are equality fields set "
-                    + "and{}=range is not supported yet in flink",
+                    + "and {}=range is not supported yet in flink",
                 WRITE_DISTRIBUTION_MODE);
             return input.keyBy(
                 new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
