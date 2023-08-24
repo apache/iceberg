@@ -37,6 +37,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -328,6 +329,222 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Row row2 = incrementalResult.agg(functions.min("id"), functions.max("id")).head();
     assertThat(row2.getInt(0)).as("min value should match").isEqualTo(3);
     assertThat(row2.getInt(1)).as("max value should match").isEqualTo(3);
+  }
+
+  @Test
+  public void testIncrementalScanUseBranch() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(SCHEMA, tableLocation);
+
+    List<SimpleRecord> records1 =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    for (SimpleRecord record : records1) {
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+    }
+    List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
+
+    String branch = "b1";
+    table.manageSnapshots().createBranch(branch, snapshotIds.get(2)).commit();
+
+    List<SimpleRecord> records2 =
+        Lists.newArrayList(new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+
+    for (SimpleRecord record : records2) {
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf
+          .select("id", "data")
+          .write()
+          .option("branch", branch)
+          .format("iceberg")
+          .mode("append")
+          .save(tableLocation);
+    }
+
+    /*
+         data:1 a          data:2 b         data:3 c          data:4 d
+     ---- snapshot1  ---- snapshot2   ---- snapshot3     ---- snapshot4
+                             \
+                              \
+                               \data:5 e
+                               snapshot5(branch:test-branch)
+                                 \
+                                  \
+                                   \data:6 f
+                                   snapshot6(branch:test-branch)
+    */
+
+    // test (1st snapshot, current snapshot] use b1 branch incremental scan.
+    List<SimpleRecord> result =
+        spark
+            .read()
+            .format("iceberg")
+            .option("start-snapshot-id", snapshotIds.get(3).toString())
+            .option("branch", branch)
+            .load(tableLocation)
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    List<SimpleRecord> expected = Lists.newArrayList();
+    expected.add(records1.get(1));
+    expected.addAll(records2);
+    Assertions.assertThat(result).as("Records should match").isEqualTo(expected);
+
+    // test (1st snapshot, 5th snapshot] use b1 branch incremental scan.
+    List<Long> branchSnapshotIds = SnapshotUtil.currentAncestorIds(table, branch);
+
+    Dataset<Row> resultDf =
+        spark
+            .read()
+            .format("iceberg")
+            .option("start-snapshot-id", snapshotIds.get(3).toString())
+            .option("end-snapshot-id", branchSnapshotIds.get(1).toString())
+            .option("branch", branch)
+            .load(tableLocation);
+    List<SimpleRecord> result1 =
+        resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected1 = Lists.newArrayList();
+    expected1.add(records1.get(1));
+    expected1.add(records2.get(0));
+    Assertions.assertThat(result1).as("Records should match").isEqualTo(expected1);
+    Assertions.assertThat(resultDf.count())
+        .as("Unprocessed count should match record count")
+        .isEqualTo(2);
+  }
+
+  @Test
+  public void testIncrementalScanUseBranchWithInvalidSnapshotShouldFail() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(SCHEMA, tableLocation);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    for (SimpleRecord record : records) {
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+    }
+    List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
+
+    String branch = "test-branch";
+    table.manageSnapshots().createBranch(branch, snapshotIds.get(2)).commit();
+
+    List<SimpleRecord> records2 =
+        Lists.newArrayList(new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+
+    for (SimpleRecord record : records2) {
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf
+          .select("id", "data")
+          .write()
+          .option("branch", branch)
+          .format("iceberg")
+          .mode("append")
+          .save(tableLocation);
+    }
+    List<Long> branchSnapshotIds = SnapshotUtil.currentAncestorIds(table, branch);
+
+    /*
+         data:1 a          data:2 b         data:3 c
+     ---- snapshot1  ---- snapshot2   ---- snapshot3
+                             \
+                              \
+                               \data:5 e
+                               snapshot5(branch:test-branch)
+                                 \
+                                  \
+                                   \data:6 f
+                                   snapshot6(branch:test-branch)
+    */
+
+    // test (1st snapshot, 3rd snapshot] use b1 branch incremental scan should fail.
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("start-snapshot-id", snapshotIds.get(2).toString())
+                    .option("end-snapshot-id", snapshotIds.get(0).toString())
+                    .option("branch", branch)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("End snapshot is not a valid snapshot on the current branch");
+
+    // test (3rd snapshot, current snapshot] use b1 branch incremental scan should fail.
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("start-snapshot-id", snapshotIds.get(0).toString())
+                    .option("branch", branch)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Starting snapshot (exclusive) %s is not a parent ancestor of end snapshot %s",
+                snapshotIds.get(0), branchSnapshotIds.get(0)));
+  }
+
+  @Test
+  public void testIncrementalScanUseBranchWithInvalidBranchNameFail() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(SCHEMA, tableLocation);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    for (SimpleRecord record : records) {
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+    }
+    List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
+
+    // branch not exist should fail.
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("start-snapshot-id", snapshotIds.get(0).toString())
+                    .option("branch", "notExistBranch")
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            String.format("Cannot use branch (does not exist): %s", "notExistBranch"));
+
+    // tag should fail.
+    String tagName = "t1";
+    table.manageSnapshots().createTag(tagName, snapshotIds.get(2)).commit();
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("start-snapshot-id", snapshotIds.get(0).toString())
+                    .option("branch", tagName)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(String.format("Ref %s is not a branch", tagName));
   }
 
   @Test
