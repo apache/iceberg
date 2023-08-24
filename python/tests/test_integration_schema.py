@@ -765,47 +765,102 @@ def test_disallowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, ca
         )
 
 
-# def test_rename():
-#     tbl = _create_table_with_schema(
-#         catalog,
-#         Schema(
-#             NestedField(
-#                 field_id=1,
-#                 name="location_lookup",
-#                 field_type=MapType(
-#                     key_id=10,
-#                     key_type=StringType(),
-#                     value_id=11,
-#                     value_type=StructType(
-#                         NestedField(field_id=110, name="x", field_type=FloatType(), required=False),
-#                         NestedField(field_id=111, name="y", field_type=FloatType(), required=False),
-#                     ),
-#                     element_required=True,
-#                 ),
-#                 required=True,
-#             ),
-#             NestedField(
-#                 field_id=2,
-#                 name="locations",
-#                 field_type=ListType(
-#                     element_id=20,
-#                     element_type=StructType(
-#                         NestedField(field_id=200, name="x", field_type=FloatType(), required=False),
-#                         NestedField(field_id=201, name="y", field_type=FloatType(), required=False),
-#                     ),
-#                     element_required=True,
-#                 ),
-#                 required=True,
-#             ),
-#             NestedField(
-#                 field_id=3,
-#                 name="person",
-#                 field_type=StructType(
-#                     NestedField(field_id=30, name="name", field_type=StringType(), required=False),
-#                     NestedField(field_id=31, name="age", field_type=IntegerType(), required=True),
-#                 ),
-#                 required=False,
-#             ),
-#             schema_id=1,
-#         ),
-#     )
+def test_rename(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(
+                field_id=1,
+                name="location_lookup",
+                field_type=MapType(
+                    type="map",
+                    key_id=5,
+                    key_type=StringType(),
+                    value_id=6,
+                    value_type=StructType(
+                        NestedField(field_id=7, name="x", field_type=FloatType(), required=False),
+                        NestedField(field_id=8, name="y", field_type=FloatType(), required=False),
+                    ),
+                    value_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=2,
+                name="locations",
+                field_type=ListType(
+                    type="list",
+                    element_id=9,
+                    element_type=StructType(
+                        NestedField(field_id=10, name="x", field_type=FloatType(), required=False),
+                        NestedField(field_id=11, name="y", field_type=FloatType(), required=False),
+                    ),
+                    element_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=3,
+                name="person",
+                field_type=StructType(
+                    NestedField(field_id=12, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=13, name="leeftijd", field_type=IntegerType(), required=True),
+                ),
+                required=False,
+            ),
+            NestedField(field_id=4, name="foo", field_type=StringType(), required=True),
+            schema_id=0,
+            identifier_field_ids=[],
+        ),
+    )
+
+    with tbl.update_schema() as schema_update:
+        schema_update.rename_column("foo", "bar")
+        schema_update.rename_column("location_lookup.x", "location_lookup.latitude")
+        schema_update.rename_column("locations.x", "locations.latitude")
+        schema_update.rename_column("person.leeftijd", "person.age")
+
+    assert tbl.schema() == Schema(
+        NestedField(
+            field_id=1,
+            name="location_lookup",
+            field_type=MapType(
+                type="map",
+                key_id=5,
+                key_type=StringType(),
+                value_id=6,
+                value_type=StructType(
+                    NestedField(field_id=7, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=8, name="y", field_type=FloatType(), required=False),
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=2,
+            name="locations",
+            field_type=ListType(
+                type="list",
+                element_id=9,
+                element_type=StructType(
+                    NestedField(field_id=10, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=11, name="y", field_type=FloatType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=3,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=12, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=13, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        NestedField(field_id=4, name="bar", field_type=StringType(), required=True),
+        schema_id=0,
+        identifier_field_ids=[],
+    )

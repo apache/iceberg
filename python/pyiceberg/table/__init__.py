@@ -1049,21 +1049,21 @@ class UpdateSchema:
 
         return self
 
-    def rename_column(self, path_from: Union[str, Tuple[str, ...]], path_to: Union[str, Tuple[str, ...]]) -> UpdateSchema:
+    def rename_column(self, path_from: Union[str, Tuple[str, ...]], new_name: str) -> UpdateSchema:
         """Updates the name of a column.
 
         Args:
             path_from: The path to the column to be renamed.
-            path_to: The new path of the column.
+            new_name: The new path of the column.
 
         Returns:
             The UpdateSchema with the rename operation staged.
         """
-        name_from = (path_from,) if isinstance(path_from, str) else path_from
-        name_to = (path_to,) if isinstance(path_to, str) else path_to
+        name_from = tuple(path_from.split(".")) if isinstance(path_from, str) else path_from
+        new_name = new_name.split(".")[-1]
 
+        parent_path = name_from[:-1]
         full_name_from = ".".join(name_from)
-        full_name_to = ".".join(name_to)
 
         from_field = self._schema.find_field(full_name_from, self._case_sensitive)
 
@@ -1073,7 +1073,7 @@ class UpdateSchema:
         if updated := self._updates.get(from_field.field_id):
             self._updates[from_field.field_id] = NestedField(
                 field_id=updated.field_id,
-                name=full_name_to,
+                name=new_name,
                 field_type=updated.field_type,
                 doc=updated.doc,
                 required=updated.required,
@@ -1081,7 +1081,7 @@ class UpdateSchema:
         else:
             self._updates[from_field.field_id] = NestedField(
                 field_id=from_field.field_id,
-                name=full_name_to,
+                name=new_name,
                 field_type=from_field.field_type,
                 doc=from_field.doc,
                 required=from_field.required,
@@ -1089,7 +1089,7 @@ class UpdateSchema:
 
         if path_from in self._identifier_field_names:
             self._identifier_field_names.remove(full_name_from)
-            self._identifier_field_names.add(full_name_to)
+            self._identifier_field_names.add(f"{'.'.join(parent_path)}.{new_name}")
 
         return self
 
@@ -1459,7 +1459,7 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
             required = field.required
 
             # There is an update
-            if update := self._updates.get(field):
+            if update := self._updates.get(field.field_id):
                 name = update.name
                 doc = update.doc
                 required = update.required
@@ -1469,9 +1469,7 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
             else:
                 has_changes = True
                 new_fields.append(
-                    NestedField(
-                        field_id=field.field_id, name=field.name, field_type=result_type, required=field.required, doc=field.doc
-                    )
+                    NestedField(field_id=field.field_id, name=name, field_type=result_type, required=required, doc=doc)
                 )
 
         if has_changes:
