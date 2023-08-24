@@ -159,6 +159,7 @@ class DeleteFileIndex {
     }
   }
 
+  // limits deletes using sequence numbers and checks whether columns stats overlap
   private DeleteFile[] limitWithColumnStatsFiltering(
       long sequenceNumber, DataFile file, DeleteFileGroup partitionDeletes) {
 
@@ -179,6 +180,7 @@ class DeleteFileIndex {
         .toArray(DeleteFile[]::new);
   }
 
+  // limits deletes using sequence numbers but skips expensive column stats filtering
   private DeleteFile[] limitWithoutColumnStatsFiltering(
       long sequenceNumber, DeleteFileGroup partitionDeletes) {
 
