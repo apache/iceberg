@@ -303,156 +303,156 @@ License: MIT License - http://www.opensource.org/licenses/mit-license.php
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: annotations  Version: 2.20.18
+Group: software.amazon.awssdk  Name: annotations  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: apache-client  Version: 2.20.18
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: arns  Version: 2.20.18
+Group: software.amazon.awssdk  Name: arns  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: auth  Version: 2.20.18
+Group: software.amazon.awssdk  Name: auth  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-core  Version: 2.20.18
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.20.18
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.20.18
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.20.18
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: dynamodb  Version: 2.20.18
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.20.18
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: glue  Version: 2.20.18
+Group: software.amazon.awssdk  Name: glue  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.20.18
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: iam  Version: 2.20.18
+Group: software.amazon.awssdk  Name: iam  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: json-utils  Version: 2.20.18
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: kms  Version: 2.20.18
+Group: software.amazon.awssdk  Name: kms  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: lakeformation  Version: 2.20.18
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.20.18
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.20.18
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: profiles  Version: 2.20.18
+Group: software.amazon.awssdk  Name: profiles  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: protocol-core  Version: 2.20.18
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: regions  Version: 2.20.18
+Group: software.amazon.awssdk  Name: regions  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: s3  Version: 2.20.18
+Group: software.amazon.awssdk  Name: s3  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sdk-core  Version: 2.20.18
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sso  Version: 2.20.18
+Group: software.amazon.awssdk  Name: sso  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sts  Version: 2.20.18
+Group: software.amazon.awssdk  Name: sts  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.20.18
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.20.131
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: utils  Version: 2.20.18
+Group: software.amazon.awssdk  Name: utils  Version: 2.20.131
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
