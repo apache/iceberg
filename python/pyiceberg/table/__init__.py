@@ -41,6 +41,7 @@ from typing import (
 from pydantic import Field, SerializeAsAny
 from sortedcontainers import SortedList
 
+from pyiceberg.exceptions import ResolveError, ValidationError
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -64,6 +65,7 @@ from pyiceberg.schema import (
     Schema,
     SchemaVisitor,
     assign_fresh_schema_ids,
+    promote,
     visit,
 )
 from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadata
@@ -1172,6 +1174,11 @@ class UpdateSchema:
         if field.field_type == field_type:
             # Nothing changed
             return self
+
+        try:
+            promote(field.field_type, field_type)
+        except ResolveError as e:
+            raise ValidationError(f"Cannot change column type: {full_name}: {field.field_type} -> {field_type}") from e
 
         if updated := self._updates.get(field.field_id):
             self._updates[field.field_id] = NestedField(

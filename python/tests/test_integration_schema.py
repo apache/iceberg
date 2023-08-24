@@ -20,11 +20,14 @@ from typing import Dict
 import pytest
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.exceptions import CommitFailedException, NoSuchTableError
+from pyiceberg.exceptions import CommitFailedException, NoSuchTableError, ValidationError
 from pyiceberg.schema import Schema, prune_columns
 from pyiceberg.table import Table, UpdateSchema
 from pyiceberg.types import (
+    BinaryType,
     BooleanType,
+    DateType,
+    DecimalType,
     DoubleType,
     FixedType,
     FloatType,
@@ -33,9 +36,13 @@ from pyiceberg.types import (
     LongType,
     MapType,
     NestedField,
+    PrimitiveType,
     StringType,
     StructType,
-    UUIDType, PrimitiveType, DateType, TimeType, TimestampType, TimestamptzType, BinaryType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
 )
 
 
@@ -53,11 +60,9 @@ def catalog() -> Catalog:
     )
 
 
-
 @pytest.fixture()
 def simple_table(catalog: Catalog, table_schema_simple: Schema) -> Table:
     return _create_table_with_schema(catalog, table_schema_simple)
-
 
 
 def test_add_column(simple_table: Table) -> None:
@@ -409,6 +414,7 @@ def test_schema_evolution_nested(catalog: Catalog) -> None:
         )
     )
 
+
 schema_nested = Schema(
     NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
     NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -441,10 +447,8 @@ schema_nested = Schema(
             type="list",
             element_id=13,
             element_type=StructType(
-                fields=(
-                    NestedField(field_id=14, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=15, name="longitude", field_type=FloatType(), required=False),
-                )
+                NestedField(field_id=14, name="latitude", field_type=FloatType(), required=False),
+                NestedField(field_id=15, name="longitude", field_type=FloatType(), required=False),
             ),
             element_required=True,
         ),
@@ -454,10 +458,8 @@ schema_nested = Schema(
         field_id=7,
         name="person",
         field_type=StructType(
-            fields=(
-                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-            )
+            NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+            NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
         ),
         required=False,
     ),
@@ -562,8 +564,248 @@ def test_deletes(field: str, nested_table: Table) -> None:
         field_id
         for field_id in schema_nested.field_ids
         if not isinstance(schema_nested.find_field(field_id).field_type, (MapType, ListType))
-        and not schema_nested.find_column_name(field_id).startswith(field)
+        and not schema_nested.find_column_name(field_id).startswith(field)  # type: ignore
     }
     expected_schema = prune_columns(schema_nested, selected_ids, select_full_types=False)
 
     assert expected_schema == nested_table.schema()
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "Foo",
+        "Baz",
+        "Qux",
+        "Quux",
+        "Location",
+        "Location.element.latitude",
+        "Location.element.longitude",
+        "Person",
+        "Person.name",
+        "Person.age",
+    ],
+)
+def test_deletes_case_insensitive(field: str, nested_table: Table) -> None:
+    with nested_table.update_schema(case_sensitive=False) as schema_update:
+        schema_update.delete_column(field)
+
+    selected_ids = {
+        field_id
+        for field_id in schema_nested.field_ids
+        if not isinstance(schema_nested.find_field(field_id).field_type, (MapType, ListType))
+        and not schema_nested.find_column_name(field_id).startswith(field.lower())  # type: ignore
+    }
+    expected_schema = prune_columns(schema_nested, selected_ids, select_full_types=False)
+
+    assert expected_schema == nested_table.schema()
+
+
+def test_update_types(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(field_id=1, name="bar", field_type=IntegerType(), required=True),
+            NestedField(
+                field_id=2,
+                name="location",
+                field_type=ListType(
+                    type="list",
+                    element_id=3,
+                    element_type=StructType(
+                        NestedField(field_id=4, name="latitude", field_type=FloatType(), required=False),
+                        NestedField(field_id=5, name="longitude", field_type=FloatType(), required=False),
+                    ),
+                    element_required=True,
+                ),
+                required=True,
+            ),
+        ),
+    )
+
+    with tbl.update_schema() as schema_update:
+        schema_update.update_column("bar", LongType())
+        schema_update.update_column("location.latitude", DoubleType())
+        schema_update.update_column("location.longitude", DoubleType())
+
+    assert tbl.schema() == Schema(
+        NestedField(field_id=1, name="bar", field_type=LongType(), required=True),
+        NestedField(
+            field_id=2,
+            name="location",
+            field_type=ListType(
+                type="list",
+                element_id=3,
+                element_type=StructType(
+                    NestedField(field_id=4, name="latitude", field_type=DoubleType(), required=False),
+                    NestedField(field_id=5, name="longitude", field_type=DoubleType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+    )
+
+
+def test_update_types_case_insensitive(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(field_id=1, name="bar", field_type=IntegerType(), required=True),
+            NestedField(
+                field_id=2,
+                name="location",
+                field_type=ListType(
+                    type="list",
+                    element_id=3,
+                    element_type=StructType(
+                        NestedField(field_id=4, name="latitude", field_type=FloatType(), required=False),
+                        NestedField(field_id=5, name="longitude", field_type=FloatType(), required=False),
+                    ),
+                    element_required=True,
+                ),
+                required=True,
+            ),
+        ),
+    )
+
+    with tbl.update_schema(case_sensitive=False) as schema_update:
+        schema_update.update_column("baR", LongType())
+        schema_update.update_column("Location.Latitude", DoubleType())
+        schema_update.update_column("Location.Longitude", DoubleType())
+
+    assert tbl.schema() == Schema(
+        NestedField(field_id=1, name="bar", field_type=LongType(), required=True),
+        NestedField(
+            field_id=2,
+            name="location",
+            field_type=ListType(
+                type="list",
+                element_id=3,
+                element_type=StructType(
+                    NestedField(field_id=4, name="latitude", field_type=DoubleType(), required=False),
+                    NestedField(field_id=5, name="longitude", field_type=DoubleType(), required=False),
+                ),
+                element_required=True,
+            ),
+            required=True,
+        ),
+    )
+
+
+allowed_promotions = [
+    (StringType(), BinaryType()),
+    (BinaryType(), StringType()),
+    (IntegerType(), LongType()),
+    (FloatType(), DoubleType()),
+    (DecimalType(9, 2), DecimalType(18, 2)),
+]
+
+
+@pytest.mark.parametrize("from_type, to_type", allowed_promotions)
+def test_allowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(field_id=1, name="bar", field_type=from_type, required=True),
+        ),
+    )
+
+    with tbl.update_schema() as schema_update:
+        schema_update.update_column("bar", to_type)
+
+    assert tbl.schema() == Schema(NestedField(field_id=1, name="bar", field_type=to_type, required=True))
+
+
+disallowed_promotions_types = [
+    BooleanType(),
+    IntegerType(),
+    LongType(),
+    FloatType(),
+    DoubleType(),
+    DateType(),
+    TimeType(),
+    TimestampType(),
+    TimestamptzType(),
+    StringType(),
+    UUIDType(),
+    BinaryType(),
+    FixedType(3),
+    FixedType(4),
+    # We'll just allow Decimal promotions right now
+    # https://github.com/apache/iceberg/issues/8389
+    # DecimalType(9, 2),
+    # DecimalType(9, 3),
+    # DecimalType(18, 2)
+]
+
+
+@pytest.mark.parametrize("from_type", disallowed_promotions_types)
+@pytest.mark.parametrize("to_type", disallowed_promotions_types)
+def test_disallowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(field_id=1, name="bar", field_type=from_type, required=True),
+        ),
+    )
+
+    if from_type != to_type and (from_type, to_type) not in allowed_promotions:
+        with pytest.raises(ValidationError) as exc_info:
+            with tbl.update_schema() as schema_update:
+                schema_update.update_column("bar", to_type)
+
+        assert str(exc_info.value).startswith("Cannot change column type: bar:")
+    else:
+        with tbl.update_schema() as schema_update:
+            schema_update.update_column("bar", to_type)
+
+        assert tbl.schema() == Schema(
+            NestedField(field_id=1, name="bar", field_type=to_type, required=True),
+        )
+
+
+# def test_rename():
+#     tbl = _create_table_with_schema(
+#         catalog,
+#         Schema(
+#             NestedField(
+#                 field_id=1,
+#                 name="location_lookup",
+#                 field_type=MapType(
+#                     key_id=10,
+#                     key_type=StringType(),
+#                     value_id=11,
+#                     value_type=StructType(
+#                         NestedField(field_id=110, name="x", field_type=FloatType(), required=False),
+#                         NestedField(field_id=111, name="y", field_type=FloatType(), required=False),
+#                     ),
+#                     element_required=True,
+#                 ),
+#                 required=True,
+#             ),
+#             NestedField(
+#                 field_id=2,
+#                 name="locations",
+#                 field_type=ListType(
+#                     element_id=20,
+#                     element_type=StructType(
+#                         NestedField(field_id=200, name="x", field_type=FloatType(), required=False),
+#                         NestedField(field_id=201, name="y", field_type=FloatType(), required=False),
+#                     ),
+#                     element_required=True,
+#                 ),
+#                 required=True,
+#             ),
+#             NestedField(
+#                 field_id=3,
+#                 name="person",
+#                 field_type=StructType(
+#                     NestedField(field_id=30, name="name", field_type=StringType(), required=False),
+#                     NestedField(field_id=31, name="age", field_type=IntegerType(), required=True),
+#                 ),
+#                 required=False,
+#             ),
+#             schema_id=1,
+#         ),
+#     )
