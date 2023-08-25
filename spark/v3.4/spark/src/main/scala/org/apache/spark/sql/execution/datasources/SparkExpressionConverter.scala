@@ -36,7 +36,14 @@ object SparkExpressionConverter {
     // Currently, it is a double conversion as we are converting Spark expression to Spark predicate
     // and then converting Spark predicate to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkV2Filters.convert(DataSourceV2Strategy.translateFilterV2(sparkExpression).get)
+    DataSourceV2Strategy.translateFilterV2(sparkExpression) match {
+      case Some(filter) =>
+        val converted = SparkV2Filters.convert(filter)
+        assert(converted != null, s"Cannot convert Spark filter to Iceberg expression: $filter")
+        converted
+      case _ =>
+        throw new IllegalArgumentException(s"Cannot translate Spark expression to data source filter: $sparkExpression")
+    }
   }
 
   @throws[AnalysisException]
