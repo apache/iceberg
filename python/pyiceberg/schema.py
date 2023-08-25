@@ -949,6 +949,7 @@ class _IndexParents(SchemaVisitor[Dict[int, int]]):
             if parent_id is not None:
                 # fields in the root struct are not added
                 self.id_to_parent[field.field_id] = parent_id
+
         return self.id_to_parent
 
     def field(self, field: NestedField, field_result: Dict[int, int]) -> Dict[int, int]:
