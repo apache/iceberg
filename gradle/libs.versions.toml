@@ -11,6 +11,7 @@ avro = "1.11.1"
 assertj-core = "3.24.2"
 awaitility = "4.2.0"
 awssdk-bom = "2.20.131"
+azuresdk-bom = "1.2.15"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "0.6.0"
@@ -77,6 +78,7 @@ arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.r
 arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
 avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom" }
+azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }

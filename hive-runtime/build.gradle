@@ -45,6 +45,7 @@ project(':iceberg-hive-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     implementation project(':iceberg-aws')
+    implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'
