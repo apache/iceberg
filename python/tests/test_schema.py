@@ -123,7 +123,7 @@ def test_schema_index_by_id_visitor(table_schema_nested: Schema) -> None:
     """Test index_by_id visitor function"""
     index = schema.index_by_id(table_schema_nested)
     assert index == {
-        1: NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
+        1: NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         2: NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         3: NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         4: NestedField(
@@ -431,14 +431,14 @@ def test_deserialize_schema(table_schema_simple: Schema) -> None:
     assert actual == expected
 
 
-def test_prune_columns_string(table_schema_nested: Schema) -> None:
-    assert prune_columns(table_schema_nested, {1}, False) == Schema(
+def test_prune_columns_string(table_schema_nested_with_struct_key_map: Schema) -> None:
+    assert prune_columns(table_schema_nested_with_struct_key_map, {1}, False) == Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
     )
 
 
-def test_prune_columns_string_full(table_schema_nested: Schema) -> None:
-    assert prune_columns(table_schema_nested, {1}, True) == Schema(
+def test_prune_columns_string_full(table_schema_nested_with_struct_key_map: Schema) -> None:
+    assert prune_columns(table_schema_nested_with_struct_key_map, {1}, True) == Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
         schema_id=1,
         identifier_field_ids=[1],
@@ -694,7 +694,7 @@ def test_schema_select(table_schema_nested: Schema) -> None:
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         schema_id=1,
-        identifier_field_ids=[],
+        identifier_field_ids=[2],
     )
 
 
@@ -732,8 +732,8 @@ def test_identifier_fields_fails(table_schema_nested_with_struct_key_map: Schema
     assert str(exc_info.value) == "Cannot add fieldId 999 as an identifier field: field does not exist"
 
     with pytest.raises(ValueError) as exc_info:
-        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[1])
-    assert str(exc_info.value) == "Cannot add field foo as an identifier field: not a required field"
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[3])
+    assert str(exc_info.value) == "Cannot add field baz as an identifier field: not a required field"
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[28])

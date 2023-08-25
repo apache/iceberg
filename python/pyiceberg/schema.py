@@ -291,13 +291,16 @@ class Schema(IcebergBaseModel):
         """
         field = id_to_field.get(field_id)
         if field is None:
-            raise ValueError("Cannot add fieldId %s as an identifier field: field does not exist" % field_id)
+            raise ValueError(f"Cannot add fieldId {field_id} as an identifier field: field does not exist")
+
         if not field.field_type.is_primitive:
-            raise ValueError("Cannot add field %s as an identifier field: not a primitive type field" % field.name)
+            raise ValueError(f"Cannot add field {field.name} as an identifier field: not a primitive type field")
+
         if not field.required:
-            raise ValueError("Cannot add field %s as an identifier field: not a required field" % field.name)
+            raise ValueError(f"Cannot add field {field.name} as an identifier field: not a required field")
+
         if isinstance(field.field_type, DoubleType) or isinstance(field.field_type, FloatType):
-            raise ValueError("Cannot add field %s as an identifier field: must not be float or double field" % field.name)
+            raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be float or double field")
 
         # Check whether the nested field is in a chain of required struct fields
         # Exploring from root for better error message for list and map types
@@ -311,10 +314,10 @@ class Schema(IcebergBaseModel):
             parent: Optional[NestedField] = id_to_field.get(fields.pop())
             if parent and not parent.field_type.is_struct:
                 raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
+
             if parent and not parent.required:
                 raise ValueError(
-                    "Cannot add field %s as an identifier field: must not be nested in an optional field %s"
-                    % (field.name, parent)
+                    f"Cannot add field {field.name} as an identifier field: must not be nested in an optional field {parent}"
                 )
 
 

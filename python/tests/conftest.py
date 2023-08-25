@@ -148,7 +148,7 @@ def table_schema_simple() -> Schema:
 @pytest.fixture(scope="session")
 def table_schema_nested() -> Schema:
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
@@ -192,14 +192,14 @@ def table_schema_nested() -> Schema:
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
 
 
 @pytest.fixture(scope="session")
 def table_schema_nested_with_struct_key_map() -> Schema:
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
@@ -264,7 +264,7 @@ def table_schema_nested_with_struct_key_map() -> Schema:
         NestedField(field_id=28, name="float", field_type=FloatType(), required=True),
         NestedField(field_id=29, name="double", field_type=DoubleType(), required=True),
         schema_id=1,
-        identifier_field_ids=[2],
+        identifier_field_ids=[1],
     )
 
 
