@@ -46,8 +46,7 @@ import org.slf4j.LoggerFactory;
  * Delegate FileIO implementations must implement the {@link DelegateFileIO} mixin interface,
  * otherwise initialization will fail.
  */
-public class ResolvingFileIO
-    implements FileIO, HadoopConfigurable, SupportsBulkOperations, SupportsPrefixOperations {
+public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
