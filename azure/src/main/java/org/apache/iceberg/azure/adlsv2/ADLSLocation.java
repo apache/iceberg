@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Support</a>
  */
 class ADLSLocation {
-  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://(.+?)([/?#].*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://([^/?#]+)(.*)?$");
 
   private final String storageAccount;
   private final String container;
