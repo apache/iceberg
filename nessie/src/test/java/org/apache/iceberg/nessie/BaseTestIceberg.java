@@ -124,7 +124,7 @@ public abstract class BaseTestIceberg {
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
     if (!branch.equals(defaultBranch.getName())) {
-      api.createReference().reference(Branch.of(branch, null)).create();
+      createBranch(branch, initialHashOfDefaultBranch);
     }
 
     hadoopConfig = new Configuration();
@@ -200,6 +200,10 @@ public abstract class BaseTestIceberg {
       fields.add(required(i, "id" + i, Types.LongType.get()));
     }
     return new Schema(Types.StructType.of(fields).fields());
+  }
+
+  void createBranch(String name) throws NessieNotFoundException, NessieConflictException {
+    createBranch(name, catalog.currentHash());
   }
 
   void createBranch(String name, String hash)

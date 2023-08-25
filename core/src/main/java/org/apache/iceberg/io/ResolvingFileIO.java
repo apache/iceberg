@@ -48,12 +48,15 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable, SupportsBulk
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
+  private static final String ADLS_FILE_IO_IMPL = "org.apache.iceberg.azure.adlsv2.ADLSFileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO =
       ImmutableMap.of(
           "s3", S3_FILE_IO_IMPL,
           "s3a", S3_FILE_IO_IMPL,
           "s3n", S3_FILE_IO_IMPL,
-          "gs", GCS_FILE_IO_IMPL);
+          "gs", GCS_FILE_IO_IMPL,
+          "abfs", ADLS_FILE_IO_IMPL,
+          "abfss", ADLS_FILE_IO_IMPL);
 
   private final Map<String, FileIO> ioInstances = Maps.newConcurrentMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);

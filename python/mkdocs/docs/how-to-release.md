@@ -57,7 +57,7 @@ Before committing the files to the Apache SVN artifact distribution SVN hashes n
 Go to [Github Actions and run the `Python release` action](https://github.com/apache/iceberg/actions/workflows/python-release.yml). **Set the version to master, since we cannot modify the source**. Download the zip, and sign the files:
 
 ```bash
-for name in $(ls release-master/pyiceberg-*.whl)
+for name in $(ls release-master/pyiceberg-*.whl release-master/pyiceberg-*.tar.gz)
 do
     gpg --yes --armor --local-user fokko@apache.org --output "${name}.asc" --detach-sig "${name}"
     shasum -a 512 "${name}.asc" > "${name}.asc.sha512"
@@ -72,7 +72,7 @@ svn checkout https://dist.apache.org/repos/dist/dev/iceberg $SVN_TMP_DIR
 
 export SVN_TMP_DIR_VERSIONED=${SVN_TMP_DIR}pyiceberg-$VERSION/
 mkdir -p $SVN_TMP_DIR_VERSIONED
-cp artifact/* $SVN_TMP_DIR_VERSIONED
+cp release-master/* $SVN_TMP_DIR_VERSIONED
 svn add $SVN_TMP_DIR_VERSIONED
 svn ci -m "PyIceberg ${VERSION}" ${SVN_TMP_DIR_VERSIONED}
 ```
@@ -81,10 +81,10 @@ svn ci -m "PyIceberg ${VERSION}" ${SVN_TMP_DIR_VERSIONED}
 
 Go to Github Actions and run the `Python release` action. Set the version of the release candidate as the input: `0.1.0rc1`. Download the zip and unzip it locally.
 
-Next step is to upload them to pypi. Please keep in mind that this **won't** bump the version for everyone that hasn't pinned their version, since it is set to a RC [pre-release and those are ignored](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#pre-release-versioning).
+Next step is to upload them to pypi. Please keep in mind that this **won't** bump the version for everyone that hasn't pinned their version, since it is set to an RC [pre-release and those are ignored](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#pre-release-versioning).
 
 ```bash
-twine upload -s release-0.1.0-rc1/*
+twine upload -s release-0.1.0rc1/*
 ```
 
 Final step is to generate the email to the dev mail list:
