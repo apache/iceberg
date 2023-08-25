@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3.signer;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.rest.RESTRequest;
 import org.immutables.value.Value;
 
@@ -35,6 +36,12 @@ public interface S3SignRequest extends RESTRequest {
   Map<String, List<String>> headers();
 
   Map<String, String> properties();
+
+  @Value.Default
+  @Nullable
+  default String body() {
+    return null;
+  }
 
   @Override
   default void validate() {}

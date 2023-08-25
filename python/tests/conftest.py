@@ -57,6 +57,7 @@ from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.io import (
     GCS_ENDPOINT,
     GCS_PROJECT_ID,
@@ -65,13 +66,14 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
     fsspec,
+    load_file_io,
 )
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import FileScanTask
+from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
@@ -177,6 +179,63 @@ def table_schema_nested() -> Schema:
                     NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
                 ),
                 element_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+@pytest.fixture(scope="session")
+def table_schema_nested_with_struct_key_map() -> Schema:
+    return schema.Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=11,
+            name="location",
+            field_type=MapType(
+                key_id=18,
+                value_id=19,
+                key_type=StructType(
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=False),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=False),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=False),
+                ),
+                value_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                ),
+                value_required=True,
             ),
             required=True,
         ),
@@ -1560,4 +1619,16 @@ def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
 def example_task(data_file: str) -> FileScanTask:
     return FileScanTask(
         data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )
+
+
+@pytest.fixture
+def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
+    return Table(
+        identifier=("database", "table"),
+        metadata=table_metadata,
+        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
+        io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )
