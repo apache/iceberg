@@ -480,6 +480,7 @@ public class SparkScanBuilder
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
+  @SuppressWarnings("CyclomaticComplexity")
   public Scan buildChangelogScan() {
     Preconditions.checkArgument(
         readConf.snapshotId() == null
@@ -517,12 +518,20 @@ public class SparkScanBuilder
           SparkReadOptions.END_TIMESTAMP);
     }
 
+    boolean emptyScan = false;
     if (startTimestamp != null) {
       startSnapshotId = getStartSnapshotId(startTimestamp);
+      if (startSnapshotId == null && endTimestamp == null) {
+        emptyScan = true;
+      }
     }
 
     if (endTimestamp != null) {
-      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+      endSnapshotId = SnapshotUtil.nullableSnapshotIdAsOfTime(table, endTimestamp);
+      if ((startSnapshotId == null && endSnapshotId == null)
+          || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
+        emptyScan = true;
+      }
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -544,18 +553,16 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkChangelogScan(
+        spark, table, scan, readConf, expectedSchema, filterExpressions, emptyScan);
   }
 
   private Long getStartSnapshotId(Long startTimestamp) {
     Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
-    Preconditions.checkArgument(
-        oldestSnapshotAfter != null,
-        "Cannot find a snapshot older than %s for table %s",
-        startTimestamp,
-        table.name());
 
-    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+    if (oldestSnapshotAfter == null) {
+      return null;
+    } else if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
       return oldestSnapshotAfter.snapshotId();
     } else {
       return oldestSnapshotAfter.parentId();
