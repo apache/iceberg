@@ -212,7 +212,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
               + "at the same time. If you are absolutely confident that no concurrent operations will be "
               + "affected by removing orphan files with such a short interval, you can use the Action API "
               + "to remove orphan files with an arbitrary interval."
-              + "If you test remove orphan files, configure spark.testing to true in your SparkSession object.");
+              + "If you test remove orphan files, configure spark.testing to true in SparkSession.");
     }
   }
 
