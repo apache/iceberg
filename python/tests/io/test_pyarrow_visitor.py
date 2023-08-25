@@ -260,7 +260,7 @@ def test_round_schema_conversion_simple(table_schema_simple: Schema) -> None:
 def test_round_schema_conversion_nested(table_schema_nested: Schema) -> None:
     actual = str(pyarrow_to_schema(schema_to_pyarrow(table_schema_nested)))
     expected = """table {
-  1: foo: optional string
+  1: foo: required string
   2: bar: required int
   3: baz: optional boolean
   4: qux: required list<string>

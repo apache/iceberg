@@ -88,6 +88,10 @@ class Schema(IcebergBaseModel):
             data["fields"] = fields
         super().__init__(**data)
         self._name_to_id = index_by_name(self)
+        if self.identifier_field_ids is not None:
+            id_to_parent: Dict[int, int] = index_parents(self.as_struct())
+            for field_id in self.identifier_field_ids:
+                Schema.validate_identifier_field(field_id, self._lazy_id_to_field, id_to_parent)
 
     def __str__(self) -> str:
         """Returns the string representation of the Schema class."""
@@ -272,6 +276,46 @@ class Schema(IcebergBaseModel):
     def field_ids(self) -> Set[int]:
         """Returns the IDs of the current schema."""
         return set(self._name_to_id.values())
+
+    @staticmethod
+    def validate_identifier_field(field_id: int, id_to_field: Dict[int, NestedField], id_to_parent: Dict[int, int]) -> None:
+        """Validates that the field with the given ID is a valid identifier field.
+
+        Args:
+          field_id: The ID of the field to validate.
+          id_to_field: A map from field IDs to field objects.
+          id_to_parent: A map from field IDs to their parent field IDs.
+
+        Raises:
+          ValueError: If the field is not valid.
+        """
+        field = id_to_field.get(field_id)
+        if field is None:
+            raise ValueError("Cannot add fieldId %s as an identifier field: field does not exist" % field_id)
+        if not field.field_type.is_primitive:
+            raise ValueError("Cannot add field %s as an identifier field: not a primitive type field" % field.name)
+        if not field.required:
+            raise ValueError("Cannot add field %s as an identifier field: not a required field" % field.name)
+        if isinstance(field.field_type, DoubleType) or isinstance(field.field_type, FloatType):
+            raise ValueError("Cannot add field %s as an identifier field: must not be float or double field" % field.name)
+
+        # Check whether the nested field is in a chain of required struct fields
+        # Exploring from root for better error message for list and map types
+        parent_id = id_to_parent.get(field.field_id)
+        fields: List[int] = []
+        while parent_id is not None:
+            fields.append(parent_id)
+            parent_id = id_to_parent.get(parent_id)
+
+        while fields:
+            parent: Optional[NestedField] = id_to_field.get(fields.pop())
+            if parent and not parent.field_type.is_struct:
+                raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
+            if parent and not parent.required:
+                raise ValueError(
+                    "Cannot add field %s as an identifier field: must not be nested in an optional field %s"
+                    % (field.name, parent)
+                )
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -880,6 +924,56 @@ def index_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, NestedF
         Dict[int, NestedField]: An index of field IDs to NestedField instances.
     """
     return visit(schema_or_type, _IndexById())
+
+
+class _IndexParents(SchemaVisitor[Dict[int, int]]):
+    def __init__(self) -> None:
+        self.id_to_parent: Dict[int, int] = {}
+        self.id_stack: List[int] = []
+
+    def before_field(self, field: NestedField) -> None:
+        self.id_stack.append(field.field_id)
+
+    def after_field(self, field: NestedField) -> None:
+        self.id_stack.pop()
+
+    def schema(self, schema: Schema, struct_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def struct(self, struct: StructType, field_results: List[Dict[int, int]]) -> Dict[int, int]:
+        for field in struct.fields:
+            parent_id = self.id_stack[-1] if self.id_stack else None
+            if parent_id is not None:
+                # fields in the root struct are not added
+                self.id_to_parent[field.field_id] = parent_id
+        return self.id_to_parent
+
+    def field(self, field: NestedField, field_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def list(self, list_type: ListType, element_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[list_type.element_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def map(self, map_type: MapType, key_result: Dict[int, int], value_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[map_type.key_id] = self.id_stack[-1]
+        self.id_to_parent[map_type.value_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def primitive(self, primitive: PrimitiveType) -> Dict[int, int]:
+        return self.id_to_parent
+
+
+def index_parents(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, int]:
+    """Generate an index of field IDs to their parent field IDs.
+
+    Args:
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
+
+    Returns:
+        Dict[int, int]: An index of field IDs to their parent field IDs.
+    """
+    return visit(schema_or_type, _IndexParents())
 
 
 class _IndexByName(SchemaVisitor[Dict[str, int]]):
