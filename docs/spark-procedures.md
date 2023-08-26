@@ -558,6 +558,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `table`       | ✔️  | string | Name of the table to migrate |
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
+| `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 
 #### Output
 

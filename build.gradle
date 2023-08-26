@@ -518,6 +518,27 @@ project(':iceberg-aws') {
   }
 }
 
+project(':iceberg-azure') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    compileOnly platform(libs.azuresdk.bom)
+    compileOnly "com.azure:azure-storage-file-datalake"
+    compileOnly "com.azure:azure-identity"
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.testcontainers
+  }
+}
+
 project(':iceberg-delta-lake') {
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
