@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.date_format;
 import static org.apache.spark.sql.functions.expr;
 
 import io.delta.standalone.DeltaLog;
@@ -102,7 +104,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
             .withColumn("dateCol", date_add(current_date(), 1))
             .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-            .withColumn("stringCol", expr("CAST(timestampCol AS STRING)"))
+            .withColumn("timestampStrCol", expr("CAST(timestampCol AS STRING)"))
+            .withColumn("stringCol", date_format(col("timestampCol"), "yyyy/M/d"))
             .withColumn("booleanCol", expr("longCol > 5"))
             .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
             .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
@@ -288,6 +291,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         typeTestIdentifier,
         typeTestTableLocation,
         "stringCol",
+        "timestampStrCol",
         "booleanCol",
         "longCol");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_type_test_table");
