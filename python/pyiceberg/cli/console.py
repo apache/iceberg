@@ -93,7 +93,7 @@ def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
 @click.argument("parent", required=False)
 @catch_exception()
 def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefined-builtin
-    """Lists tables or namespaces."""
+    """List tables or namespaces."""
     catalog, output = _catalog_and_output(ctx)
 
     identifiers = catalog.list_namespaces(parent or ())
@@ -108,7 +108,7 @@ def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefi
 @click.pass_context
 @catch_exception()
 def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str) -> None:
-    """Describes a namespace or a table."""
+    """Describe a namespace or a table."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -142,7 +142,7 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 @click.pass_context
 @catch_exception()
 def files(ctx: Context, identifier: str, history: bool) -> None:
-    """Lists all the files of the table."""
+    """List all the files of the table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog_table = catalog.load_table(identifier)
@@ -154,7 +154,7 @@ def files(ctx: Context, identifier: str, history: bool) -> None:
 @click.pass_context
 @catch_exception()
 def schema(ctx: Context, identifier: str) -> None:
-    """Gets the schema of the table."""
+    """Get the schema of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.schema(table.schema())
@@ -165,7 +165,7 @@ def schema(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def spec(ctx: Context, identifier: str) -> None:
-    """Returns the partition spec of the table."""
+    """Return the partition spec of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.spec(table.spec())
@@ -176,7 +176,7 @@ def spec(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def uuid(ctx: Context, identifier: str) -> None:
-    """Returns the UUID of the table."""
+    """Return the UUID of the table."""
     catalog, output = _catalog_and_output(ctx)
     metadata = catalog.load_table(identifier).metadata
     output.uuid(metadata.table_uuid)
@@ -187,7 +187,7 @@ def uuid(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def location(ctx: Context, identifier: str) -> None:
-    """Returns the location of the table."""
+    """Return the location of the table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     output.text(table.location())
@@ -197,7 +197,7 @@ def location(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def version(ctx: Context) -> None:
-    """Prints pyiceberg version."""
+    """Print pyiceberg version."""
     ctx.obj["output"].version(__version__)
 
 
@@ -211,7 +211,7 @@ def drop() -> None:
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str) -> None:  # noqa: F811
-    """Drops a table."""
+    """Drop a table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_table(identifier)
@@ -223,7 +223,7 @@ def table(ctx: Context, identifier: str) -> None:  # noqa: F811
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str) -> None:
-    """Drops a namespace."""
+    """Drop a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_namespace(identifier)
@@ -236,7 +236,7 @@ def namespace(ctx: Context, identifier: str) -> None:
 @click.pass_context
 @catch_exception()
 def rename(ctx: Context, from_identifier: str, to_identifier: str) -> None:
-    """Renames a table."""
+    """Rename a table."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.rename_table(from_identifier, to_identifier)
@@ -299,7 +299,7 @@ def get_table(ctx: Context, identifier: str, property_name: str) -> None:
 
 @properties.group()
 def set() -> None:
-    """Sets a property on tables/namespaces."""
+    """Set a property on tables/namespaces."""
 
 
 @set.command()  # type: ignore
@@ -309,7 +309,7 @@ def set() -> None:
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
-    """Sets a property on a namespace."""
+    """Set a property on a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.update_namespace_properties(identifier, updates={property_name: property_value})
@@ -323,7 +323,7 @@ def namespace(ctx: Context, identifier: str, property_name: str, property_value:
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
-    """Sets a property on a table."""
+    """Set a property on a table."""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -334,7 +334,7 @@ def table(ctx: Context, identifier: str, property_name: str, property_value: str
 
 @properties.group()
 def remove() -> None:
-    """Removes a property from tables/namespaces."""
+    """Remove a property from tables/namespaces."""
 
 
 @remove.command()  # type: ignore
@@ -343,7 +343,7 @@ def remove() -> None:
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
-    """Removes a property from a namespace."""
+    """Remove a property from a namespace."""
     catalog, output = _catalog_and_output(ctx)
 
     result = catalog.update_namespace_properties(identifier, removals={property_name})
@@ -360,7 +360,7 @@ def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noq
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
-    """Removes a property from a table."""
+    """Remove a property from a table."""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
     if property_name in table.metadata.properties:

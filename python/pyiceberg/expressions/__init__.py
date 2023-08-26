@@ -94,11 +94,11 @@ class BoundTerm(Term[L], Bound, ABC):
 
     @abstractmethod
     def ref(self) -> BoundReference[L]:
-        """Returns the bound reference."""
+        """Return the bound reference."""
 
     @abstractmethod
     def eval(self, struct: StructProtocol) -> L:  # pylint: disable=W0613
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol."""
+        """Return the value at the referenced field's position in an object that abides by the StructProtocol."""
 
 
 class BoundReference(BoundTerm[L]):
@@ -117,7 +117,7 @@ class BoundReference(BoundTerm[L]):
         self.accessor = accessor
 
     def eval(self, struct: StructProtocol) -> L:
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol.
+        """Return the value at the referenced field's position in an object that abides by the StructProtocol.
 
         Args:
             struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position.
@@ -127,11 +127,11 @@ class BoundReference(BoundTerm[L]):
         return self.accessor.get(struct)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundReference class."""
+        """Return the equality of two instances of the BoundReference class."""
         return self.field == other.field if isinstance(other, BoundReference) else False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BoundReference class."""
+        """Return the string representation of the BoundReference class."""
         return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
 
     def ref(self) -> BoundReference[L]:
@@ -162,11 +162,11 @@ class Reference(UnboundTerm[Any]):
         self.name = name
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Reference class."""
+        """Return the string representation of the Reference class."""
         return f"Reference(name={repr(self.name)})"
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Reference class."""
+        """Return the equality of two instances of the Reference class."""
         return self.name == other.name if isinstance(other, Reference) else False
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[L]:
@@ -213,15 +213,15 @@ class And(BooleanExpression):
             return obj
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the And class."""
+        """Return the equality of two instances of the And class."""
         return self.left == other.left and self.right == other.right if isinstance(other, And) else False
 
     def __str__(self) -> str:
-        """Returns the string representation of the And class."""
+        """Return the string representation of the And class."""
         return f"And(left={str(self.left)}, right={str(self.right)})"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the And class."""
+        """Return the string representation of the And class."""
         return f"And(left={repr(self.left)}, right={repr(self.right)})"
 
     def __invert__(self) -> BooleanExpression:
@@ -230,7 +230,7 @@ class And(BooleanExpression):
         return Or(~self.left, ~self.right)
 
     def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
-        """A magic function for pickling the And class."""
+        """Pickle the And class."""
         return (self.left, self.right)
 
 
@@ -256,11 +256,11 @@ class Or(BooleanExpression):
             return obj
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Or class."""
+        """Return the equality of two instances of the Or class."""
         return self.left == other.left and self.right == other.right if isinstance(other, Or) else False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Or class."""
+        """Return the string representation of the Or class."""
         return f"Or(left={repr(self.left)}, right={repr(self.right)})"
 
     def __invert__(self) -> BooleanExpression:
@@ -269,7 +269,7 @@ class Or(BooleanExpression):
         return And(~self.left, ~self.right)
 
     def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
-        """A magic function for pickling the Or class."""
+        """Pickle the Or class."""
         return (self.left, self.right)
 
 
@@ -290,11 +290,11 @@ class Not(BooleanExpression):
         return obj
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Not class."""
+        """Return the string representation of the Not class."""
         return f"Not(child={repr(self.child)})"
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Not class."""
+        """Return the equality of two instances of the Not class."""
         return self.child == other.child if isinstance(other, Not) else False
 
     def __invert__(self) -> BooleanExpression:
@@ -302,7 +302,7 @@ class Not(BooleanExpression):
         return self.child
 
     def __getnewargs__(self) -> Tuple[BooleanExpression]:
-        """A magic function for pickling the Not class."""
+        """Pickle the Not class."""
         return (self.child,)
 
 
@@ -314,11 +314,11 @@ class AlwaysTrue(BooleanExpression, Singleton):
         return AlwaysFalse()
 
     def __str__(self) -> str:
-        """Returns the string representation of the AlwaysTrue class."""
+        """Return the string representation of the AlwaysTrue class."""
         return "AlwaysTrue()"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the AlwaysTrue class."""
+        """Return the string representation of the AlwaysTrue class."""
         return "AlwaysTrue()"
 
 
@@ -330,11 +330,11 @@ class AlwaysFalse(BooleanExpression, Singleton):
         return AlwaysTrue()
 
     def __str__(self) -> str:
-        """Returns the string representation of the AlwaysFalse class."""
+        """Return the string representation of the AlwaysFalse class."""
         return "AlwaysFalse()"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the AlwaysFalse class."""
+        """Return the string representation of the AlwaysFalse class."""
         return "AlwaysFalse()"
 
 
@@ -345,7 +345,7 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
         self.term = term
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundPredicate class."""
+        """Return the equality of two instances of the BoundPredicate class."""
         if isinstance(other, BoundPredicate):
             return self.term == other.term
         return False
@@ -363,7 +363,7 @@ class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression
         self.term = _to_unbound_term(term)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the UnboundPredicate class."""
+        """Return the equality of two instances of the UnboundPredicate class."""
         return self.term == other.term if isinstance(other, UnboundPredicate) else False
 
     @abstractmethod
@@ -382,7 +382,7 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
         return self.as_bound(bound_term)
 
     def __repr__(self) -> str:
-        """Returns the string representation of the UnaryPredicate class."""
+        """Return the string representation of the UnaryPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
     @property
@@ -393,7 +393,7 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
 
 class BoundUnaryPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
-        """Returns the string representation of the BoundUnaryPredicate class."""
+        """Return the string representation of the BoundUnaryPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
     @property
@@ -402,7 +402,7 @@ class BoundUnaryPredicate(BoundPredicate[L], ABC):
         ...
 
     def __getnewargs__(self) -> Tuple[BoundTerm[L]]:
-        """A magic function for pickling the BoundUnaryPredicate class."""
+        """Pickle the BoundUnaryPredicate class."""
         return (self.term,)
 
 
@@ -520,21 +520,21 @@ class SetPredicate(UnboundPredicate[L], ABC):
         return self.as_bound(bound_term, {lit.to(bound_term.ref().field.field_type) for lit in self.literals})
 
     def __str__(self) -> str:
-        """Returns the string representation of the SetPredicate class."""
+        """Return the string representation of the SetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the SetPredicate class."""
+        """Return the string representation of the SetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the SetPredicate class."""
+        """Return the equality of two instances of the SetPredicate class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, SetPredicate) else False
 
     def __getnewargs__(self) -> Tuple[UnboundTerm[L], Set[Literal[L]]]:
-        """A magic function for pickling the SetPredicate class."""
+        """Pickle the SetPredicate class."""
         return (self.term, self.literals)
 
     @property
@@ -556,21 +556,21 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
         return {lit.value for lit in self.literals}
 
     def __str__(self) -> str:
-        """Returns the string representation of the BoundSetPredicate class."""
+        """Return the string representation of the BoundSetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BoundSetPredicate class."""
+        """Return the string representation of the BoundSetPredicate class."""
         # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundSetPredicate class."""
+        """Return the equality of two instances of the BoundSetPredicate class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
 
     def __getnewargs__(self) -> Tuple[BoundTerm[L], Set[Literal[L]]]:
-        """A magic function for pickling the BoundSetPredicate class."""
+        """Pickle the BoundSetPredicate class."""
         return (self.term, self.literals)
 
     @property
@@ -594,7 +594,7 @@ class BoundIn(BoundSetPredicate[L]):
         return BoundNotIn(self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundIn class."""
+        """Return the equality of two instances of the BoundIn class."""
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundIn) else False
 
     @property
@@ -665,7 +665,7 @@ class NotIn(SetPredicate[L], ABC):
         return In[L](self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the NotIn class."""
+        """Return the equality of two instances of the NotIn class."""
         if isinstance(other, NotIn):
             return self.term == other.term and self.literals == other.literals
         return False
@@ -700,13 +700,13 @@ class LiteralPredicate(UnboundPredicate[L], ABC):
         return self.as_bound(bound_term, lit)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the LiteralPredicate class."""
+        """Return the equality of two instances of the LiteralPredicate class."""
         if isinstance(other, LiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the LiteralPredicate class."""
+        """Return the string representation of the LiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property
@@ -724,13 +724,13 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
         self.literal = literal  # pylint: disable=W0621
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the BoundLiteralPredicate class."""
+        """Return the equality of two instances of the BoundLiteralPredicate class."""
         if isinstance(other, BoundLiteralPredicate):
             return self.term == other.term and self.literal == other.literal
         return False
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BoundLiteralPredicate class."""
+        """Return the string representation of the BoundLiteralPredicate class."""
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
     @property

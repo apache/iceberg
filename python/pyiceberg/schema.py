@@ -90,19 +90,19 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self) -> str:
-        """Returns the string representation of the Schema class."""
+        """Return the string representation of the Schema class."""
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Schema class."""
+        """Return the string representation of the Schema class."""
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the Literal class."""
+        """Return the length of an instance of the Literal class."""
         return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Schema class."""
+        """Return the equality of two instances of the Schema class."""
         if not other:
             return False
 
@@ -124,7 +124,7 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_field(self) -> Dict[int, NestedField]:
-        """Returns an index of field ID to NestedField instance.
+        """Return an index of field ID to NestedField instance.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -132,7 +132,7 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_name_to_id_lower(self) -> Dict[str, int]:
-        """Returns an index of lower-case field names to field IDs.
+        """Return an index of lower-case field names to field IDs.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -140,7 +140,7 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_name(self) -> Dict[int, str]:
-        """Returns an index of field ID to full name.
+        """Return an index of field ID to full name.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -148,14 +148,14 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_accessor(self) -> Dict[int, Accessor]:
-        """Returns an index of field ID to accessor.
+        """Return an index of field ID to accessor.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return build_position_accessors(self)
 
     def as_struct(self) -> StructType:
-        """Returns the schema as a struct."""
+        """Return the schema as a struct."""
         return StructType(*self.fields)
 
     def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
@@ -219,7 +219,7 @@ class Schema(IcebergBaseModel):
     @property
     def column_names(self) -> List[str]:
         """
-        Returns a list of all the column names, including nested fields.
+        Return a list of all the column names, including nested fields.
 
         Excludes short names.
 
@@ -270,7 +270,7 @@ class Schema(IcebergBaseModel):
 
     @property
     def field_ids(self) -> Set[int]:
-        """Returns the IDs of the current schema."""
+        """Return the IDs of the current schema."""
         return set(self._name_to_id.values())
 
 
@@ -506,23 +506,23 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
 class PartnerAccessor(Generic[P], ABC):
     @abstractmethod
     def schema_partner(self, partner: Optional[P]) -> Optional[P]:
-        """Returns the equivalent of the schema as a struct."""
+        """Return the equivalent of the schema as a struct."""
 
     @abstractmethod
     def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
-        """Returns the equivalent struct field by name or id in the partner struct."""
+        """Return the equivalent struct field by name or id in the partner struct."""
 
     @abstractmethod
     def list_element_partner(self, partner_list: Optional[P]) -> Optional[P]:
-        """Returns the equivalent list element in the partner list."""
+        """Return the equivalent list element in the partner list."""
 
     @abstractmethod
     def map_key_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map key in the partner map."""
+        """Return the equivalent map key in the partner map."""
 
     @abstractmethod
     def map_value_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map value in the partner map."""
+        """Return the equivalent map value in the partner map."""
 
 
 @singledispatch
@@ -687,15 +687,15 @@ class Accessor:
     inner: Optional[Accessor] = None
 
     def __str__(self) -> str:
-        """Returns the string representation of the Accessor class."""
+        """Return the string representation of the Accessor class."""
         return f"Accessor(position={self.position},inner={self.inner})"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Accessor class."""
+        """Return the string representation of the Accessor class."""
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:
-        """Returns the value at self.position in `container`.
+        """Return the value at self.position in `container`.
 
         Args:
             container (StructProtocol): A container to access at position `self.position`.
@@ -715,7 +715,7 @@ class Accessor:
 
 @singledispatch
 def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema.
+    """Apply a schema visitor to any point within a schema.
 
     The function traverses the schema in post-order fashion.
 
@@ -781,7 +781,7 @@ def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
 
 @singledispatch
 def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema.
+    """Apply a schema visitor to any point within a schema.
 
     The function traverses the schema in pre-order fashion. This is a slimmed down version
     compared to the post-order traversal (missing before and after methods), mostly
@@ -978,7 +978,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return self._index
 
     def by_name(self) -> Dict[str, int]:
-        """Returns an index of combined full and short names.
+        """Return an index of combined full and short names.
 
         Note: Only short names that do not conflict with full names are included.
         """
@@ -987,7 +987,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return combined_index
 
     def by_id(self) -> Dict[int, str]:
-        """Returns an index of ID to full names."""
+        """Return an index of ID to full names."""
         id_to_full_name = {value: key for key, value in self._index.items()}
         return id_to_full_name
 
