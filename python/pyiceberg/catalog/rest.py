@@ -88,6 +88,7 @@ class Endpoints:
 
 
 AUTHORIZATION_HEADER = "Authorization"
+AUTH_URL = "authurl"
 BEARER_PREFIX = "Bearer"
 CATALOG_SCOPE = "catalog"
 CLIENT_ID = "client_id"
@@ -258,15 +259,21 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
+    @property
+    def auth_url(self) -> str:
+        if url := self.properties.get(AUTH_URL):
+            return url
+        else:
+            return self.url(Endpoints.get_token, prefixed=False)
+
     def _fetch_access_token(self, session: Session, credential: str) -> str:
         if SEMICOLON in credential:
             client_id, client_secret = credential.split(SEMICOLON)
         else:
             client_id, client_secret = None, credential
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
-        url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
-        response = session.post(url=url, data=data)
+        response = session.post(url=self.auth_url, data=data)
         try:
             response.raise_for_status()
         except HTTPError as exc:
