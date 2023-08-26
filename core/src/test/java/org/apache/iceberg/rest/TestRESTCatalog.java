@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -32,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -41,8 +43,10 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -51,12 +55,16 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.jdbc.JdbcCatalog;
@@ -70,6 +78,7 @@ import org.apache.iceberg.rest.RESTSessionCatalog.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -87,11 +96,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
+  private static final ResourcePaths RESOURCE_PATHS =
+      ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
   @TempDir public Path temp;
 
@@ -2002,5 +2014,203 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema2.findField("data")).isNull();
     assertThat(schema2.findField("new-column")).isNull();
     assertThat(schema2.columns()).hasSize(1);
+  }
+
+  @Test
+  public void testCleanupUncommitedFilesForCleanableFailures() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+
+    Table table = catalog.loadTable(TABLE);
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Mockito.doThrow(new NotAuthorizedException("not authorized"))
+        .when(adapter)
+        .post(any(), any(), any(), any(Map.class), any());
+    assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(file).commit())
+        .isInstanceOf(NotAuthorizedException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+
+    // Extract the UpdateTableRequest to determine the path of the manifest list that should be
+    // cleaned up
+    UpdateTableRequest request = captor.getValue();
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) request.updates().get(0);
+    Assertions.assertThatThrownBy(
+            () -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  public void testNoCleanupForNonCleanableExceptions() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    Table table = catalog.loadTable(TABLE);
+
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Mockito.doThrow(new ServiceFailureException("some service failure"))
+        .when(adapter)
+        .post(any(), any(), any(), any(Map.class), any());
+    assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(FILE_A).commit())
+        .isInstanceOf(ServiceFailureException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+
+    // Extract the UpdateTableRequest to determine the path of the manifest list that should still
+    // exist even though the commit failed
+    UpdateTableRequest request = captor.getValue();
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) request.updates().get(0);
+    Assertions.assertThat(
+            table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()).exists())
+        .isTrue();
+  }
+
+  @Test
+  public void testCleanupCleanableExceptionsCreate() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Mockito.doThrow(new NotAuthorizedException("not authorized"))
+        .when(adapter)
+        .post(eq(RESOURCE_PATHS.table(newTable)), any(), any(), any(Map.class), any());
+
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+    assertThatThrownBy(createTableTransaction::commitTransaction)
+        .isInstanceOf(NotAuthorizedException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(newTable)), captor.capture(), any(), any(Map.class), any());
+    UpdateTableRequest request = captor.getValue();
+    Optional<MetadataUpdate> appendSnapshot =
+        request.updates().stream()
+            .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
+            .findFirst();
+
+    assertThat(appendSnapshot).isPresent();
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog
+                    .loadTable(TABLE)
+                    .io()
+                    .newInputFile(addSnapshot.snapshot().manifestListLocation()))
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  public void testNoCleanupForNonCleanableCreateTransaction() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
+    Mockito.doThrow(new ServiceFailureException("some service failure"))
+        .when(adapter)
+        .post(eq(RESOURCE_PATHS.table(newTable)), any(), any(), any(Map.class), any());
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+    assertThatThrownBy(createTableTransaction::commitTransaction)
+        .isInstanceOf(ServiceFailureException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(newTable)), captor.capture(), any(), any(Map.class), any());
+    UpdateTableRequest request = captor.getValue();
+    Optional<MetadataUpdate> appendSnapshot =
+        request.updates().stream()
+            .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
+            .findFirst();
+    assertThat(appendSnapshot).isPresent();
+
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
+    Assertions.assertThat(
+            catalog
+                .loadTable(TABLE)
+                .io()
+                .newInputFile(addSnapshot.snapshot().manifestListLocation())
+                .exists())
+        .isTrue();
+  }
+
+  @Test
+  public void testCleanupCleanableExceptionsReplace() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Mockito.doThrow(new NotAuthorizedException("not authorized"))
+        .when(adapter)
+        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(), any(Map.class), any());
+
+    Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
+    replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
+    assertThatThrownBy(replaceTableTransaction::commitTransaction)
+        .isInstanceOf(NotAuthorizedException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+    UpdateTableRequest request = captor.getValue();
+    Optional<MetadataUpdate> appendSnapshot =
+        request.updates().stream()
+            .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
+            .findFirst();
+
+    assertThat(appendSnapshot).isPresent();
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog
+                    .loadTable(TABLE)
+                    .io()
+                    .newInputFile(addSnapshot.snapshot().manifestListLocation()))
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  public void testNoCleanupForNonCleanableReplaceTransaction() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Catalog catalog = catalog(adapter);
+    catalog.createTable(TABLE, SCHEMA);
+    Mockito.doThrow(new ServiceFailureException("some service failure"))
+        .when(adapter)
+        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(), any(Map.class), any());
+    ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
+    Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
+    replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
+    assertThatThrownBy(replaceTableTransaction::commitTransaction)
+        .isInstanceOf(ServiceFailureException.class);
+    verify(adapter, atLeastOnce())
+        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+    UpdateTableRequest request = captor.getValue();
+    Optional<MetadataUpdate> appendSnapshot =
+        request.updates().stream()
+            .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
+            .findFirst();
+    assertThat(appendSnapshot).isPresent();
+
+    MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
+    Assertions.assertThat(
+            catalog
+                .loadTable(TABLE)
+                .io()
+                .newInputFile(addSnapshot.snapshot().manifestListLocation())
+                .exists())
+        .isTrue();
+  }
+
+  private Catalog catalog(RESTCatalogAdapter adapter) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
   }
 }

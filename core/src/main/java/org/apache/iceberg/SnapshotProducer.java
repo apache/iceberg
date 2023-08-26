@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -83,6 +84,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
+  private final boolean strictCleanup;
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
@@ -100,6 +102,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
+    this.strictCleanup = ops.requireStrictCleanup();
     this.base = ops.current();
     this.manifestsWithMetadata =
         Caffeine.newBuilder()
@@ -353,6 +356,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
@@ -399,7 +403,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (CommitStateUnknownException commitStateUnknownException) {
       throw commitStateUnknownException;
     } catch (RuntimeException e) {
-      Exceptions.suppressAndThrow(e, this::cleanAll);
+      if (!strictCleanup || e instanceof CleanableFailure) {
+        Exceptions.suppressAndThrow(e, this::cleanAll);
+      }
+
+      throw e;
     }
 
     try {
