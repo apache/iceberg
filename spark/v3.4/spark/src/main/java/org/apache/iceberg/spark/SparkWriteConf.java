@@ -21,6 +21,12 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.DistributionMode.HASH;
 import static org.apache.iceberg.DistributionMode.NONE;
 import static org.apache.iceberg.DistributionMode.RANGE;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 
 import java.util.Locale;
 import java.util.Map;
@@ -477,5 +483,36 @@ public class SparkWriteConf {
         .tableProperty(TableProperties.ORC_COMPRESSION_STRATEGY)
         .defaultValue(TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT)
         .parse();
+  }
+
+  public Map<String, String> writeProperties(FileFormat format) {
+    Map<String, String> writeProperties = Maps.newHashMap();
+
+    switch (format) {
+      case PARQUET:
+        writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
+        String parquetCompressionLevel = parquetCompressionLevel();
+        if (parquetCompressionLevel != null) {
+          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
+        }
+
+        break;
+      case AVRO:
+        writeProperties.put(AVRO_COMPRESSION, avroCompressionCodec());
+        String avroCompressionLevel = avroCompressionLevel();
+        if (avroCompressionLevel != null) {
+          writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
+        }
+
+        break;
+      case ORC:
+        writeProperties.put(ORC_COMPRESSION, orcCompressionCodec());
+        writeProperties.put(ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
+        break;
+      default:
+        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
+    }
+
+    return writeProperties;
   }
 }

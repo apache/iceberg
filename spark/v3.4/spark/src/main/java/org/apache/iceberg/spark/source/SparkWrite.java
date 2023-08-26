@@ -188,7 +188,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         writeSchema,
         dsSchema,
         partitionedFanoutEnabled,
-        WritePropertiesUtil.writeProperties(format, writeConf));
+        writeConf.writeProperties(format));
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
