@@ -109,14 +109,12 @@ def test_token_200_w_auth_url(rest_mock: Mocker) -> None:
         status_code=200,
         request_headers=OAUTH_TEST_HEADERS,
     )
+    # pylint: disable=W0212
     assert (
-        RestCatalog(
-            "rest", uri=TEST_URI, credential=TEST_CREDENTIALS, authurl=TEST_AUTH_URL
-        )._session.headers[  # pylint: disable=W0212
-            "Authorization"
-        ]
+        RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS, authurl=TEST_AUTH_URL)._session.headers["Authorization"]
         == f"Bearer {TEST_TOKEN}"
     )
+    # pylint: enable=W0212
 
 
 def test_config_200(requests_mock: Mocker) -> None:
