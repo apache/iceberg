@@ -81,8 +81,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static Dataset<Row> typeTestDataFrame;
   private static Dataset<Row> nestedDataFrame;
 
-  @TempDir File tempA;
-  @TempDir File tempB;
+  @TempDir private File tempA;
+  @TempDir private File tempB;
 
   public TestSnapshotDeltaLakeTable() {
     super(icebergCatalogName, SparkCatalog.class.getName(), config);
