@@ -113,7 +113,7 @@ def test_schema_raise_on_duplicate_names() -> None:
             NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
             NestedField(field_id=4, name="baz", field_type=BooleanType(), required=False),
             schema_id=1,
-            identifier_field_ids=[1],
+            identifier_field_ids=[2],
         )
 
     assert "Invalid schema, multiple fields for name baz: 3 and 4" in str(exc_info.value)
@@ -729,42 +729,42 @@ def should_promote(file_type: IcebergType, read_type: IcebergType) -> bool:
 def test_identifier_fields_fails(table_schema_nested_with_struct_key_map: Schema) -> None:
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[999])
-    assert str(exc_info.value) == "Cannot add fieldId 999 as an identifier field: field does not exist"
+    assert "Cannot add fieldId 999 as an identifier field: field does not exist" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[3])
-    assert str(exc_info.value) == "Cannot add field baz as an identifier field: not a required field"
+    assert "Cannot add field baz as an identifier field: not a required field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[28])
-    assert str(exc_info.value) == "Cannot add field float as an identifier field: must not be float or double field"
+    assert "Cannot add field float as an identifier field: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[29])
-    assert str(exc_info.value) == "Cannot add field double as an identifier field: must not be float or double field"
+    assert "Cannot add field double as an identifier field: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[23])
-    assert str(
-        exc_info.value
-    ) == "Cannot add field zip as an identifier field: must not be nested in %s" % table_schema_nested_with_struct_key_map.find_field(
-        "location"
+    assert (
+        "Cannot add field zip as an identifier field: must not be nested in %s"
+        % table_schema_nested_with_struct_key_map.find_field("location")
+        in str(exc_info.value)
     )
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[26])
-    assert str(
-        exc_info.value
-    ) == "Cannot add field x as an identifier field: must not be nested in %s" % table_schema_nested_with_struct_key_map.find_field(
-        "points"
+    assert (
+        "Cannot add field x as an identifier field: must not be nested in %s"
+        % table_schema_nested_with_struct_key_map.find_field("points")
+        in str(exc_info.value)
     )
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[17])
-    assert str(
-        exc_info.value
-    ) == "Cannot add field age as an identifier field: must not be nested in an optional field %s" % table_schema_nested_with_struct_key_map.find_field(
-        "person"
+    assert (
+        "Cannot add field age as an identifier field: must not be nested in an optional field %s"
+        % table_schema_nested_with_struct_key_map.find_field("person")
+        in str(exc_info.value)
     )
 
 

@@ -35,7 +35,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_validator
 
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, StructProtocol
@@ -88,10 +88,6 @@ class Schema(IcebergBaseModel):
             data["fields"] = fields
         super().__init__(**data)
         self._name_to_id = index_by_name(self)
-        if self.identifier_field_ids is not None:
-            id_to_parent: Dict[int, int] = index_parents(self.as_struct())
-            for field_id in self.identifier_field_ids:
-                Schema.validate_identifier_field(field_id, self._lazy_id_to_field, id_to_parent)
 
     def __str__(self) -> str:
         """Returns the string representation of the Schema class."""
@@ -120,6 +116,15 @@ class Schema(IcebergBaseModel):
         schema_is_equal = all(lhs == rhs for lhs, rhs in zip(self.columns, other.columns))
 
         return identifier_field_ids_is_equal and schema_is_equal
+
+    @model_validator(mode="after")
+    def check_schema(self) -> Schema:
+        if self.identifier_field_ids:
+            id_to_parent: Dict[int, int] = index_parents(self.as_struct())
+            for field_id in self.identifier_field_ids:
+                Schema.validate_identifier_field(field_id, self._lazy_id_to_field, id_to_parent)
+
+        return self
 
     @property
     def columns(self) -> Tuple[NestedField, ...]:
@@ -299,7 +304,7 @@ class Schema(IcebergBaseModel):
         if not field.required:
             raise ValueError(f"Cannot add field {field.name} as an identifier field: not a required field")
 
-        if isinstance(field.field_type, DoubleType) or isinstance(field.field_type, FloatType):
+        if isinstance(field.field_type, (DoubleType, FloatType)):
             raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be float or double field")
 
         # Check whether the nested field is in a chain of required struct fields
@@ -311,11 +316,11 @@ class Schema(IcebergBaseModel):
             parent_id = id_to_parent.get(parent_id)
 
         while fields:
-            parent: Optional[NestedField] = id_to_field.get(fields.pop())
-            if parent and not parent.field_type.is_struct:
+            parent = id_to_field[fields.pop()]
+            if not parent.field_type.is_struct:
                 raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
 
-            if parent and not parent.required:
+            if not parent.required:
                 raise ValueError(
                     f"Cannot add field {field.name} as an identifier field: must not be nested in an optional field {parent}"
                 )
