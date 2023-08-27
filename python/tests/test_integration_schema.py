@@ -1033,8 +1033,7 @@ def test_add_required_column(catalog: Catalog) -> None:
     assert "Incompatible change: cannot add required column: data" in str(exc_info.value)
 
     new_schema = (
-        UpdateSchema(table)  # pylint: disable=W0212
-        .allow_incompatible_changes()
+        UpdateSchema(table, allow_incompatible_changes=True)  # pylint: disable=W0212
         .add_column(path="data", field_type=IntegerType(), required=True)
         ._apply()
     )
@@ -1053,13 +1052,12 @@ def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
     table = _create_table_with_schema(catalog, schema_)
 
     with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table)
-        update.allow_incompatible_changes().case_sensitive(False).add_column(path="ID", field_type=IntegerType(), required=True)
+        update = UpdateSchema(table, allow_incompatible_changes=True)
+        update.case_sensitive(False).add_column(path="ID", field_type=IntegerType(), required=True)
     assert "already exists: ID" in str(exc_info.value)
 
     new_schema = (
-        UpdateSchema(table)  # pylint: disable=W0212
-        .allow_incompatible_changes()
+        UpdateSchema(table, allow_incompatible_changes=True)  # pylint: disable=W0212
         .add_column(path="ID", field_type=IntegerType(), required=True)
         ._apply()
     )
