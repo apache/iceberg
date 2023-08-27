@@ -288,7 +288,7 @@ src = ['pyiceberg/', 'tests/']
 # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
 # McCabe complexity (`C901`) by default.
 select = ["E", "F"]
-ignore = ["E501"]
+ignore = ["E501","E203","B024","B028"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
