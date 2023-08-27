@@ -32,11 +32,6 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
-    hooks:
-      - id: isort
-        args: [--settings-path=python/pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.3.0
     hooks:
@@ -61,11 +56,6 @@ repos:
     hooks:
       - id: pyupgrade
         args: [--py38-plus, --keep-runtime-typing]
-  - repo: https://github.com/pycqa/pylint
-    rev: v3.0.0a6
-    hooks:
-      - id: pylint
-        args: [--rcfile=python/pylintrc]
   - repo: https://github.com/pycqa/flake8
     rev: "6.0.0"
     hooks:
@@ -95,3 +85,9 @@ repos:
           ]
         additional_dependencies:
           - tomli==2.0.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit # Ruff version (Used for linting)
+    rev: v0.0.246
+    hooks:
+      - id: ruff
+        args: [ --fix, --exit-non-zero-on-fix ]
+        language_version: python3
