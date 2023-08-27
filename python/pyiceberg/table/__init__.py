@@ -913,6 +913,7 @@ class UpdateSchema:
     _moves: Dict[int, List[Move]] = {}
 
     _added_name_to_id: Dict[str, int] = {}
+    # Part of https://github.com/apache/iceberg/pull/8393
     _id_to_parent: Dict[int, str] = {}
     _allow_incompatible_changes: bool
     _case_sensitive: bool
@@ -976,10 +977,10 @@ class UpdateSchema:
         Returns:
             This for method chaining.
         """
-        path = (path,) if isinstance(path, str) else path
-
-        if "." in path[-1]:
-            raise ValueError(f"Cannot add column with ambiguous name: {path[-1]}, provide a tuple instead")
+        if isinstance(path, str):
+            if "." in path:
+                raise ValueError(f"Cannot add column with ambiguous name: {path}, provide a tuple instead")
+            path = (path,)
 
         if required and not self._allow_incompatible_changes:
             # Table format version 1 and 2 cannot add required column because there is no initial value
@@ -1004,13 +1005,13 @@ class UpdateSchema:
 
             parent_id = parent_field.field_id
 
-        exists = False
+        existing_field = None
         try:
-            exists = self._schema.find_field(full_name, self._case_sensitive) is not None
+            existing_field = self._schema.find_field(full_name, self._case_sensitive)
         except ValueError:
             pass
 
-        if exists:
+        if existing_field is not None and existing_field.field_id not in self._deletes:
             raise ValueError(f"Cannot add column, name already exists: {full_name}")
 
         # assign new IDs in order
@@ -1060,7 +1061,6 @@ class UpdateSchema:
             The UpdateSchema with the rename operation staged.
         """
         name_from = tuple(path_from.split(".")) if isinstance(path_from, str) else path_from
-        new_name = new_name.split(".")[-1]
 
         parent_path = name_from[:-1]
         full_name_from = ".".join(name_from)
@@ -1089,7 +1089,7 @@ class UpdateSchema:
 
         if path_from in self._identifier_field_names:
             self._identifier_field_names.remove(full_name_from)
-            self._identifier_field_names.add(f"{'.'.join(parent_path)}.{new_name}")
+            self._identifier_field_names.add(f"{'.'.join(parent_path)}{'.' if len(parent_path) > 0 else ''}{new_name}")
 
         return self
 
@@ -1120,6 +1120,9 @@ class UpdateSchema:
         self._set_column_requirement(path, False)
         return self
 
+    def set_identifier_fields(self, *fields: str) -> None:
+        self._identifier_field_names = set(fields)
+
     def _set_column_requirement(self, path: Union[str, Tuple[str, ...]], required: bool) -> None:
         path = (path,) if isinstance(path, str) else path
         name = ".".join(path)
@@ -1130,7 +1133,7 @@ class UpdateSchema:
             # if the change is a noop, allow it even if allowIncompatibleChanges is false
             return
 
-        if self._allow_incompatible_changes and not required:
+        if not self._allow_incompatible_changes and not required:
             raise ValueError(f"Cannot change column nullability: {name}: optional -> required")
 
         if field.field_id in self._deletes:
@@ -1153,7 +1156,9 @@ class UpdateSchema:
                 required=required,
             )
 
-    def update_column(self, path: Union[str, Tuple[str, ...]], field_type: IcebergType) -> UpdateSchema:
+    def update_column(
+        self, path: Union[str, Tuple[str, ...]], field_type: IcebergType, doc: Optional[str] = None
+    ) -> UpdateSchema:
         """Update the type of column.
 
         Args:
@@ -1175,17 +1180,18 @@ class UpdateSchema:
             # Nothing changed
             return self
 
-        try:
-            promote(field.field_type, field_type)
-        except ResolveError as e:
-            raise ValidationError(f"Cannot change column type: {full_name}: {field.field_type} -> {field_type}") from e
+        if not self._allow_incompatible_changes:
+            try:
+                promote(field.field_type, field_type)
+            except ResolveError as e:
+                raise ValidationError(f"Cannot change column type: {full_name}: {field.field_type} -> {field_type}") from e
 
         if updated := self._updates.get(field.field_id):
             self._updates[field.field_id] = NestedField(
                 field_id=updated.field_id,
                 name=updated.name,
                 field_type=field_type,
-                doc=updated.doc,
+                doc=doc or updated.doc,
                 required=updated.required,
             )
         else:
@@ -1193,7 +1199,7 @@ class UpdateSchema:
                 field_id=field.field_id,
                 name=field.name,
                 field_type=field_type,
-                doc=field.doc,
+                doc=doc or field.doc,
                 required=field.required,
             )
 
@@ -1315,7 +1321,7 @@ class UpdateSchema:
         before_field_id = self._find_for_move(before_full_name)
 
         if before_field_id is None:
-            raise ValueError(f"Cannot move before missing column: {before_full_name}")
+            raise ValueError(f"Cannot move {full_name} before missing column: {before_full_name}")
 
         if field_id == before_field_id:
             raise ValueError(f"Cannot move {full_name} before itself")
@@ -1346,7 +1352,7 @@ class UpdateSchema:
         after_field_id = self._find_for_move(after_full_name)
 
         if after_field_id is None:
-            raise ValueError(f"Cannot move after missing column: {after_full_name}")
+            raise ValueError(f"Cannot move {full_name} after missing column: {after_full_name}")
 
         if field_id == after_field_id:
             raise ValueError(f"Cannot move {full_name} after itself")
@@ -1395,11 +1401,13 @@ class UpdateSchema:
             # Should never happen
             raise ValueError("Could not apply changes")
 
+        new_schema = Schema(*struct.fields)
+
         # @TODO: This differs still a bit from the Java side,
         # The validate identifier field is missing
         field_ids = set()
         for name in self._identifier_field_names:
-            field = self._schema.find_field(name, self._case_sensitive)
+            field = new_schema.find_field(name, self._case_sensitive)
             field_ids.add(field.field_id)
             if field.field_id in self._deletes:
                 raise ValueError(f"Cannot delete identifier field {name}. To force deletion, update the identifier fields first.")
@@ -1407,7 +1415,7 @@ class UpdateSchema:
             # If it nested, also check if the parents aren't deleted
             column_name = self._id_to_parent.get(field.field_id)
             while column_name is not None:
-                parent = self._schema.find_field(column_name)
+                parent = new_schema.find_field(column_name)
                 if parent.field_id in self._deletes:
                     raise ValueError(
                         f"Cannot delete field {parent.field_id} as it will delete nested identifier field {name}",
@@ -1435,10 +1443,17 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
         self._moves = moves
 
     def schema(self, schema: Schema, struct_result: Optional[IcebergType]) -> Optional[IcebergType]:
-        if new_fields := _add_fields(struct_result.fields if struct_result else [], self._adds.get(TABLE_ROOT_ID)):
-            return StructType(*new_fields)
-        else:
-            return struct_result
+        added = self._adds.get(TABLE_ROOT_ID)
+        moves = self._moves.get(TABLE_ROOT_ID)
+
+        if added is not None or moves is not None:
+            if not isinstance(struct_result, StructType):
+                raise ValueError(f"Cannot add fields to non-struct: {struct_result}")
+
+            if new_fields := _add_and_move_fields(struct_result.fields, added or [], moves or []):
+                return StructType(*new_fields)
+
+        return struct_result
 
     def struct(self, struct: StructType, field_results: List[Optional[IcebergType]]) -> Optional[IcebergType]:
         has_changes = False
@@ -1486,15 +1501,16 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
         if (update := self._updates.get(field.field_id)) and field.field_type != update.field_type:
             return update.field_type
 
-        # handle add & moves
-        added = self._adds.get(field.field_id)
-        moves = self._moves.get(field.field_id)
-        if added is not None or moves is not None:
-            if not isinstance(field.field_type, StructType):
-                raise ValueError(f"Cannot add fields to non-struct: {field}")
+        if isinstance(field_result, StructType):
+            # handle add & moves
+            added = self._adds.get(field.field_id)
+            moves = self._moves.get(field.field_id)
+            if added is not None or moves is not None:
+                if not isinstance(field.field_type, StructType):
+                    raise ValueError(f"Cannot add fields to non-struct: {field}")
 
-            if new_fields := _add_and_move_fields(field.field_type.fields, added or [], moves or []):
-                return StructType(*new_fields)
+                if new_fields := _add_and_move_fields(field_result.fields, added or [], moves or []):
+                    return StructType(*new_fields)
 
         return field_result
 
@@ -1509,8 +1525,18 @@ class _ApplyChanges(SchemaVisitor[Optional[IcebergType]]):
         self, map_type: MapType, key_result: Optional[IcebergType], value_result: Optional[IcebergType]
     ) -> Optional[IcebergType]:
         key_id: int = map_type.key_field.field_id
+
+        if key_id in self._deletes:
+            raise ValueError(f"Cannot delete map keys: {map_type}")
+
+        if key_id in self._updates:
+            raise ValueError(f"Cannot update map keys: {map_type}")
+
         if key_id in self._adds:
             raise ValueError(f"Cannot add fields to map keys: {map_type}")
+
+        if map_type.key_type != key_result:
+            raise ValueError(f"Cannot alter map keys: {map_type}")
 
         value_field: NestedField = map_type.value_field
         value_type = self.field(value_field, value_result)
