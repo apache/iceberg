@@ -90,6 +90,13 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
               Types.NestedField field = fields.get(pos);
               if (isMissing) {
                 addColumn(partnerId, field);
+                if (pos > 0) {
+                  Types.NestedField beforeField = fields.get(pos - 1);
+                  // SchemaUpdate::moveAfter is modified to include searches through added fields
+                  moveAfter(field.name(), beforeField.name());
+                } else {
+                  moveFirst(field.name());
+                }
               } else {
                 Types.NestedField nestedField =
                     caseSensitive
@@ -157,6 +164,14 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   private void addColumn(int parentId, Types.NestedField field) {
     String parentName = partnerSchema.findColumnName(parentId);
     api.addColumn(parentName, field.name(), field.type(), field.doc());
+  }
+
+  private void moveAfter(String name, String after) {
+    api.moveAfter(name, after);
+  }
+
+  private void moveFirst(String name) {
+    api.moveFirst(name);
   }
 
   private void updateColumn(Types.NestedField field, Types.NestedField existingField) {

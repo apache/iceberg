@@ -21,8 +21,10 @@ package org.apache.iceberg;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -841,6 +843,10 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Types.NestedField findField(String fieldName) {
+    String lookupFieldName = caseSensitive ? fieldName : fieldName.toLowerCase(Locale.ROOT);
+    Optional<Types.NestedField> addedField = adds.values().stream()
+        .filter(nestedField -> nestedField.name().equals(lookupFieldName)).findFirst();
+    if (addedField.isPresent()) return addedField.get();
     return caseSensitive ? schema.findField(fieldName) : schema.caseInsensitiveFindField(fieldName);
   }
 }
