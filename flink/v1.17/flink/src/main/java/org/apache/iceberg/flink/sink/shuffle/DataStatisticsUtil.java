@@ -77,9 +77,10 @@ class DataStatisticsUtil {
   }
 
   @SuppressWarnings("unchecked")
-  static <D extends DataStatistics<D, S>, S> AggregatedStatistics<D, S> deserializeAggregatedStatistics(
-      byte[] bytes, TypeSerializer<DataStatistics<D, S>> statisticsSerializer)
-      throws IOException {
+  static <D extends DataStatistics<D, S>, S>
+      AggregatedStatistics<D, S> deserializeAggregatedStatistics(
+          byte[] bytes, TypeSerializer<DataStatistics<D, S>> statisticsSerializer)
+          throws IOException {
     ByteArrayInputStream bytesIn = new ByteArrayInputStream(bytes);
     ObjectInputStream in = new ObjectInputStream(bytesIn);
 

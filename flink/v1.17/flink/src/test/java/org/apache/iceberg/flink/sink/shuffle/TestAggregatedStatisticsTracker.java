@@ -43,7 +43,8 @@ public class TestAggregatedStatisticsTracker {
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
   private final TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
       statisticsSerializer = MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
-  private AggregatedStatisticsTracker<MapDataStatistics, Map<RowData, Long>> aggregatedStatisticsTracker;
+  private AggregatedStatisticsTracker<MapDataStatistics, Map<RowData, Long>>
+      aggregatedStatisticsTracker;
 
   @Before
   public void before() throws Exception {
@@ -98,7 +99,8 @@ public class TestAggregatedStatisticsTracker {
     Assert.assertNull(
         aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
             1, checkpoint1Subtask1DataStatisticEvent));
-    // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker lastCompletedAggregator
+    // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker
+    // lastCompletedAggregator
     // and inProgressAggregator won't be updated
     Assert.assertEquals(2, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
   }

@@ -24,9 +24,9 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
- * from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores the merged {@link
- * DataStatistics} result from all reported subtasks.
+ * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link
+ * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
+ * the merged {@link DataStatistics} result from all reported subtasks.
  */
 class AggregatedStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
 
