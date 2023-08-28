@@ -32,20 +32,13 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black
+        args: [--skip-string-normalization]
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.3.0
     hooks:
       - id: mypy
         args:
           [--install-types, --non-interactive, --config=python/pyproject.toml]
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.9-for-vscode
-    hooks:
-      - id: prettier
-        args: [--plugin=prettier-plugin-toml]
-        additional_dependencies:
-          - prettier@2.7.1
-          - prettier-plugin-toml@0.3.1
   - repo: https://github.com/hadialqattan/pycln
     rev: v2.1.5
     hooks:
