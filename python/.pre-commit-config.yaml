@@ -70,11 +70,9 @@ repos:
           ]
         additional_dependencies:
           - tomli==2.0.1
-  - repo: https://github.com/astral-sh/ruff-pre-commit # Ruff version (Used for linting)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version (Used for linting)
     rev: v0.0.285
     hooks:
       - id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
-
-
-
