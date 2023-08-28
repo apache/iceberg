@@ -192,14 +192,14 @@ def table_schema_nested() -> Schema:
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
 
 
 @pytest.fixture(scope="session")
 def table_schema_nested_with_struct_key_map() -> Schema:
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
@@ -227,13 +227,13 @@ def table_schema_nested_with_struct_key_map() -> Schema:
                 key_id=18,
                 value_id=19,
                 key_type=StructType(
-                    NestedField(field_id=21, name="address", field_type=StringType(), required=False),
-                    NestedField(field_id=22, name="city", field_type=StringType(), required=False),
-                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=False),
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=True),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=True),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=True),
                 ),
                 value_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=True),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=True),
                 ),
                 value_required=True,
             ),
@@ -248,6 +248,21 @@ def table_schema_nested_with_struct_key_map() -> Schema:
             ),
             required=False,
         ),
+        NestedField(
+            field_id=24,
+            name="points",
+            field_type=ListType(
+                element_id=25,
+                element_type=StructType(
+                    NestedField(field_id=26, name="x", field_type=LongType(), required=True),
+                    NestedField(field_id=27, name="y", field_type=LongType(), required=True),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+        NestedField(field_id=28, name="float", field_type=FloatType(), required=True),
+        NestedField(field_id=29, name="double", field_type=DoubleType(), required=True),
         schema_id=1,
         identifier_field_ids=[1],
     )
