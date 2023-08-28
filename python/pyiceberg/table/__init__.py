@@ -404,8 +404,8 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 class CommitTableRequest(IcebergBaseModel):
     identifier: Identifier = Field()
-    requirements: Tuple[SerializeAsAny[TableRequirement]] = Field(default_factory=tuple)
-    updates: Tuple[SerializeAsAny[TableUpdate]] = Field(default_factory=tuple)
+    requirements: Tuple[SerializeAsAny[TableRequirement], ...] = Field(default_factory=tuple)
+    updates: Tuple[SerializeAsAny[TableUpdate], ...] = Field(default_factory=tuple)
 
 
 class CommitTableResponse(IcebergBaseModel):
@@ -526,7 +526,7 @@ class Table:
 
     def _do_commit(self, updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]) -> None:
         response = self.catalog._commit_table(  # pylint: disable=W0212
-            CommitTableRequest(identifier=self.identifier[:-1], updates=updates, requirements=requirements)
+            CommitTableRequest(identifier=self.identifier[1:], updates=updates, requirements=requirements)
         )  # pylint: disable=W0212
         self.metadata = response.metadata
         self.metadata_location = response.metadata_location
@@ -940,7 +940,16 @@ class UpdateSchema:
         self._moves = {}
 
         self._added_name_to_id = {}
-        self._id_to_parent = {}
+
+        def get_column_name(field_id: int) -> str:
+            column_name = self._schema.find_column_name(column_id=field_id)
+            if column_name is None:
+                raise ValueError(f"Could not find field-id: {field_id}")
+            return column_name
+
+        self._id_to_parent = {
+            field_id: get_column_name(parent_field_id) for field_id, parent_field_id in self._schema._lazy_id_to_parent.items()
+        }
 
         self._allow_incompatible_changes = allow_incompatible_changes
         self._case_sensitive = case_sensitive
@@ -1053,7 +1062,7 @@ class UpdateSchema:
         name = (path,) if isinstance(path, str) else path
         full_name = ".".join(name)
 
-        field = self._schema.find_field(full_name, self._case_sensitive)
+        field = self._schema.find_field(full_name, case_sensitive=self._case_sensitive)
 
         if field.field_id in self._adds:
             raise ValueError(f"Cannot delete a column that has additions: {full_name}")
@@ -1143,7 +1152,7 @@ class UpdateSchema:
             # if the change is a noop, allow it even if allowIncompatibleChanges is false
             return
 
-        if not self._allow_incompatible_changes and not required:
+        if not self._allow_incompatible_changes and required:
             raise ValueError(f"Cannot change column nullability: {name}: optional -> required")
 
         if field.field_id in self._deletes:
@@ -1193,7 +1202,7 @@ class UpdateSchema:
             raise ValueError(f"Cannot update a column that will be deleted: {full_name}")
 
         if field_type is not None:
-            if not self._allow_incompatible_changes:
+            if not self._allow_incompatible_changes and field.field_type != field_type:
                 try:
                     promote(field.field_type, field_type)
                 except ResolveError as e:
@@ -1272,9 +1281,9 @@ class UpdateSchema:
 
     def _move(self, move: Move) -> None:
         if parent_name := self._id_to_parent.get(move.field_id):
-            parent_field = self._schema.find_field(parent_name, self._case_sensitive)
-            if not parent_field.is_struct:
-                raise ValueError(f"Cannot move fields in non-struct type: {parent_field}")
+            parent_field = self._schema.find_field(parent_name, case_sensitive=self._case_sensitive)
+            if not parent_field.field_type.is_struct:
+                raise ValueError(f"Cannot move fields in non-struct type: {parent_field.field_type}")
 
             if move.op == MoveOperation.After or move.op == MoveOperation.Before:
                 if move.other_field_id is None:
@@ -1289,8 +1298,8 @@ class UpdateSchema:
                 if move.other_field_id is None:
                     raise ValueError("Expected other field when performing before/after move")
 
-                if self._id_to_parent.get(move.other_field_id) is not None:
-                    raise ValueError(f"Cannot move field {move.full_name} to a different struct")
+                if other_struct := self._id_to_parent.get(move.other_field_id):
+                    raise ValueError(f"Cannot move field {move.full_name} to a different struct: {other_struct}")
 
             self._moves[TABLE_ROOT_ID] = self._moves.get(TABLE_ROOT_ID, []) + [move]
 
@@ -1408,24 +1417,16 @@ class UpdateSchema:
 
         new_schema = Schema(*struct.fields)
 
-        # @TODO: This differs still a bit from the Java side,
-        # The validate identifier field is missing
         field_ids = set()
         for name in self._identifier_field_names:
-            field = new_schema.find_field(name, self._case_sensitive)
-            field_ids.add(field.field_id)
-            if field.field_id in self._deletes:
-                raise ValueError(f"Cannot delete identifier field {name}. To force deletion, update the identifier fields first.")
+            try:
+                field = new_schema.find_field(name, self._case_sensitive)
+            except ValueError as e:
+                raise ValueError(
+                    f"Cannot find identifier field {name}. In case of deletion, update the identifier fields first."
+                ) from e
 
-            # If it nested, also check if the parents aren't deleted
-            column_name = self._id_to_parent.get(field.field_id)
-            while column_name is not None:
-                parent = new_schema.find_field(column_name)
-                if parent.field_id in self._deletes:
-                    raise ValueError(
-                        f"Cannot delete field {parent.field_id} as it will delete nested identifier field {name}",
-                    )
-                column_name = self._id_to_parent.get(parent.field_id)
+            field_ids.add(field.field_id)
 
         return Schema(*struct.fields, identifier_field_ids=field_ids)
 

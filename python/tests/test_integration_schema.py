@@ -65,6 +65,7 @@ def simple_table(catalog: Catalog, table_schema_simple: Schema) -> Table:
     return _create_table_with_schema(catalog, table_schema_simple)
 
 
+@pytest.mark.integration
 def test_add_column(simple_table: Table) -> None:
     update = UpdateSchema(simple_table)
     update.add_column(path="b", field_type=IntegerType())
@@ -76,11 +77,13 @@ def test_add_column(simple_table: Table) -> None:
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(field_id=4, name="b", field_type=IntegerType(), required=False),
+        identifier_field_ids=[2],
     )
     assert apply_schema.schema_id == 0
     assert apply_schema.highest_field_id == 4
 
 
+@pytest.mark.integration
 def test_add_primitive_type_column(simple_table: Table) -> None:
     primitive_type: Dict[str, PrimitiveType] = {
         "boolean": BooleanType(),
@@ -108,6 +111,7 @@ def test_add_primitive_type_column(simple_table: Table) -> None:
         assert field.doc == f"new_column_{name}"
 
 
+@pytest.mark.integration
 def test_add_nested_type_column(simple_table: Table) -> None:
     # add struct type column
     field_name = "new_column_struct"
@@ -126,6 +130,7 @@ def test_add_nested_type_column(simple_table: Table) -> None:
     assert schema_.highest_field_id == 6
 
 
+@pytest.mark.integration
 def test_add_nested_map_type_column(simple_table: Table) -> None:
     # add map type column
     field_name = "new_column_map"
@@ -138,6 +143,7 @@ def test_add_nested_map_type_column(simple_table: Table) -> None:
     assert new_schema.highest_field_id == 6
 
 
+@pytest.mark.integration
 def test_add_nested_list_type_column(simple_table: Table) -> None:
     # add list type column
     field_name = "new_column_list"
@@ -173,6 +179,7 @@ def _create_table_with_schema(catalog: Catalog, schema: Schema) -> Table:
     return catalog.create_table(identifier=tbl_name, schema=schema)
 
 
+@pytest.mark.integration
 def test_add_already_exists(catalog: Catalog, table_schema_nested: Schema) -> None:
     table = _create_table_with_schema(catalog, table_schema_nested)
     update = UpdateSchema(table)
@@ -186,6 +193,7 @@ def test_add_already_exists(catalog: Catalog, table_schema_nested: Schema) -> No
     assert "already exists: location.latitude" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_add_to_non_struct_type(catalog: Catalog, table_schema_simple: Schema) -> None:
     table = _create_table_with_schema(catalog, table_schema_simple)
     update = UpdateSchema(table)
@@ -194,6 +202,7 @@ def test_add_to_non_struct_type(catalog: Catalog, table_schema_simple: Schema) -
     assert "Cannot add column 'lat' to non-struct type" in str(exc_info.value)
 
 
+@pytest.mark.integration
 @pytest.mark.integration
 def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
     schema = Schema(
@@ -247,6 +256,7 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 @pytest.mark.integration
 def test_schema_evolution_nested(catalog: Catalog) -> None:
     nested_schema = Schema(
@@ -407,6 +417,7 @@ def nested_table(catalog: Catalog) -> Table:
     return _create_table_with_schema(catalog, schema_nested)
 
 
+@pytest.mark.integration
 def test_no_changes(simple_table: Table, table_schema_simple: Schema) -> None:
     with simple_table.update_schema() as _:
         pass
@@ -414,6 +425,7 @@ def test_no_changes(simple_table: Table, table_schema_simple: Schema) -> None:
     assert simple_table.schema() == table_schema_simple
 
 
+@pytest.mark.integration
 def test_delete_field(simple_table: Table) -> None:
     with simple_table.update_schema() as schema_update:
         schema_update.delete_column("foo")
@@ -427,6 +439,7 @@ def test_delete_field(simple_table: Table) -> None:
     )
 
 
+@pytest.mark.integration
 def test_delete_field_case_insensitive(simple_table: Table) -> None:
     with simple_table.update_schema(case_sensitive=False) as schema_update:
         schema_update.delete_column("FOO")
@@ -440,15 +453,16 @@ def test_delete_field_case_insensitive(simple_table: Table) -> None:
     )
 
 
+@pytest.mark.integration
 def test_delete_identifier_fields(simple_table: Table) -> None:
     with pytest.raises(ValueError) as exc_info:
         with simple_table.update_schema() as schema_update:
             schema_update.delete_column("bar")
 
-    assert str(exc_info) == "Cannot delete identifier field bar. To force deletion, update the identifier fields first."
+    assert "Cannot find identifier field bar. In case of deletion, update the identifier fields first." in str(exc_info)
 
 
-@pytest.mark.skip(reason="REST Catalog gives an error")
+@pytest.mark.integration
 def test_delete_identifier_fields_nested(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -464,7 +478,7 @@ def test_delete_identifier_fields_nested(catalog: Catalog) -> None:
                 required=True,
             ),
             schema_id=1,
-            identifier_field_ids=[],
+            identifier_field_ids=[3],
         ),
     )
 
@@ -472,7 +486,7 @@ def test_delete_identifier_fields_nested(catalog: Catalog) -> None:
         with tbl.update_schema() as schema_update:
             schema_update.delete_column("person")
 
-    assert str(exc_info) == "Cannot delete field person as it will delete nested identifier field name."
+    assert "Cannot find identifier field person.name. In case of deletion, update the identifier fields first." in str(exc_info)
 
 
 @pytest.mark.parametrize(
@@ -490,6 +504,7 @@ def test_delete_identifier_fields_nested(catalog: Catalog) -> None:
         "person.age",
     ],
 )
+@pytest.mark.integration
 def test_deletes(field: str, nested_table: Table) -> None:
     with nested_table.update_schema() as schema_update:
         schema_update.delete_column(field)
@@ -520,6 +535,7 @@ def test_deletes(field: str, nested_table: Table) -> None:
         "Person.age",
     ],
 )
+@pytest.mark.integration
 def test_deletes_case_insensitive(field: str, nested_table: Table) -> None:
     with nested_table.update_schema(case_sensitive=False) as schema_update:
         schema_update.delete_column(field)
@@ -535,6 +551,7 @@ def test_deletes_case_insensitive(field: str, nested_table: Table) -> None:
     assert expected_schema == nested_table.schema()
 
 
+@pytest.mark.integration
 def test_update_types(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -581,6 +598,7 @@ def test_update_types(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_update_types_case_insensitive(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -637,6 +655,7 @@ allowed_promotions = [
 
 
 @pytest.mark.parametrize("from_type, to_type", allowed_promotions)
+@pytest.mark.integration
 def test_allowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -676,6 +695,7 @@ disallowed_promotions_types = [
 
 @pytest.mark.parametrize("from_type", disallowed_promotions_types)
 @pytest.mark.parametrize("to_type", disallowed_promotions_types)
+@pytest.mark.integration
 def test_disallowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -699,6 +719,48 @@ def test_disallowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, ca
         )
 
 
+@pytest.mark.integration
+def test_rename_simple(simple_table: Table) -> None:
+    with simple_table.update_schema() as schema_update:
+        schema_update.rename_column("foo", "vo")
+
+    assert simple_table.schema() == Schema(
+        NestedField(field_id=1, name="vo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        schema_id=1,
+        identifier_field_ids=[2],
+    )
+
+
+@pytest.mark.integration
+def test_rename_simple_nested(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(
+                field_id=1,
+                name="foo",
+                field_type=StructType(NestedField(field_id=2, name="bar", field_type=StringType())),
+                required=True,
+            ),
+        ),
+    )
+
+    with tbl.update_schema() as schema_update:
+        schema_update.rename_column("foo.bar", "vo")
+
+    assert tbl.schema() == Schema(
+        NestedField(
+            field_id=1,
+            name="foo",
+            field_type=StructType(NestedField(field_id=2, name="vo", field_type=StringType())),
+            required=True,
+        ),
+    )
+
+
+@pytest.mark.integration
 def test_rename(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -750,9 +812,9 @@ def test_rename(catalog: Catalog) -> None:
 
     with tbl.update_schema() as schema_update:
         schema_update.rename_column("foo", "bar")
-        schema_update.rename_column("location_lookup.x", "location_lookup.latitude")
-        schema_update.rename_column("locations.x", "locations.latitude")
-        schema_update.rename_column("person.leeftijd", "person.age")
+        schema_update.rename_column("location_lookup.x", "latitude")
+        schema_update.rename_column("locations.x", "latitude")
+        schema_update.rename_column("person.leeftijd", "age")
 
     assert tbl.schema() == Schema(
         NestedField(
@@ -800,6 +862,7 @@ def test_rename(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_rename_case_insensitive(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -851,9 +914,9 @@ def test_rename_case_insensitive(catalog: Catalog) -> None:
 
     with tbl.update_schema(case_sensitive=False) as schema_update:
         schema_update.rename_column("Foo", "bar")
-        schema_update.rename_column("Location_lookup.X", "location_lookup.latitude")
-        schema_update.rename_column("Locations.X", "locations.latitude")
-        schema_update.rename_column("Person.Leeftijd", "person.age")
+        schema_update.rename_column("Location_lookup.X", "latitude")
+        schema_update.rename_column("Locations.X", "latitude")
+        schema_update.rename_column("Person.Leeftijd", "age")
 
     assert tbl.schema() == Schema(
         NestedField(
@@ -901,6 +964,7 @@ def test_rename_case_insensitive(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_add_struct(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -925,6 +989,7 @@ def test_add_struct(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_add_nested_map_of_structs(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -980,6 +1045,7 @@ def test_add_nested_map_of_structs(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_add_nested_list_of_structs(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1022,6 +1088,7 @@ def test_add_nested_list_of_structs(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_add_required_column(catalog: Catalog) -> None:
     schema_ = Schema(
         NestedField(field_id=1, name="a", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
@@ -1045,6 +1112,7 @@ def test_add_required_column(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
     schema_ = Schema(
         NestedField(field_id=1, name="id", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
@@ -1052,8 +1120,8 @@ def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
     table = _create_table_with_schema(catalog, schema_)
 
     with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table, allow_incompatible_changes=True)
-        update.case_sensitive(False).add_column(path="ID", field_type=IntegerType(), required=True)
+        with UpdateSchema(table, allow_incompatible_changes=True) as update:
+            update.case_sensitive(False).add_column(path="ID", field_type=IntegerType(), required=True)
     assert "already exists: ID" in str(exc_info.value)
 
     new_schema = (
@@ -1062,13 +1130,14 @@ def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
         ._apply()
     )
     assert new_schema == Schema(
-        NestedField(field_id=1, path="id", field_type=BooleanType(), required=False),
+        NestedField(field_id=1, name="id", field_type=BooleanType(), required=False),
         NestedField(field_id=2, name="ID", field_type=IntegerType(), required=True),
         schema_id=0,
         identifier_field_ids=[],
     )
 
 
+@pytest.mark.integration
 def test_make_column_optional(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1088,6 +1157,7 @@ def test_make_column_optional(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_mixed_changes(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1231,6 +1301,7 @@ def test_mixed_changes(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_ambiguous_column(catalog: Catalog, table_schema_nested: Schema) -> None:
     table = _create_table_with_schema(catalog, table_schema_nested)
     update = UpdateSchema(table)
@@ -1240,6 +1311,7 @@ def test_ambiguous_column(catalog: Catalog, table_schema_nested: Schema) -> None
     assert "Cannot add column with ambiguous name: location.latitude, provide a tuple instead" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_delete_then_add(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1259,6 +1331,7 @@ def test_delete_then_add(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_delete_then_add_nested(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1294,6 +1367,7 @@ def test_delete_then_add_nested(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_delete_missing_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1310,6 +1384,7 @@ def test_delete_missing_column(catalog: Catalog) -> None:
     assert "Could not find field with name bar, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_add_delete_conflict(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1348,6 +1423,7 @@ def test_add_delete_conflict(catalog: Catalog) -> None:
     assert "Cannot delete a column that has additions: preferences" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_rename_missing_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1364,6 +1440,7 @@ def test_rename_missing_column(catalog: Catalog) -> None:
     assert "Could not find field with name bar, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_rename_missing_conflicts(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1396,6 +1473,7 @@ def test_rename_missing_conflicts(catalog: Catalog) -> None:
     assert "Could not find field with name bar, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_update_missing_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1412,6 +1490,7 @@ def test_update_missing_column(catalog: Catalog) -> None:
     assert "Could not find field with name bar, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_update_delete_conflict(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1429,6 +1508,7 @@ def test_update_delete_conflict(catalog: Catalog) -> None:
     assert "Cannot delete a column that has updates: foo" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_delete_update_conflict(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1446,6 +1526,7 @@ def test_delete_update_conflict(catalog: Catalog) -> None:
     assert "Cannot update a column that will be deleted: foo" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_delete_map_key(nested_table: Table) -> None:
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as schema_update:
@@ -1454,6 +1535,7 @@ def test_delete_map_key(nested_table: Table) -> None:
     assert "Cannot delete map keys" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_add_field_to_map_key(nested_table: Table) -> None:
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as schema_update:
@@ -1462,6 +1544,7 @@ def test_add_field_to_map_key(nested_table: Table) -> None:
     assert "Cannot add column 'key' to non-struct type: quux" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_alter_map_key(nested_table: Table) -> None:
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as schema_update:
@@ -1470,6 +1553,7 @@ def test_alter_map_key(nested_table: Table) -> None:
     assert "Cannot update map keys" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_update_map_key(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1486,6 +1570,7 @@ def test_update_map_key(catalog: Catalog) -> None:
     assert "Cannot update map keys: map<int, double>" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_update_added_column_doc(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1503,6 +1588,7 @@ def test_update_added_column_doc(catalog: Catalog) -> None:
     assert "Could not find field with name value, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_update_deleted_column_doc(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1520,6 +1606,7 @@ def test_update_deleted_column_doc(catalog: Catalog) -> None:
     assert "Cannot update a column that will be deleted: foo" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_multiple_moves(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1547,6 +1634,7 @@ def test_multiple_moves(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_top_level_column_first(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1567,6 +1655,7 @@ def test_move_top_level_column_first(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_top_level_column_before_first(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1587,6 +1676,7 @@ def test_move_top_level_column_before_first(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_top_level_column_after_last(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1607,6 +1697,7 @@ def test_move_top_level_column_after_last(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_nested_field_first(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1643,6 +1734,7 @@ def test_move_nested_field_first(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_nested_field_before_first(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1679,6 +1771,7 @@ def test_move_nested_field_before_first(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_nested_field_after_first(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1698,23 +1791,26 @@ def test_move_nested_field_after_first(catalog: Catalog) -> None:
     )
 
     with tbl.update_schema() as schema_update:
-        schema_update.move_before("struct.count", "struct.data")
+        schema_update.move_before("struct.data", "struct.count")
 
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="id", field_type=LongType(), required=True),
-        NestedField(
-            field_id=2,
-            name="struct",
-            field_type=StructType(
-                NestedField(field_id=4, name="data", field_type=StringType(), required=True),
-                NestedField(field_id=3, name="count", field_type=LongType(), required=True),
+    assert str(tbl.schema()) == str(
+        Schema(
+            NestedField(field_id=1, name="id", field_type=LongType(), required=True),
+            NestedField(
+                field_id=2,
+                name="struct",
+                field_type=StructType(
+                    NestedField(field_id=4, name="data", field_type=StringType(), required=True),
+                    NestedField(field_id=3, name="count", field_type=LongType(), required=True),
+                ),
+                required=True,
             ),
-            required=True,
-        ),
-        schema_id=1,
+            schema_id=1,
+        )
     )
 
 
+@pytest.mark.integration
 def test_move_nested_field_after(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1744,8 +1840,8 @@ def test_move_nested_field_after(catalog: Catalog) -> None:
             name="struct",
             field_type=StructType(
                 NestedField(field_id=3, name="count", field_type=LongType(), required=True),
-                NestedField(field_id=4, name="data", field_type=StringType(), required=True),
                 NestedField(field_id=5, name="ts", field_type=TimestamptzType(), required=True),
+                NestedField(field_id=4, name="data", field_type=StringType(), required=True),
             ),
             required=True,
         ),
@@ -1753,6 +1849,7 @@ def test_move_nested_field_after(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_nested_field_before(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1791,6 +1888,7 @@ def test_move_nested_field_before(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_map_value_struct_field(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1800,13 +1898,13 @@ def test_move_map_value_struct_field(catalog: Catalog) -> None:
                 field_id=2,
                 name="map",
                 field_type=MapType(
-                    key_id=6,
-                    value_id=7,
+                    key_id=3,
+                    value_id=4,
                     key_type=StringType(),
-                    element_type=StructType(
+                    value_type=StructType(
                         NestedField(field_id=5, name="ts", field_type=TimestamptzType(), required=True),
-                        NestedField(field_id=3, name="count", field_type=LongType(), required=True),
-                        NestedField(field_id=4, name="data", field_type=StringType(), required=True),
+                        NestedField(field_id=6, name="count", field_type=LongType(), required=True),
+                        NestedField(field_id=7, name="data", field_type=StringType(), required=True),
                     ),
                 ),
                 required=True,
@@ -1824,13 +1922,13 @@ def test_move_map_value_struct_field(catalog: Catalog) -> None:
             field_id=2,
             name="map",
             field_type=MapType(
-                key_id=6,
-                value_id=7,
+                key_id=3,
+                value_id=4,
                 key_type=StringType(),
-                element_type=StructType(
-                    NestedField(field_id=3, name="count", field_type=LongType(), required=True),
+                value_type=StructType(
+                    NestedField(field_id=6, name="count", field_type=LongType(), required=True),
                     NestedField(field_id=5, name="ts", field_type=TimestamptzType(), required=True),
-                    NestedField(field_id=4, name="data", field_type=StringType(), required=True),
+                    NestedField(field_id=7, name="data", field_type=StringType(), required=True),
                 ),
             ),
             required=True,
@@ -1839,6 +1937,7 @@ def test_move_map_value_struct_field(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_added_top_level_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1855,12 +1954,13 @@ def test_move_added_top_level_column(catalog: Catalog) -> None:
 
     assert tbl.schema() == Schema(
         NestedField(field_id=1, name="id", field_type=LongType(), required=True),
-        NestedField(field_id=3, name="ts", field_type=TimestamptzType(), required=True),
+        NestedField(field_id=3, name="ts", field_type=TimestamptzType(), required=False),
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
         schema_id=1,
     )
 
 
+@pytest.mark.integration
 def test_move_added_top_level_column_after_added_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1886,6 +1986,7 @@ def test_move_added_top_level_column_after_added_column(catalog: Catalog) -> Non
     )
 
 
+@pytest.mark.integration
 def test_move_added_nested_struct_field(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1924,6 +2025,7 @@ def test_move_added_nested_struct_field(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_added_nested_field_before_added_column(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1965,6 +2067,7 @@ def test_move_added_nested_field_before_added_column(catalog: Catalog) -> None:
     )
 
 
+@pytest.mark.integration
 def test_move_self_reference_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -1985,6 +2088,7 @@ def test_move_self_reference_fails(catalog: Catalog) -> None:
     assert "Cannot move foo after itself" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_missing_column_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2010,6 +2114,7 @@ def test_move_missing_column_fails(catalog: Catalog) -> None:
     assert "Cannot move missing column: items" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_before_add_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2038,6 +2143,7 @@ def test_move_before_add_fails(catalog: Catalog) -> None:
     assert "Cannot move missing column: ts" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_missing_reference_column_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2059,6 +2165,7 @@ def test_move_missing_reference_column_fails(catalog: Catalog) -> None:
     assert "Cannot move data after missing column: items" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_primitive_map_key_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2081,6 +2188,7 @@ def test_move_primitive_map_key_fails(catalog: Catalog) -> None:
     assert "Cannot move fields in non-struct type: map<string, string>" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_primitive_map_value_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2103,6 +2211,7 @@ def test_move_primitive_map_value_fails(catalog: Catalog) -> None:
     assert "Cannot move fields in non-struct type: map<string, struct<>>" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_top_level_between_structs_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2128,6 +2237,7 @@ def test_move_top_level_between_structs_fails(catalog: Catalog) -> None:
     assert "Cannot move field a to a different struct" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_move_between_structs_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2161,6 +2271,7 @@ def test_move_between_structs_fails(catalog: Catalog) -> None:
     assert "Cannot move field s2.x to a different struct" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_add_existing_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2175,6 +2286,7 @@ def test_add_existing_identifier_fields(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"foo"}
 
 
+@pytest.mark.integration
 def test_add_new_identifiers_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2190,6 +2302,7 @@ def test_add_new_identifiers_field_columns(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"foo", "new_field"}
 
 
+@pytest.mark.integration
 def test_add_new_identifiers_field_columns_out_of_order(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2205,6 +2318,7 @@ def test_add_new_identifiers_field_columns_out_of_order(catalog: Catalog) -> Non
     assert tbl.schema().identifier_field_names() == {"foo", "new_field"}
 
 
+@pytest.mark.integration
 def test_add_nested_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2224,6 +2338,7 @@ def test_add_nested_identifier_field_columns(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"required_struct.field"}
 
 
+@pytest.mark.integration
 def test_add_nested_identifier_field_columns_single_transaction(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2241,6 +2356,7 @@ def test_add_nested_identifier_field_columns_single_transaction(catalog: Catalog
     assert tbl.schema().identifier_field_names() == {"new.field"}
 
 
+@pytest.mark.integration
 def test_add_nested_nested_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2256,7 +2372,7 @@ def test_add_nested_nested_identifier_field_columns(catalog: Catalog) -> None:
                 NestedField(
                     field_id=3,
                     name="field",
-                    type=StructType(NestedField(field_id=4, name="nested", type=StringType(), required=False)),
+                    type=StructType(NestedField(field_id=4, name="nested", type=StringType(), required=True)),
                     required=True,
                 )
             ),
@@ -2267,6 +2383,7 @@ def test_add_nested_nested_identifier_field_columns(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"new.field.nested"}
 
 
+@pytest.mark.integration
 def test_add_dotted_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2282,6 +2399,7 @@ def test_add_dotted_identifier_field_columns(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"dot.field"}
 
 
+@pytest.mark.integration
 def test_remove_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2303,6 +2421,7 @@ def test_remove_identifier_fields(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == set()
 
 
+@pytest.mark.integration
 def test_set_identifier_field_fails_schema(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2311,7 +2430,7 @@ def test_set_identifier_field_fails_schema(catalog: Catalog) -> None:
             NestedField(field_id=2, name="float", field_type=FloatType(), required=True),
             NestedField(field_id=3, name="double", field_type=DoubleType(), required=True),
             schema_id=1,
-            identifier_field_ids=[1],
+            identifier_field_ids=[],
         ),
     )
 
@@ -2319,47 +2438,49 @@ def test_set_identifier_field_fails_schema(catalog: Catalog) -> None:
         with tbl.update_schema() as update_schema:
             update_schema.set_identifier_fields("id")
 
-    assert "Cannot add field id as an identifier field: not a required field" in str(exc_info.value)
+    assert "Identifier field 1 invalid: not a required field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as update_schema:
             update_schema.set_identifier_fields("float")
 
-    assert "Cannot add field float as an identifier field: must not be float or double field" in str(exc_info.value)
+    assert "Identifier field 2 invalid: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as update_schema:
             update_schema.set_identifier_fields("double")
 
-    assert "Cannot add field float as an identifier field: must not be float or double field" in str(exc_info.value)
+    assert "Identifier field 3 invalid: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as update_schema:
             update_schema.set_identifier_fields("unknown")
 
-    assert "Cannot add field unknown as an identifier field: not found in current schema or added columns" in str(exc_info.value)
+    assert "Cannot find identifier field unknown. In case of deletion, update the identifier fields first." in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_set_identifier_field_fails(nested_table: Table) -> None:
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as update_schema:
             update_schema.set_identifier_fields("location")
 
-    assert "Cannot add field location as an identifier field: not a primitive type field" in str(exc_info.value)
+    assert "Identifier field 6 invalid: not a primitive type field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as update_schema:
             update_schema.set_identifier_fields("baz")
 
-    assert "Cannot add field baz as an identifier field: not a required field" in str(exc_info.value)
+    assert "Identifier field 3 invalid: not a required field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         with nested_table.update_schema() as update_schema:
             update_schema.set_identifier_fields("person.name")
 
-    assert "Cannot add field zip as an identifier field: must not be nested in" in str(exc_info.value)
+    assert "Identifier field 16 invalid: not a required field" in str(exc_info.value)
 
 
+@pytest.mark.integration
 def test_delete_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2384,6 +2505,7 @@ def test_delete_identifier_field_columns(catalog: Catalog) -> None:
         schema_update.delete_column("foo")
 
 
+@pytest.mark.integration
 def test_delete_containing_nested_identifier_field_columns_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2398,23 +2520,26 @@ def test_delete_containing_nested_identifier_field_columns_fails(catalog: Catalo
         )
         schema_update.set_identifier_fields("out.nested")
 
-    tbl = _create_table_with_schema(
-        catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
+    assert tbl.schema() == Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
+        NestedField(
+            field_id=2,
+            name="out",
+            field_type=StructType(NestedField(field_id=3, name="nested", field_type=StringType(), required=True)),
+            required=True,
         ),
+        schema_id=1,
+        identifier_field_ids=[3],
     )
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as schema_update:
             schema_update.delete_column("out")
 
-    assert (
-        str(exc_info)
-        == "Cannot delete field 24: out: required struct<25: nested: required string> as it will delete nested identifier field 25: nested: required string"
-    )
+    assert "Cannot find identifier field out.nested. In case of deletion, update the identifier fields first." in str(exc_info)
 
 
+@pytest.mark.integration
 def test_rename_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2430,6 +2555,7 @@ def test_rename_identifier_fields(catalog: Catalog) -> None:
     assert tbl.schema().identifier_field_names() == {"bar"}
 
 
+@pytest.mark.integration
 def test_move_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2437,6 +2563,7 @@ def test_move_identifier_fields(catalog: Catalog) -> None:
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
             schema_id=1,
+            identifier_field_ids=[1],
         ),
     )
 
@@ -2444,21 +2571,22 @@ def test_move_identifier_fields(catalog: Catalog) -> None:
         update.move_before("data", "id")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
 
     with tbl.update_schema() as update:
         update.move_after("id", "data")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
 
     with tbl.update_schema() as update:
         update.move_first("data")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
 
 
+@pytest.mark.integration
 def test_move_identifier_fields_case_insensitive(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
@@ -2466,6 +2594,7 @@ def test_move_identifier_fields_case_insensitive(catalog: Catalog) -> None:
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
             schema_id=1,
+            identifier_field_ids=[1],
         ),
     )
 
@@ -2473,16 +2602,16 @@ def test_move_identifier_fields_case_insensitive(catalog: Catalog) -> None:
         update.move_before("DATA", "ID")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
 
     with tbl.update_schema(case_sensitive=False) as update:
         update.move_after("ID", "DATA")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
 
     with tbl.update_schema(case_sensitive=False) as update:
         update.move_first("DATA")
 
     assert tbl.schema().identifier_field_ids == [1]
-    assert tbl.schema().identifier_field_names() == {"bar"}
+    assert tbl.schema().identifier_field_names() == {"id"}
