@@ -44,7 +44,7 @@ class DataStatisticsOrRecord<D extends DataStatistics<D, S>, S> implements Seria
   private DataStatisticsOrRecord(DataStatistics<D, S> statistics, RowData record) {
     Preconditions.checkArgument(
         record != null ^ statistics != null,
-        "DataStatistics or record contains either statistics or record, not neither or both");
+        "DataStatistics or record, not neither or both");
     this.statistics = statistics;
     this.record = record;
   }

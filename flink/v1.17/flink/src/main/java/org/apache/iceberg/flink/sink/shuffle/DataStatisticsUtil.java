@@ -54,7 +54,7 @@ class DataStatisticsUtil {
     try {
       return (D) statisticsSerializer.deserialize(input);
     } catch (IOException e) {
-      throw new IllegalStateException("Fail to serialize data statistics", e);
+      throw new IllegalStateException("Fail to deserialize data statistics", e);
     }
   }
 
@@ -79,7 +79,7 @@ class DataStatisticsUtil {
   @SuppressWarnings("unchecked")
   static <D extends DataStatistics<D, S>, S> GlobalStatistics<D, S> deserializeGlobalStatistics(
       byte[] bytes, TypeSerializer<DataStatistics<D, S>> statisticsSerializer)
-      throws IOException, ClassNotFoundException {
+      throws IOException {
     ByteArrayInputStream bytesIn = new ByteArrayInputStream(bytes);
     ObjectInputStream in = new ObjectInputStream(bytesIn);
 

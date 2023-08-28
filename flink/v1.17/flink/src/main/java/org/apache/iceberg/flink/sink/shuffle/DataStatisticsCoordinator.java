@@ -47,8 +47,8 @@ import org.slf4j.LoggerFactory;
  * DataStatisticsCoordinator receives {@link DataStatisticsEvent} from {@link
  * DataStatisticsOperator} every subtask and then merge them together. Once aggregation for all
  * subtasks data statistics completes, DataStatisticsCoordinator will send the aggregated
- * result(global data statistics) back to {@link DataStatisticsOperator}. In the end a custom
- * partitioner will distribute traffic based on the global data statistics to improve data
+ * data statistics back to {@link DataStatisticsOperator}. In the end a custom
+ * partitioner will distribute traffic based on the aggregated data statistics to improve data
  * clustering.
  */
 @Internal
@@ -93,6 +93,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     LOG.info("Closed data statistics coordinator: {}.", operatorName);
   }
 
+  @VisibleForTesting
   void callInCoordinatorThread(Callable<Void> callable, String errorMessage) {
     ensureStarted();
     // Ensure the task is done by the coordinator executor.

@@ -38,8 +38,8 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
   private final String operatorName;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final int parallelism;
-  private volatile GlobalStatistics<D, S> inProgressStatistics;
   private final Set<Integer> inProgressSubtaskSet;
+  private volatile GlobalStatistics<D, S> inProgressStatistics;
 
   GlobalStatisticsTracker(
       String operatorName,
@@ -56,7 +56,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
     long checkpointId = event.checkpointId();
 
     if (inProgressStatistics != null && inProgressStatistics.checkpointId() > checkpointId) {
-      LOG.debug(
+      LOG.info(
           "Expect data statistics for operator {} checkpoint {}, but receive event from older checkpoint {}. Ignore it.",
           operatorName,
           inProgressStatistics.checkpointId(),
@@ -71,23 +71,22 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
         completedStatistics = inProgressStatistics;
         LOG.info(
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
-                + "Complete data statistics aggregation as it is more than the threshold of {} percentage",
+                + "Complete data statistics aggregation at checkpoint {} as it is more than the threshold of {} percentage",
             inProgressSubtaskSet.size(),
             parallelism,
             operatorName,
+            checkpointId,
             inProgressStatistics.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE);
       } else {
         LOG.info(
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
-                + "Aborting the incomplete aggregation for checkpoint {} "
-                + "and starting a new data statistics for checkpoint {}",
+                + "Aborting the incomplete aggregation for checkpoint {}",
             inProgressSubtaskSet.size(),
             parallelism,
             operatorName,
-            inProgressStatistics.checkpointId(),
-            EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
-            checkpointId);
+            checkpointId,
+            inProgressStatistics.checkpointId());
       }
 
       inProgressStatistics = null;
@@ -95,6 +94,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
     }
 
     if (inProgressStatistics == null) {
+      LOG.info("Starting a new data statistics for checkpoint {}", checkpointId);
       inProgressStatistics = new GlobalStatistics<>(checkpointId, statisticsSerializer);
       inProgressSubtaskSet.clear();
     }

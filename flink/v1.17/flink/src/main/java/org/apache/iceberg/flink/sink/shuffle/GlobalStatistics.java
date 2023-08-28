@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * GlobalStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
  * from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores the merged {@link
- * DataStatistics} result and uses set to keep a record of all reported subtasks.
+ * DataStatistics} result from all reported subtasks.
  */
 class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
 
