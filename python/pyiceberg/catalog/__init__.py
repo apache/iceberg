@@ -135,7 +135,7 @@ AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
 
 
 def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional[CatalogType]:
-    """Tries to infer the type based on the dict.
+    """Try to infer the type based on the dict.
 
     Args:
         name: Name of the catalog.
@@ -202,7 +202,7 @@ def load_catalog(name: Optional[str] = None, **properties: Optional[str]) -> Cat
 
 
 def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
-    """Helper to delete files.
+    """Delete files.
 
     Log warnings if failing to delete any file.
 
@@ -219,7 +219,7 @@ def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
 
 
 def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
-    """Helper to delete data files linked to given manifests.
+    """Delete data files linked to given manifests.
 
     Log warnings if failing to delete any file.
 
@@ -299,7 +299,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'.
         Note: This method doesn't scan data stored in the table.
@@ -342,7 +342,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates one or more tables.
+        """Update one or more tables.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -426,7 +426,7 @@ class Catalog(ABC):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and updates properties for a namespace.
 
         Args:
             namespace (str | Identifier): Namespace identifier.
@@ -440,7 +440,7 @@ class Catalog(ABC):
 
     @staticmethod
     def identifier_to_tuple(identifier: Union[str, Identifier]) -> Identifier:
-        """Parses an identifier to a tuple.
+        """Parse an identifier to a tuple.
 
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
 
@@ -454,7 +454,7 @@ class Catalog(ABC):
 
     @staticmethod
     def table_name_from(identifier: Union[str, Identifier]) -> str:
-        """Extracts table name from a table identifier.
+        """Extract table name from a table identifier.
 
         Args:
             identifier (str | Identifier: a table identifier.
@@ -466,7 +466,7 @@ class Catalog(ABC):
 
     @staticmethod
     def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
-        """Extracts table namespace from a table identifier.
+        """Extract table namespace from a table identifier.
 
         Args:
             identifier (Union[str, Identifier]): a table identifier.

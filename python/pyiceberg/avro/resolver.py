@@ -108,7 +108,7 @@ STRUCT_ROOT = -1
 def construct_reader(
     file_schema: Union[Schema, IcebergType], read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT
 ) -> Reader:
-    """Constructs a reader from a file schema.
+    """Construct a reader from a file schema.
 
     Args:
         file_schema (Schema | IcebergType): The schema of the Avro file.
@@ -120,7 +120,7 @@ def construct_reader(
 
 
 def construct_writer(file_schema: Union[Schema, IcebergType]) -> Writer:
-    """Constructs a writer from a file schema.
+    """Construct a writer from a file schema.
 
     Args:
         file_schema (Schema | IcebergType): The schema of the Avro file.
@@ -132,7 +132,7 @@ def construct_writer(file_schema: Union[Schema, IcebergType]) -> Writer:
 
 
 class ConstructWriter(SchemaVisitorPerPrimitiveType[Writer]):
-    """Constructs a writer tree from an Iceberg schema."""
+    """Construct a writer tree from an Iceberg schema."""
 
     def schema(self, schema: Schema, struct_result: Writer) -> Writer:
         return struct_result
@@ -198,7 +198,7 @@ def resolve(
     read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
     read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
 ) -> Reader:
-    """Resolves the file and read schema to produce a reader.
+    """Resolve the file and read schema to produce a reader.
 
     Args:
         file_schema (Schema | IcebergType): The schema of the Avro file.

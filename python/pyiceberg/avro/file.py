@@ -109,14 +109,14 @@ class Block(Generic[D]):
     position: int = 0
 
     def __iter__(self) -> Block[D]:
-        """Returns an iterator for the Block class."""
+        """Return an iterator for the Block class."""
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
     def __next__(self) -> D:
-        """Returns the next item when iterating over the Block class."""
+        """Return the next item when iterating over the Block class."""
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
@@ -160,9 +160,9 @@ class AvroFile(Generic[D]):
         self.block = None
 
     def __enter__(self) -> AvroFile[D]:
-        """Generates a reader tree for the payload within an avro file.
+        """Generate a reader tree for the payload within an avro file.
 
-        Returns:
+        Return:
             A generator returning the AvroStructs.
         """
         with self.input_file.open() as f:
@@ -179,10 +179,10 @@ class AvroFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
 
     def __iter__(self) -> AvroFile[D]:
-        """Returns an iterator for the AvroFile class."""
+        """Return an iterator for the AvroFile class."""
         return self
 
     def _read_block(self) -> int:
@@ -202,7 +202,7 @@ class AvroFile(Generic[D]):
         return block_records
 
     def __next__(self) -> D:
-        """Returns the next item when iterating over the AvroFile class."""
+        """Return the next item when iterating over the AvroFile class."""
         if self.block and self.block.has_next():
             return next(self.block)
 
@@ -238,7 +238,7 @@ class AvroOutputFile(Generic[D]):
 
     def __enter__(self) -> AvroOutputFile[D]:
         """
-        Opens the file and writes the header.
+        Open the file and writes the header.
 
         Returns:
             The file object to write records to
@@ -254,7 +254,7 @@ class AvroOutputFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
         self.output_stream.close()
 
     def _write_header(self) -> None:

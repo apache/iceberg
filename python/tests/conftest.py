@@ -1125,7 +1125,7 @@ class LocalOutputFile(OutputFile):
         self._path = parsed_location.path
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the LocalOutputFile class."""
+        """Return the length of an instance of the LocalOutputFile class."""
         return os.path.getsize(self._path)
 
     def exists(self) -> bool:
@@ -1473,7 +1473,7 @@ def aws_credentials() -> None:
 
 @pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials() -> Generator[None, None, None]:
-    """Mocked AWS Credentials for moto."""
+    """Yield a mocked AWS Credentials for moto."""
     yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
@@ -1484,21 +1484,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client."""
+    """Yield a mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client."""
+    """Yield a mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client."""
+    """Yield a mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
