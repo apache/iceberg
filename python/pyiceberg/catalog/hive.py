@@ -304,7 +304,7 @@ class HiveCatalog(Catalog):
         return self._convert_hive_into_iceberg(hive_table, io)
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -318,7 +318,7 @@ class HiveCatalog(Catalog):
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and return the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
@@ -489,7 +489,7 @@ class HiveCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and update properties for a namespace.
 
         Args:
             namespace: Namespace identifier.

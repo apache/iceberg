@@ -116,15 +116,18 @@ class Transaction:
         self._requirements = requirements or ()
 
     def __enter__(self) -> Transaction:
-        """Starts a transaction to update the table."""
+        """Start a transaction to update the table."""
         return self
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
-        """Closes and commits the transaction."""
-        self.commit_transaction()
+        """Close and commit the transaction."""
+        fresh_table = self.commit_transaction()
+        # Update the new data in place
+        self._table.metadata = fresh_table.metadata
+        self._table.metadata_location = fresh_table.metadata_location
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
-        """Appends updates to the set of staged updates.
+        """Append updates to the set of staged updates.
 
         Args:
             *new_updates: Any new updates.
@@ -143,7 +146,7 @@ class Transaction:
         return self
 
     def _append_requirements(self, *new_requirements: TableRequirement) -> Transaction:
-        """Appends requirements to the set of staged requirements.
+        """Append requirements to the set of staged requirements.
 
         Args:
             *new_requirements: Any new requirements.
@@ -162,7 +165,7 @@ class Transaction:
         return self
 
     def set_table_version(self, format_version: Literal[1, 2]) -> Transaction:
-        """Sets the table to a certain version.
+        """Set the table to a certain version.
 
         Args:
             format_version: The newly set version.
@@ -194,7 +197,7 @@ class Transaction:
         return UpdateSchema(self._table, self)
 
     def remove_properties(self, *removals: str) -> Transaction:
-        """Removes properties.
+        """Remove properties.
 
         Args:
             removals: Properties to be removed.
@@ -205,7 +208,7 @@ class Transaction:
         return self._append_updates(RemovePropertiesUpdate(removals=removals))
 
     def update_location(self, location: str) -> Transaction:
-        """Sets the new table location.
+        """Set the new table location.
 
         Args:
             location: The new location of the table.
@@ -216,7 +219,7 @@ class Transaction:
         raise NotImplementedError("Not yet implemented")
 
     def commit_transaction(self) -> Table:
-        """Commits the changes to the catalog.
+        """Commit the changes to the catalog.
 
         Returns:
             The table with the updates applied.
@@ -509,7 +512,7 @@ class Table:
             return None
 
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
-        """Returns the snapshot referenced by the given name or null if no such reference exists."""
+        """Return the snapshot referenced by the given name or null if no such reference exists."""
         if ref := self.metadata.refs.get(name):
             return self.snapshot_by_id(ref.snapshot_id)
         return None
@@ -529,7 +532,7 @@ class Table:
         self.metadata_location = response.metadata_location
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Table class."""
+        """Return the equality of two instances of the Table class."""
         return (
             self.identifier == other.identifier
             and self.metadata == other.metadata
@@ -567,7 +570,7 @@ class StaticTable(Table):
 
 
 def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
-    """Accepts an expression in the form of a BooleanExpression or a string.
+    """Accept an expression in the form of a BooleanExpression or a string.
 
     In the case of a string, it will be converted into a unbound BooleanExpression.
 
@@ -638,7 +641,7 @@ class TableScan(ABC):
         ...
 
     def update(self: S, **overrides: Any) -> S:
-        """Creates a copy of this table scan with updated fields."""
+        """Create a copy of this table scan with updated fields."""
         return type(self)(**{**self.__dict__, **overrides})
 
     def use_ref(self: S, name: str) -> S:
@@ -711,7 +714,7 @@ def _min_data_file_sequence_number(manifests: List[ManifestFile]) -> int:
 
 
 def _match_deletes_to_datafile(data_entry: ManifestEntry, positional_delete_entries: SortedList[ManifestEntry]) -> Set[DataFile]:
-    """This method will check if the delete file is relevant for the data file.
+    """Check if the delete file is relevant for the data file.
 
     Using the column metrics to see if the filename is in the lower and upper bound.
 
@@ -770,7 +773,7 @@ class DataScan(TableScan):
         return lambda data_file: evaluator(data_file.partition)
 
     def _check_sequence_number(self, min_data_sequence_number: int, manifest: ManifestFile) -> bool:
-        """A helper function to make sure that no manifests are loaded that contain deletes that are older than the data.
+        """Ensure that no manifests are loaded that contain deletes that are older than the data.
 
         Args:
             min_data_sequence_number (int): The minimal sequence number.
@@ -944,7 +947,7 @@ class UpdateSchema:
         self._transaction = transaction
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
-        """Closes and commits the change."""
+        """Close and commit the change."""
         return self.commit()
 
     def __enter__(self) -> UpdateSchema:
@@ -952,7 +955,7 @@ class UpdateSchema:
         return self
 
     def case_sensitive(self, case_sensitive: bool) -> UpdateSchema:
-        """Determines if the case of schema needs to be considered when comparing column names.
+        """Determine if the case of schema needs to be considered when comparing column names.
 
         Args:
             case_sensitive: When false case is not considered in column name comparisons.
@@ -1039,7 +1042,7 @@ class UpdateSchema:
         return self
 
     def delete_column(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Deletes a column from a table.
+        """Delete a column from a table.
 
         Args:
             path: The path to the column.
@@ -1062,7 +1065,7 @@ class UpdateSchema:
         return self
 
     def rename_column(self, path_from: Union[str, Tuple[str, ...]], new_name: str) -> UpdateSchema:
-        """Updates the name of a column.
+        """Update the name of a column.
 
         Args:
             path_from: The path to the column to be renamed.
@@ -1101,7 +1104,7 @@ class UpdateSchema:
         return self
 
     def require_column(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Makes a column required.
+        """Make a column required.
 
         This is a breaking change since writers have to make sure that
         this value is not-null.
@@ -1116,7 +1119,7 @@ class UpdateSchema:
         return self
 
     def make_column_optional(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Makes a column optional.
+        """Make a column optional.
 
         Args:
             path: The path to the field.
@@ -1292,7 +1295,7 @@ class UpdateSchema:
             self._moves[TABLE_ROOT_ID] = self._moves.get(TABLE_ROOT_ID, []) + [move]
 
     def move_first(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Moves the field to the first position of the parent struct.
+        """Move the field to the first position of the parent struct.
 
         Args:
             path: The path to the field.
@@ -1312,7 +1315,7 @@ class UpdateSchema:
         return self
 
     def move_before(self, path: Union[str, Tuple[str, ...]], before_path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Moves the field to before another field.
+        """Move the field to before another field.
 
         Args:
             path: The path to the field.
@@ -1346,7 +1349,7 @@ class UpdateSchema:
         return self
 
     def move_after(self, path: Union[str, Tuple[str, ...]], after_name: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Moves the field to after another field.
+        """Move the field to after another field.
 
         Args:
             path: The path to the field.

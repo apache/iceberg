@@ -138,7 +138,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
 
 @singledispatch
 def visit(obj: BooleanExpression, visitor: BooleanExpressionVisitor[T]) -> T:
-    """A generic function for applying a boolean expression visitor to any point within an expression.
+    """Apply a boolean expression visitor to any point within an expression.
 
     The function traverses the expression in post-order fashion.
 
@@ -1061,7 +1061,7 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
 def expression_to_plain_format(
     expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
 ) -> List[List[Tuple[str, str, Any]]]:
-    """Formats a Disjunctive Normal Form expression.
+    """Format a Disjunctive Normal Form expression.
 
     These are the formats that the expression can be fed into:
 

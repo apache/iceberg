@@ -199,7 +199,7 @@ def table_schema_nested() -> Schema:
 @pytest.fixture(scope="session")
 def table_schema_nested_with_struct_key_map() -> Schema:
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
@@ -227,13 +227,13 @@ def table_schema_nested_with_struct_key_map() -> Schema:
                 key_id=18,
                 value_id=19,
                 key_type=StructType(
-                    NestedField(field_id=21, name="address", field_type=StringType(), required=False),
-                    NestedField(field_id=22, name="city", field_type=StringType(), required=False),
-                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=False),
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=True),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=True),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=True),
                 ),
                 value_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=True),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=True),
                 ),
                 value_required=True,
             ),
@@ -248,6 +248,21 @@ def table_schema_nested_with_struct_key_map() -> Schema:
             ),
             required=False,
         ),
+        NestedField(
+            field_id=24,
+            name="points",
+            field_type=ListType(
+                element_id=25,
+                element_type=StructType(
+                    NestedField(field_id=26, name="x", field_type=LongType(), required=True),
+                    NestedField(field_id=27, name="y", field_type=LongType(), required=True),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+        NestedField(field_id=28, name="float", field_type=FloatType(), required=True),
+        NestedField(field_id=29, name="double", field_type=DoubleType(), required=True),
         schema_id=1,
         identifier_field_ids=[1],
     )
@@ -1125,7 +1140,7 @@ class LocalOutputFile(OutputFile):
         self._path = parsed_location.path
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the LocalOutputFile class."""
+        """Return the length of an instance of the LocalOutputFile class."""
         return os.path.getsize(self._path)
 
     def exists(self) -> bool:
@@ -1473,7 +1488,7 @@ def aws_credentials() -> None:
 
 @pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials() -> Generator[None, None, None]:
-    """Mocked AWS Credentials for moto."""
+    """Yield a mocked AWS Credentials for moto."""
     yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
@@ -1484,21 +1499,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client."""
+    """Yield a mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client."""
+    """Yield a mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client."""
+    """Yield a mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
