@@ -27,21 +27,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * GlobalStatisticsTracker is used by {@link DataStatisticsCoordinator} to track the in progress
- * {@link GlobalStatistics} received from {@link DataStatisticsOperator} subtasks for specific
+ * AggregatedStatisticsTracker is used by {@link DataStatisticsCoordinator} to track the in progress
+ * {@link AggregatedStatistics} received from {@link DataStatisticsOperator} subtasks for specific
  * checkpoint.
  */
 @Internal
-class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
-  private static final Logger LOG = LoggerFactory.getLogger(GlobalStatisticsTracker.class);
+class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
+  private static final Logger LOG = LoggerFactory.getLogger(AggregatedStatisticsTracker.class);
   private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 90;
   private final String operatorName;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final int parallelism;
   private final Set<Integer> inProgressSubtaskSet;
-  private volatile GlobalStatistics<D, S> inProgressStatistics;
+  private volatile AggregatedStatistics<D, S> inProgressStatistics;
 
-  GlobalStatisticsTracker(
+  AggregatedStatisticsTracker(
       String operatorName,
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer,
       int parallelism) {
@@ -51,7 +51,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
     this.inProgressSubtaskSet = Sets.newHashSet();
   }
 
-  GlobalStatistics<D, S> receiveDataStatisticEventAndCheckCompletion(
+  AggregatedStatistics<D, S> receiveDataStatisticEventAndCheckCompletion(
       int subtask, DataStatisticsEvent<D, S> event) {
     long checkpointId = event.checkpointId();
 
@@ -64,7 +64,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
       return null;
     }
 
-    GlobalStatistics<D, S> completedStatistics = null;
+    AggregatedStatistics<D, S> completedStatistics = null;
     if (inProgressStatistics != null && inProgressStatistics.checkpointId() < checkpointId) {
       if ((double) inProgressSubtaskSet.size() / parallelism * 100
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
@@ -95,7 +95,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
 
     if (inProgressStatistics == null) {
       LOG.info("Starting a new data statistics for checkpoint {}", checkpointId);
-      inProgressStatistics = new GlobalStatistics<>(checkpointId, statisticsSerializer);
+      inProgressStatistics = new AggregatedStatistics<>(checkpointId, statisticsSerializer);
       inProgressSubtaskSet.clear();
     }
 
@@ -121,7 +121,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
           operatorName,
           inProgressStatistics.checkpointId(),
           completedStatistics.dataStatistics());
-      inProgressStatistics = new GlobalStatistics<>(checkpointId + 1, statisticsSerializer);
+      inProgressStatistics = new AggregatedStatistics<>(checkpointId + 1, statisticsSerializer);
       inProgressSubtaskSet.clear();
     }
 
@@ -129,7 +129,7 @@ class GlobalStatisticsTracker<D extends DataStatistics<D, S>, S> {
   }
 
   @VisibleForTesting
-  GlobalStatistics<D, S> inProgressStatistics() {
+  AggregatedStatistics<D, S> inProgressStatistics() {
     return inProgressStatistics;
   }
 }

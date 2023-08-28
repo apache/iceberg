@@ -115,6 +115,7 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
             "Operator %s subtask %s received unexpected operator event %s",
             operatorName, subtaskIndex, event.getClass()));
     DataStatisticsEvent<D, S> statisticsEvent = (DataStatisticsEvent<D, S>) event;
+    LOG.info("Operator {} received global data event from coordinator checkpoint {}", operatorName, statisticsEvent.checkpointId());
     globalStatistics =
         DataStatisticsUtil.deserializeDataStatistics(
             statisticsEvent.statisticsBytes(), statisticsSerializer);

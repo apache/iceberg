@@ -61,8 +61,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   private final SubtaskGateways subtaskGateways;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
-  private final transient GlobalStatisticsTracker<D, S> globalStatisticsTracker;
-  private volatile GlobalStatistics<D, S> completedStatistics;
+  private final transient AggregatedStatisticsTracker<D, S> aggregatedStatisticsTracker;
+  private volatile AggregatedStatistics<D, S> completedStatistics;
   private volatile boolean started;
 
   DataStatisticsCoordinator(
@@ -77,8 +77,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     this.operatorCoordinatorContext = context;
     this.subtaskGateways = new SubtaskGateways(operatorName, parallelism());
     this.statisticsSerializer = statisticsSerializer;
-    this.globalStatisticsTracker =
-        new GlobalStatisticsTracker<>(operatorName, statisticsSerializer, parallelism());
+    this.aggregatedStatisticsTracker =
+        new AggregatedStatisticsTracker<>(operatorName, statisticsSerializer, parallelism());
   }
 
   @Override
@@ -163,11 +163,11 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
-    GlobalStatistics<D, S> globalStatistics =
-        globalStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(subtask, event);
+    AggregatedStatistics<D, S> aggregatedStatistics =
+        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(subtask, event);
 
-    if (globalStatistics != null) {
-      completedStatistics = globalStatistics;
+    if (aggregatedStatistics != null) {
+      completedStatistics = aggregatedStatistics;
       sendDataStatisticsToSubtasks(
           completedStatistics.checkpointId(), completedStatistics.dataStatistics());
     }
@@ -217,7 +217,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               operatorName,
               checkpointId);
           resultFuture.complete(
-              DataStatisticsUtil.serializeGlobalStatistics(
+              DataStatisticsUtil.serializeAggregatedStatistics(
                   completedStatistics, statisticsSerializer));
         },
         String.format("taking checkpoint %d", checkpointId));
@@ -243,7 +243,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
     completedStatistics =
-        DataStatisticsUtil.deserializeGlobalStatistics(checkpointData, statisticsSerializer);
+        DataStatisticsUtil.deserializeAggregatedStatistics(checkpointData, statisticsSerializer);
   }
 
   @Override
@@ -293,7 +293,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   @VisibleForTesting
-  GlobalStatistics<D, S> completedStatistics() {
+  AggregatedStatistics<D, S> completedStatistics() {
     return completedStatistics;
   }
 

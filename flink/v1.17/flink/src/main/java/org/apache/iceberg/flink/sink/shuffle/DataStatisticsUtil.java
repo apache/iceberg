@@ -29,7 +29,7 @@ import org.apache.flink.core.memory.DataOutputSerializer;
 
 /**
  * DataStatisticsUtil is the utility to serialize and deserialize {@link DataStatistics} and {@link
- * GlobalStatistics}
+ * AggregatedStatistics}
  */
 class DataStatisticsUtil {
 
@@ -58,16 +58,16 @@ class DataStatisticsUtil {
     }
   }
 
-  static <D extends DataStatistics<D, S>, S> byte[] serializeGlobalStatistics(
-      GlobalStatistics<D, S> globalStatistics,
+  static <D extends DataStatistics<D, S>, S> byte[] serializeAggregatedStatistics(
+      AggregatedStatistics<D, S> aggregatedStatistics,
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer)
       throws IOException {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     ObjectOutputStream out = new ObjectOutputStream(bytes);
 
     DataOutputSerializer outSerializer = new DataOutputSerializer(64);
-    out.writeLong(globalStatistics.checkpointId());
-    statisticsSerializer.serialize(globalStatistics.dataStatistics(), outSerializer);
+    out.writeLong(aggregatedStatistics.checkpointId());
+    statisticsSerializer.serialize(aggregatedStatistics.dataStatistics(), outSerializer);
     byte[] statisticsBytes = outSerializer.getCopyOfBuffer();
     out.writeInt(statisticsBytes.length);
     out.write(statisticsBytes);
@@ -77,7 +77,7 @@ class DataStatisticsUtil {
   }
 
   @SuppressWarnings("unchecked")
-  static <D extends DataStatistics<D, S>, S> GlobalStatistics<D, S> deserializeGlobalStatistics(
+  static <D extends DataStatistics<D, S>, S> AggregatedStatistics<D, S> deserializeAggregatedStatistics(
       byte[] bytes, TypeSerializer<DataStatistics<D, S>> statisticsSerializer)
       throws IOException {
     ByteArrayInputStream bytesIn = new ByteArrayInputStream(bytes);
@@ -91,6 +91,6 @@ class DataStatisticsUtil {
         new DataInputDeserializer(statisticsBytes, 0, statisticsBytesLength);
     DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
 
-    return new GlobalStatistics<>(completedCheckpointId, dataStatistics);
+    return new AggregatedStatistics<>(completedCheckpointId, dataStatistics);
   }
 }

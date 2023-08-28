@@ -28,15 +28,15 @@ import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
-public class TestGlobalStatistics {
+public class TestAggregatedStatistics {
 
   @Test
   public void mergeDataStatisticTest() {
     GenericRowData rowDataA = GenericRowData.of(StringData.fromString("a"));
     GenericRowData rowDataB = GenericRowData.of(StringData.fromString("b"));
 
-    GlobalStatistics<MapDataStatistics, Map<RowData, Long>> globalStatistics =
-        new GlobalStatistics<>(
+    AggregatedStatistics<MapDataStatistics, Map<RowData, Long>> aggregatedStatistics =
+        new AggregatedStatistics<>(
             1,
             MapDataStatisticsSerializer.fromKeySerializer(
                 new RowDataSerializer(RowType.of(new VarCharType()))));
@@ -44,17 +44,17 @@ public class TestGlobalStatistics {
     mapDataStatistics1.add(rowDataA);
     mapDataStatistics1.add(rowDataA);
     mapDataStatistics1.add(rowDataB);
-    globalStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics1);
+    aggregatedStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics1);
     MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
     mapDataStatistics2.add(rowDataA);
-    globalStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics2);
+    aggregatedStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics2);
     Assertions.assertEquals(
         mapDataStatistics1.statistics().get(rowDataA)
             + mapDataStatistics2.statistics().get(rowDataA),
-        globalStatistics.dataStatistics().statistics().get(rowDataA));
+        aggregatedStatistics.dataStatistics().statistics().get(rowDataA));
     Assertions.assertEquals(
         mapDataStatistics1.statistics().get(rowDataB)
             + mapDataStatistics2.statistics().getOrDefault(rowDataB, 0L),
-        globalStatistics.dataStatistics().statistics().get(rowDataB));
+        aggregatedStatistics.dataStatistics().statistics().get(rowDataB));
   }
 }

@@ -24,21 +24,21 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * GlobalStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
+ * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link DataStatistics}
  * from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores the merged {@link
  * DataStatistics} result from all reported subtasks.
  */
-class GlobalStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
+class AggregatedStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
 
   private final long checkpointId;
   private final DataStatistics<D, S> dataStatistics;
 
-  GlobalStatistics(long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+  AggregatedStatistics(long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpoint;
     this.dataStatistics = statisticsSerializer.createInstance();
   }
 
-  GlobalStatistics(long checkpoint, DataStatistics<D, S> dataStatistics) {
+  AggregatedStatistics(long checkpoint, DataStatistics<D, S> dataStatistics) {
     this.checkpointId = checkpoint;
     this.dataStatistics = dataStatistics;
   }
