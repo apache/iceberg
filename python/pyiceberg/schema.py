@@ -120,9 +120,8 @@ class Schema(IcebergBaseModel):
     @model_validator(mode="after")
     def check_schema(self) -> Schema:
         if self.identifier_field_ids:
-            id_to_parent: Dict[int, int] = index_parents(self.as_struct())
             for field_id in self.identifier_field_ids:
-                Schema.validate_identifier_field(field_id, self._lazy_id_to_field, id_to_parent)
+                self._validate_identifier_field(field_id)
 
         return self
 
@@ -138,6 +137,14 @@ class Schema(IcebergBaseModel):
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return index_by_id(self)
+
+    @cached_property
+    def _lazy_id_to_parent(self) -> Dict[int, int]:
+        """Returns an index of field ID to parent field IDs.
+
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
+        """
+        return _index_parents(self)
 
     @cached_property
     def _lazy_name_to_id_lower(self) -> Dict[str, int]:
@@ -282,41 +289,35 @@ class Schema(IcebergBaseModel):
         """Returns the IDs of the current schema."""
         return set(self._name_to_id.values())
 
-    @staticmethod
-    def validate_identifier_field(field_id: int, id_to_field: Dict[int, NestedField], id_to_parent: Dict[int, int]) -> None:
-        """Validates that the field with the given ID is a valid identifier field.
+    def _validate_identifier_field(self, field_id: int) -> None:
+        """Validate that the field with the given ID is a valid identifier field.
 
         Args:
           field_id: The ID of the field to validate.
-          id_to_field: A map from field IDs to field objects.
-          id_to_parent: A map from field IDs to their parent field IDs.
 
         Raises:
           ValueError: If the field is not valid.
         """
-        field = id_to_field.get(field_id)
-        if field is None:
-            raise ValueError(f"Cannot add fieldId {field_id} as an identifier field: field does not exist")
-
+        field = self.find_field(field_id)
         if not field.field_type.is_primitive:
-            raise ValueError(f"Cannot add field {field.name} as an identifier field: not a primitive type field")
+            raise ValueError(f"Identifier field {field_id} invalid: not a primitive type field")
 
         if not field.required:
-            raise ValueError(f"Cannot add field {field.name} as an identifier field: not a required field")
+            raise ValueError(f"Identifier field {field_id} invalid: not a required field")
 
         if isinstance(field.field_type, (DoubleType, FloatType)):
-            raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be float or double field")
+            raise ValueError(f"Identifier field {field_id} invalid: must not be float or double field")
 
         # Check whether the nested field is in a chain of required struct fields
         # Exploring from root for better error message for list and map types
-        parent_id = id_to_parent.get(field.field_id)
+        parent_id = self._lazy_id_to_parent.get(field.field_id)
         fields: List[int] = []
         while parent_id is not None:
             fields.append(parent_id)
-            parent_id = id_to_parent.get(parent_id)
+            parent_id = self._lazy_id_to_parent.get(parent_id)
 
         while fields:
-            parent = id_to_field[fields.pop()]
+            parent = self.find_field(fields.pop())
             if not parent.field_type.is_struct:
                 raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
 
@@ -973,7 +974,7 @@ class _IndexParents(SchemaVisitor[Dict[int, int]]):
         return self.id_to_parent
 
 
-def index_parents(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, int]:
+def _index_parents(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, int]:
     """Generate an index of field IDs to their parent field IDs.
 
     Args:

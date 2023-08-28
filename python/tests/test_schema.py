@@ -729,19 +729,23 @@ def should_promote(file_type: IcebergType, read_type: IcebergType) -> bool:
 def test_identifier_fields_fails(table_schema_nested_with_struct_key_map: Schema) -> None:
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[999])
-    assert "Cannot add fieldId 999 as an identifier field: field does not exist" in str(exc_info.value)
+    assert "Could not find field with id: 999" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[11])
+    assert "Identifier field 11 invalid: not a primitive type field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[3])
-    assert "Cannot add field baz as an identifier field: not a required field" in str(exc_info.value)
+    assert "Identifier field 3 invalid: not a required field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[28])
-    assert "Cannot add field float as an identifier field: must not be float or double field" in str(exc_info.value)
+    assert "Identifier field 28 invalid: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[29])
-    assert "Cannot add field double as an identifier field: must not be float or double field" in str(exc_info.value)
+    assert "Identifier field 29 invalid: must not be float or double field" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[23])
