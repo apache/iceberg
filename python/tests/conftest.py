@@ -1491,7 +1491,7 @@ def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Yiled a mocked glue client."""
+    """Yield a mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
