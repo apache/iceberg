@@ -63,4 +63,9 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls write compress options
+  public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
+  public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
+  public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.compression-strategy";
 }

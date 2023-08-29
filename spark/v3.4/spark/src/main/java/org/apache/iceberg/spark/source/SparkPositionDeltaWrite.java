@@ -104,6 +104,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Context context;
 
   private boolean cleanupOnAbort = true;
+  private final Map<String, String> writeProperties;
 
   SparkPositionDeltaWrite(
       SparkSession spark,
@@ -126,6 +127,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
+    this.writeProperties = writeConf.writeProperties(context.dataFileFormat);
   }
 
   @Override
@@ -155,7 +157,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       // broadcast the table metadata as the writer factory will be sent to executors
       Broadcast<Table> tableBroadcast =
           sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-      return new PositionDeltaWriteFactory(tableBroadcast, command, context);
+      return new PositionDeltaWriteFactory(tableBroadcast, command, context, writeProperties);
     }
 
     @Override
@@ -326,11 +328,17 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final Broadcast<Table> tableBroadcast;
     private final Command command;
     private final Context context;
+    private final Map<String, String> writeProperties;
 
-    PositionDeltaWriteFactory(Broadcast<Table> tableBroadcast, Command command, Context context) {
+    PositionDeltaWriteFactory(
+        Broadcast<Table> tableBroadcast,
+        Command command,
+        Context context,
+        Map<String, String> writeProperties) {
       this.tableBroadcast = tableBroadcast;
       this.command = command;
       this.context = context;
+      this.writeProperties = writeProperties;
     }
 
     @Override
@@ -356,6 +364,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .dataSparkType(context.dataSparkType())
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
+              .writeProperties(writeProperties)
               .build();
 
       if (command == DELETE) {
