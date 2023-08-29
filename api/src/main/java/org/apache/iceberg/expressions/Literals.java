@@ -269,7 +269,7 @@ class Literals {
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings
           return (Literal<T>)
-                  new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
+              new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
         default:
           return null;
       }
@@ -306,7 +306,7 @@ class Literals {
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings
           return (Literal<T>)
-                  new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
+              new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
         default:
           return null;
       }
