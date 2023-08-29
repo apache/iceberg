@@ -22,6 +22,7 @@ from libc.string cimport memcpy
 
 import array
 
+
 cdef extern from "decoder_basic.c":
   void decode_longs(const unsigned char **buffer, unsigned int count, unsigned long *result);
   void skip_int(const unsigned char **buffer);
