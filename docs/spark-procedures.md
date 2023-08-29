@@ -722,14 +722,15 @@ Creates a view that contains the changes from a given table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description                                                                                                                                                                                                           |
-|---------------|----------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `table`       | ✔️ | string | Name of the source table for the changelog                                                                                                                                                                            |
-| `changelog_view`        |   | string | Name of the view to create                                                                                                                                                                                            |
-| `options`     |   | map<string, string> | A map of Spark read options to use                                                                                                                                                                                    |
-|`compute_updates`| | boolean | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                                        | 
-|`identifier_columns`| | array<string> | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used to compute updates. |
-|`remove_carryovers`| | boolean | Whether to remove carry-over rows (see below for more information). Defaults to true.                                                                                                                                 |
+| Argument Name        | Required? | Type                | Description                                                                                                                                                                                          |
+|----------------------|-----------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`              | ✔️         | string              | Name of the source table for the changelog                                                                                                                                                           |
+| `changelog_view`     |           | string              | Name of the view to create                                                                                                                                                                           |
+| `options`            |           | map<string, string> | A map of Spark read options to use                                                                                                                                                                   |
+| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false.                                                                                                                   |
+| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                       | 
+| `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
+| `remove_carryovers`  |           | boolean             | Whether to remove carry-over rows (see below for more information). Defaults to true. Deprecated since 1.4.0, will be removed in 1.5.0;  Please query `SparkChangelogTable` to view carry-over rows. |
 
 Here is a list of commonly used Spark read options:
 * `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 
@@ -792,6 +793,22 @@ second snapshot deleted 1 record.
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 |1	| Alice  |DELETE	|1	|8764748981452218370|
 
+Create a changelog view that computes net changes. It removes intermediate changes and only outputs the net changes. 
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('end-snapshot-id', '87647489814522183702'),
+  net_changes => true
+)
+```
+
+With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
+
+|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|---|--------|---|---|---|
+|2	| Bob	   |INSERT	|0	|5390529835796506035|
+
+
 #### Carry-over Rows
 
 The procedure removes the carry-over rows by default. Carry-over rows are the result of row-level operations(`MERGE`, `UPDATE` and `DELETE`)
@@ -804,8 +821,10 @@ reports this as the following pair of rows, despite it not being an actual chang
 | 1   | Alice | DELETE       |
 | 1   | Alice | INSERT       |
 
-By default, this view finds the carry-over rows and removes them from the result. User can disable this
-behavior by setting the `remove_carryovers` option to `false`.
+To see carry-over rows, query `SparkChangelogTable` as follows:
+```sql
+SELECT * FROM spark_catalog.db.tbl.changes
+```
 
 #### Pre/Post Update Images
 
