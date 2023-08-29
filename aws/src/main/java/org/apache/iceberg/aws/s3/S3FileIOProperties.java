@@ -98,7 +98,7 @@ public class S3FileIOProperties implements Serializable {
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingDSSEncryption.html
    */
-  public static final String DSSE_TYPE_KMS = "kms.dsse";
+  public static final String DSSE_TYPE_KMS = "dsse-kms";
 
   /**
    * S3 SSE-S3 encryption.

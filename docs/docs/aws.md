@@ -326,7 +326,7 @@ To enable server side encryption, use the following configuration properties:
 
 | Property                          | Default                                  | Description                                            |
 | --------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| s3.sse.type                       | `none`                                   | `none`, `s3`, `kms`, `kms.dsse` or `custom`            |
+| s3.sse.type                       | `none`                                   | `none`, `s3`, `kms`, `dsse-kms` or `custom`            |
 | s3.sse.key                        | `aws/s3` for `kms` and `kms.dsse` types, null otherwise | A KMS Key ID or ARN for `kms` and `kms.dsse` types, or a custom base-64 AES256 symmetric key for `custom` type.  |
 | s3.sse.md5                        | null                                     | If SSE type is `custom`, this value must be set as the base-64 MD5 digest of the symmetric key to ensure integrity. |
 
