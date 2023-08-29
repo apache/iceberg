@@ -32,6 +32,8 @@ public class TestLiteralSerialization {
     Literal[] literals =
         new Literal[] {
           Literal.of(false),
+          Literal.of(new Byte("3")),
+          Literal.of(new Short("3")),
           Literal.of(34),
           Literal.of(35L),
           Literal.of(36.75F),

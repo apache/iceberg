@@ -30,6 +30,8 @@ import org.apache.iceberg.StructLike;
 public interface Type extends Serializable {
   enum TypeID {
     BOOLEAN(Boolean.class),
+    BYTE(Integer.class),
+    SHORT(Integer.class),
     INTEGER(Integer.class),
     LONG(Long.class),
     FLOAT(Float.class),

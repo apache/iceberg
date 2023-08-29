@@ -80,6 +80,10 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Short) {
+      return (Literal<T>) new Literals.ShortLiteral((Short) value);
+    } else if (value instanceof Byte) {
+      return (Literal<T>) new Literals.ByteLiteral((Byte) value);
     }
 
     throw new IllegalArgumentException(
@@ -235,6 +239,82 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.BOOLEAN;
+    }
+  }
+
+  static class ByteLiteral extends ComparableLiteral<Byte> {
+    ByteLiteral(Byte value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case BYTE:
+          return (Literal<T>) this;
+        case SHORT:
+          return (Literal<T>) new ShortLiteral(value().shortValue());
+        case INTEGER:
+          return (Literal<T>) new IntegerLiteral(value().intValue());
+        case LONG:
+          return (Literal<T>) new LongLiteral(value().longValue());
+        case FLOAT:
+          return (Literal<T>) new FloatLiteral(value().floatValue());
+        case DOUBLE:
+          return (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case DATE:
+          return (Literal<T>) new DateLiteral(value().intValue());
+        case DECIMAL:
+          int scale = ((Types.DecimalType) type).scale();
+          // rounding mode isn't necessary, but pass one to avoid warnings
+          return (Literal<T>)
+                  new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.BYTE;
+    }
+  }
+
+  static class ShortLiteral extends ComparableLiteral<Short> {
+    ShortLiteral(Short value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case SHORT:
+          return (Literal<T>) this;
+        case INTEGER:
+          return (Literal<T>) new IntegerLiteral(value().intValue());
+        case LONG:
+          return (Literal<T>) new LongLiteral(value().longValue());
+        case FLOAT:
+          return (Literal<T>) new FloatLiteral(value().floatValue());
+        case DOUBLE:
+          return (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case DATE:
+          return (Literal<T>) new DateLiteral(value().intValue());
+        case DECIMAL:
+          int scale = ((Types.DecimalType) type).scale();
+          // rounding mode isn't necessary, but pass one to avoid warnings
+          return (Literal<T>)
+                  new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.SHORT;
     }
   }
 
