@@ -654,7 +654,7 @@ allowed_promotions = [
 ]
 
 
-@pytest.mark.parametrize("from_type, to_type", allowed_promotions)
+@pytest.mark.parametrize("from_type, to_type", allowed_promotions, ids=str)
 @pytest.mark.integration
 def test_allowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
@@ -693,8 +693,8 @@ disallowed_promotions_types = [
 ]
 
 
-@pytest.mark.parametrize("from_type", disallowed_promotions_types)
-@pytest.mark.parametrize("to_type", disallowed_promotions_types)
+@pytest.mark.parametrize("from_type", disallowed_promotions_types, ids=str)
+@pytest.mark.parametrize("to_type", disallowed_promotions_types, ids=str)
 @pytest.mark.integration
 def test_disallowed_updates(from_type: PrimitiveType, to_type: PrimitiveType, catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
