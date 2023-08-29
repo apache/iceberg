@@ -31,7 +31,7 @@ This section describes how to use Iceberg with AWS.
 
 ## Enabling AWS Integration
 
-The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.ƒ
+The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.
 However, the AWS clients are not bundled so that you can use the same client version as your application.
 You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
