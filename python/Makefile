@@ -53,15 +53,18 @@ test-adlfs:
 	sh ./dev/run-azurite.sh
 	poetry run pytest tests/ -m adlfs ${PYTEST_ARGS}
 
-test-coverage:
-	sh ./dev/run-minio.sh
-	sh ./dev/run-azurite.sh
-	sh ./dev/run-gcs-server.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not integration" ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
-
 test-gcs:
 	sh ./dev/run-gcs-server.sh
 	poetry run  pytest tests/ -m gcs ${PYTEST_ARGS}
+
+test-coverage:
+	docker-compose -f dev/docker-compose-integration.yml kill
+	docker-compose -f dev/docker-compose-integration.yml rm -f
+	docker-compose -f dev/docker-compose-integration.yml up -d
+	sh ./dev/run-minio.sh
+	sh ./dev/run-azurite.sh
+	sh ./dev/run-gcs-server.sh
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml
