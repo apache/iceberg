@@ -100,6 +100,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
   private final SparkWriteRequirements writeRequirements;
+  private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = true;
 
@@ -128,6 +129,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
+    this.writeProperties = writeConf.writeProperties();
   }
 
   @Override
@@ -178,7 +180,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-
     return new WriterFactory(
         tableBroadcast,
         queryId,
@@ -188,7 +189,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         writeSchema,
         dsSchema,
         partitionedFanoutEnabled,
-        writeConf.writeProperties(format));
+        writeProperties);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {

@@ -495,22 +495,23 @@ public class SparkWriteConf {
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
-
         break;
+
       case AVRO:
         writeProperties.put(AVRO_COMPRESSION, avroCompressionCodec());
         String avroCompressionLevel = avroCompressionLevel();
         if (avroCompressionLevel != null) {
           writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
         }
-
         break;
+
       case ORC:
         writeProperties.put(ORC_COMPRESSION, orcCompressionCodec());
         writeProperties.put(ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
         break;
+
       default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
+        // skip
     }
 
     return writeProperties;
