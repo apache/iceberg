@@ -28,6 +28,12 @@ repos:
       - id: debug-statements
       - id: check-yaml
       - id: check-ast
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version (Used for linting)
+    rev: v0.0.285
+    hooks:
+      - id: ruff
+        args: [ --fix, --exit-non-zero-on-fix ]
   - repo: https://github.com/ambv/black
     rev: 23.3.0
     hooks:
@@ -43,11 +49,6 @@ repos:
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.4.0
-    hooks:
-      - id: pyupgrade
-        args: [--py38-plus, --keep-runtime-typing]
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.16
     hooks:
