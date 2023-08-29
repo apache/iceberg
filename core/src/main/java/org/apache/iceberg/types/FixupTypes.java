@@ -62,11 +62,11 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
 
       } else if (field.isRequired()) {
         hasChange = true;
-        newFields.add(Types.NestedField.required(field.fieldId(), field.name(), resultType));
+        newFields.add(Types.NestedField.required(field.fieldId(), field.name(), resultType, field.doc()));
 
       } else {
         hasChange = true;
-        newFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+        newFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType, field.doc()));
       }
     }
 
