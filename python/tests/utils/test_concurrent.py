@@ -21,7 +21,6 @@ from typing import Dict, Optional
 from unittest import mock
 
 import pytest
-
 from pyiceberg.utils.concurrent import ExecutorFactory
 
 EMPTY_ENV: Dict[str, Optional[str]] = {}

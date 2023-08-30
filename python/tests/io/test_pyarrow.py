@@ -26,7 +26,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType, LocalFileSystem
-
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (

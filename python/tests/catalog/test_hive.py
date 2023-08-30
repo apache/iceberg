@@ -19,9 +19,8 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
-from hive_metastore.ttypes import AlreadyExistsException
-from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import (
+    AlreadyExistsException,
     FieldSchema,
     InvalidOperationException,
     MetaException,
@@ -30,8 +29,8 @@ from hive_metastore.ttypes import (
     SkewedInfo,
     StorageDescriptor,
 )
+from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import Table as HiveTable
-
 from pyiceberg.catalog import PropertiesUpdateSummary
 from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (

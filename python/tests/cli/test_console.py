@@ -18,8 +18,6 @@ import os
 
 import pytest
 from click.testing import CliRunner
-from pytest_mock import MockFixture
-
 from pyiceberg.cli.console import run
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
@@ -27,6 +25,7 @@ from pyiceberg.transforms import IdentityTransform
 from pyiceberg.typedef import Properties
 from pyiceberg.types import LongType, NestedField
 from pyiceberg.utils.config import Config
+from pytest_mock import MockFixture
 from tests.catalog.test_base import InMemoryCatalog
 
 

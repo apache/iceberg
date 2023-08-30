@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
 from pyiceberg.types import (

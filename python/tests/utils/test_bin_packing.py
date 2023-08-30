@@ -19,7 +19,6 @@ import random
 from typing import List
 
 import pytest
-
 from pyiceberg.utils.bin_packing import PackingIterator
 
 

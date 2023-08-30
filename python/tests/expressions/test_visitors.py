@@ -19,7 +19,6 @@
 from typing import Any, List, Set
 
 import pytest
-
 from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import (
     AlwaysFalse,

@@ -28,8 +28,6 @@ from pydantic import (
     RootModel,
     WithJsonSchema,
 )
-from typing_extensions import Annotated
-
 from pyiceberg import transforms
 from pyiceberg.expressions import (
     BoundEqualTo,
@@ -99,6 +97,7 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from typing_extensions import Annotated
 
 
 @pytest.mark.parametrize(

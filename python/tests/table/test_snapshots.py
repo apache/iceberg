@@ -16,7 +16,6 @@
 # under the License.
 # pylint:disable=redefined-outer-name,eval-used
 import pytest
-
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
 
 

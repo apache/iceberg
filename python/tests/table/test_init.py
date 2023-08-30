@@ -18,8 +18,6 @@
 from typing import Dict
 
 import pytest
-from sortedcontainers import SortedList
-
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -76,6 +74,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from sortedcontainers import SortedList
 
 
 def test_schema(table: Table) -> None:

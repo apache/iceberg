@@ -19,7 +19,6 @@ import json
 from typing import Any, Dict
 
 import pytest
-
 from pyiceberg.table.metadata import TableMetadataUtil
 from pyiceberg.table.sorting import (
     UNSORTED_SORT_ORDER,

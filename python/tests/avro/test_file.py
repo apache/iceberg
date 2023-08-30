@@ -21,11 +21,10 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from uuid import UUID
 
+import pyiceberg.avro.file as avro
 import pytest
 from _decimal import Decimal
 from fastavro import reader, writer
-
-import pyiceberg.avro.file as avro
 from pyiceberg.avro.codecs import DeflateCodec
 from pyiceberg.avro.file import META_SCHEMA, AvroFileHeader
 from pyiceberg.io.pyarrow import PyArrowFileIO
