@@ -258,7 +258,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
       }
     }
 
-
     private CloseableIterable<ScanTask> posDeletesScanTasks(
         ManifestFile manifest,
         PartitionSpec spec,
