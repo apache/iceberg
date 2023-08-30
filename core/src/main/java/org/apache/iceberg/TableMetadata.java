@@ -50,7 +50,7 @@ import org.apache.iceberg.util.SerializableSupplier;
 public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
-  static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
+  static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
@@ -124,7 +124,7 @@ public class TableMetadata implements Serializable {
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
     return new Builder()
-        .upgradeFormatVersion(formatVersion)
+        .setInitialFormatVersion(formatVersion)
         .setCurrentSchema(freshSchema, lastColumnId.get())
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
@@ -962,6 +962,18 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.AssignUUID(uuid));
       }
 
+      return this;
+    }
+
+    // it is only safe to set the format version directly while creating tables
+    // in all other cases, use upgradeFormatVersion
+    private Builder setInitialFormatVersion(int newFormatVersion) {
+      Preconditions.checkArgument(
+          newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+          "Unsupported format version: v%s (supported: v%s)",
+          newFormatVersion,
+          SUPPORTED_TABLE_FORMAT_VERSION);
+      this.formatVersion = newFormatVersion;
       return this;
     }
 
