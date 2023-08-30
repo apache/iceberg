@@ -93,6 +93,11 @@ public class PositionDeletesTable extends BaseMetadataTable {
     return specs;
   }
 
+  @Override
+  public Map<String, String> properties() {
+    return table().properties();
+  }
+
   private Schema calculateSchema() {
     Types.StructType partitionType = Partitioning.partitionType(table());
     Schema result =
@@ -253,10 +258,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
       }
     }
 
-    @Override
-    public Map<String, String> properties() {
-      return table().properties();
-    }
 
     private CloseableIterable<ScanTask> posDeletesScanTasks(
         ManifestFile manifest,
