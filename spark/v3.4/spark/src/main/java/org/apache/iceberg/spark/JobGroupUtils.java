@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.function.Supplier;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.SparkContext;
 import org.apache.spark.SparkContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -39,11 +40,16 @@ public class JobGroupUtils {
     return new JobGroupInfo(groupId, description, Boolean.parseBoolean(interruptOnCancel));
   }
 
-  public static void setJobGroupInfo(SparkContext sparkContext, JobGroupInfo info) {
-    sparkContext.setLocalProperty(JOB_GROUP_ID, info.groupId());
+  public static void setJobGroupInfo(
+      SparkContext sparkContext, JobGroupInfo info, Boolean override) {
+    if (override || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_GROUP_ID))) {
+      sparkContext.setLocalProperty(JOB_GROUP_ID, info.groupId());
+    }
+    if (override || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_INTERRUPT_ON_CANCEL))) {
+      sparkContext.setLocalProperty(
+          JOB_INTERRUPT_ON_CANCEL, String.valueOf(info.interruptOnCancel()));
+    }
     sparkContext.setLocalProperty(JOB_GROUP_DESC, info.description());
-    sparkContext.setLocalProperty(
-        JOB_INTERRUPT_ON_CANCEL, String.valueOf(info.interruptOnCancel()));
   }
 
   public static <T> T withJobGroupInfo(
@@ -55,10 +61,10 @@ public class JobGroupUtils {
       SparkContext sparkContext, JobGroupInfo info, Supplier<T> supplier) {
     JobGroupInfo previousInfo = getJobGroupInfo(sparkContext);
     try {
-      setJobGroupInfo(sparkContext, info);
+      setJobGroupInfo(sparkContext, info, false);
       return supplier.get();
     } finally {
-      setJobGroupInfo(sparkContext, previousInfo);
+      setJobGroupInfo(sparkContext, previousInfo, true);
     }
   }
 }
