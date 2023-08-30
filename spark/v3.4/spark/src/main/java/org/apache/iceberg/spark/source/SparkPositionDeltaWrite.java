@@ -102,9 +102,9 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
   private final Context context;
+  private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = true;
-  private final Map<String, String> writeProperties;
 
   SparkPositionDeltaWrite(
       SparkSession spark,
