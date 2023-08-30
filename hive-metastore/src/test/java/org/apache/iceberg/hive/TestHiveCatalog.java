@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -74,6 +75,8 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -84,6 +87,9 @@ import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
   private static ImmutableMap meta =
@@ -1160,6 +1166,54 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
+  }
+
+  public static Stream<Arguments> fileIOClassProvider() {
+    return Stream.of(
+        Arguments.of(HadoopFileIO.class.getCanonicalName()),
+        Arguments.of(ResolvingFileIO.class.getCanonicalName()));
+  }
+
+  @ParameterizedTest
+  @MethodSource("fileIOClassProvider")
+  public void testCreateTableWithLocationConflict(String fileIOClass) throws IOException {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "original");
+    TableIdentifier tableRenamed = TableIdentifier.of(DB_NAME, "renamed");
+
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(
+            String.format("table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+            "true",
+            CatalogProperties.FILE_IO_IMPL,
+            fileIOClass);
+    Catalog hiveCatalog =
+        CatalogUtil.loadCatalog(
+            HiveCatalog.class.getName(),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+            catalogProps,
+            hiveConf);
+
+    try {
+      Table table = hiveCatalog.buildTable(tableIdent, schema).create();
+      String currentLocation = table.location();
+
+      catalog.renameTable(tableIdent, tableRenamed);
+
+      assertThatThrownBy(() -> hiveCatalog.buildTable(tableIdent, schema).create())
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table location already exists");
+
+      Table recreated =
+          hiveCatalog
+              .buildTable(tableIdent, schema)
+              .withProperty(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false")
+              .create();
+      assertThat(recreated.location()).isEqualTo(currentLocation);
+    } finally {
+      hiveCatalog.dropTable(tableRenamed, true);
+      hiveCatalog.dropTable(tableIdent, true);
+    }
   }
 
   @Test

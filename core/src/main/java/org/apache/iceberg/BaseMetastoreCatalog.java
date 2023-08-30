@@ -18,13 +18,21 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -192,6 +200,15 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
+
+      if (Boolean.parseBoolean(
+          tableProperties.get(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED))) {
+        boolean conflictLocationDetected = locationInUse(baseLocation, ops.io());
+        if (conflictLocationDetected) {
+          throw new AlreadyExistsException("Table location already exists: %s", baseLocation);
+        }
+      }
+
       TableMetadata metadata =
           TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
 
@@ -202,6 +219,29 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    }
+
+    private boolean locationInUse(String baseLocation, FileIO io) {
+      boolean directionExist = io.newInputFile(baseLocation).exists();
+      if (io instanceof SupportsPrefixOperations) {
+        return directionExist
+            && ((SupportsPrefixOperations) io).listPrefix(baseLocation).iterator().hasNext();
+      } else if (io instanceof Configurable) {
+        try {
+          Path locationPath = new Path(baseLocation);
+          FileSystem fs = Util.getFs(locationPath, ((Configurable) io).getConf());
+          return fs.exists(locationPath) && fs.listFiles(locationPath, true).hasNext();
+        } catch (IOException e) {
+          throw new UncheckedIOException(
+              String.format("Failed to get file system for location: %s", baseLocation), e);
+        }
+      } else {
+        LOG.warn(
+            "Unable to decide if given location {} is already in used given IO {}",
+            baseLocation,
+            io);
+        return directionExist;
+      }
     }
 
     @Override

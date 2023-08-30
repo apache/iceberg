@@ -365,4 +365,8 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String LOCATION_CONFLICT_DETECTION_ENABLED =
+      "location.conflict-detection.enabled";
+  public static final boolean LOCATION_CONFLICT_DETECTION_ENABLED_DEFAULT = false;
 }

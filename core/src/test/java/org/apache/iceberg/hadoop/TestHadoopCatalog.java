@@ -20,11 +20,13 @@ package org.apache.iceberg.hadoop;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,6 +38,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -45,6 +48,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -52,6 +56,9 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
@@ -200,6 +207,46 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+  }
+
+  public static Stream<Arguments> fileIOClassProvider() {
+    return Stream.of(
+        Arguments.of(HadoopFileIO.class.getCanonicalName()),
+        Arguments.of(ResolvingFileIO.class.getCanonicalName()));
+  }
+
+  @ParameterizedTest
+  @MethodSource("fileIOClassProvider")
+  public void testCreateTableWithLocationConflict(String fileIOClass) throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "tbl");
+    TableIdentifier tableIdentWithLocationConflict = TableIdentifier.of("db", "ns1");
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(
+            String.format("table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+            "true",
+            CatalogProperties.FILE_IO_IMPL,
+            fileIOClass);
+
+    HadoopCatalog catalog = hadoopCatalog(catalogProps);
+
+    Table original = catalog.buildTable(tableIdent, SCHEMA).create();
+    assertThat(original.location()).isEqualTo(catalog.defaultWarehouseLocation(tableIdent));
+
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdentWithLocationConflict, SCHEMA).create())
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table location already exists");
+
+    Table withLocationConflict =
+        catalog
+            .buildTable(tableIdentWithLocationConflict, SCHEMA)
+            .withProperty(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false")
+            .create();
+    assertThat(withLocationConflict.location())
+        .isEqualTo(catalog.defaultWarehouseLocation(tableIdentWithLocationConflict));
+
+    catalog.dropTable(tableIdent);
+    catalog.dropTable(tableIdentWithLocationConflict);
   }
 
   @Test

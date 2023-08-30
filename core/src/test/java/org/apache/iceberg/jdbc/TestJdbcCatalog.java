@@ -49,6 +49,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
@@ -57,8 +58,10 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -73,6 +76,9 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -283,6 +289,61 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .hasMessage("Table already exists: db.ns1.ns2.tbl");
 
     catalog.dropTable(testTable);
+  }
+
+  public static Stream<Arguments> fileIOClassProvider() {
+    return Stream.of(
+        Arguments.of(HadoopFileIO.class.getCanonicalName()),
+        Arguments.of(ResolvingFileIO.class.getCanonicalName()));
+  }
+
+  @ParameterizedTest
+  @MethodSource("fileIOClassProvider")
+  public void testCreateTableWithLocationConflict(String fileIOClass) throws IOException {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(
+            "unique_jdbc_catalog",
+            ImmutableMap.of(
+                String.format(
+                    "table-default.%s", TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED),
+                "true",
+                CatalogProperties.FILE_IO_IMPL,
+                fileIOClass))) {
+      Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+      jdbcCatalog.createNamespace(testNamespace, Maps.newHashMap());
+      TableIdentifier tableIdent = TableIdentifier.of(testNamespace, "original");
+      TableIdentifier tableRenamed = TableIdentifier.of(testNamespace, "renamed");
+
+      Table table = jdbcCatalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
+      String currentLocation = table.location();
+
+      FileSystem fs = Util.getFs(new Path(currentLocation), conf);
+      assertThat(fs.isDirectory(new Path(currentLocation))).isTrue();
+      jdbcCatalog.renameTable(tableIdent, tableRenamed);
+
+      Assertions.assertThatThrownBy(
+              () ->
+                  jdbcCatalog.createTable(
+                      tableIdent,
+                      SCHEMA,
+                      PartitionSpec.unpartitioned(),
+                      currentLocation,
+                      ImmutableMap.of()))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table location already exists");
+
+      Table recreated =
+          jdbcCatalog.createTable(
+              tableIdent,
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              currentLocation,
+              ImmutableMap.of(TableProperties.LOCATION_CONFLICT_DETECTION_ENABLED, "false"));
+      assertThat(recreated.location()).isEqualTo(currentLocation);
+
+      jdbcCatalog.dropTable(tableRenamed);
+      jdbcCatalog.dropTable(tableIdent);
+    }
   }
 
   @Test
