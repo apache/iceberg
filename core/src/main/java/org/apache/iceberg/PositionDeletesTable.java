@@ -253,6 +253,11 @@ public class PositionDeletesTable extends BaseMetadataTable {
       }
     }
 
+    @Override
+    public Map<String, String> properties() {
+      return table().properties();
+    }
+
     private CloseableIterable<ScanTask> posDeletesScanTasks(
         ManifestFile manifest,
         PartitionSpec spec,
