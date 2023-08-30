@@ -43,7 +43,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -58,7 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -1298,11 +1296,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(
-        PropertyUtil.propertyAsBoolean(
-            catalogConfig,
-            CatalogProperties.CACHE_ENABLED,
-            CatalogProperties.CACHE_ENABLED_DEFAULT));
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
@@ -1397,11 +1391,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(
-        PropertyUtil.propertyAsBoolean(
-            catalogConfig,
-            CatalogProperties.CACHE_ENABLED,
-            CatalogProperties.CACHE_ENABLED_DEFAULT));
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());

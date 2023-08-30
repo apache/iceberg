@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -103,5 +105,10 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
 
   protected String selectTarget() {
     return tableName;
+  }
+
+  protected boolean cachingCatalogEnabled() {
+    return PropertyUtil.propertyAsBoolean(
+        catalogConfig, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
   }
 }
