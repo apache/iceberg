@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from functools import cached_property
 from typing import (
     Any,
@@ -23,15 +25,21 @@ from typing import (
     Tuple,
 )
 
-from pydantic import Field
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+)
+from typing_extensions import Annotated
 
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import Transform
+from pyiceberg.transforms import Transform, parse_transform
 from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
 
 INITIAL_PARTITION_SPEC_ID = 0
-_PARTITION_DATA_ID_START: int = 1000
+PARTITION_FIELD_ID_START: int = 1000
 
 
 class PartitionField(IcebergBaseModel):
@@ -46,7 +54,12 @@ class PartitionField(IcebergBaseModel):
 
     source_id: int = Field(alias="source-id")
     field_id: int = Field(alias="field-id")
-    transform: Transform[Any, Any] = Field()
+    transform: Annotated[  # type: ignore
+        Transform,
+        BeforeValidator(parse_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ] = Field()
     name: str = Field()
 
     def __init__(
@@ -65,10 +78,11 @@ class PartitionField(IcebergBaseModel):
             data["transform"] = transform
         if name is not None:
             data["name"] = name
+
         super().__init__(**data)
 
     def __str__(self) -> str:
-        """Returns the string representation of the PartitionField class."""
+        """Return the string representation of the PartitionField class."""
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
@@ -82,7 +96,7 @@ class PartitionSpec(IcebergBaseModel):
     """
 
     spec_id: int = Field(alias="spec-id", default=INITIAL_PARTITION_SPEC_ID)
-    fields: Tuple[PartitionField, ...] = Field(alias="fields", default_factory=tuple)
+    fields: Tuple[PartitionField, ...] = Field(default_factory=tuple)
 
     def __init__(
         self,
@@ -118,7 +132,7 @@ class PartitionSpec(IcebergBaseModel):
         return result_str
 
     def __repr__(self) -> str:
-        """Returns the string representation of the PartitionSpec class."""
+        """Return the string representation of the PartitionSpec class."""
         fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
         return f"PartitionSpec({fields}spec_id={self.spec_id})"
 
@@ -129,7 +143,7 @@ class PartitionSpec(IcebergBaseModel):
     def last_assigned_field_id(self) -> int:
         if self.fields:
             return max(pf.field_id for pf in self.fields)
-        return _PARTITION_DATA_ID_START
+        return PARTITION_FIELD_ID_START
 
     @cached_property
     def source_id_to_fields_map(self) -> Dict[int, List[PartitionField]]:
@@ -143,7 +157,7 @@ class PartitionSpec(IcebergBaseModel):
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
         return self.source_id_to_fields_map.get(field_id, [])
 
-    def compatible_with(self, other: "PartitionSpec") -> bool:
+    def compatible_with(self, other: PartitionSpec) -> bool:
         """Produce a boolean to return True if two PartitionSpec are considered compatible."""
         if self == other:
             return True
@@ -157,7 +171,7 @@ class PartitionSpec(IcebergBaseModel):
         )
 
     def partition_type(self, schema: Schema) -> StructType:
-        """Produces a struct of the PartitionSpec.
+        """Produce a struct of the PartitionSpec.
 
         The partition fields should be optional:
 
@@ -196,7 +210,7 @@ def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fre
             PartitionField(
                 name=field.name,
                 source_id=fresh_field.field_id,
-                field_id=_PARTITION_DATA_ID_START + pos,
+                field_id=PARTITION_FIELD_ID_START + pos,
                 transform=field.transform,
             )
         )

@@ -185,4 +185,46 @@ public class TestS3SignRequestParser {
                 + "  }\n"
                 + "}");
   }
+
+  @Test
+  public void roundTripWithBody() {
+    ImmutableS3SignRequest s3SignRequest =
+        ImmutableS3SignRequest.builder()
+            .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
+            .method("PUT")
+            .region("us-west-2")
+            .headers(
+                ImmutableMap.of(
+                    "amz-sdk-request",
+                    Arrays.asList("attempt=1", "max=4"),
+                    "Content-Length",
+                    Arrays.asList("191"),
+                    "Content-Type",
+                    Arrays.asList("application/json"),
+                    "User-Agent",
+                    Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
+            .properties(ImmutableMap.of("k1", "v1"))
+            .body("some-body")
+            .build();
+
+    String json = S3SignRequestParser.toJson(s3SignRequest, true);
+    Assertions.assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    Assertions.assertThat(json)
+        .isEqualTo(
+            "{\n"
+                + "  \"region\" : \"us-west-2\",\n"
+                + "  \"method\" : \"PUT\",\n"
+                + "  \"uri\" : \"http://localhost:49208/iceberg-signer-test\",\n"
+                + "  \"headers\" : {\n"
+                + "    \"amz-sdk-request\" : [ \"attempt=1\", \"max=4\" ],\n"
+                + "    \"Content-Length\" : [ \"191\" ],\n"
+                + "    \"Content-Type\" : [ \"application/json\" ],\n"
+                + "    \"User-Agent\" : [ \"aws-sdk-java/2.20.18\", \"Linux/5.4.0-126\" ]\n"
+                + "  },\n"
+                + "  \"properties\" : {\n"
+                + "    \"k1\" : \"v1\"\n"
+                + "  },\n"
+                + "  \"body\" : \"some-body\"\n"
+                + "}");
+  }
 }

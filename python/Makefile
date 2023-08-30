@@ -15,9 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-install:
-	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray -E sql-postgres
+install-poetry:
+	pip install poetry==1.5.1
+
+install-dependencies:
+	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray -E sql-postgres -E gcsfs
+
+install: | install-poetry install-dependencies
 
 check-license:
 	./dev/check-license
@@ -52,7 +56,12 @@ test-adlfs:
 test-coverage:
 	sh ./dev/run-minio.sh
 	sh ./dev/run-azurite.sh
+	sh ./dev/run-gcs-server.sh
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not integration" ${PYTEST_ARGS}
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
+
+test-gcs:
+	sh ./dev/run-gcs-server.sh
+	poetry run  pytest tests/ -m gcs ${PYTEST_ARGS}

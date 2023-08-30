@@ -113,7 +113,7 @@ NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 class TableResponse(IcebergBaseModel):
     metadata_location: str = Field(alias="metadata-location")
-    metadata: TableMetadata = Field()
+    metadata: TableMetadata
     config: Properties = Field(default_factory=dict)
 
 
@@ -177,8 +177,8 @@ class OAuthErrorResponse(IcebergBaseModel):
     error: Literal[
         "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope"
     ]
-    error_description: Optional[str]
-    error_uri: Optional[str]
+    error_description: Optional[str] = None
+    error_uri: Optional[str] = None
 
 
 class RestCatalog(Catalog):
@@ -200,7 +200,7 @@ class RestCatalog(Catalog):
         self._session = self._create_session()
 
     def _create_session(self) -> Session:
-        """Creates a request session with provided catalog configuration."""
+        """Create a request session with provided catalog configuration."""
         session = Session()
 
         # Sets the client side and server side SSL cert verification, if provided as properties.
@@ -233,14 +233,14 @@ class RestCatalog(Catalog):
         return session
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
-        """The identifier should have at least one element."""
+        """Check if the identifier has at least one element."""
         identifier_tuple = Catalog.identifier_to_tuple(identifier)
         if len(identifier_tuple) < 1:
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
-        """Constructs the endpoint.
+        """Construct the endpoint.
 
         Args:
             endpoint: Resource identifier that points to the REST catalog.
@@ -430,7 +430,7 @@ class RestCatalog(Catalog):
             write_order=sort_order,
             properties=properties,
         )
-        serialized_json = request.json()
+        serialized_json = request.model_dump_json().encode("utf-8")
         response = self._session.post(
             self.url(Endpoints.create_table, namespace=namespace_and_table["namespace"]),
             data=serialized_json,
@@ -494,7 +494,7 @@ class RestCatalog(Catalog):
         return self.load_table(to_identifier)
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -507,7 +507,7 @@ class RestCatalog(Catalog):
         """
         response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
-            data=table_request.json(),
+            data=table_request.model_dump_json().encode("utf-8"),
         )
         try:
             response.raise_for_status()

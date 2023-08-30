@@ -35,6 +35,14 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
       Long fromSnapshotIdExclusive, long toSnapshotIdInclusive);
 
   @Override
+  public ThisT fromSnapshotInclusive(String ref) {
+    SnapshotRef snapshotRef = table().refs().get(ref);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
+    return fromSnapshotInclusive(snapshotRef.snapshotId());
+  }
+
+  @Override
   public ThisT fromSnapshotInclusive(long fromSnapshotId) {
     Preconditions.checkArgument(
         table().snapshot(fromSnapshotId) != null,
@@ -42,6 +50,14 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         fromSnapshotId);
     TableScanContext newContext = context().fromSnapshotIdInclusive(fromSnapshotId);
     return newRefinedScan(table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT fromSnapshotExclusive(String ref) {
+    SnapshotRef snapshotRef = table().refs().get(ref);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
+    return fromSnapshotExclusive(snapshotRef.snapshotId());
   }
 
   @Override
@@ -58,6 +74,22 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         table().snapshot(toSnapshotId) != null, "Cannot find the end snapshot: %s", toSnapshotId);
     TableScanContext newContext = context().toSnapshotId(toSnapshotId);
     return newRefinedScan(table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT toSnapshot(String ref) {
+    SnapshotRef snapshotRef = table().refs().get(ref);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
+    return toSnapshot(snapshotRef.snapshotId());
+  }
+
+  @Override
+  public ThisT useBranch(String branch) {
+    SnapshotRef snapshotRef = table().refs().get(branch);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", branch);
+    Preconditions.checkArgument(snapshotRef.isBranch(), "Ref %s is not a branch", branch);
+    return newRefinedScan(table(), schema(), context().useBranch(branch));
   }
 
   @Override
@@ -100,9 +132,24 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
 
   private long toSnapshotIdInclusive() {
     if (context().toSnapshotId() != null) {
+      if (context().branch() != null) {
+        Snapshot currentSnapshot = table().snapshot(context().branch());
+        Preconditions.checkArgument(
+            SnapshotUtil.isAncestorOf(
+                table(), currentSnapshot.snapshotId(), context().toSnapshotId()),
+            "End snapshot is not a valid snapshot on the current branch: %s",
+            context().branch());
+      }
+
       return context().toSnapshotId();
     } else {
-      Snapshot currentSnapshot = table().currentSnapshot();
+      Snapshot currentSnapshot;
+      if (context().branch() != null) {
+        currentSnapshot = table().snapshot(context().branch());
+      } else {
+        currentSnapshot = table().currentSnapshot();
+      }
+
       Preconditions.checkArgument(
           currentSnapshot != null, "End snapshot is not set and table has no current snapshot");
       return currentSnapshot.snapshotId();

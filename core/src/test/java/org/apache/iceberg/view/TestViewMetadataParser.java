@@ -96,7 +96,6 @@ public class TestViewMetadataParser {
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
         ImmutableViewMetadata.builder()
-            .currentSchemaId(1)
             .schemas(ImmutableList.of(TEST_SCHEMA))
             .versions(ImmutableList.of(version1, version2))
             .history(ImmutableList.of(historyEntry1, historyEntry2))
@@ -142,15 +141,6 @@ public class TestViewMetadataParser {
     assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: location");
-  }
-
-  @Test
-  public void failReadingViewMetadataMissingCurrentSchema() throws Exception {
-    String json =
-        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataMissingCurrentSchema.json");
-    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing int: current-schema-id");
   }
 
   @Test

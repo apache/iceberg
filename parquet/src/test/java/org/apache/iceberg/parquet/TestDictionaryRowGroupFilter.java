@@ -36,6 +36,7 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
@@ -1284,6 +1285,16 @@ public class TestDictionaryRowGroupFilter {
     assertThat(shouldRead)
         .as("Should not read: No decimal_fixed values less than -1234567890.0987654321")
         .isFalse();
+  }
+
+  @Test
+  public void testTransformFilter() {
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead)
+        .as("Should read: filter contains non-reference evaluate as True")
+        .isTrue();
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {

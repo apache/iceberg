@@ -169,12 +169,12 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SimpleVersionedSerializer<IcebergSourceSplit> getSplitSerializer() {
-    return IcebergSourceSplitSerializer.INSTANCE;
+    return new IcebergSourceSplitSerializer(scanContext.caseSensitive());
   }
 
   @Override
   public SimpleVersionedSerializer<IcebergEnumeratorState> getEnumeratorCheckpointSerializer() {
-    return IcebergEnumeratorStateSerializer.INSTANCE;
+    return new IcebergEnumeratorStateSerializer(scanContext.caseSensitive());
   }
 
   private SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> createEnumerator(

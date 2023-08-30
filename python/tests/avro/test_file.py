@@ -15,11 +15,14 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import inspect
+from datetime import date, datetime, time
 from enum import Enum
 from tempfile import TemporaryDirectory
 from typing import Any
+from uuid import UUID
 
 import pytest
+from _decimal import Decimal
 from fastavro import reader, writer
 
 import pyiceberg.avro.file as avro
@@ -34,7 +37,24 @@ from pyiceberg.manifest import (
     ManifestEntry,
     ManifestEntryStatus,
 )
+from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
+from pyiceberg.types import (
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
+    IntegerType,
+    LongType,
+    NestedField,
+    StringType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
+)
 from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 
@@ -193,3 +213,77 @@ def test_write_manifest_entry_with_fastavro_read_with_iceberg() -> None:
             avro_entry = next(it)
 
             assert entry == avro_entry
+
+
+@pytest.mark.parametrize("is_required", [True, False])
+def test_all_primitive_types(is_required: bool) -> None:
+    all_primitives_schema = Schema(
+        NestedField(field_id=1, name="field_fixed", field_type=FixedType(16), required=is_required),
+        NestedField(field_id=2, name="field_decimal", field_type=DecimalType(6, 2), required=is_required),
+        NestedField(field_id=3, name="field_bool", field_type=BooleanType(), required=is_required),
+        NestedField(field_id=4, name="field_int", field_type=IntegerType(), required=True),
+        NestedField(field_id=5, name="field_long", field_type=LongType(), required=is_required),
+        NestedField(field_id=6, name="field_float", field_type=FloatType(), required=is_required),
+        NestedField(field_id=7, name="field_double", field_type=DoubleType(), required=is_required),
+        NestedField(field_id=8, name="field_date", field_type=DateType(), required=is_required),
+        NestedField(field_id=9, name="field_time", field_type=TimeType(), required=is_required),
+        NestedField(field_id=10, name="field_timestamp", field_type=TimestampType(), required=is_required),
+        NestedField(field_id=11, name="field_timestamptz", field_type=TimestamptzType(), required=is_required),
+        NestedField(field_id=12, name="field_string", field_type=StringType(), required=is_required),
+        NestedField(field_id=13, name="field_uuid", field_type=UUIDType(), required=is_required),
+        schema_id=1,
+    )
+
+    class AllPrimitivesRecord(Record):
+        field_fixed: bytes
+        field_decimal: Decimal
+        field_bool: bool
+        field_int: int
+        field_long: int
+        field_float: float
+        field_double: float
+        field_date: date
+        field_time: time
+        field_timestamp: datetime
+        field_timestamptz: datetime
+        field_string: str
+        field_uuid: UUID
+
+        def __init__(self, *data: Any, **named_data: Any) -> None:
+            super().__init__(*data, **{"struct": all_primitives_schema.as_struct(), **named_data})
+
+    record = AllPrimitivesRecord(
+        b"\x124Vx\x124Vx\x124Vx\x124Vx",
+        Decimal("123.45"),
+        True,
+        123,
+        429496729622,
+        123.22000122070312,
+        429496729622.314,
+        19052,
+        69922000000,
+        1677629965000000,
+        1677629965000000,
+        "this is a sentence",
+        UUID("12345678-1234-5678-1234-567812345678"),
+    )
+
+    with TemporaryDirectory() as tmpdir:
+        tmp_avro_file = tmpdir + "/all_primitives.avro"
+        # write to disk
+        with avro.AvroOutputFile[AllPrimitivesRecord](
+            PyArrowFileIO().new_output(tmp_avro_file), all_primitives_schema, "all_primitives_schema"
+        ) as out:
+            out.write_block([record])
+
+        # read from disk
+        with avro.AvroFile[AllPrimitivesRecord](
+            PyArrowFileIO().new_input(tmp_avro_file),
+            all_primitives_schema,
+            {-1: AllPrimitivesRecord},
+        ) as avro_reader:
+            it = iter(avro_reader)
+            avro_entry = next(it)
+
+    for idx, field in enumerate(all_primitives_schema.as_struct()):
+        assert record[idx] == avro_entry[idx], f"Invalid {field}"

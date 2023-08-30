@@ -119,6 +119,7 @@ class GenericReader implements Serializable {
                     fileSchema ->
                         GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
                 .split(task.start(), task.length())
+                .caseSensitive(caseSensitive)
                 .filter(task.residual());
 
         if (reuseContainers) {
@@ -138,6 +139,7 @@ class GenericReader implements Serializable {
                     fileSchema ->
                         GenericOrcReader.buildReader(fileProjection, fileSchema, partition))
                 .split(task.start(), task.length())
+                .caseSensitive(caseSensitive)
                 .filter(task.residual());
 
         return orc.build();

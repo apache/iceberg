@@ -134,11 +134,11 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
 
     String refName = client.refName();
-    boolean delete = true;
+    boolean failure = false;
     try {
       client.commitTable(base, metadata, newMetadataLocation, table, key);
-      delete = false;
     } catch (NessieConflictException ex) {
+      failure = true;
       if (ex instanceof NessieReferenceConflictException) {
         // Throws a specialized exception, if possible
         maybeThrowSpecializedException((NessieReferenceConflictException) ex);
@@ -153,13 +153,13 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
       // details and all kinds of network devices can induce unexpected behavior. So better be
       // safe than sorry.
-      delete = false;
       throw new CommitStateUnknownException(ex);
     } catch (NessieNotFoundException ex) {
+      failure = true;
       throw new RuntimeException(
           String.format("Cannot commit: Reference '%s' no longer exists", refName), ex);
     } finally {
-      if (delete) {
+      if (failure) {
         io().deleteFile(newMetadataLocation);
       }
     }

@@ -67,7 +67,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
-    createBranch("test", catalog.currentHash());
+    createBranch("test");
     testCatalog = initCatalog("test");
   }
 
@@ -447,7 +447,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   @Test
   public void testWithRefAndHash() throws NessieConflictException, NessieNotFoundException {
     String testBranch = "testBranch";
-    createBranch(testBranch, null);
+    createBranch(testBranch);
     Schema schema =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
 
@@ -495,8 +495,8 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void testDifferentTableSameName() throws NessieConflictException, NessieNotFoundException {
     String branch1 = "branch1";
     String branch2 = "branch2";
-    createBranch(branch1, null);
-    createBranch(branch2, null);
+    createBranch(branch1);
+    createBranch(branch2);
     Schema schema1 =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
     Schema schema2 =

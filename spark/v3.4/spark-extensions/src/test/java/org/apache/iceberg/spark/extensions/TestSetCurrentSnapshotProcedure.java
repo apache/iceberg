@@ -212,12 +212,12 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot('t')", catalogName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [snapshot_id]");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
 
     Assertions.assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [snapshot_id]");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse identifier for arg table: 1");
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot(snapshot_id => 1L)", catalogName))
@@ -226,8 +226,8 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot(table => 't')", catalogName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [snapshot_id]");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
 
     Assertions.assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName))
@@ -238,5 +238,58 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
             () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.set_current_snapshot(table => 't', snapshot_id => 1L, ref => 's1')",
+                    catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Either snapshot_id or ref must be provided, not both");
+  }
+
+  @Test
+  public void testSetCurrentSnapshotToRef() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    String ref = "s1";
+    sql("ALTER TABLE %s CREATE TAG %s", tableName, ref);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.set_current_snapshot(table => '%s', ref => '%s')",
+            catalogName, tableIdent, ref);
+
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals(
+        "Set must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    String notExistRef = "s2";
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.set_current_snapshot(table => '%s', ref => '%s')",
+                    catalogName, tableIdent, notExistRef))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find matching snapshot ID for ref " + notExistRef);
   }
 }

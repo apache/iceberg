@@ -387,6 +387,182 @@ def test_writing_avro_file_adlfs(generated_manifest_entry_file: str, adlfs_fsspe
     adlfs_fsspec_fileio.delete(f"abfss://tests/{filename}")
 
 
+@pytest.mark.gcs
+def test_fsspec_new_input_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test creating a new input file from a fsspec file-io"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+
+    assert isinstance(input_file, fsspec.FsspecInputFile)
+    assert input_file.location == location
+
+
+@pytest.mark.gcs
+def test_fsspec_new_output_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test creating a new output file from an fsspec file-io"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+
+    assert isinstance(output_file, fsspec.FsspecOutputFile)
+    assert output_file.location == location
+
+
+@pytest.mark.gcs
+def test_fsspec_write_and_read_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test writing and reading a file using FsspecInputFile and FsspecOutputFile"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    with output_file.create() as f:
+        f.write(b"foo")
+
+    input_file = fsspec_fileio_gcs.new_input(location)
+    with input_file.open() as f:
+        assert f.read() == b"foo"
+
+    fsspec_fileio_gcs.delete(input_file)
+
+
+@pytest.mark.gcs
+def test_fsspec_getting_length_of_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test getting the length of an FsspecInputFile and FsspecOutputFile"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    with output_file.create() as f:
+        f.write(b"foobar")
+
+    assert len(output_file) == 6
+
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+    assert len(input_file) == 6
+
+    fsspec_fileio_gcs.delete(output_file)
+
+
+@pytest.mark.gcs
+def test_fsspec_file_tell_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test finding cursor position for an fsspec file-io file"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    with output_file.create() as write_file:
+        write_file.write(b"foobar")
+
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+    with input_file.open() as f:
+        f.seek(0)
+        assert f.tell() == 0
+        f.seek(1)
+        assert f.tell() == 1
+        f.seek(3)
+        assert f.tell() == 3
+        f.seek(0)
+        assert f.tell() == 0
+
+
+@pytest.mark.gcs
+def test_fsspec_read_specified_bytes_for_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test reading a specified number of bytes from a fsspec file-io file"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+    with input_file.open() as f:
+        f.seek(0)
+        assert b"f" == f.read(1)
+        f.seek(0)
+        assert b"fo" == f.read(2)
+        f.seek(1)
+        assert b"o" == f.read(1)
+        f.seek(1)
+        assert b"oo" == f.read(2)
+        f.seek(0)
+        assert b"foo" == f.read(999)  # test reading amount larger than entire content length
+
+    fsspec_fileio_gcs.delete(input_file)
+
+
+@pytest.mark.gcs
+def test_fsspec_raise_on_opening_file_not_found_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test that a fsspec input file raises appropriately when the gcs file is not found"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+    with pytest.raises(FileNotFoundError) as exc_info:
+        input_file.open().read()
+
+    assert location in str(exc_info.value)
+
+
+@pytest.mark.gcs
+def test_checking_if_a_file_exists_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test checking if a file exists"""
+
+    non_existent_file = fsspec_fileio_gcs.new_input(location="gs://warehouse/does-not-exist.txt")
+    assert not non_existent_file.exists()
+
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    assert not output_file.exists()
+    with output_file.create() as f:
+        f.write(b"foo")
+
+    existing_input_file = fsspec_fileio_gcs.new_input(location=location)
+    assert existing_input_file.exists()
+
+    existing_output_file = fsspec_fileio_gcs.new_output(location=location)
+    assert existing_output_file.exists()
+
+    fsspec_fileio_gcs.delete(existing_output_file)
+
+
+@pytest.mark.gcs
+def test_closing_a_file_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test closing an output file and input file"""
+    location = f"gs://warehouse/{uuid.uuid4()}.txt"
+    output_file = fsspec_fileio_gcs.new_output(location=location)
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+        assert not write_file.closed  # type: ignore
+    assert write_file.closed  # type: ignore
+
+    input_file = fsspec_fileio_gcs.new_input(location=location)
+    f = input_file.open()
+    assert not f.closed  # type: ignore
+    f.close()
+    assert f.closed  # type: ignore
+
+    fsspec_fileio_gcs.delete(location=location)
+
+
+@pytest.mark.gcs
+def test_fsspec_converting_an_outputfile_to_an_inputfile_gcs(fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test converting an output file to an input file"""
+    filename = str(uuid.uuid4())
+    output_file = fsspec_fileio_gcs.new_output(location=f"gs://warehouse/{filename}")
+    input_file = output_file.to_input_file()
+    assert input_file.location == output_file.location
+
+
+@pytest.mark.gcs
+def test_writing_avro_file_gcs(generated_manifest_entry_file: str, fsspec_fileio_gcs: FsspecFileIO) -> None:
+    """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
+    filename = str(uuid.uuid4())
+    with PyArrowFileIO().new_input(location=generated_manifest_entry_file).open() as f:
+        b1 = f.read()
+        with fsspec_fileio_gcs.new_output(location=f"gs://warehouse/{filename}").create() as out_f:
+            out_f.write(b1)
+        with fsspec_fileio_gcs.new_input(location=f"gs://warehouse/{filename}").open() as in_f:
+            b2 = in_f.read()
+            assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3
+
+    fsspec_fileio_gcs.delete(f"gs://warehouse/{filename}")
+
+
 TEST_URI = "https://iceberg-test-signer"
 
 

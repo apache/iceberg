@@ -67,7 +67,6 @@ import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -130,18 +129,11 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
-    try {
-      JobGroupUtils.setJobGroupInfo(context, info);
-      return supplier.get();
-    } finally {
-      JobGroupUtils.setJobGroupInfo(context, previousInfo);
-    }
+    return JobGroupUtils.withJobGroupInfo(sparkContext, info, supplier);
   }
 
   protected JobGroupInfo newJobGroupInfo(String groupId, String desc) {
-    return new JobGroupInfo(groupId + "-" + JOB_COUNTER.incrementAndGet(), desc, false);
+    return new JobGroupInfo(groupId + "-" + JOB_COUNTER.incrementAndGet(), desc);
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {

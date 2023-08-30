@@ -270,9 +270,9 @@ def test_partition_to_py_raise_on_incorrect_precision_or_scale(
         (
             UUIDType(),
             b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
-            uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
         ),
-        (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
+        (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7"),
         (FixedType(3), b"foo", b"foo"),
         (BinaryType(), b"foo", b"foo"),
         (DecimalType(5, 2), b"\x30\x39", Decimal("123.45")),
@@ -308,9 +308,9 @@ def test_from_bytes(primitive_type: PrimitiveType, b: bytes, result: Any) -> Non
         (
             UUIDType(),
             b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
-            uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
         ),
-        (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
+        (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7"),
         (FixedType(3), b"foo", b"foo"),
         (BinaryType(), b"foo", b"foo"),
         (DecimalType(5, 2), b"\x30\x39", Decimal("123.45")),
@@ -339,6 +339,22 @@ def test_round_trip_conversion(primitive_type: PrimitiveType, b: bytes, result: 
 
     bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
     assert bytes_from_value == b
+
+
+@pytest.mark.parametrize(
+    "primitive_type, v, result",
+    [
+        (
+            UUIDType(),
+            uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
+        ),
+        (UUIDType(), uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7"),
+    ],
+)
+def test_uuid_to_bytes(primitive_type: PrimitiveType, v: Any, result: bytes) -> None:
+    bytes_from_value = conversions.to_bytes(primitive_type, v)
+    assert bytes_from_value == result
 
 
 @pytest.mark.parametrize(

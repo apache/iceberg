@@ -169,7 +169,7 @@ class DynamoDbCatalog(Catalog):
         return self.load_table(identifier=identifier)
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -184,7 +184,7 @@ class DynamoDbCatalog(Catalog):
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """
-        Loads the table's metadata and returns the table instance.
+        Load the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
@@ -444,7 +444,7 @@ class DynamoDbCatalog(Catalog):
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """
-        Removes or updates provided property keys for a namespace.
+        Remove or update provided property keys for a namespace.
 
         Args:
             namespace: Namespace identifier
@@ -730,7 +730,7 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
-    """Converts a dynamo json to a regular json.
+    """Convert a dynamo json to a regular json.
 
     Example of a dynamo json:
     {

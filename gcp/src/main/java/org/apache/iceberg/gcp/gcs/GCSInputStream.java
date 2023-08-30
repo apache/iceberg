@@ -23,6 +23,7 @@ import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobSourceOption;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -43,12 +45,13 @@ import org.slf4j.LoggerFactory;
  * The GCSInputStream leverages native streaming channels from the GCS API for streaming uploads.
  * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
  */
-class GCSInputStream extends SeekableInputStream {
+class GCSInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(GCSInputStream.class);
 
   private final StackTraceElement[] createStack;
   private final Storage storage;
   private final BlobId blobId;
+  private Long blobSize;
   private final GCPProperties gcpProperties;
 
   private ReadChannel channel;
@@ -61,9 +64,14 @@ class GCSInputStream extends SeekableInputStream {
   private final Counter readOperations;
 
   GCSInputStream(
-      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+      Storage storage,
+      BlobId blobId,
+      Long blobSize,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
     this.storage = storage;
     this.blobId = blobId;
+    this.blobSize = blobSize;
     this.gcpProperties = gcpProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
@@ -75,6 +83,10 @@ class GCSInputStream extends SeekableInputStream {
   }
 
   private void openStream() {
+    channel = openChannel();
+  }
+
+  private ReadChannel openChannel() {
     List<BlobSourceOption> sourceOptions = Lists.newArrayList();
 
     gcpProperties
@@ -84,9 +96,11 @@ class GCSInputStream extends SeekableInputStream {
         .userProject()
         .ifPresent(userProject -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
 
-    channel = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
+    ReadChannel result = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
 
-    gcpProperties.channelReadChunkSize().ifPresent(channel::setChunkSize);
+    gcpProperties.channelReadChunkSize().ifPresent(result::setChunkSize);
+
+    return result;
   }
 
   @Override
@@ -123,17 +137,44 @@ class GCSInputStream extends SeekableInputStream {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
-
     byteBuffer = byteBuffer != null && byteBuffer.array() == b ? byteBuffer : ByteBuffer.wrap(b);
-    byteBuffer.position(off);
-    byteBuffer.limit(Math.min(off + len, byteBuffer.capacity()));
-
-    int bytesRead = channel.read(byteBuffer);
+    int bytesRead = read(channel, byteBuffer, off, len);
     pos += bytesRead;
     readBytes.increment(bytesRead);
     readOperations.increment();
-
     return bytesRead;
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    try (ReadChannel readChannel = openChannel()) {
+      readChannel.seek(position);
+      readChannel.limit(position + length);
+      int bytesRead = read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+      if (bytesRead < length) {
+        throw new EOFException(
+            "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
+      }
+    }
+  }
+
+  @Override
+  public int readTail(byte[] buffer, int offset, int length) throws IOException {
+    if (blobSize == null) {
+      blobSize = storage.get(blobId).getSize();
+    }
+    long startPosition = Math.max(0, blobSize - length);
+    try (ReadChannel readChannel = openChannel()) {
+      readChannel.seek(startPosition);
+      return read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+    }
+  }
+
+  private int read(ReadChannel readChannel, ByteBuffer buffer, int off, int len)
+      throws IOException {
+    buffer.position(off);
+    buffer.limit(Math.min(off + len, buffer.capacity()));
+    return readChannel.read(buffer);
   }
 
   @Override

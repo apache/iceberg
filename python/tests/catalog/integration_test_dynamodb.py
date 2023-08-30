@@ -44,7 +44,7 @@ def fixture_dynamodb_client() -> boto3.client:
 
 @pytest.fixture(name="test_catalog", scope="module")
 def fixture_test_catalog() -> Generator[Catalog, None, None]:
-    """The pre- and post-setting of aws integration test."""
+    """Configure the pre- and post-setting of aws integration test."""
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=get_s3_path(get_bucket_name()))
     yield test_catalog
     clean_up(test_catalog)

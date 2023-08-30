@@ -291,8 +291,6 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
-    annotationProcessor libs.immutables.value
-    compileOnly libs.immutables.value
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
   }
@@ -520,6 +518,27 @@ project(':iceberg-aws') {
   }
 }
 
+project(':iceberg-azure') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    compileOnly platform(libs.azuresdk.bom)
+    compileOnly "com.azure:azure-storage-file-datalake"
+    compileOnly "com.azure:azure-identity"
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.testcontainers
+  }
+}
+
 project(':iceberg-delta-lake') {
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
@@ -611,6 +630,7 @@ project(':iceberg-gcp') {
     implementation platform(libs.google.libraries.bom)
     implementation 'com.google.cloud:google-cloud-storage'
     implementation libs.google.cloud.biglake
+    implementation 'com.google.cloud:google-cloud-nio'
     compileOnly(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -620,7 +640,7 @@ project(':iceberg-gcp') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-
+    
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.google.cloud.biglake.grpc
     testImplementation libs.google.cloud.nio
@@ -631,7 +651,6 @@ project(':iceberg-gcp') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
-
   }
 }
 
