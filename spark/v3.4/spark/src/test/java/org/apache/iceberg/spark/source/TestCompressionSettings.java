@@ -187,6 +187,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
       Assertions.assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
+
     if (PARQUET.equals(format)) {
       SparkActions.get(spark)
           .rewritePositionDeletes(table)
