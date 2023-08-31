@@ -431,7 +431,7 @@ public class SparkWriteConf {
     return branch;
   }
 
-  public Map<String, String> writeProperties() {
+  public Map<String, String> writeProperties(FileFormat format) {
     Map<String, String> writeProperties = Maps.newHashMap();
     writeProperties.putAll(dataWriteProperties());
     writeProperties.putAll(deleteWriteProperties());
@@ -445,6 +445,7 @@ public class SparkWriteConf {
     switch (dataFormat) {
       case PARQUET:
         writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
+        writeProperties.put(DELETE_PARQUET_COMPRESSION, deleteParquetCompressionCodec());
         String parquetCompressionLevel = parquetCompressionLevel();
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
