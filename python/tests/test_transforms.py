@@ -22,6 +22,7 @@ from uuid import UUID
 
 import mmh3 as mmh3
 import pytest
+
 from pydantic import (
     BeforeValidator,
     PlainSerializer,

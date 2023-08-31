@@ -19,6 +19,7 @@ import os
 import tempfile
 
 import pytest
+
 from pyiceberg.io import (
     ARROW_FILE_IO,
     PY_IO_IMPL,

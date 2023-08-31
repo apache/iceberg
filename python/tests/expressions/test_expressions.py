@@ -18,10 +18,12 @@
 
 import pickle
 import uuid
+
 from decimal import Decimal
 from typing import Any
 
 import pytest
+
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,

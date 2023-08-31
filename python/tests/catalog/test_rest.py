@@ -19,6 +19,7 @@ from uuid import UUID
 
 import pyiceberg
 import pytest
+
 from pyiceberg.catalog import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (

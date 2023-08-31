@@ -17,9 +17,11 @@
 # pylint:disable=protected-access
 import io
 import json
+
 from typing import Callable
 
 import pytest
+
 from pyiceberg.avro.decoder import StreamingBinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.file import AvroFile

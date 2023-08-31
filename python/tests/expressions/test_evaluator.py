@@ -18,6 +18,7 @@
 from typing import Any
 
 import pytest
+
 from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import (
     And,

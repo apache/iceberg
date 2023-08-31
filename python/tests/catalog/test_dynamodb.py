@@ -17,6 +17,7 @@
 from typing import List
 
 import pytest
+
 from moto import mock_dynamodb
 from pyiceberg.catalog import METADATA_LOCATION, TABLE_TYPE
 from pyiceberg.catalog.dynamodb import (

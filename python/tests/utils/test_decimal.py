@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 from pyiceberg.utils.decimal import decimal_required_bytes
 
 

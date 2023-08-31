@@ -19,11 +19,13 @@ from __future__ import annotations
 import io
 import itertools
 import struct
+
 from io import SEEK_SET
 from types import TracebackType
 from typing import Callable, Optional, Type
 
 import pytest
+
 from pyiceberg.avro.decoder import StreamingBinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.reader import ReadableDecoder

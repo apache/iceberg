@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
+
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 from uuid import UUID

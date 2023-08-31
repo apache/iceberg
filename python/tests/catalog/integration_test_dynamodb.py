@@ -19,6 +19,7 @@ from typing import Generator, List
 
 import boto3
 import pytest
+
 from botocore.exceptions import ClientError
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.dynamodb import DynamoDbCatalog

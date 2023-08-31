@@ -17,6 +17,7 @@
 
 """Helper methods for working with Python Decimals."""
 import math
+
 from decimal import Decimal
 from typing import Optional, Union
 

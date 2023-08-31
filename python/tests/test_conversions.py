@@ -73,6 +73,7 @@ Notes:
 """
 import struct
 import uuid
+
 from datetime import (
     date,
     datetime,
@@ -84,6 +85,7 @@ from typing import Any, Union
 
 import pyiceberg.utils.decimal as decimal_util
 import pytest
+
 from pyiceberg import conversions
 from pyiceberg.types import (
     BinaryType,

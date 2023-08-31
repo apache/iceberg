@@ -16,9 +16,11 @@
 #  under the License.
 # pylint: disable=protected-access,redefined-outer-name
 import uuid
+
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from hive_metastore.ttypes import (
     AlreadyExistsException,
     FieldSchema,

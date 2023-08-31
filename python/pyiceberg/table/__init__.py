@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import itertools
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -90,6 +91,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
     import ray
+
     from duckdb import DuckDBPyConnection
 
     from pyiceberg.catalog import Catalog

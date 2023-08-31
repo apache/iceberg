@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+
 from unittest import mock
 
 import pytest
+
 from pyiceberg.utils.config import Config, _lowercase_dictionary_keys
 from strictyaml import as_document
 

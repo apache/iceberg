@@ -16,11 +16,13 @@
 # under the License.
 
 import os
+
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 from unittest import mock
 
 import pytest
+
 from pyiceberg.utils.concurrent import ExecutorFactory
 
 EMPTY_ENV: Dict[str, Optional[str]] = {}

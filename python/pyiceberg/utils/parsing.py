@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import re
+
 from re import Pattern
 
 from pyiceberg.exceptions import ValidationError

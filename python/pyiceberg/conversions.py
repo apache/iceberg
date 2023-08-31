@@ -28,6 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
+
 from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch

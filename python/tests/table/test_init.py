@@ -18,6 +18,7 @@
 from typing import Dict
 
 import pytest
+
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,

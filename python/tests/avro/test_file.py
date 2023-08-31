@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import inspect
+
 from datetime import date, datetime, time
 from enum import Enum
 from tempfile import TemporaryDirectory
@@ -23,6 +24,7 @@ from uuid import UUID
 
 import pyiceberg.avro.file as avro
 import pytest
+
 from _decimal import Decimal
 from fastavro import reader, writer
 from pyiceberg.avro.codecs import DeflateCodec

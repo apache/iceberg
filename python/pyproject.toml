@@ -333,3 +333,4 @@ keep-runtime-typing = true
 
 [tool.ruff.isort]
 detect-same-package = true
+lines-between-types = 1
