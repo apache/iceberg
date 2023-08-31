@@ -195,7 +195,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
       table.refresh();
       deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
       try (ManifestReader<DeleteFile> reader =
-               ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
+          ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
         DeleteFile file = reader.iterator().next();
         InputFile inputFile = table.io().newInputFile(file.path().toString());
         Assertions.assertThat(getCompressionType(inputFile))
