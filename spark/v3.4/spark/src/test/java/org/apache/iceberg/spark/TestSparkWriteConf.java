@@ -184,241 +184,255 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
   @Test
   public void testSparkWriteConfWriteProperties() {
-    Object[][] propertiesSuites =
-        new Object[][] {
-          {
-            ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "3"),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "parquet",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "parquet",
-                TableProperties.PARQUET_COMPRESSION,
-                "gzip",
-                TableProperties.DELETE_PARQUET_COMPRESSION,
-                "snappy"),
-            ImmutableMap.of(
-                DELETE_PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION_LEVEL,
-                "3",
-                DELETE_PARQUET_COMPRESSION_LEVEL,
-                "3")
-          },
-          {
-            ImmutableMap.of(
-                COMPRESSION_CODEC, "zstd", SparkSQLProperties.COMPRESSION_STRATEGY, "compression"),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "orc",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "orc",
-                ORC_COMPRESSION,
-                "zlib",
-                DELETE_ORC_COMPRESSION,
-                "snappy"),
-            ImmutableMap.of(
-                DELETE_ORC_COMPRESSION,
-                "zstd",
-                ORC_COMPRESSION,
-                "zstd",
-                DELETE_ORC_COMPRESSION_STRATEGY,
-                "compression",
-                ORC_COMPRESSION_STRATEGY,
-                "compression")
-          },
-          {
-            ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "9"),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "avro",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "avro",
-                AVRO_COMPRESSION,
-                "gzip",
-                DELETE_AVRO_COMPRESSION,
-                "snappy"),
-            ImmutableMap.of(
-                DELETE_AVRO_COMPRESSION,
-                "zstd",
-                AVRO_COMPRESSION,
-                "zstd",
-                AVRO_COMPRESSION_LEVEL,
-                "9",
-                DELETE_AVRO_COMPRESSION_LEVEL,
-                "9")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "parquet",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "parquet",
-                PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION_LEVEL,
-                "5"),
-            ImmutableMap.of(
-                DELETE_PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION_LEVEL,
-                "5",
-                DELETE_PARQUET_COMPRESSION_LEVEL,
-                "5")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "orc",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "orc",
-                ORC_COMPRESSION,
-                "snappy",
-                ORC_COMPRESSION_STRATEGY,
-                "speed"),
-            ImmutableMap.of(
-                DELETE_ORC_COMPRESSION,
-                "snappy",
-                ORC_COMPRESSION,
-                "snappy",
-                ORC_COMPRESSION_STRATEGY,
-                "speed",
-                DELETE_ORC_COMPRESSION_STRATEGY,
-                "speed")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "avro",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "avro",
-                AVRO_COMPRESSION,
-                "snappy",
-                AVRO_COMPRESSION_LEVEL,
-                "9"),
-            ImmutableMap.of(
-                DELETE_AVRO_COMPRESSION,
-                "snappy",
-                AVRO_COMPRESSION,
-                "snappy",
-                AVRO_COMPRESSION_LEVEL,
-                "9",
-                DELETE_AVRO_COMPRESSION_LEVEL,
-                "9")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "parquet",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "parquet",
-                TableProperties.PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION_LEVEL,
-                "5",
-                DELETE_PARQUET_COMPRESSION_LEVEL,
-                "6"),
-            ImmutableMap.of(
-                DELETE_PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION,
-                "zstd",
-                PARQUET_COMPRESSION_LEVEL,
-                "5",
-                DELETE_PARQUET_COMPRESSION_LEVEL,
-                "6")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "orc",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "orc",
-                ORC_COMPRESSION,
-                "snappy",
-                ORC_COMPRESSION_STRATEGY,
-                "speed",
-                DELETE_ORC_COMPRESSION,
-                "zstd",
-                DELETE_ORC_COMPRESSION_STRATEGY,
-                "compression"),
-            ImmutableMap.of(
-                DELETE_ORC_COMPRESSION,
-                "zstd",
-                ORC_COMPRESSION,
-                "snappy",
-                ORC_COMPRESSION_STRATEGY,
-                "speed",
-                DELETE_ORC_COMPRESSION_STRATEGY,
-                "compression")
-          },
-          {
-            ImmutableMap.of(),
-            ImmutableMap.of(
-                DEFAULT_FILE_FORMAT,
-                "avro",
-                DELETE_DEFAULT_FILE_FORMAT,
-                "avro",
-                AVRO_COMPRESSION,
-                "snappy",
-                AVRO_COMPRESSION_LEVEL,
-                "9",
-                DELETE_AVRO_COMPRESSION,
-                "zstd",
-                DELETE_AVRO_COMPRESSION_LEVEL,
-                "16"),
-            ImmutableMap.of(
-                DELETE_AVRO_COMPRESSION,
-                "zstd",
-                AVRO_COMPRESSION,
-                "snappy",
-                AVRO_COMPRESSION_LEVEL,
-                "9",
-                DELETE_AVRO_COMPRESSION_LEVEL,
-                "16")
-          }
-        };
-
-    for (Object[] propertiesSuite : propertiesSuites) {
-      withSQLConf(
-          (Map<String, String>) propertiesSuite[0],
-          () -> {
-            Table table = validationCatalog.loadTable(tableIdent);
-            Map<String, String> writeOptions = ImmutableMap.of();
-            Map<String, String> tableProperties = (Map<String, String>) propertiesSuite[1];
-            UpdateProperties updateProperties = table.updateProperties();
-            for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
-              updateProperties.set(entry.getKey(), entry.getValue());
-            }
-
-            updateProperties.commit();
-
-            SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
-            Map<String, String> writeProperties = writeConf.writeProperties();
-            Map<String, String> expectedProperties = (Map<String, String>) propertiesSuite[2];
-            Assert.assertEquals(expectedProperties.size(), writeConf.writeProperties().size());
-            for (Map.Entry<String, String> entry : writeProperties.entrySet()) {
-              Assert.assertEquals(entry.getValue(), expectedProperties.get(entry.getKey()));
-            }
-
-            table.refresh();
-            updateProperties = table.updateProperties();
-            for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
-              updateProperties.remove(entry.getKey());
-            }
-
-            updateProperties.commit();
-          });
+    for (Object[] propertiesSuite : getOverridePropertiesSuites()) {
+      testWritePropertiesBySuite(propertiesSuite);
     }
+
+    for (Object[] propertiesSuite : getNonOverridePropertiesSuite()) {
+      testWritePropertiesBySuite(propertiesSuite);
+    }
+  }
+
+  private void testWritePropertiesBySuite(Object[] propertiesSuite) {
+    withSQLConf(
+        (Map<String, String>) propertiesSuite[0],
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          Map<String, String> writeOptions = ImmutableMap.of();
+          Map<String, String> tableProperties = (Map<String, String>) propertiesSuite[1];
+          UpdateProperties updateProperties = table.updateProperties();
+          for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
+            updateProperties.set(entry.getKey(), entry.getValue());
+          }
+
+          updateProperties.commit();
+
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
+          Map<String, String> writeProperties = writeConf.writeProperties();
+          Map<String, String> expectedProperties = (Map<String, String>) propertiesSuite[2];
+          Assert.assertEquals(expectedProperties.size(), writeConf.writeProperties().size());
+          for (Map.Entry<String, String> entry : writeProperties.entrySet()) {
+            Assert.assertEquals(entry.getValue(), expectedProperties.get(entry.getKey()));
+          }
+
+          table.refresh();
+          updateProperties = table.updateProperties();
+          for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
+            updateProperties.remove(entry.getKey());
+          }
+
+          updateProperties.commit();
+        });
+  }
+
+  private Object[][] getOverridePropertiesSuites() {
+    return new Object[][] {
+      {
+        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "3"),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "parquet",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "parquet",
+            TableProperties.PARQUET_COMPRESSION,
+            "gzip",
+            TableProperties.DELETE_PARQUET_COMPRESSION,
+            "snappy"),
+        ImmutableMap.of(
+            DELETE_PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION_LEVEL,
+            "3",
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            "3")
+      },
+      {
+        ImmutableMap.of(
+            COMPRESSION_CODEC, "zstd", SparkSQLProperties.COMPRESSION_STRATEGY, "compression"),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "orc",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "orc",
+            ORC_COMPRESSION,
+            "zlib",
+            DELETE_ORC_COMPRESSION,
+            "snappy"),
+        ImmutableMap.of(
+            DELETE_ORC_COMPRESSION,
+            "zstd",
+            ORC_COMPRESSION,
+            "zstd",
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            "compression",
+            ORC_COMPRESSION_STRATEGY,
+            "compression")
+      },
+      {
+        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "9"),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "avro",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "avro",
+            AVRO_COMPRESSION,
+            "gzip",
+            DELETE_AVRO_COMPRESSION,
+            "snappy"),
+        ImmutableMap.of(
+            DELETE_AVRO_COMPRESSION,
+            "zstd",
+            AVRO_COMPRESSION,
+            "zstd",
+            AVRO_COMPRESSION_LEVEL,
+            "9",
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            "9")
+      },
+    };
+  }
+
+  private Object[][] getNonOverridePropertiesSuite() {
+    return new Object[][] {
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "parquet",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "parquet",
+            PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION_LEVEL,
+            "5"),
+        ImmutableMap.of(
+            DELETE_PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION_LEVEL,
+            "5",
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            "5")
+      },
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "orc",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "orc",
+            ORC_COMPRESSION,
+            "snappy",
+            ORC_COMPRESSION_STRATEGY,
+            "speed"),
+        ImmutableMap.of(
+            DELETE_ORC_COMPRESSION,
+            "snappy",
+            ORC_COMPRESSION,
+            "snappy",
+            ORC_COMPRESSION_STRATEGY,
+            "speed",
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            "speed")
+      },
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "avro",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "avro",
+            AVRO_COMPRESSION,
+            "snappy",
+            AVRO_COMPRESSION_LEVEL,
+            "9"),
+        ImmutableMap.of(
+            DELETE_AVRO_COMPRESSION,
+            "snappy",
+            AVRO_COMPRESSION,
+            "snappy",
+            AVRO_COMPRESSION_LEVEL,
+            "9",
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            "9")
+      },
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "parquet",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "parquet",
+            TableProperties.PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION_LEVEL,
+            "5",
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            "6"),
+        ImmutableMap.of(
+            DELETE_PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION,
+            "zstd",
+            PARQUET_COMPRESSION_LEVEL,
+            "5",
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            "6")
+      },
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "orc",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "orc",
+            ORC_COMPRESSION,
+            "snappy",
+            ORC_COMPRESSION_STRATEGY,
+            "speed",
+            DELETE_ORC_COMPRESSION,
+            "zstd",
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            "compression"),
+        ImmutableMap.of(
+            DELETE_ORC_COMPRESSION,
+            "zstd",
+            ORC_COMPRESSION,
+            "snappy",
+            ORC_COMPRESSION_STRATEGY,
+            "speed",
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            "compression")
+      },
+      {
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            DEFAULT_FILE_FORMAT,
+            "avro",
+            DELETE_DEFAULT_FILE_FORMAT,
+            "avro",
+            AVRO_COMPRESSION,
+            "snappy",
+            AVRO_COMPRESSION_LEVEL,
+            "9",
+            DELETE_AVRO_COMPRESSION,
+            "zstd",
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            "16"),
+        ImmutableMap.of(
+            DELETE_AVRO_COMPRESSION,
+            "zstd",
+            AVRO_COMPRESSION,
+            "snappy",
+            AVRO_COMPRESSION_LEVEL,
+            "9",
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            "16")
+      }
+    };
   }
 
   private void checkMode(DistributionMode expectedMode, SparkWriteConf writeConf) {
