@@ -28,6 +28,7 @@ import static org.apache.iceberg.MetadataTableType.FILES;
 import static org.apache.iceberg.MetadataTableType.PARTITIONS;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 
 import java.util.Arrays;
 import java.util.List;
@@ -139,10 +140,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testFilesMetadataTable() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -203,11 +201,8 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testFilesMetadataTableFilter() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg "
-            + "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, MANIFEST_MERGE_ENABLED);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
@@ -297,10 +292,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testEntriesMetadataTable() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -361,10 +353,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableAddRemoveFields() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg ",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
@@ -419,10 +408,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableRenameFields() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -449,10 +435,8 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableSwitchFields() throws Exception {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
+
     Table table = validationCatalog.loadTable(tableIdent);
 
     // verify the metadata tables after re-adding the first dropped column in the second location
@@ -514,10 +498,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
   @Test
   public void testPartitionTableFilterAddRemoveFields() throws ParseException {
     // Create un-partitioned table
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
@@ -576,10 +557,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     // In V2, re-added field currently conflicts with its deleted form
     Assume.assumeTrue(formatVersion == 1);
 
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -619,10 +597,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableFilterRenameFields() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -645,10 +620,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testMetadataTablesWithUnknownTransforms() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -748,10 +720,9 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     return spark.read().format("iceberg").load(tableName + "." + tableType.name());
   }
 
-  private void initTable() {
+  private void createTable(String schema) {
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, DEFAULT_FILE_FORMAT, fileFormat.name());
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, FORMAT_VERSION, formatVersion);
+        "CREATE TABLE %s (%s) USING iceberg TBLPROPERTIES ('%s' '%s', '%s' '%d')",
+        tableName, schema, DEFAULT_FILE_FORMAT, fileFormat.name(), FORMAT_VERSION, formatVersion);
   }
 }

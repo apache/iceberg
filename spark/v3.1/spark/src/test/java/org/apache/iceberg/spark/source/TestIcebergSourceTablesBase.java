@@ -28,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -108,13 +109,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  public abstract Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec);
+  public abstract Table createTable(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties);
 
   public abstract Table loadTable(TableIdentifier ident, String entriesSuffix);
 
   public abstract String loadLocation(TableIdentifier ident, String entriesSuffix);
 
   public abstract String loadLocation(TableIdentifier ident);
+
+  private Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+    return createTable(ident, schema, spec, ImmutableMap.of());
+  }
 
   @Test
   public synchronized void testTablesSupport() {
@@ -174,8 +180,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       // each row must inherit snapshot_id and sequence_number
       rows.forEach(
           row -> {
-            row.put(2, 0L); // data sequence number
-            row.put(3, 0L); // file sequence number
+            row.put(2, 1L); // data sequence number
+            row.put(3, 1L); // file sequence number
             GenericData.Record file = (GenericData.Record) row.get("data_file");
             asMetadataRecord(file);
             expected.add(row);
@@ -369,8 +375,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              row.put(2, 0L); // data sequence number
-              row.put(3, 0L); // file sequence number
+              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
+                row.put(2, 3L); // data sequence number
+                row.put(3, 3L); // file sequence number
+              } else {
+                row.put(2, 1L); // data sequence number
+                row.put(3, 1L); // file sequence number
+              }
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               asMetadataRecord(file);
               expected.add(row);
@@ -531,12 +542,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public void testEntriesTableWithSnapshotIdInheritance() throws Exception {
+  public void testV1EntriesTableWithSnapshotIdInheritance() throws Exception {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
-    PartitionSpec spec = SPEC;
-    Table table = createTable(tableIdentifier, SCHEMA, spec);
+    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "1");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC, properties);
 
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 

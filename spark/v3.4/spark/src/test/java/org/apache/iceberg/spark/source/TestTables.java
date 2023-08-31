@@ -44,12 +44,16 @@ class TestTables {
   private TestTables() {}
 
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
+    return create(temp, name, schema, spec, ImmutableMap.of());
+  }
+
+  static TestTable create(
+      File temp, String name, Schema schema, PartitionSpec spec, Map<String, String> properties) {
     TestTableOperations ops = new TestTableOperations(name);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(
-        null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
+    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), properties));
     return new TestTable(ops, name);
   }
 

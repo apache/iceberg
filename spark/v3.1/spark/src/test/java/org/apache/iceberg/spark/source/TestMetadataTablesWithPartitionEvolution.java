@@ -127,10 +127,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testFilesMetadataTable() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -191,10 +188,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testEntriesMetadataTable() throws ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -255,10 +249,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testMetadataTablesWithUnknownTransforms() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg",
-        tableName);
-    initTable();
+    createTable("id bigint NOT NULL, category string, data string");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
@@ -335,10 +326,9 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     return spark.read().format("iceberg").load(tableName + "." + tableType.name());
   }
 
-  private void initTable() {
+  private void createTable(String schema) {
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, DEFAULT_FILE_FORMAT, fileFormat.name());
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, FORMAT_VERSION, formatVersion);
+        "CREATE TABLE %s (%s) USING iceberg TBLPROPERTIES ('%s' '%s', '%s' '%d')",
+        tableName, schema, DEFAULT_FILE_FORMAT, fileFormat.name(), FORMAT_VERSION, formatVersion);
   }
 }

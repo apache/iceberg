@@ -164,11 +164,11 @@ class Transform(IcebergRootModel[str], ABC, Generic[S, T]):
         return self.__str__()
 
     def __str__(self) -> str:
-        """Returns the string representation of the Transform class."""
+        """Return the string representation of the Transform class."""
         return self.root
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Transform class."""
+        """Return the equality of two instances of the Transform class."""
         if isinstance(other, Transform):
             return self.root == other.root
         return False
@@ -268,7 +268,7 @@ class BucketTransform(Transform[S, int]):
         return hash_func
 
     def __repr__(self) -> str:
-        """Returns the string representation of the BucketTransform class."""
+        """Return the string representation of the BucketTransform class."""
         return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
@@ -363,7 +363,7 @@ class YearTransform(TimeTransform[S]):
         return datetime.to_human_year(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the YearTransform class."""
+        """Return the string representation of the YearTransform class."""
         return "YearTransform()"
 
 
@@ -410,7 +410,7 @@ class MonthTransform(TimeTransform[S]):
         return datetime.to_human_month(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the MonthTransform class."""
+        """Return the string representation of the MonthTransform class."""
         return "MonthTransform()"
 
 
@@ -460,7 +460,7 @@ class DayTransform(TimeTransform[S]):
         return datetime.to_human_day(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the DayTransform class."""
+        """Return the string representation of the DayTransform class."""
         return "DayTransform()"
 
 
@@ -500,12 +500,12 @@ class HourTransform(TimeTransform[S]):
         return datetime.to_human_hour(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the HourTransform class."""
+        """Return the string representation of the HourTransform class."""
         return "HourTransform()"
 
 
 def _base64encode(buffer: bytes) -> str:
-    """Converts bytes to base64 string."""
+    """Convert bytes to base64 string."""
     return base64.b64encode(buffer).decode("ISO-8859-1")
 
 
@@ -556,11 +556,11 @@ class IdentityTransform(Transform[S, S]):
         return _human_string(value, source_type) if value is not None else "null"
 
     def __str__(self) -> str:
-        """Returns the string representation of the IdentityTransform class."""
+        """Return the string representation of the IdentityTransform class."""
         return "identity"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the IdentityTransform class."""
+        """Return the string representation of the IdentityTransform class."""
         return "IdentityTransform()"
 
 
@@ -660,7 +660,7 @@ class TruncateTransform(Transform[S, S]):
             return str(value)
 
     def __repr__(self) -> str:
-        """Returns the string representation of the TruncateTransform class."""
+        """Return the string representation of the TruncateTransform class."""
         return f"TruncateTransform(width={self._width})"
 
 
@@ -734,7 +734,7 @@ class UnknownTransform(Transform[S, T]):
         return None
 
     def __repr__(self) -> str:
-        """Returns the string representation of the UnknownTransform class."""
+        """Return the string representation of the UnknownTransform class."""
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
@@ -759,7 +759,7 @@ class VoidTransform(Transform[S, None], Singleton):
         return "null"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the VoidTransform class."""
+        """Return the string representation of the VoidTransform class."""
         return "VoidTransform()"
 
 

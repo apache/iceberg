@@ -37,10 +37,10 @@ You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
 or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would like to have a minimal dependency footprint.
 
-All the default AWS clients use the [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
+All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
 for HTTP connection management.
 This dependency is not part of the AWS SDK bundle and needs to be added separately.
-To choose a different HTTP client library such as [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client),
+To choose a different HTTP client library such as [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client),
 see the section [client customization](#aws-client-customization) for more details.
 
 All the AWS module features can be loaded through custom catalog properties,
@@ -551,9 +551,9 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{% icebe
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
-By default, AWS clients use **URL Connection** HTTP Client to communicate with the service. 
-This HTTP client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations. 
-In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency. 
+By default, AWS clients use **Apache** HTTP Client to communicate with the service. 
+This HTTP client supports various functionalities and customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency.
+In contrast, URL Connection HTTP Client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations.
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
