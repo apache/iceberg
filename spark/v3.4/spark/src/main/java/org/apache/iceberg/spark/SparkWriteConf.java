@@ -74,9 +74,6 @@ import org.slf4j.LoggerFactory;
 public class SparkWriteConf {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkWriteConf.class);
-  private static final String DELETE_COMPRESSION_CODEC_DEFAULT_VALUE = null;
-  private static final String DELETE_COMPRESSION_LEVEL_DEFAULT = null;
-  private static final String DELETE_COMPRESSION_STRATEGY_DEFAULT = null;
 
   private final Table table;
   private final String branch;
@@ -528,7 +525,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_PARQUET_COMPRESSION)
-        .defaultValue(DELETE_COMPRESSION_CODEC_DEFAULT_VALUE)
         .parseOptional();
   }
 
@@ -548,7 +544,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_LEVEL)
         .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
         .tableProperty(DELETE_PARQUET_COMPRESSION_LEVEL)
-        .defaultValue(DELETE_COMPRESSION_STRATEGY_DEFAULT)
         .parseOptional();
   }
 
@@ -568,8 +563,7 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_AVRO_COMPRESSION)
-        .defaultValue(DELETE_COMPRESSION_CODEC_DEFAULT_VALUE)
-        .parse();
+        .parseOptional();
   }
 
   private String avroCompressionLevel() {
@@ -588,7 +582,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_LEVEL)
         .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
         .tableProperty(DELETE_AVRO_COMPRESSION_LEVEL)
-        .defaultValue(DELETE_COMPRESSION_LEVEL_DEFAULT)
         .parseOptional();
   }
 
@@ -608,8 +601,7 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_ORC_COMPRESSION)
-        .defaultValue(DELETE_COMPRESSION_CODEC_DEFAULT_VALUE)
-        .parse();
+        .parseOptional();
   }
 
   private String orcCompressionStrategy() {
@@ -628,7 +620,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_STRATEGY)
         .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
         .tableProperty(DELETE_ORC_COMPRESSION_STRATEGY)
-        .defaultValue(DELETE_COMPRESSION_STRATEGY_DEFAULT)
-        .parse();
+        .parseOptional();
   }
 }
