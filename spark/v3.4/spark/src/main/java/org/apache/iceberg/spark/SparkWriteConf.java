@@ -484,7 +484,7 @@ public class SparkWriteConf {
         String deleteParquetCompressionLevel = deleteParquetCompressionLevel();
         if (deleteParquetCompressionLevel != null) {
           writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
-        } else if (parquetCompressionCodec() != null) {
+        } else if (parquetCompressionLevel() != null) {
           writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel());
         }
         break;
