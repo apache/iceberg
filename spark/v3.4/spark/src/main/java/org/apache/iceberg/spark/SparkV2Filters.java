@@ -44,7 +44,6 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
@@ -241,7 +240,6 @@ public class SparkV2Filters {
                     Arrays.stream(predicate.children())
                         .skip(1)
                         .map(val -> convertLiteral(((Literal<?>) val)))
-                        .filter(Objects::nonNull)
                         .collect(Collectors.toList()))
                 : null;
           } else {
@@ -266,7 +264,6 @@ public class SparkV2Filters {
                     Arrays.stream(childPredicate.children())
                         .skip(1)
                         .map(val -> convertLiteral(((Literal<?>) val)))
-                        .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
             return and(notNull(term), notIn);
           } else if (hasNoInFilter(childPredicate)) {
@@ -428,7 +425,20 @@ public class SparkV2Filters {
     if (!canConvertToTerm(childAtIndex(predicate, 0))) {
       return false;
     } else {
-      return Arrays.stream(predicate.children()).skip(1).allMatch(SparkV2Filters::isLiteral);
+      return Arrays.stream(predicate.children())
+          .skip(1)
+          .allMatch(
+              lit -> {
+                if (!SparkV2Filters.isLiteral(lit)) {
+                  return false;
+                }
+
+                Preconditions.checkNotNull(
+                    ((Literal<?>) lit).value(),
+                    "Expression can not be converted (in/notIn is not null-safe): %s",
+                    predicate);
+                return true;
+              });
     }
   }
 

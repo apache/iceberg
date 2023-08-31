@@ -99,8 +99,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(3, 300, "d3")));
 
     checkOnlyIcebergFilters(
+        "dep IN ('d1', 'd2')" /* query predicate */,
+        "dep IN ('d1', 'd2')" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
+
+    checkFilters(
         "dep IN (null, 'd1')" /* query predicate */,
-        "dep IN ('d1')" /* Iceberg scan filters */,
+        "dep IN (null,d1)" /* Spark post scan filter */,
+        "" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkOnlyIcebergFilters(
@@ -538,7 +544,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     if (sparkFilter != null) {
       Assertions.assertThat(planAsString)
           .as("Post scan filter should match")
-          .contains("Filter (" + sparkFilter + ")");
+          .containsAnyOf("Filter (" + sparkFilter + ")", "Filter " + sparkFilter);
     } else {
       Assertions.assertThat(planAsString)
           .as("Should be no post scan filter")

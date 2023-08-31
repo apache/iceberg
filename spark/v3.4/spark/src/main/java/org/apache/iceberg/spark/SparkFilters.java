@@ -161,10 +161,13 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
+          Preconditions.checkArgument(
+              Stream.of(inFilter.values()).noneMatch(Objects::isNull),
+              "Expression can not be converted (in is not null-safe): %s",
+              filter);
           return in(
               unquote(inFilter.attribute()),
               Stream.of(inFilter.values())
-                  .filter(Objects::nonNull)
                   .map(SparkFilters::convertLiteral)
                   .collect(Collectors.toList()));
 
@@ -178,6 +181,10 @@ public class SparkFilters {
             // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in
             // Iceberg
             In childInFilter = (In) childFilter;
+            Preconditions.checkArgument(
+                Stream.of(childInFilter.values()).noneMatch(Objects::isNull),
+                "Expression can not be converted (notIn is not null-safe): %s",
+                filter);
             Expression notIn =
                 notIn(
                     unquote(childInFilter.attribute()),

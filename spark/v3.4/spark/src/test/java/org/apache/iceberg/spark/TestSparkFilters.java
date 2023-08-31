@@ -40,6 +40,7 @@ import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -181,5 +182,33 @@ public class TestSparkFilters {
     Expression expected =
         Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
     Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
+  }
+
+  @Test
+  public void testInValuesContainNull() {
+    // Values only contains null
+    In inNull = In.apply("col", new String[] {null});
+    Assertions.assertThatThrownBy(() -> SparkFilters.convert(inNull))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Expression can not be converted (in is not null-safe)");
+
+    In in = In.apply("col", new String[] {null, "abc"});
+    Assertions.assertThatThrownBy(() -> SparkFilters.convert(in))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Expression can not be converted (in is not null-safe)");
+  }
+
+  @Test
+  public void testNotInNull() {
+    // Values only contains null
+    Not notInNull = Not.apply(In.apply("col", new String[] {null}));
+    Assertions.assertThatThrownBy(() -> SparkFilters.convert(notInNull))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Expression can not be converted (notIn is not null-safe)");
+
+    Not notIn = Not.apply(In.apply("col", new String[] {null, "abc"}));
+    Assertions.assertThatThrownBy(() -> SparkFilters.convert(notIn))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Expression can not be converted (notIn is not null-safe)");
   }
 }
