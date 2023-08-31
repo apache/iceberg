@@ -25,8 +25,6 @@ from typing import (
     Union,
 )
 
-import boto3
-
 from pyiceberg.catalog import (
     EXTERNAL_TABLE,
     ICEBERG,
@@ -55,6 +53,8 @@ from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
+
+import boto3
 
 BOTO_SESSION_CONFIG_KEYS = ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
 

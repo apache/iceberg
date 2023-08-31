@@ -25,6 +25,11 @@ from typing import (
     Tuple,
 )
 
+from pyiceberg.schema import Schema
+from pyiceberg.transforms import Transform, parse_transform
+from pyiceberg.typedef import IcebergBaseModel
+from pyiceberg.types import NestedField, StructType
+
 from pydantic import (
     BeforeValidator,
     Field,
@@ -32,11 +37,6 @@ from pydantic import (
     WithJsonSchema,
 )
 from typing_extensions import Annotated
-
-from pyiceberg.schema import Schema
-from pyiceberg.transforms import Transform, parse_transform
-from pyiceberg.typedef import IcebergBaseModel
-from pyiceberg.types import NestedField, StructType
 
 INITIAL_PARTITION_SPEC_ID = 0
 PARTITION_FIELD_ID_START: int = 1000

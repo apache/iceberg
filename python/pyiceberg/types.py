@@ -42,6 +42,11 @@ from typing import (
     Tuple,
 )
 
+from pyiceberg.exceptions import ValidationError
+from pyiceberg.typedef import IcebergBaseModel, IcebergRootModel
+from pyiceberg.utils.parsing import ParseNumberFromBrackets
+from pyiceberg.utils.singleton import Singleton
+
 from pydantic import (
     Field,
     PrivateAttr,
@@ -50,11 +55,6 @@ from pydantic import (
     model_validator,
 )
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
-
-from pyiceberg.exceptions import ValidationError
-from pyiceberg.typedef import IcebergBaseModel, IcebergRootModel
-from pyiceberg.utils.parsing import ParseNumberFromBrackets
-from pyiceberg.utils.singleton import Singleton
 
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
 FIXED = "fixed"

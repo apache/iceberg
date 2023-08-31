@@ -20,14 +20,14 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 from uuid import UUID
 
-from rich.console import Console
-from rich.table import Table as RichTable
-from rich.tree import Tree
-
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
 from pyiceberg.typedef import IcebergBaseModel, Identifier, Properties
+
+from rich.console import Console
+from rich.table import Table as RichTable
+from rich.tree import Tree
 
 
 class Output(ABC):

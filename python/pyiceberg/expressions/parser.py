@@ -16,23 +16,6 @@
 #  under the License.
 from decimal import Decimal
 
-from pyparsing import (
-    CaselessKeyword,
-    DelimitedList,
-    Group,
-    ParserElement,
-    ParseResults,
-    Suppress,
-    Word,
-    alphanums,
-    alphas,
-    infix_notation,
-    one_of,
-    opAssoc,
-    sgl_quoted_string,
-)
-from pyparsing.common import pyparsing_common as common
-
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -63,6 +46,23 @@ from pyiceberg.expressions.literals import (
     StringLiteral,
 )
 from pyiceberg.typedef import L
+
+from pyparsing import (
+    CaselessKeyword,
+    DelimitedList,
+    Group,
+    ParserElement,
+    ParseResults,
+    Suppress,
+    Word,
+    alphanums,
+    alphas,
+    infix_notation,
+    one_of,
+    opAssoc,
+    sgl_quoted_string,
+)
+from pyparsing.common import pyparsing_common as common
 
 ParserElement.enablePackrat()
 

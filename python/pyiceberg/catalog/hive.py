@@ -29,21 +29,6 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from hive_metastore.ThriftHiveMetastore import Client
-from hive_metastore.ttypes import (
-    AlreadyExistsException,
-    FieldSchema,
-    InvalidOperationException,
-    MetaException,
-    NoSuchObjectException,
-    SerDeInfo,
-    StorageDescriptor,
-)
-from hive_metastore.ttypes import Database as HiveDatabase
-from hive_metastore.ttypes import Table as HiveTable
-from thrift.protocol import TBinaryProtocol
-from thrift.transport import TSocket, TTransport
-
 from pyiceberg.catalog import (
     EXTERNAL_TABLE,
     ICEBERG,
@@ -91,6 +76,21 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+
+from hive_metastore.ThriftHiveMetastore import Client
+from hive_metastore.ttypes import (
+    AlreadyExistsException,
+    FieldSchema,
+    InvalidOperationException,
+    MetaException,
+    NoSuchObjectException,
+    SerDeInfo,
+    StorageDescriptor,
+)
+from hive_metastore.ttypes import Database as HiveDatabase
+from hive_metastore.ttypes import Table as HiveTable
+from thrift.protocol import TBinaryProtocol
+from thrift.transport import TSocket, TTransport
 
 # Replace by visitor
 hive_types = {

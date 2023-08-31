@@ -49,25 +49,6 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-import numpy as np
-import pyarrow as pa
-import pyarrow.compute as pc
-import pyarrow.dataset as ds
-
-from pyarrow import ChunkedArray
-from pyarrow.fs import (
-    FileInfo,
-    FileSystem,
-    FileType,
-    FSSpecHandler,
-    GcsFileSystem,
-    HadoopFileSystem,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
-)
-from sortedcontainers import SortedList
-
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
     AlwaysTrue,
@@ -140,6 +121,27 @@ from pyiceberg.types import (
 from pyiceberg.utils.concurrent import ExecutorFactory
 from pyiceberg.utils.datetime import millis_to_datetime
 from pyiceberg.utils.singleton import Singleton
+
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
+
+from pyarrow import ChunkedArray
+from pyarrow.fs import (
+    FileInfo,
+    FileSystem,
+    FileType,
+    FSSpecHandler,
+    GcsFileSystem,
+    HadoopFileSystem,
+    LocalFileSystem,
+    PyFileSystem,
+    S3FileSystem,
+)
+
+import numpy as np
+
+from sortedcontainers import SortedList
 
 if TYPE_CHECKING:
     from pyiceberg.table import FileScanTask, Table

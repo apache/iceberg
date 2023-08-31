@@ -283,7 +283,7 @@ ignore_missing_imports = true
 source = ['pyiceberg/']
 
 [tool.ruff]
-src = ['pyiceberg', 'tests']
+src = ['pyiceberg']
 extend-exclude = ["dev/provision.py"]
 # Enable the pycodestyle (`E`) and Pyflakes (`F`) rules by default.
 # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
@@ -334,3 +334,6 @@ keep-runtime-typing = true
 [tool.ruff.isort]
 detect-same-package = true
 lines-between-types = 1
+section-order = ["future", "standard-library", "first-party","pyarrow", "local-folder","third-party"]
+[tool.ruff.isort.sections]
+"pyarrow" = ["pyarrow"]

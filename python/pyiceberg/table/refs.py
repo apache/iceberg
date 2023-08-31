@@ -17,9 +17,9 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import Field
-
 from pyiceberg.typedef import IcebergBaseModel
+
+from pydantic import Field
 
 MAIN_BRANCH = "main"
 

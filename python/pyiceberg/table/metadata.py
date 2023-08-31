@@ -29,10 +29,6 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, model_validator
-from pydantic import ValidationError as PydanticValidationError
-from typing_extensions import Annotated
-
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PARTITION_FIELD_ID_START, PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.schema import Schema, assign_fresh_schema_ids
@@ -51,6 +47,10 @@ from pyiceberg.typedef import (
     Properties,
 )
 from pyiceberg.utils.datetime import datetime_to_millis
+
+from pydantic import Field, model_validator
+from pydantic import ValidationError as PydanticValidationError
+from typing_extensions import Annotated
 
 CURRENT_SNAPSHOT_ID = "current-snapshot-id"
 CURRENT_SCHEMA_ID = "current-schema-id"

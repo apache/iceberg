@@ -19,9 +19,9 @@ import os
 
 from typing import List, Optional
 
-import strictyaml
-
 from pyiceberg.typedef import FrozenDict, RecursiveDict
+
+import strictyaml
 
 PYICEBERG = "pyiceberg_"
 DEFAULT = "default"

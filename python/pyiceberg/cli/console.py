@@ -24,14 +24,14 @@ from typing import (
     Tuple,
 )
 
-import click
-
-from click import Context
-
 from pyiceberg import __version__
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
+
+import click
+
+from click import Context
 
 
 def catch_exception() -> Callable:  # type: ignore

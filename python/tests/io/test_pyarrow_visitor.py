@@ -18,6 +18,7 @@
 import re
 
 import pyarrow as pa
+
 import pytest
 
 from pyiceberg.io.pyarrow import (

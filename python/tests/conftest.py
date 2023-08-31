@@ -43,6 +43,10 @@ from typing import (
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
+import pyarrow as pa
+
+from pyarrow import parquet as pq
+
 import aiobotocore.awsrequest
 import aiobotocore.endpoint
 import aiohttp
@@ -51,11 +55,9 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
-import pyarrow as pa
 import pytest
 
 from moto import mock_dynamodb, mock_glue, mock_s3
-from pyarrow import parquet as pq
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.noop import NoopCatalog
