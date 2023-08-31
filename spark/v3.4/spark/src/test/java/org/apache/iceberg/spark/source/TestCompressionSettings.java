@@ -136,7 +136,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     tableProperties.put(AVRO_COMPRESSION, "gzip");
     tableProperties.put(ORC_COMPRESSION, "zlib");
     tableProperties.put(DELETE_PARQUET_COMPRESSION, "gzip");
-    tableProperties.put(DELETE_AVRO_COMPRESSION, "zlib");
+    tableProperties.put(DELETE_AVRO_COMPRESSION, "gzip");
     tableProperties.put(DELETE_ORC_COMPRESSION, "zlib");
     tableProperties.put(DELETE_MODE, MERGE_ON_READ.modeName());
     tableProperties.put(FORMAT_VERSION, "2");
