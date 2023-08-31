@@ -477,40 +477,42 @@ public class SparkWriteConf {
     FileFormat deleteFormat = deleteFileFormat();
     switch (deleteFormat) {
       case PARQUET:
-        String parquetCodec = deleteParquetCompressionCodec();
-        writeProperties.put(
+        setWritePropertyWithFallback(
+            writeProperties,
             DELETE_PARQUET_COMPRESSION,
-            parquetCodec != null ? parquetCodec : parquetCompressionCodec());
-        String deleteParquetCompressionLevel = deleteParquetCompressionLevel();
-        if (deleteParquetCompressionLevel != null) {
-          writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
-        } else if (parquetCompressionLevel() != null) {
-          writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel());
-        }
+            deleteParquetCompressionCodec(),
+            parquetCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            deleteParquetCompressionLevel(),
+            parquetCompressionLevel());
         break;
 
       case AVRO:
-        String avroCodec = deleteAvroCompressionCodec();
-        writeProperties.put(
-            DELETE_AVRO_COMPRESSION, avroCodec != null ? avroCodec : avroCompressionCodec());
-        String deleteAvroCompressionLevel = deleteAvroCompressionLevel();
-        if (deleteAvroCompressionLevel != null) {
-          writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, deleteAvroCompressionLevel);
-        } else if (avroCompressionLevel() != null) {
-          writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
-        }
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_AVRO_COMPRESSION,
+            deleteAvroCompressionCodec(),
+            avroCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            deleteAvroCompressionLevel(),
+            avroCompressionLevel());
         break;
 
       case ORC:
-        String orcCodec = deleteOrcCompressionCodec();
-        writeProperties.put(
-            DELETE_ORC_COMPRESSION, orcCodec != null ? orcCodec : orcCompressionCodec());
-        String strategy = deleteOrcCompressionStrategy();
-        if (strategy != null) {
-          writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, strategy);
-        } else {
-          writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
-        }
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_ORC_COMPRESSION,
+            deleteOrcCompressionCodec(),
+            orcCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            deleteOrcCompressionStrategy(),
+            orcCompressionStrategy());
         break;
 
       default:
@@ -518,6 +520,15 @@ public class SparkWriteConf {
     }
 
     return writeProperties;
+  }
+
+  private void setWritePropertyWithFallback(
+      Map<String, String> writeProperties, String key, String value, String fallbackValue) {
+    if (value != null) {
+      writeProperties.put(key, value);
+    } else if (fallbackValue != null) {
+      writeProperties.put(key, fallbackValue);
+    }
   }
 
   private String parquetCompressionCodec() {
