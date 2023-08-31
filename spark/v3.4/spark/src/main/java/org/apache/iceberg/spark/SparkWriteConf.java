@@ -431,79 +431,77 @@ public class SparkWriteConf {
     return branch;
   }
 
-  public Map<String, String> writeProperties(FileFormat dataFormat, FileFormat deleteFormat) {
+  public Map<String, String> writeProperties() {
     Map<String, String> writeProperties = Maps.newHashMap();
 
-    if (dataFormat != null) {
-      switch (dataFormat) {
-        case PARQUET:
-          writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
-          String parquetCompressionLevel = parquetCompressionLevel();
-          if (parquetCompressionLevel != null) {
-            writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-          }
-          break;
+    FileFormat dataFormat = dataFileFormat();
+    switch (dataFormat) {
+      case PARQUET:
+        writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
+        String parquetCompressionLevel = parquetCompressionLevel();
+        if (parquetCompressionLevel != null) {
+          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
+        }
+        break;
 
-        case AVRO:
-          writeProperties.put(AVRO_COMPRESSION, avroCompressionCodec());
-          String avroCompressionLevel = avroCompressionLevel();
-          if (avroCompressionLevel != null) {
-            writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel);
-          }
-          break;
+      case AVRO:
+        writeProperties.put(AVRO_COMPRESSION, avroCompressionCodec());
+        String avroCompressionLevel = avroCompressionLevel();
+        if (avroCompressionLevel != null) {
+          writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel);
+        }
+        break;
 
-        case ORC:
-          writeProperties.put(ORC_COMPRESSION, orcCompressionCodec());
-          writeProperties.put(ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
-          break;
+      case ORC:
+        writeProperties.put(ORC_COMPRESSION, orcCompressionCodec());
+        writeProperties.put(ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
+        break;
 
-        default:
-          // skip
-      }
+      default:
+        // skip
     }
 
-    if (deleteFormat != null) {
-      switch (deleteFormat) {
-        case PARQUET:
-          String parquetCodec = deleteParquetCompressionCodec();
-          writeProperties.put(
-              DELETE_PARQUET_COMPRESSION,
-              parquetCodec != null ? parquetCodec : parquetCompressionCodec());
-          String deleteParquetCompressionLevel = deleteParquetCompressionLevel();
-          if (deleteParquetCompressionLevel != null) {
-            writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
-          } else if (parquetCompressionCodec() != null) {
-            writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel());
-          }
-          break;
+    FileFormat deleteFormat = deleteFileFormat();
+    switch (deleteFormat) {
+      case PARQUET:
+        String parquetCodec = deleteParquetCompressionCodec();
+        writeProperties.put(
+            DELETE_PARQUET_COMPRESSION,
+            parquetCodec != null ? parquetCodec : parquetCompressionCodec());
+        String deleteParquetCompressionLevel = deleteParquetCompressionLevel();
+        if (deleteParquetCompressionLevel != null) {
+          writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
+        } else if (parquetCompressionCodec() != null) {
+          writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel());
+        }
+        break;
 
-        case AVRO:
-          String avroCodec = deleteAvroCompressionCodec();
-          writeProperties.put(
-              DELETE_AVRO_COMPRESSION, avroCodec != null ? avroCodec : avroCompressionCodec());
-          String deleteAvroCompressionLevel = deleteAvroCompressionLevel();
-          if (deleteAvroCompressionLevel != null) {
-            writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, deleteAvroCompressionLevel);
-          } else if (avroCompressionLevel() != null) {
-            writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
-          }
-          break;
+      case AVRO:
+        String avroCodec = deleteAvroCompressionCodec();
+        writeProperties.put(
+            DELETE_AVRO_COMPRESSION, avroCodec != null ? avroCodec : avroCompressionCodec());
+        String deleteAvroCompressionLevel = deleteAvroCompressionLevel();
+        if (deleteAvroCompressionLevel != null) {
+          writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, deleteAvroCompressionLevel);
+        } else if (avroCompressionLevel() != null) {
+          writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
+        }
+        break;
 
-        case ORC:
-          String orcCodec = deleteOrcCompressionCodec();
-          writeProperties.put(
-              DELETE_ORC_COMPRESSION, orcCodec != null ? orcCodec : orcCompressionCodec());
-          String strategy = deleteOrcCompressionStrategy();
-          if (strategy != null) {
-            writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, strategy);
-          } else {
-            writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
-          }
-          break;
+      case ORC:
+        String orcCodec = deleteOrcCompressionCodec();
+        writeProperties.put(
+            DELETE_ORC_COMPRESSION, orcCodec != null ? orcCodec : orcCompressionCodec());
+        String strategy = deleteOrcCompressionStrategy();
+        if (strategy != null) {
+          writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, strategy);
+        } else {
+          writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, orcCompressionStrategy());
+        }
+        break;
 
-        default:
-          // skip
-      }
+      default:
+        // skip
     }
 
     return writeProperties;
