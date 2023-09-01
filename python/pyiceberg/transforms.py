@@ -25,6 +25,10 @@ from typing import Any, Callable, Generic, Optional, TypeVar
 from typing import Literal as LiteralType
 from uuid import UUID
 
+import mmh3
+
+from pydantic import Field, PositiveInt, PrivateAttr
+
 from pyiceberg.expressions import (
     BoundEqualTo,
     BoundGreaterThan,
@@ -75,10 +79,6 @@ from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
-
-import mmh3
-
-from pydantic import Field, PositiveInt, PrivateAttr
 
 S = TypeVar("S")
 T = TypeVar("T")

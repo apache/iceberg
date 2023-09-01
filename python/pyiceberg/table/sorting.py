@@ -25,11 +25,6 @@ from typing import (
     Union,
 )
 
-from pyiceberg.schema import Schema
-from pyiceberg.transforms import IdentityTransform, Transform, parse_transform
-from pyiceberg.typedef import IcebergBaseModel
-from pyiceberg.types import IcebergType
-
 from pydantic import (
     BeforeValidator,
     Field,
@@ -38,6 +33,11 @@ from pydantic import (
     model_validator,
 )
 from typing_extensions import Annotated
+
+from pyiceberg.schema import Schema
+from pyiceberg.transforms import IdentityTransform, Transform, parse_transform
+from pyiceberg.typedef import IcebergBaseModel
+from pyiceberg.types import IcebergType
 
 
 class SortDirection(Enum):

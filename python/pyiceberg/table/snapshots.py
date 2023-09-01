@@ -22,11 +22,11 @@ from typing import (
     Optional,
 )
 
+from pydantic import Field, PrivateAttr, model_serializer
+
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
 from pyiceberg.typedef import IcebergBaseModel
-
-from pydantic import Field, PrivateAttr, model_serializer
 
 OPERATION = "operation"
 

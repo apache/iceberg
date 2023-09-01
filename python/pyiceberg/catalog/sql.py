@@ -22,6 +22,24 @@ from typing import (
     Union,
 )
 
+from sqlalchemy import (
+    String,
+    create_engine,
+    delete,
+    insert,
+    select,
+    union,
+    update,
+)
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    Session,
+    mapped_column,
+)
+
 from pyiceberg.catalog import (
     METADATA_LOCATION,
     Catalog,
@@ -45,24 +63,6 @@ from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
-
-from sqlalchemy import (
-    String,
-    create_engine,
-    delete,
-    insert,
-    select,
-    union,
-    update,
-)
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    MappedAsDataclass,
-    Session,
-    mapped_column,
-)
 
 
 class SqlCatalogBaseTable(MappedAsDataclass, DeclarativeBase):

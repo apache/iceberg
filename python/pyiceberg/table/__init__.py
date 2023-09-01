@@ -38,6 +38,9 @@ from typing import (
     Union,
 )
 
+from pydantic import Field, SerializeAsAny
+from sortedcontainers import SortedList
+
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -84,18 +87,14 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.concurrent import ExecutorFactory
 
-from pydantic import Field, SerializeAsAny
-from sortedcontainers import SortedList
-
 if TYPE_CHECKING:
-    from pyiceberg.catalog import Catalog
-
-    import pyarrow as pa
-
     import pandas as pd
+    import pyarrow as pa
     import ray
 
     from duckdb import DuckDBPyConnection
+
+    from pyiceberg.catalog import Catalog
 
 
 ALWAYS_TRUE = AlwaysTrue()

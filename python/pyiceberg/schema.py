@@ -36,6 +36,8 @@ from typing import (
     Union,
 )
 
+from pydantic import Field, PrivateAttr, model_validator
+
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, StructProtocol
 from pyiceberg.types import (
@@ -60,8 +62,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-
-from pydantic import Field, PrivateAttr, model_validator
 
 T = TypeVar("T")
 P = TypeVar("P")

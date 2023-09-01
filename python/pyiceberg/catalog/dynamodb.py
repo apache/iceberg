@@ -26,6 +26,8 @@ from typing import (
     Union,
 )
 
+import boto3
+
 from pyiceberg.catalog import (
     ICEBERG,
     METADATA_LOCATION,
@@ -55,8 +57,6 @@ from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
-
-import boto3
 
 DYNAMODB_CLIENT = "dynamodb"
 

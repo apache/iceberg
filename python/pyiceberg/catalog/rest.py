@@ -27,6 +27,9 @@ from typing import (
     Union,
 )
 
+from pydantic import Field, ValidationError
+from requests import HTTPError, Session
+
 from pyiceberg import __version__
 from pyiceberg.catalog import (
     TOKEN,
@@ -63,9 +66,6 @@ from pyiceberg.table import (
 )
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
-
-from pydantic import Field, ValidationError
-from requests import HTTPError, Session
 
 ICEBERG_REST_SPEC_VERSION = "0.14.1"
 
