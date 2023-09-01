@@ -334,6 +334,6 @@ keep-runtime-typing = true
 [tool.ruff.isort]
 detect-same-package = true
 lines-between-types = 1
-section-order = ["future", "standard-library", "first-party", "pyarrow", "local-folder", "third-party"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 [tool.ruff.isort.sections]
 "pyarrow" = ["pyarrow"]
