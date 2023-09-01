@@ -442,6 +442,7 @@ public class SparkWriteConf {
     Map<String, String> writeProperties = Maps.newHashMap();
 
     FileFormat dataFormat = dataFileFormat();
+
     switch (dataFormat) {
       case PARQUET:
         writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
@@ -475,6 +476,7 @@ public class SparkWriteConf {
     Map<String, String> writeProperties = Maps.newHashMap();
 
     FileFormat deleteFormat = deleteFileFormat();
+
     switch (deleteFormat) {
       case PARQUET:
         setWritePropertyWithFallback(
