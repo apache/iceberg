@@ -302,16 +302,10 @@ public class SparkTable
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Predicate predicate : predicates) {
-      try {
-        Expression expr = SparkV2Filters.convert(predicate);
-        if (expr != null) {
-          deleteExpr = Expressions.and(deleteExpr, expr);
-        } else {
-          return false;
-        }
-
-      } catch (Exception e) {
-        LOG.warn("Failed to check if table can be deleted with {}: {", predicate, e);
+      Expression expr = SparkV2Filters.convert(predicate);
+      if (expr != null) {
+        deleteExpr = Expressions.and(deleteExpr, expr);
+      } else {
         return false;
       }
     }

@@ -433,11 +433,7 @@ public class SparkV2Filters {
                   return false;
                 }
 
-                Preconditions.checkNotNull(
-                    ((Literal<?>) lit).value(),
-                    "Expression can not be converted (in/notIn is not null-safe): %s",
-                    predicate);
-                return true;
+                return ((Literal<?>) lit).value() != null;
               });
     }
   }

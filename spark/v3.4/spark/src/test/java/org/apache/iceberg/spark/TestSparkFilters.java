@@ -188,27 +188,19 @@ public class TestSparkFilters {
   public void testInValuesContainNull() {
     // Values only contains null
     In inNull = In.apply("col", new String[] {null});
-    Assertions.assertThatThrownBy(() -> SparkFilters.convert(inNull))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Expression can not be converted (in is not null-safe)");
+    Assertions.assertThat(SparkFilters.convert(inNull)).isNull();
 
     In in = In.apply("col", new String[] {null, "abc"});
-    Assertions.assertThatThrownBy(() -> SparkFilters.convert(in))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Expression can not be converted (in is not null-safe)");
+    Assertions.assertThat(SparkFilters.convert(in)).isNull();
   }
 
   @Test
   public void testNotInNull() {
     // Values only contains null
     Not notInNull = Not.apply(In.apply("col", new String[] {null}));
-    Assertions.assertThatThrownBy(() -> SparkFilters.convert(notInNull))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Expression can not be converted (notIn is not null-safe)");
+    Assertions.assertThat(SparkFilters.convert(notInNull)).isNull();
 
     Not notIn = Not.apply(In.apply("col", new String[] {null, "abc"}));
-    Assertions.assertThatThrownBy(() -> SparkFilters.convert(notIn))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Expression can not be converted (notIn is not null-safe)");
+    Assertions.assertThat(SparkFilters.convert(notIn)).isNull();
   }
 }

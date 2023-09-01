@@ -331,14 +331,10 @@ public class TestSparkV2Filters {
 
     // Values only contains null
     Predicate inNull = new Predicate("IN", expressions(namedReference, nullValue));
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(inNull))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Expression can not be converted (in/notIn is not null-safe)");
+    Assertions.assertThat(SparkV2Filters.convert(inNull)).isNull();
 
     Predicate in = new Predicate("IN", expressions(namedReference, nullValue, value1, value2));
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(in))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Expression can not be converted (in/notIn is not null-safe)");
+    Assertions.assertThat(SparkV2Filters.convert(in)).isNull();
   }
 
   @Test
@@ -351,15 +347,11 @@ public class TestSparkV2Filters {
 
     // Values only contains null
     Predicate notInNull = new Not(new Predicate("IN", expressions(namedReference, nullValue)));
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notInNull))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Expression can not be converted (in/notIn is not null-safe)");
+    Assertions.assertThat(SparkV2Filters.convert(notInNull)).isNull();
 
     Predicate notIn =
         new Not(new Predicate("IN", expressions(namedReference, nullValue, value1, value2)));
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notIn))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Expression can not be converted (in/notIn is not null-safe)");
+    Assertions.assertThat(SparkV2Filters.convert(notIn)).isNull();
   }
 
   @Test

@@ -108,6 +108,7 @@ public class SparkFilters {
     return expression;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Expression convert(Filter filter) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
     Operation op = FILTERS.get(filter.getClass());
@@ -161,10 +162,10 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
-          Preconditions.checkArgument(
-              Stream.of(inFilter.values()).noneMatch(Objects::isNull),
-              "Expression can not be converted (in is not null-safe): %s",
-              filter);
+          if (Stream.of(inFilter.values()).anyMatch(Objects::isNull)) {
+            return null;
+          }
+
           return in(
               unquote(inFilter.attribute()),
               Stream.of(inFilter.values())
@@ -181,10 +182,10 @@ public class SparkFilters {
             // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in
             // Iceberg
             In childInFilter = (In) childFilter;
-            Preconditions.checkArgument(
-                Stream.of(childInFilter.values()).noneMatch(Objects::isNull),
-                "Expression can not be converted (notIn is not null-safe): %s",
-                filter);
+            if (Stream.of(childInFilter.values()).anyMatch(Objects::isNull)) {
+              return null;
+            }
+
             Expression notIn =
                 notIn(
                     unquote(childInFilter.attribute()),
