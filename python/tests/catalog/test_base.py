@@ -110,6 +110,9 @@ class InMemoryCatalog(Catalog):
             self.__tables[identifier] = table
             return table
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        raise NotImplementedError
+
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         new_metadata: Optional[TableMetadata] = None
         metadata_location = ""
