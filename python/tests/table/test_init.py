@@ -193,6 +193,17 @@ def test_snapshot_by_name_does_not_exist(table: Table) -> None:
     assert table.snapshot_by_name("doesnotexist") is None
 
 
+def test_repr(table: Table) -> None:
+    expected = """table(
+  x: long,
+  y: long,
+  z: long
+),
+partition by: [x],
+snapshot: Operation.APPEND: id=3055729675574597004, parent_id=3051729675574597004, schema_id=1"""
+    assert repr(table) == expected
+
+
 def test_history(table: Table) -> None:
     assert table.history() == [
         SnapshotLogEntry(snapshot_id=3051729675574597004, timestamp_ms=1515100955770),
