@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.UnresolvedFunction;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.Literal$;
@@ -172,6 +173,28 @@ public class TestCallStatementParser {
 
       checkArg(call, 0, "value", DataTypes.StringType);
     }
+  }
+
+  @Test
+  public void testCallWithEmptyCollectionArg() throws ParseException {
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL cat.system.func('test', Map(), Array())");
+    Assert.assertEquals(
+        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+
+    Assert.assertEquals(3, call.args().size());
+
+    checkArg(call, 0, "test", DataTypes.StringType);
+    // the map expr will be parsed as unresolved function ('Map())
+    Expression actualMapExpr = call.args().apply(1).expr();
+    Assert.assertTrue(
+        "Arg must be unresolved function", actualMapExpr instanceof UnresolvedFunction);
+    Assert.assertEquals("Arg must match", "'Map()", actualMapExpr.toString());
+    // the array expr will be parsed as unresolved function ('Array())
+    Expression actualArrayExpr = call.args().apply(2).expr();
+    Assert.assertTrue(
+        "Arg must be unresolved function", actualArrayExpr instanceof UnresolvedFunction);
+    Assert.assertEquals("Arg must match", "'Array()", actualArrayExpr.toString());
   }
 
   private void checkArg(
