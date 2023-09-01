@@ -107,7 +107,7 @@ is highly recommended.
 
 ### Tune the rate of commits
 
-Having high rate of commits produces data files, manifests, and snapshots which leads to additional maintenance. We encourage having trigger interval 1 minute at minimum, and increase the interval if needed.
+Having a high rate of commits produces data files, manifests, and snapshots which leads to additional maintenance. It is recommended to have a trigger interval of 1 minute at the minimum and increase the interval if needed.
 
 The triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#triggers)
 documents how to configure the interval.
