@@ -70,7 +70,7 @@ DML operations work only with Tez execution engine.
 
 ## Enabling Iceberg support in Hive
 
-Hive 4 comes with `hive-iceberg` that ships Iceberg, so additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
+Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
 
 ### Hive 4.0.0-beta-1
 
