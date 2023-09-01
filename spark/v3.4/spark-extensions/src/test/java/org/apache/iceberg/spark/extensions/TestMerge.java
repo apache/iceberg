@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -107,6 +108,48 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
+  }
+
+  @Test
+  public void testMergeWithVectorizedReads() {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitTable(
+        "id INT, value INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"value\": 100, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 6, \"value\": 600, \"dep\": \"software\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, value INT",
+        "{ \"id\": 2, \"value\": 201 }\n"
+            + "{ \"id\": 1, \"value\": 101 }\n"
+            + "{ \"id\": 6, \"value\": 601 }");
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            "MERGE INTO %s AS t USING source AS s "
+                + "ON t.id == s.id "
+                + "WHEN MATCHED AND t.id = 1 THEN "
+                + "  UPDATE SET t.value = s.value "
+                + "WHEN MATCHED AND t.id = 6 THEN "
+                + "  DELETE "
+                + "WHEN NOT MATCHED AND s.id = 2 THEN "
+                + "  INSERT (id, value, dep) VALUES (s.id, s.value, 'invalid')",
+            commitTarget());
+
+    assertAllBatchScansVectorized(plan);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, 101, "hr"), // updated
+            row(2, 201, "invalid")); // new
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
