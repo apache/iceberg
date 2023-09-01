@@ -440,7 +440,6 @@ public class SparkWriteConf {
 
   private Map<String, String> dataWriteProperties() {
     Map<String, String> writeProperties = Maps.newHashMap();
-
     FileFormat dataFormat = dataFileFormat();
 
     switch (dataFormat) {
@@ -474,7 +473,6 @@ public class SparkWriteConf {
 
   private Map<String, String> deleteWriteProperties() {
     Map<String, String> writeProperties = Maps.newHashMap();
-
     FileFormat deleteFormat = deleteFileFormat();
 
     switch (deleteFormat) {
