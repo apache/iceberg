@@ -179,22 +179,20 @@ public class TestCallStatementParser {
   public void testCallWithEmptyCollectionArg() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.system.func('test', Map(), Array())");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+    Assertions.assertThat(JavaConverters.seqAsJavaList(call.name()))
+        .isEqualTo(ImmutableList.of("cat", "system", "func"));
 
-    Assert.assertEquals(3, call.args().size());
+    Assertions.assertThat(call.args().size()).isEqualTo(3);
 
     checkArg(call, 0, "test", DataTypes.StringType);
     // the map expr will be parsed as unresolved function ('Map())
     Expression actualMapExpr = call.args().apply(1).expr();
-    Assert.assertTrue(
-        "Arg must be unresolved function", actualMapExpr instanceof UnresolvedFunction);
-    Assert.assertEquals("Arg must match", "'Map()", actualMapExpr.toString());
+    Assertions.assertThat(actualMapExpr).isInstanceOf(UnresolvedFunction.class);
+    Assertions.assertThat(actualMapExpr.toString()).isEqualTo("'Map()");
     // the array expr will be parsed as unresolved function ('Array())
     Expression actualArrayExpr = call.args().apply(2).expr();
-    Assert.assertTrue(
-        "Arg must be unresolved function", actualArrayExpr instanceof UnresolvedFunction);
-    Assert.assertEquals("Arg must match", "'Array()", actualArrayExpr.toString());
+    Assertions.assertThat(actualArrayExpr).isInstanceOf(UnresolvedFunction.class);
+    Assertions.assertThat(actualArrayExpr.toString()).isEqualTo("'Array()");
   }
 
   private void checkArg(
