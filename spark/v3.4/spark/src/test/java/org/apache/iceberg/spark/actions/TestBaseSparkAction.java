@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.spark.JobGroupInfo;
@@ -25,7 +27,6 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.spark.scheduler.SparkListener;
 import org.apache.spark.scheduler.SparkListenerJobStart;
 import org.apache.spark.sql.SparkSession;
-import org.junit.Assert;
 import org.junit.Test;
 
 public class TestBaseSparkAction extends SparkTestBase {
@@ -49,14 +50,14 @@ public class TestBaseSparkAction extends SparkTestBase {
             () -> {
               sparkContext.setJobGroup(groupId, "test-cancel-spark-action-job", true);
               String expectedErrMsg = "cancelled job group " + groupId;
-              SleepSparkAction action = new SleepSparkAction(spark, 10000L, expectedErrMsg);
+              SleepSparkAction action = new SleepSparkAction(spark, 5000L, expectedErrMsg);
               result.set(action.execute());
             });
     thread.start();
     latch.await();
     sparkContext.cancelJobGroup(groupId);
     thread.join();
-    Assert.assertFalse(result.get());
+    assertThat(result.get()).isFalse();
   }
 
   private class SleepSparkAction extends BaseSparkAction<SleepSparkAction> {
@@ -80,7 +81,7 @@ public class TestBaseSparkAction extends SparkTestBase {
         spark().sql("select java_method('java.lang.Thread', 'sleep', " + sleep + "L)").collect();
         return true;
       } catch (Exception e) {
-        Assert.assertTrue(e.getMessage().contains(expectedErrMsg));
+        assertThat(e.getMessage()).contains(expectedErrMsg);
         return false;
       }
     }

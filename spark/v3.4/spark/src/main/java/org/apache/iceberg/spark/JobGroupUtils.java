@@ -40,12 +40,12 @@ public class JobGroupUtils {
     return new JobGroupInfo(groupId, description, Boolean.parseBoolean(interruptOnCancel));
   }
 
-  public static void setJobGroupInfo(
-      SparkContext sparkContext, JobGroupInfo info, Boolean override) {
-    if (override || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_GROUP_ID))) {
+  private static void setJobGroupInfo(
+      SparkContext sparkContext, JobGroupInfo info, boolean overwrite) {
+    if (overwrite || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_GROUP_ID))) {
       sparkContext.setLocalProperty(JOB_GROUP_ID, info.groupId());
     }
-    if (override || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_INTERRUPT_ON_CANCEL))) {
+    if (overwrite || StringUtils.isBlank(sparkContext.getLocalProperty(JOB_INTERRUPT_ON_CANCEL))) {
       sparkContext.setLocalProperty(
           JOB_INTERRUPT_ON_CANCEL, String.valueOf(info.interruptOnCancel()));
     }
