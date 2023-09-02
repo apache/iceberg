@@ -667,4 +667,43 @@ public class TestHelpers {
       return null;
     }
   }
+
+  public static PartitionSpecBuilder newPartitionSpecBuilder() {
+    return new PartitionSpecBuilder();
+  }
+
+  public static class PartitionSpecBuilder {
+    private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
+    private Schema schema;
+
+    private PartitionSpecBuilder() {
+      this.unboundPartitionSpecBuilder = UnboundPartitionSpec.builder();
+    }
+
+    public PartitionSpecBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    public PartitionSpecBuilder withSpecId(int newSpecId) {
+      unboundPartitionSpecBuilder.withSpecId(newSpecId);
+      return this;
+    }
+
+    public PartitionSpecBuilder addField(
+        String transformAsString, int sourceId, int partitionId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
+      return this;
+    }
+
+    public PartitionSpecBuilder addField(String transformAsString, int sourceId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
+      return this;
+    }
+
+    public PartitionSpec build() {
+      Preconditions.checkNotNull(schema, "Field schema is missing");
+      return unboundPartitionSpecBuilder.build().bind(schema);
+    }
+  }
 }
