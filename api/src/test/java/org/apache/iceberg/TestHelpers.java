@@ -674,6 +674,7 @@ public class TestHelpers {
 
   public static class PartitionSpecBuilder {
     private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
+
     private Schema schema;
 
     private PartitionSpecBuilder() {
