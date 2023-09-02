@@ -314,11 +314,13 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .hour("ts")
               .build();
     } else {
-      expected = TestHelpers.newPartitionSpecBuilder()
-          .withSchema(table.schema())
-          .withSpecId(2)
-          .addField("hour", 3, 1001, "ts_hour")
-          .build();
+      expected =
+          TestHelpers
+              .newPartitionSpecBuilder()
+              .withSchema(table.schema())
+              .withSpecId(2)
+              .addField("hour", 3, 1001, "ts_hour")
+              .build();
     }
     Assert.assertEquals(
         "Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -346,11 +348,13 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .hour("ts", "hour_col")
               .build();
     } else {
-      expected = TestHelpers.newPartitionSpecBuilder()
-          .withSchema(table.schema())
-          .withSpecId(2)
-          .addField("hour", 3, 1001, "hour_col")
-          .build();
+      expected =
+          TestHelpers
+              .newPartitionSpecBuilder()
+              .withSchema(table.schema())
+              .withSpecId(2)
+              .addField("hour", 3, 1001, "hour_col")
+              .build();
     }
     Assert.assertEquals(
         "Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -378,11 +382,13 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .hour("ts")
               .build();
     } else {
-      expected = TestHelpers.newPartitionSpecBuilder()
-          .withSchema(table.schema())
-          .withSpecId(2)
-          .addField("hour", 3, 1001, "ts_hour")
-          .build();
+      expected =
+          TestHelpers
+              .newPartitionSpecBuilder()
+              .withSchema(table.schema())
+              .withSpecId(2)
+              .addField("hour", 3, 1001, "ts_hour")
+              .build();
     }
     Assert.assertEquals(
         "Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -410,11 +416,13 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .hour("ts", "hour_col")
               .build();
     } else {
-      expected = TestHelpers.newPartitionSpecBuilder()
-          .withSchema(table.schema())
-          .withSpecId(2)
-          .addField("hour", 3, 1001, "hour_col")
-          .build();
+      expected =
+          TestHelpers
+              .newPartitionSpecBuilder()
+              .withSchema(table.schema())
+              .withSpecId(2)
+              .addField("hour", 3, 1001, "hour_col")
+              .build();
     }
     Assert.assertEquals(
         "Should changed from daily to hourly partitioned field", expected, table.spec());
