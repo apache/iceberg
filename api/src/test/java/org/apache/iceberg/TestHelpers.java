@@ -265,6 +265,10 @@ public class TestHelpers {
     }
   }
 
+  public static PartitionSpecBuilder newPartitionSpecBuilder() {
+    return new PartitionSpecBuilder();
+  }
+
   public static class KryoHelpers {
     private KryoHelpers() {}
 
@@ -666,10 +670,6 @@ public class TestHelpers {
     public List<Long> splitOffsets() {
       return null;
     }
-  }
-
-  public static PartitionSpecBuilder newPartitionSpecBuilder() {
-    return new PartitionSpecBuilder();
   }
 
   public static class PartitionSpecBuilder {
