@@ -315,8 +315,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .build();
     } else {
       expected =
-          TestHelpers
-              .newPartitionSpecBuilder()
+          TestHelpers.newPartitionSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
               .addField("hour", 3, 1001, "ts_hour")
@@ -349,8 +348,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .build();
     } else {
       expected =
-          TestHelpers
-              .newPartitionSpecBuilder()
+          TestHelpers.newPartitionSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
               .addField("hour", 3, 1001, "hour_col")
@@ -383,8 +381,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .build();
     } else {
       expected =
-          TestHelpers
-              .newPartitionSpecBuilder()
+          TestHelpers.newPartitionSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
               .addField("hour", 3, 1001, "ts_hour")
@@ -417,8 +414,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
               .build();
     } else {
       expected =
-          TestHelpers
-              .newPartitionSpecBuilder()
+          TestHelpers.newPartitionSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
               .addField("hour", 3, 1001, "hour_col")
