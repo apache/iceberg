@@ -287,7 +287,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    namespaceExists(namespace);
+    // check if namespace exists
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException(
+          "Cannot list tables of namespace %s because namespace %s does not exist",
+          namespace, namespace);
+    }
     // should be safe to list all before returning the list, instead of dynamically load the list.
     String nextToken = null;
     List<TableIdentifier> results = Lists.newArrayList();
@@ -524,7 +529,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    namespaceExists(namespace);
+    // check if namespace exists
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException(
+          "Cannot drop namespace %s because namespace %s does not exist.", namespace, namespace);
+    }
 
     GetTablesResponse response =
         glue.getTables(
