@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.extensions;
 
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.spark.SparkCatalogConfig;
