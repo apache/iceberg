@@ -85,7 +85,8 @@ public class TestForwardCompatibility {
       org.apache.iceberg.TestHelpers.newPartitionSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(0)
-          .addField("identity", 1, "id_zero").build();
+          .addField("identity", 1, "id_zero")
+          .build();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
