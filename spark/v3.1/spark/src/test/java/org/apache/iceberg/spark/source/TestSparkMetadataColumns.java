@@ -65,9 +65,11 @@ public class TestSparkMetadataColumns extends SparkTestBase {
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      TestHelpers.newPartitionSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(1)
+          .addField("zero", 1, "id_zero")
+          .build();
 
   @Parameterized.Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
