@@ -83,11 +83,9 @@ public class TestForwardCompatibility {
   // create a fake spec to use to write table metadata
   private static final PartitionSpec FAKE_SPEC =
       org.apache.iceberg.TestHelpers.newPartitionSpecBuilder()
-      .withSchema(SCHEMA)
-      .withSpecId(0)
-      .addField("identity", 1, "id_zero")
-      .build();
-
+          .withSchema(SCHEMA)
+          .withSpecId(0)
+          .addField("identity", 1, "id_zero").build();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
