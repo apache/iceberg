@@ -627,9 +627,11 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     Table table = validationCatalog.loadTable(tableIdent);
 
     PartitionSpec unknownSpec =
-        PartitionSpecParser.fromJson(
-            table.schema(),
-            "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+        TestHelpers.newPartitionSpecBuilder()
+            .withSchema(table.schema())
+            .withSpecId(1)
+            .addField("zero", 1, "id_zero")
+            .build();
 
     // replace the table spec to include an unknown transform
     TableOperations ops = ((HasTableOperations) table).operations();
