@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -74,6 +75,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final String fileSetId;
   private final int specId;
   private final StructLike partition;
+  private final Map<String, String> writeProperties;
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -106,6 +108,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.fileSetId = writeConf.rewrittenFileSetId();
     this.specId = specId;
     this.partition = partition;
+    this.writeProperties = writeConf.writeProperties(format);
   }
 
   @Override
@@ -129,7 +132,8 @@ public class SparkPositionDeletesRewrite implements Write {
           writeSchema,
           dsSchema,
           specId,
-          partition);
+          partition,
+          writeProperties);
     }
 
     @Override
@@ -174,6 +178,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final StructType dsSchema;
     private final int specId;
     private final StructLike partition;
+    private final Map<String, String> writeProperties;
 
     PositionDeletesWriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -183,7 +188,8 @@ public class SparkPositionDeletesRewrite implements Write {
         Schema writeSchema,
         StructType dsSchema,
         int specId,
-        StructLike partition) {
+        StructLike partition,
+        Map<String, String> writeProperties) {
       this.tableBroadcast = tableBroadcast;
       this.queryId = queryId;
       this.format = format;
@@ -192,6 +198,7 @@ public class SparkPositionDeletesRewrite implements Write {
       this.dsSchema = dsSchema;
       this.specId = specId;
       this.partition = partition;
+      this.writeProperties = writeProperties;
     }
 
     @Override
@@ -219,6 +226,7 @@ public class SparkPositionDeletesRewrite implements Write {
           SparkFileWriterFactory.builderFor(table)
               .deleteFileFormat(format)
               .positionDeleteSparkType(deleteSparkTypeWithoutRow)
+              .writeProperties(writeProperties)
               .build();
 
       return new DeleteWriter(
