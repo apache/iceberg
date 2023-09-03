@@ -116,7 +116,7 @@ documents how to configure the interval.
 
 ### Expire old snapshots
 
-Each batch written to a table produces a new snapshot, that is tracked in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](../maintenance#expire-snapshots). [Snapshot expiration](../spark-procedures/#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than 5 days. 
+Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](../maintenance#expire-snapshots). [Snapshot expiration](../spark-procedures/#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days. 
 
 ### Compacting data files
 
