@@ -1141,7 +1141,9 @@ public class TableMetadata implements Serializable {
           snapshot.snapshotId());
 
       ValidationException.check(
-          formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
+          formatVersion == 1
+              || snapshot.sequenceNumber() > lastSequenceNumber
+              || snapshot.parentId() == null,
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
           snapshot.sequenceNumber(),
           lastSequenceNumber);

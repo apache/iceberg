@@ -60,7 +60,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.assertj.core.api.Assertions;
@@ -2183,9 +2182,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactions() {
     C catalog = catalog();
 
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
-
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -2237,9 +2233,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionSchema() {
     C catalog = catalog();
 
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
-
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -2278,9 +2271,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionSchema2() {
     C catalog = catalog();
-
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
@@ -2361,9 +2351,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionPartitionSpec() {
     C catalog = catalog();
 
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
-
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -2403,9 +2390,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionPartitionSpec2() {
     C catalog = catalog();
-
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
@@ -2487,9 +2471,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionSortOrder() {
     C catalog = catalog();
 
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
-
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -2529,9 +2510,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionSortOrderConflict() {
     C catalog = catalog();
-
-    // TODO: temporarily ignore this test for REST catalogs (issue #8390)
-    Assumptions.assumeFalse(catalog instanceof RESTCatalog);
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
