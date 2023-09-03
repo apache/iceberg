@@ -77,7 +77,7 @@ Iceberg supports `append` and `complete` output modes:
 * `append`: appends the rows of every micro-batch to the table
 * `complete`: replaces the table contents every micro-batch
 
-The table should be created in prior to start the streaming query. Refer [SQL create table](../spark-ddl/#create-table) on Spark page to see how to create the Iceberg table.
+Prior to starting the streaming query, ensure you created the table. Refer to the [SQL create table](../spark-ddl/#create-table) documentation to learn how to create the Iceberg table.
 
 Iceberg doesn't support experimental [continuous processing](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#continuous-processing), as it doesn't provide the interface to "commit" the output.
 
