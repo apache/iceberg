@@ -152,15 +152,7 @@ To load a table directly from a metadata file (i.e., **without** using a catalog
 from pyiceberg.table import StaticTable
 
 static_table = StaticTable.from_metadata(
-    # For example:
-    # "s3a://warehouse/wh/nyc.db/taxis/metadata/00002-6ea51ce3-62aa-4197-9cf8-43d07c3440ca.metadata.json",
-    tbl.metadata_location,
-    properties={
-        "s3.endpoint": "http://127.0.0.1:9000",
-        "py-io-impl": "pyiceberg.io.pyarrow.PyArrowFileIO",
-        "s3.access-key-id": "admin",
-        "s3.secret-access-key": "password",
-    },
+    "s3://warehouse/wh/nyc.db/taxis/metadata/00002-6ea51ce3-62aa-4197-9cf8-43d07c3440ca.metadata.json"
 )
 ```
 
@@ -204,11 +196,11 @@ Renaming a field in an Iceberg table is simple:
 ```python
 with table.update_schema() as update:
     update.rename("retries", "num_retries")
-    # In a struct, only the new name field
+    # This will rename `confirmed_by` to `exchange`
     update.rename("properties.confirmed_by", "exchange")
 ```
 
-### Rename column
+### Move column
 
 Move a field inside of struct:
 
@@ -216,8 +208,8 @@ Move a field inside of struct:
 with table.update_schema() as update:
     update.move_first("symbol")
     update.move_after("bid", "ask")
-    # In a struct, only the new name field
-    update.move_before("details.exchange", "properties.created_by")
+    # This will move `confirmed_by` before `exchange`
+    update.move_before("details.created_by", "details.exchange")
 ```
 
 ### Update column
@@ -308,7 +300,7 @@ The low level API `plan_files` methods returns a set of tasks that provide the f
 
 ```json
 [
-  "s3a://warehouse/wh/nyc/taxis/data/00003-4-42464649-92dd-41ad-b83b-dea1a2fe4b58-00001.parquet"
+  "s3://warehouse/wh/nyc/taxis/data/00003-4-42464649-92dd-41ad-b83b-dea1a2fe4b58-00001.parquet"
 ]
 ```
 

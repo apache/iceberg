@@ -1020,7 +1020,7 @@ class UpdateSchema:
                 parent_field = parent_type.element_field
 
             if not parent_field.field_type.is_struct:
-                raise ValueError(f"Cannot add column '{name}' to non-struct type: {'.'.join(parent)}")
+                raise ValueError(f"Cannot add column '{name}' to non-struct type: {parent_full_path}")
 
             parent_id = parent_field.field_id
 
@@ -1106,25 +1106,13 @@ class UpdateSchema:
                 required=field_from.required,
             )
 
-        if path_from in self._identifier_field_names:
-            self._identifier_field_names.remove(path_from)
-            self._identifier_field_names.add(f"{path_from[:-len(field_from.name)]}{new_name}")
+        # Lookup the field because of casing
+        from_field_correct_casing = self._schema.find_column_name(field_from.field_id)
+        if from_field_correct_casing in self._identifier_field_names:
+            self._identifier_field_names.remove(from_field_correct_casing)
+            new_identifier_path = f"{from_field_correct_casing[:-len(field_from.name)]}{new_name}"
+            self._identifier_field_names.add(new_identifier_path)
 
-        return self
-
-    def require_column(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
-        """Make a column required.
-
-        This is a breaking change since writers have to make sure that
-        this value is not-null.
-
-        Args:
-            path: The path to the field
-
-        Returns:
-            The UpdateSchema with the requirement change staged.
-        """
-        self._set_column_requirement(path, required=True)
         return self
 
     def make_column_optional(self, path: Union[str, Tuple[str, ...]]) -> UpdateSchema:
@@ -1136,7 +1124,7 @@ class UpdateSchema:
         Returns:
             The UpdateSchema with the requirement change staged.
         """
-        self._set_column_requirement(path, False)
+        self._set_column_requirement(path, required=False)
         return self
 
     def set_identifier_fields(self, *fields: str) -> None:
@@ -1196,12 +1184,18 @@ class UpdateSchema:
         path = (path,) if isinstance(path, str) else path
         full_name = ".".join(path)
 
+        if field_type is None and required is None and doc is None:
+            return self
+
         field = self._schema.find_field(full_name, self._case_sensitive)
 
         if field.field_id in self._deletes:
             raise ValueError(f"Cannot update a column that will be deleted: {full_name}")
 
         if field_type is not None:
+            if not field.field_type.is_primitive:
+                raise ValidationError(f"Cannot change column type: {field.field_type} is not a primitive")
+
             if not self._allow_incompatible_changes and field.field_type != field_type:
                 try:
                     promote(field.field_type, field_type)
@@ -1230,47 +1224,6 @@ class UpdateSchema:
 
         return self
 
-    def update_column_doc(self, path: Union[str, Tuple[str, ...]], doc: str) -> UpdateSchema:
-        """Update the documentation of column.
-
-        Args:
-            path: The path to the field.
-            doc: The new documentation of the column
-
-        Returns:
-            The UpdateSchema with the doc update staged.
-        """
-        path = (path,) if isinstance(path, str) else path
-        full_name = ".".join(path)
-
-        field = self._schema.find_field(full_name, self._case_sensitive)
-
-        if field.field_id in self._deletes:
-            raise ValueError(f"Cannot update a column that will be deleted: {full_name}")
-
-        if field.doc == doc:
-            # Noop
-            return self
-
-        if updated := self._updates.get(field.field_id):
-            self._updates[field.field_id] = NestedField(
-                field_id=updated.field_id,
-                name=updated.name,
-                field_type=updated.field_type,
-                doc=doc,
-                required=updated.required,
-            )
-        else:
-            self._updates[field.field_id] = NestedField(
-                field_id=field.field_id,
-                name=field.name,
-                field_type=field.field_type,
-                doc=doc,
-                required=field.required,
-            )
-
-        return self
-
     def _find_for_move(self, name: str) -> Optional[int]:
         try:
             return self._schema.find_field(name, self._case_sensitive).field_id
@@ -1294,6 +1247,7 @@ class UpdateSchema:
 
             self._moves[parent_field.field_id] = self._moves.get(parent_field.field_id, []) + [move]
         else:
+            # In the top level field
             if move.op == MoveOperation.After or move.op == MoveOperation.Before:
                 if move.other_field_id is None:
                     raise ValueError("Expected other field when performing before/after move")
@@ -1373,11 +1327,11 @@ class UpdateSchema:
         if field_id is None:
             raise ValueError(f"Cannot move missing column: {full_name}")
 
-        after_full_name = ".".join(after_name) if isinstance(after_name, tuple) else after_name
-        after_field_id = self._find_for_move(after_full_name)
+        after_path = ".".join(after_name) if isinstance(after_name, tuple) else after_name
+        after_field_id = self._find_for_move(after_path)
 
         if after_field_id is None:
-            raise ValueError(f"Cannot move {full_name} after missing column: {after_full_name}")
+            raise ValueError(f"Cannot move {full_name} after missing column: {after_path}")
 
         if field_id == after_field_id:
             raise ValueError(f"Cannot move {full_name} after itself")
@@ -1415,12 +1369,12 @@ class UpdateSchema:
             # Should never happen
             raise ValueError("Could not apply changes")
 
+        # Check the field-ids
         new_schema = Schema(*struct.fields)
-
         field_ids = set()
         for name in self._identifier_field_names:
             try:
-                field = new_schema.find_field(name, self._case_sensitive)
+                field = new_schema.find_field(name, case_sensitive=self._case_sensitive)
             except ValueError as e:
                 raise ValueError(
                     f"Cannot find identifier field {name}. In case of deletion, update the identifier fields first."
@@ -1428,7 +1382,7 @@ class UpdateSchema:
 
             field_ids.add(field.field_id)
 
-        return Schema(*struct.fields, identifier_field_ids=field_ids)
+        return Schema(*struct.fields, schema_id=1 + max(self._table.schemas().keys()), identifier_field_ids=field_ids)
 
     def assign_new_column_id(self) -> int:
         return next(self._last_column_id)
@@ -1592,14 +1546,13 @@ def _move_fields(fields: Tuple[NestedField, ...], moves: List[Move]) -> Tuple[Ne
 def _add_and_move_fields(
     fields: Tuple[NestedField, ...], adds: List[NestedField], moves: List[Move]
 ) -> Optional[Tuple[NestedField, ...]]:
-    if adds:
+    if len(adds) > 0:
         # always apply adds first so that added fields can be moved
         added = _add_fields(fields, adds)
-        if moves:
+        if len(moves) > 0:
             return _move_fields(added, moves)
         else:
             return added
-    # add fields
-    elif moves:
+    elif len(moves) > 0:
         return _move_fields(fields, moves)
     return None if len(adds) == 0 else tuple(*fields, *adds)

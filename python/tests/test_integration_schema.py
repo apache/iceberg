@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name
-from typing import Dict
 
 import pytest
 
@@ -65,111 +64,6 @@ def simple_table(catalog: Catalog, table_schema_simple: Schema) -> Table:
     return _create_table_with_schema(catalog, table_schema_simple)
 
 
-@pytest.mark.integration
-def test_add_column(simple_table: Table) -> None:
-    update = UpdateSchema(simple_table)
-    update.add_column(path="b", field_type=IntegerType())
-    apply_schema: Schema = update._apply()  # pylint: disable=W0212
-    assert len(apply_schema.fields) == 4
-
-    assert apply_schema == Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        NestedField(field_id=4, name="b", field_type=IntegerType(), required=False),
-        identifier_field_ids=[2],
-    )
-    assert apply_schema.schema_id == 0
-    assert apply_schema.highest_field_id == 4
-
-
-@pytest.mark.integration
-def test_add_primitive_type_column(simple_table: Table) -> None:
-    primitive_type: Dict[str, PrimitiveType] = {
-        "boolean": BooleanType(),
-        "int": IntegerType(),
-        "long": LongType(),
-        "float": FloatType(),
-        "double": DoubleType(),
-        "date": DateType(),
-        "time": TimeType(),
-        "timestamp": TimestampType(),
-        "timestamptz": TimestamptzType(),
-        "string": StringType(),
-        "uuid": UUIDType(),
-        "binary": BinaryType(),
-    }
-
-    for name, type_ in primitive_type.items():
-        field_name = f"new_column_{name}"
-        update = UpdateSchema(simple_table)
-        update.add_column(path=field_name, field_type=type_, doc=f"new_column_{name}")
-        new_schema = update._apply()  # pylint: disable=W0212
-
-        field: NestedField = new_schema.find_field(field_name)
-        assert field.field_type == type_
-        assert field.doc == f"new_column_{name}"
-
-
-@pytest.mark.integration
-def test_add_nested_type_column(simple_table: Table) -> None:
-    # add struct type column
-    field_name = "new_column_struct"
-    update = UpdateSchema(simple_table)
-    struct_ = StructType(
-        NestedField(1, "lat", DoubleType()),
-        NestedField(2, "long", DoubleType()),
-    )
-    update.add_column(path=field_name, field_type=struct_)
-    schema_ = update._apply()  # pylint: disable=W0212
-    field: NestedField = schema_.find_field(field_name)
-    assert field.field_type == StructType(
-        NestedField(5, "lat", DoubleType()),
-        NestedField(6, "long", DoubleType()),
-    )
-    assert schema_.highest_field_id == 6
-
-
-@pytest.mark.integration
-def test_add_nested_map_type_column(simple_table: Table) -> None:
-    # add map type column
-    field_name = "new_column_map"
-    update = UpdateSchema(simple_table)
-    map_ = MapType(1, StringType(), 2, IntegerType(), False)
-    update.add_column(path=field_name, field_type=map_)
-    new_schema = update._apply()  # pylint: disable=W0212
-    field: NestedField = new_schema.find_field(field_name)
-    assert field.field_type == MapType(5, StringType(), 6, IntegerType(), False)
-    assert new_schema.highest_field_id == 6
-
-
-@pytest.mark.integration
-def test_add_nested_list_type_column(simple_table: Table) -> None:
-    # add list type column
-    field_name = "new_column_list"
-    update = UpdateSchema(simple_table)
-    list_ = ListType(
-        element_id=101,
-        element_type=StructType(
-            NestedField(102, "lat", DoubleType()),
-            NestedField(103, "long", DoubleType()),
-        ),
-        element_required=False,
-    )
-    update.add_column(path=field_name, field_type=list_)
-    new_schema = update._apply()  # pylint: disable=W0212
-    field: NestedField = new_schema.find_field(field_name)
-    assert field.field_type == ListType(
-        element_id=5,
-        element_type=StructType(
-            NestedField(6, "lat", DoubleType()),
-            NestedField(7, "long", DoubleType()),
-        ),
-        element_required=False,
-    )
-    assert new_schema.highest_field_id == 7
-
-
 def _create_table_with_schema(catalog: Catalog, schema: Schema) -> Table:
     tbl_name = "default.test_schema_evolution"
     try:
@@ -199,10 +93,30 @@ def test_add_to_non_struct_type(catalog: Catalog, table_schema_simple: Schema) -
     update = UpdateSchema(table)
     with pytest.raises(ValueError) as exc_info:
         update.add_column(path=("foo", "lat"), field_type=IntegerType())
-    assert "Cannot add column 'lat' to non-struct type" in str(exc_info.value)
+    assert "Cannot add column 'lat' to non-struct type: foo" in str(exc_info.value)
 
 
 @pytest.mark.integration
+def test_schema_evolution_nested_field(catalog: Catalog) -> None:
+    schema = Schema(
+        NestedField(
+            field_id=1,
+            name="foo",
+            field_type=StructType(NestedField(2, name="bar", field_type=StringType(), required=False)),
+            required=False,
+        ),
+    )
+    tbl = _create_table_with_schema(catalog, schema)
+
+    assert tbl.schema() == schema
+
+    with pytest.raises(ValidationError) as exc_info:
+        with tbl.transaction() as tx:
+            tx.update_schema().update_column("foo", StringType()).commit()
+
+    assert "Cannot change column type: struct<2: bar: optional string> is not a primitive" in str(exc_info.value)
+
+
 @pytest.mark.integration
 def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
     schema = Schema(
@@ -220,7 +134,6 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
         NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        schema_id=1,
     )
 
     tbl.update_schema().add_column("col_integer", IntegerType()).commit()
@@ -230,7 +143,6 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
         NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
         NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
-        schema_id=1,
     )
 
     with pytest.raises(CommitFailedException) as exc_info:
@@ -252,11 +164,9 @@ def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
         NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
         NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
         NestedField(field_id=5, name="col_long", field_type=LongType(), required=False),
-        schema_id=1,
     )
 
 
-@pytest.mark.integration
 @pytest.mark.integration
 def test_schema_evolution_nested(catalog: Catalog) -> None:
     nested_schema = Schema(
@@ -297,7 +207,6 @@ def test_schema_evolution_nested(catalog: Catalog) -> None:
             ),
             required=False,
         ),
-        schema_id=1,
     )
 
     tbl = _create_table_with_schema(catalog, nested_schema)
@@ -353,8 +262,6 @@ def test_schema_evolution_nested(catalog: Catalog) -> None:
                 ),
                 required=False,
             ),
-            schema_id=1,
-            identifier_field_ids=[],
         )
     )
 
@@ -407,7 +314,6 @@ schema_nested = Schema(
         ),
         required=False,
     ),
-    schema_id=0,
     identifier_field_ids=[2],
 )
 
@@ -426,6 +332,15 @@ def test_no_changes(simple_table: Table, table_schema_simple: Schema) -> None:
 
 
 @pytest.mark.integration
+def test_no_changes_empty_commit(simple_table: Table, table_schema_simple: Schema) -> None:
+    with simple_table.update_schema() as update:
+        # No updates, so this should be a noop
+        update.update_column(path="foo")
+
+    assert simple_table.schema() == table_schema_simple
+
+
+@pytest.mark.integration
 def test_delete_field(simple_table: Table) -> None:
     with simple_table.update_schema() as schema_update:
         schema_update.delete_column("foo")
@@ -434,7 +349,6 @@ def test_delete_field(simple_table: Table) -> None:
         # foo is missing 👍
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        schema_id=1,
         identifier_field_ids=[2],
     )
 
@@ -448,7 +362,6 @@ def test_delete_field_case_insensitive(simple_table: Table) -> None:
         # foo is missing 👍
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        schema_id=1,
         identifier_field_ids=[2],
     )
 
@@ -477,7 +390,6 @@ def test_delete_identifier_fields_nested(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
             identifier_field_ids=[3],
         ),
     )
@@ -689,7 +601,7 @@ disallowed_promotions_types = [
     # https://github.com/apache/iceberg/issues/8389
     # DecimalType(9, 2),
     # DecimalType(9, 3),
-    # DecimalType(18, 2)
+    DecimalType(18, 2),
 ]
 
 
@@ -728,7 +640,6 @@ def test_rename_simple(simple_table: Table) -> None:
         NestedField(field_id=1, name="vo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        schema_id=1,
         identifier_field_ids=[2],
     )
 
@@ -755,6 +666,33 @@ def test_rename_simple_nested(catalog: Catalog) -> None:
             field_id=1,
             name="foo",
             field_type=StructType(NestedField(field_id=2, name="vo", field_type=StringType())),
+            required=True,
+        ),
+    )
+
+
+@pytest.mark.integration
+def test_rename_simple_nested_with_dots(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(
+                field_id=1,
+                name="a.b",
+                field_type=StructType(NestedField(field_id=2, name="c.d", field_type=StringType())),
+                required=True,
+            ),
+        ),
+    )
+
+    with tbl.update_schema() as schema_update:
+        schema_update.rename_column(("a.b", "c.d"), "e.f")
+
+    assert tbl.schema() == Schema(
+        NestedField(
+            field_id=1,
+            name="a.b",
+            field_type=StructType(NestedField(field_id=2, name="e.f", field_type=StringType())),
             required=True,
         ),
     )
@@ -805,7 +743,6 @@ def test_rename(catalog: Catalog) -> None:
                 required=False,
             ),
             NestedField(field_id=4, name="foo", field_type=StringType(), required=True),
-            schema_id=0,
             identifier_field_ids=[],
         ),
     )
@@ -857,7 +794,6 @@ def test_rename(catalog: Catalog) -> None:
             required=False,
         ),
         NestedField(field_id=4, name="bar", field_type=StringType(), required=True),
-        schema_id=0,
         identifier_field_ids=[],
     )
 
@@ -904,11 +840,10 @@ def test_rename_case_insensitive(catalog: Catalog) -> None:
                     NestedField(field_id=12, name="name", field_type=StringType(), required=False),
                     NestedField(field_id=13, name="leeftijd", field_type=IntegerType(), required=True),
                 ),
-                required=False,
+                required=True,
             ),
             NestedField(field_id=4, name="foo", field_type=StringType(), required=True),
-            schema_id=0,
-            identifier_field_ids=[],
+            identifier_field_ids=[13],
         ),
     )
 
@@ -956,11 +891,10 @@ def test_rename_case_insensitive(catalog: Catalog) -> None:
                 NestedField(field_id=12, name="name", field_type=StringType(), required=False),
                 NestedField(field_id=13, name="age", field_type=IntegerType(), required=True),
             ),
-            required=False,
+            required=True,
         ),
         NestedField(field_id=4, name="bar", field_type=StringType(), required=True),
-        schema_id=0,
-        identifier_field_ids=[],
+        identifier_field_ids=[13],
     )
 
 
@@ -970,7 +904,6 @@ def test_add_struct(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -985,7 +918,6 @@ def test_add_struct(catalog: Catalog) -> None:
     assert tbl.schema() == Schema(
         NestedField(field_id=1, name="foo", field_type=StringType()),
         NestedField(field_id=2, name="location", field_type=struct, required=False),
-        schema_id=1,
     )
 
 
@@ -995,7 +927,6 @@ def test_add_nested_map_of_structs(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -1040,8 +971,6 @@ def test_add_nested_map_of_structs(catalog: Catalog) -> None:
             ),
             required=False,
         ),
-        schema_id=1,
-        identifier_field_ids=[],
     )
 
 
@@ -1051,7 +980,6 @@ def test_add_nested_list_of_structs(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -1083,16 +1011,12 @@ def test_add_nested_list_of_structs(catalog: Catalog) -> None:
             ),
             required=False,
         ),
-        schema_id=1,
-        identifier_field_ids=[],
     )
 
 
 @pytest.mark.integration
 def test_add_required_column(catalog: Catalog) -> None:
-    schema_ = Schema(
-        NestedField(field_id=1, name="a", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
-    )
+    schema_ = Schema(NestedField(field_id=1, name="a", field_type=BooleanType(), required=False))
     table = _create_table_with_schema(catalog, schema_)
     update = UpdateSchema(table)
     with pytest.raises(ValueError) as exc_info:
@@ -1107,16 +1031,12 @@ def test_add_required_column(catalog: Catalog) -> None:
     assert new_schema == Schema(
         NestedField(field_id=1, name="a", field_type=BooleanType(), required=False),
         NestedField(field_id=2, name="data", field_type=IntegerType(), required=True),
-        schema_id=0,
-        identifier_field_ids=[],
     )
 
 
 @pytest.mark.integration
 def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
-    schema_ = Schema(
-        NestedField(field_id=1, name="id", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
-    )
+    schema_ = Schema(NestedField(field_id=1, name="id", field_type=BooleanType(), required=False))
     table = _create_table_with_schema(catalog, schema_)
 
     with pytest.raises(ValueError) as exc_info:
@@ -1132,8 +1052,6 @@ def test_add_required_column_case_insensitive(catalog: Catalog) -> None:
     assert new_schema == Schema(
         NestedField(field_id=1, name="id", field_type=BooleanType(), required=False),
         NestedField(field_id=2, name="ID", field_type=IntegerType(), required=True),
-        schema_id=0,
-        identifier_field_ids=[],
     )
 
 
@@ -1143,7 +1061,6 @@ def test_make_column_optional(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1152,8 +1069,6 @@ def test_make_column_optional(catalog: Catalog) -> None:
 
     assert tbl.schema() == Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-        schema_id=0,
-        identifier_field_ids=[],
     )
 
 
@@ -1212,7 +1127,6 @@ def test_mixed_changes(catalog: Catalog) -> None:
                 field_type=MapType(key_id=18, value_id=19, key_type=StringType(), value_type=StringType()),
                 required=False,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1229,11 +1143,11 @@ def test_mixed_changes(catalog: Catalog) -> None:
         schema_update.rename_column("points.y", "y.y")
         schema_update.update_column("id", field_type=LongType(), doc="unique id")
         schema_update.update_column("locations.lat", DoubleType())
-        schema_update.update_column_doc("locations.lat", "latitude")
+        schema_update.update_column("locations.lat", doc="latitude")
         schema_update.delete_column("locations.long")
         schema_update.delete_column("properties")
         schema_update.make_column_optional("points.x")
-        schema_update.require_column("data")
+        schema_update.update_column("data", required=True)
         schema_update.add_column(("locations", "description"), StringType(), doc="location description")
 
     assert tbl.schema() == Schema(
@@ -1296,8 +1210,6 @@ def test_mixed_changes(catalog: Catalog) -> None:
             required=True,
         ),
         NestedField(field_id=24, name="toplevel", field_type=DecimalType(precision=9, scale=2), required=False),
-        schema_id=1,
-        identifier_field_ids=[],
     )
 
 
@@ -1317,7 +1229,6 @@ def test_delete_then_add(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1327,7 +1238,6 @@ def test_delete_then_add(catalog: Catalog) -> None:
 
     assert tbl.schema() == Schema(
         NestedField(field_id=2, name="foo", field_type=StringType(), required=False),
-        schema_id=1,
     )
 
 
@@ -1345,7 +1255,6 @@ def test_delete_then_add_nested(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1363,7 +1272,6 @@ def test_delete_then_add_nested(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1373,7 +1281,6 @@ def test_delete_missing_column(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1390,7 +1297,6 @@ def test_add_delete_conflict(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1412,7 +1318,6 @@ def test_add_delete_conflict(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1429,7 +1334,6 @@ def test_rename_missing_column(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1446,7 +1350,6 @@ def test_rename_missing_conflicts(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1461,7 +1364,6 @@ def test_rename_missing_conflicts(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1479,7 +1381,6 @@ def test_update_missing_column(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1496,7 +1397,6 @@ def test_update_delete_conflict(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=IntegerType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1514,7 +1414,6 @@ def test_delete_update_conflict(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=IntegerType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1576,14 +1475,13 @@ def test_update_added_column_doc(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as schema_update:
             schema_update.add_column("value", LongType())
-            schema_update.update_column_doc("value", "a value")
+            schema_update.update_column("value", doc="a value")
 
     assert "Could not find field with name value, case_sensitive=True" in str(exc_info.value)
 
@@ -1594,14 +1492,13 @@ def test_update_deleted_column_doc(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
     with pytest.raises(ValueError) as exc_info:
         with tbl.update_schema() as schema_update:
             schema_update.delete_column("foo")
-            schema_update.update_column_doc("foo", "a value")
+            schema_update.update_column("foo", doc="a value")
 
     assert "Cannot update a column that will be deleted: foo" in str(exc_info.value)
 
@@ -1615,7 +1512,6 @@ def test_multiple_moves(catalog: Catalog) -> None:
             NestedField(field_id=2, name="b", field_type=IntegerType(), required=True),
             NestedField(field_id=3, name="c", field_type=IntegerType(), required=True),
             NestedField(field_id=4, name="d", field_type=IntegerType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1630,7 +1526,6 @@ def test_multiple_moves(catalog: Catalog) -> None:
         NestedField(field_id=2, name="b", field_type=IntegerType(), required=True),
         NestedField(field_id=4, name="d", field_type=IntegerType(), required=True),
         NestedField(field_id=1, name="a", field_type=IntegerType(), required=True),
-        schema_id=1,
     )
 
 
@@ -1641,7 +1536,6 @@ def test_move_top_level_column_first(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1651,7 +1545,6 @@ def test_move_top_level_column_first(catalog: Catalog) -> None:
     assert tbl.schema() == Schema(
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
         NestedField(field_id=1, name="id", field_type=LongType(), required=True),
-        schema_id=1,
     )
 
 
@@ -1662,7 +1555,6 @@ def test_move_top_level_column_before_first(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1672,7 +1564,6 @@ def test_move_top_level_column_before_first(catalog: Catalog) -> None:
     assert tbl.schema() == Schema(
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
         NestedField(field_id=1, name="id", field_type=LongType(), required=True),
-        schema_id=1,
     )
 
 
@@ -1683,7 +1574,6 @@ def test_move_top_level_column_after_last(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1693,7 +1583,6 @@ def test_move_top_level_column_after_last(catalog: Catalog) -> None:
     assert tbl.schema() == Schema(
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
         NestedField(field_id=1, name="id", field_type=LongType(), required=True),
-        schema_id=1,
     )
 
 
@@ -1712,7 +1601,6 @@ def test_move_nested_field_first(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1730,7 +1618,6 @@ def test_move_nested_field_first(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1749,7 +1636,6 @@ def test_move_nested_field_before_first(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1767,7 +1653,6 @@ def test_move_nested_field_before_first(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1786,7 +1671,6 @@ def test_move_nested_field_after_first(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1805,7 +1689,6 @@ def test_move_nested_field_after_first(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         )
     )
 
@@ -1826,7 +1709,6 @@ def test_move_nested_field_after(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1845,7 +1727,6 @@ def test_move_nested_field_after(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1865,7 +1746,6 @@ def test_move_nested_field_before(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1884,7 +1764,6 @@ def test_move_nested_field_before(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1909,7 +1788,6 @@ def test_move_map_value_struct_field(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -1933,7 +1811,6 @@ def test_move_map_value_struct_field(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -1944,7 +1821,6 @@ def test_move_added_top_level_column(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1956,7 +1832,6 @@ def test_move_added_top_level_column(catalog: Catalog) -> None:
         NestedField(field_id=1, name="id", field_type=LongType(), required=True),
         NestedField(field_id=3, name="ts", field_type=TimestamptzType(), required=False),
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-        schema_id=1,
     )
 
 
@@ -1967,7 +1842,6 @@ def test_move_added_top_level_column_after_added_column(catalog: Catalog) -> Non
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -1982,7 +1856,6 @@ def test_move_added_top_level_column_after_added_column(catalog: Catalog) -> Non
         NestedField(field_id=3, name="ts", field_type=TimestamptzType(), required=False),
         NestedField(field_id=4, name="count", field_type=LongType(), required=False),
         NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-        schema_id=1,
     )
 
 
@@ -2001,7 +1874,6 @@ def test_move_added_nested_struct_field(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2021,7 +1893,6 @@ def test_move_added_nested_struct_field(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -2040,7 +1911,6 @@ def test_move_added_nested_field_before_added_column(catalog: Catalog) -> None:
                 ),
                 required=True,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2063,7 +1933,6 @@ def test_move_added_nested_field_before_added_column(catalog: Catalog) -> None:
             ),
             required=True,
         ),
-        schema_id=1,
     )
 
 
@@ -2073,7 +1942,6 @@ def test_move_self_reference_fails(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -2094,7 +1962,6 @@ def test_move_missing_column_fails(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -2120,7 +1987,6 @@ def test_move_before_add_fails(catalog: Catalog) -> None:
         catalog,
         Schema(
             NestedField(field_id=1, name="foo", field_type=StringType()),
-            schema_id=1,
         ),
     )
 
@@ -2150,7 +2016,6 @@ def test_move_missing_reference_column_fails(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
         ),
     )
 
@@ -2178,7 +2043,6 @@ def test_move_primitive_map_key_fails(catalog: Catalog) -> None:
                 field_type=MapType(key_id=4, value_id=5, key_type=StringType(), value_type=StringType()),
                 required=False,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2201,7 +2065,6 @@ def test_move_primitive_map_value_fails(catalog: Catalog) -> None:
                 field_type=MapType(key_id=4, value_id=5, key_type=StringType(), value_type=StructType()),
                 required=False,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2227,7 +2090,6 @@ def test_move_top_level_between_structs_fails(catalog: Catalog) -> None:
                 ),
                 required=False,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2260,7 +2122,6 @@ def test_move_between_structs_fails(catalog: Catalog) -> None:
                 ),
                 required=False,
             ),
-            schema_id=1,
         ),
     )
 
@@ -2275,9 +2136,7 @@ def test_move_between_structs_fails(catalog: Catalog) -> None:
 def test_add_existing_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema() as update_schema:
@@ -2290,9 +2149,7 @@ def test_add_existing_identifier_fields(catalog: Catalog) -> None:
 def test_add_new_identifiers_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2306,9 +2163,7 @@ def test_add_new_identifiers_field_columns(catalog: Catalog) -> None:
 def test_add_new_identifiers_field_columns_out_of_order(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2322,9 +2177,7 @@ def test_add_new_identifiers_field_columns_out_of_order(catalog: Catalog) -> Non
 def test_add_nested_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2342,9 +2195,7 @@ def test_add_nested_identifier_field_columns(catalog: Catalog) -> None:
 def test_add_nested_identifier_field_columns_single_transaction(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2360,9 +2211,7 @@ def test_add_nested_identifier_field_columns_single_transaction(catalog: Catalog
 def test_add_nested_nested_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2387,9 +2236,7 @@ def test_add_nested_nested_identifier_field_columns(catalog: Catalog) -> None:
 def test_add_dotted_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2403,9 +2250,7 @@ def test_add_dotted_identifier_field_columns(catalog: Catalog) -> None:
 def test_remove_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as update_schema:
@@ -2429,7 +2274,6 @@ def test_set_identifier_field_fails_schema(catalog: Catalog) -> None:
             NestedField(field_id=1, name="id", field_type=IntegerType(), required=False),
             NestedField(field_id=2, name="float", field_type=FloatType(), required=True),
             NestedField(field_id=3, name="double", field_type=DoubleType(), required=True),
-            schema_id=1,
             identifier_field_ids=[],
         ),
     )
@@ -2484,9 +2328,7 @@ def test_set_identifier_field_fails(nested_table: Table) -> None:
 def test_delete_identifier_field_columns(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema() as schema_update:
@@ -2495,9 +2337,7 @@ def test_delete_identifier_field_columns(catalog: Catalog) -> None:
 
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema() as schema_update:
@@ -2509,9 +2349,7 @@ def test_delete_identifier_field_columns(catalog: Catalog) -> None:
 def test_delete_containing_nested_identifier_field_columns_fails(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema(allow_incompatible_changes=True) as schema_update:
@@ -2528,7 +2366,6 @@ def test_delete_containing_nested_identifier_field_columns_fails(catalog: Catalo
             field_type=StructType(NestedField(field_id=3, name="nested", field_type=StringType(), required=True)),
             required=True,
         ),
-        schema_id=1,
         identifier_field_ids=[3],
     )
 
@@ -2543,9 +2380,7 @@ def test_delete_containing_nested_identifier_field_columns_fails(catalog: Catalo
 def test_rename_identifier_fields(catalog: Catalog) -> None:
     tbl = _create_table_with_schema(
         catalog,
-        Schema(
-            NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
-        ),
+        Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=True), identifier_field_ids=[1]),
     )
 
     with tbl.update_schema() as schema_update:
@@ -2562,7 +2397,6 @@ def test_move_identifier_fields(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
             identifier_field_ids=[1],
         ),
     )
@@ -2593,7 +2427,6 @@ def test_move_identifier_fields_case_insensitive(catalog: Catalog) -> None:
         Schema(
             NestedField(field_id=1, name="id", field_type=LongType(), required=True),
             NestedField(field_id=2, name="data", field_type=StringType(), required=True),
-            schema_id=1,
             identifier_field_ids=[1],
         ),
     )
@@ -2615,3 +2448,24 @@ def test_move_identifier_fields_case_insensitive(catalog: Catalog) -> None:
 
     assert tbl.schema().identifier_field_ids == [1]
     assert tbl.schema().identifier_field_names() == {"id"}
+
+
+@pytest.mark.integration
+def test_two_add_schemas_in_a_single_transaction(catalog: Catalog) -> None:
+    tbl = _create_table_with_schema(
+        catalog,
+        Schema(
+            NestedField(field_id=1, name="foo", field_type=StringType()),
+        ),
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        with tbl.transaction() as tr:
+            with tr.update_schema() as update:
+                update.add_column("bar", field_type=StringType())
+            with tr.update_schema() as update:
+                update.add_column("baz", field_type=StringType())
+
+    assert "Updates in a single commit need to be unique, duplicate: <class 'pyiceberg.table.AddSchemaUpdate'>" in str(
+        exc_info.value
+    )
