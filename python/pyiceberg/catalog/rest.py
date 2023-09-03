@@ -450,7 +450,7 @@ class RestCatalog(Catalog):
         return self._response_to_table(self.identifier_to_tuple(identifier), table_response)
 
     def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
-        """Register a new table using exiting metadata.
+        """Register a new table using existing metadata.
 
         Args:
             identifier Union[str, Identifier]: Table identifier for the table

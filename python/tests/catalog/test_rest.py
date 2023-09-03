@@ -791,6 +791,28 @@ def test_register_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> N
     assert actual.identifier == expected.identifier
 
 
+def test_register_table_409(rest_mock: Mocker, table_schema_simple: Schema) -> None:
+    rest_mock.post(
+        f"{TEST_URI}v1/namespaces/default/register",
+        json={
+            "error": {
+                "message": "Table already exists: fokko.fokko2 in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
+                "type": "AlreadyExistsException",
+                "code": 409,
+            }
+        },
+        status_code=409,
+        request_headers=TEST_HEADERS,
+    )
+
+    catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
+    with pytest.raises(TableAlreadyExistsError) as e:
+        catalog.register_table(
+            identifier=("default", "registered_table"), metadata_location="s3://warehouse/database/table/metadata.json"
+        )
+    assert "Table already exists" in str(e.value)
+
+
 def test_delete_namespace_204(rest_mock: Mocker) -> None:
     namespace = "example"
     rest_mock.delete(

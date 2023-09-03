@@ -316,7 +316,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
-        """Register a new table using exiting metadata.
+        """Register a new table using existing metadata.
 
         Args:
             identifier Union[str, Identifier]: Table identifier for the table
