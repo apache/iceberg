@@ -124,5 +124,5 @@ The amount of data written from a streaming process is typically small, which ca
 
 ### Rewrite manifests
 
-To optimize write latency on streaming workload, Iceberg may write the new snapshot with a "fast" append that does not automatically compact manifests.
+To optimize write latency on a streaming workload, Iceberg can write the new snapshot with a "fast" append that does not automatically compact manifests.
 This could lead lots of small manifest files. Manifests can be [rewritten to optimize queries and to compact](../maintenance#rewrite-manifests). Iceberg and Spark [comes with the `rewrite_manifests` procedure](../spark-procedures/#rewrite_manifests).
