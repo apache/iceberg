@@ -19,6 +19,7 @@
 package org.apache.iceberg.view;
 
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -92,12 +94,22 @@ public interface ViewMetadata extends Serializable {
 
   @Value.Derived
   default Map<Integer, ViewVersion> versionsById() {
-    return Builder.indexVersions(versions());
+    ImmutableMap.Builder<Integer, ViewVersion> builder = ImmutableMap.builder();
+    for (ViewVersion version : versions()) {
+      builder.put(version.versionId(), version);
+    }
+
+    return builder.build();
   }
 
   @Value.Derived
   default Map<Integer, Schema> schemasById() {
-    return Builder.indexSchemas(schemas());
+    ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
+    for (Schema schema : schemas()) {
+      builder.put(schema.schemaId(), schema);
+    }
+
+    return builder.build();
   }
 
   default Schema schema() {
@@ -124,99 +136,145 @@ public interface ViewMetadata extends Serializable {
 
   class Builder {
     private static final int LAST_ADDED = -1;
+    private final List<ViewVersion> versions;
+    private final List<Schema> schemas;
+    private final List<ViewHistoryEntry> history;
+    private final Map<String, String> properties;
+    private final List<MetadataUpdate> changes;
     private int formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
-    private String location;
-    private List<Schema> schemas = Lists.newArrayList();
     private int currentVersionId;
-    private Integer lastAddedVersionId;
-    private Integer lastAddedSchemaId;
-    private List<ViewVersion> versions = Lists.newArrayList();
-    private List<ViewHistoryEntry> history = Lists.newArrayList();
-    private Map<String, String> properties = Maps.newHashMap();
-    private List<MetadataUpdate> changes = Lists.newArrayList();
+    private String location;
 
-    private Builder() {}
+    // internal change tracking
+    private Integer lastAddedVersionId = null;
+
+    // indexes
+    private final Map<Integer, ViewVersion> versionsById;
+    private final Map<Integer, Schema> schemasById;
+
+    private Builder() {
+      this.versions = Lists.newArrayList();
+      this.versionsById = Maps.newHashMap();
+      this.schemas = Lists.newArrayList();
+      this.schemasById = Maps.newHashMap();
+      this.history = Lists.newArrayList();
+      this.properties = Maps.newHashMap();
+      this.changes = Lists.newArrayList();
+    }
 
     private Builder(ViewMetadata base) {
-      this.formatVersion = base.formatVersion();
-      this.location = base.location();
-      this.schemas = Lists.newArrayList(base.schemas());
-      this.currentVersionId = base.currentVersionId();
       this.versions = Lists.newArrayList(base.versions());
+      this.versionsById = Maps.newHashMap(base.versionsById());
+      this.schemas = Lists.newArrayList(base.schemas());
+      this.schemasById = Maps.newHashMap(base.schemasById());
       this.history = Lists.newArrayList(base.history());
       this.properties = Maps.newHashMap(base.properties());
-      this.changes = Lists.newArrayList(base.changes());
+      this.changes = Lists.newArrayList();
+      this.formatVersion = base.formatVersion();
+      this.currentVersionId = base.currentVersionId();
+      this.location = base.location();
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
-          newFormatVersion >= this.formatVersion,
+          newFormatVersion >= formatVersion,
           "Cannot downgrade v%s view to v%s",
           formatVersion,
           newFormatVersion);
 
-      if (this.formatVersion == newFormatVersion) {
+      if (formatVersion == newFormatVersion) {
         return this;
       }
 
       this.formatVersion = newFormatVersion;
-      this.changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
+      changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
       return this;
     }
 
     public Builder setLocation(String newLocation) {
       Preconditions.checkArgument(null != newLocation, "Invalid location: null");
-      if (null != this.location && this.location.equals(newLocation)) {
+      if (null != location && location.equals(newLocation)) {
         return this;
       }
 
       this.location = newLocation;
-      this.changes.add(new MetadataUpdate.SetLocation(newLocation));
+      changes.add(new MetadataUpdate.SetLocation(newLocation));
       return this;
     }
 
     public Builder setCurrentVersionId(int newVersionId) {
-      if (newVersionId == -1) {
+      if (newVersionId == LAST_ADDED) {
         ValidationException.check(
             lastAddedVersionId != null,
             "Cannot set last version id: no current version id has been set");
         return setCurrentVersionId(lastAddedVersionId);
       }
 
-      if (this.currentVersionId == newVersionId) {
+      if (currentVersionId == newVersionId) {
         return this;
       }
 
-      checkCurrentVersionIdIsValid(newVersionId);
-
-      // by that time, schemas are defined and the highestFieldId can be determined and schema
-      // changes can be added
-      int highestFieldId = highestFieldId();
-      for (Schema schema : schemas) {
-        this.changes.add(new MetadataUpdate.AddSchema(schema, highestFieldId));
-      }
+      ViewVersion version = versionsById.get(newVersionId);
+      Preconditions.checkArgument(
+          version != null, "Cannot set current version to unknown version: %s", newVersionId);
 
       this.currentVersionId = newVersionId;
 
       if (lastAddedVersionId != null && lastAddedVersionId == newVersionId) {
-        this.changes.add(new MetadataUpdate.SetCurrentViewVersion(LAST_ADDED));
+        changes.add(new MetadataUpdate.SetCurrentViewVersion(LAST_ADDED));
       } else {
-        this.changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
+        changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       }
 
       return this;
     }
 
-    private int highestFieldId() {
-      return schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0);
+    public Builder setCurrentVersion(ViewVersion version, Schema schema) {
+      int newSchemaId = addSchemaInternal(schema);
+      ViewVersion newVersion =
+          ImmutableViewVersion.builder().from(version).schemaId(newSchemaId).build();
+      return setCurrentVersionId(addVersionInternal(newVersion));
     }
 
-    public Builder setCurrentVersion(ViewVersion version) {
-      Schema schema = indexSchemas(schemas).get(version.schemaId());
-      int newSchemaId = addSchemaInternal(schema);
-      return setCurrentVersionId(
-          addVersionInternal(
-              ImmutableViewVersion.builder().from(version).schemaId(newSchemaId).build()));
+    public Builder addVersion(ViewVersion version) {
+      addVersionInternal(version);
+      return this;
+    }
+
+    private int addVersionInternal(ViewVersion version) {
+      int newVersionId = reuseOrCreateNewViewVersionId(version);
+      if (versionsById.containsKey(newVersionId)) {
+        boolean addedInBuilder =
+            changes(MetadataUpdate.AddViewVersion.class)
+                .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
+        this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
+        return newVersionId;
+      }
+
+      Preconditions.checkArgument(
+          schemasById.containsKey(version.schemaId()),
+          "Cannot add version with unknown schema: %s",
+          version.schemaId());
+
+      ViewVersion newVersion;
+      if (newVersionId != version.versionId()) {
+        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      } else {
+        newVersion = version;
+      }
+
+      versions.add(newVersion);
+      versionsById.put(newVersion.versionId(), newVersion);
+      changes.add(new MetadataUpdate.AddViewVersion(newVersion));
+      history.add(
+          ImmutableViewHistoryEntry.builder()
+              .timestampMillis(newVersion.timestampMillis())
+              .versionId(newVersion.versionId())
+              .build());
+
+      this.lastAddedVersionId = newVersionId;
+
+      return newVersionId;
     }
 
     private int reuseOrCreateNewViewVersionId(ViewVersion viewVersion) {
@@ -233,53 +291,15 @@ public interface ViewMetadata extends Serializable {
       return newVersionId;
     }
 
-    private int addVersionInternal(ViewVersion version) {
-      int newVersionId = reuseOrCreateNewViewVersionId(version);
-
-      if (versions.stream().anyMatch(v -> v.versionId() == newVersionId)) {
-        boolean isNewVersion =
-            lastAddedVersionId != null
-                && changes(MetadataUpdate.AddViewVersion.class)
-                    .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
-        this.lastAddedVersionId = isNewVersion ? newVersionId : null;
-        return newVersionId;
-      }
-
-      ViewVersion newVersion;
-      if (newVersionId != version.versionId()) {
-        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
-      } else {
-        newVersion = version;
-      }
-
-      this.versions.add(newVersion);
-      this.changes.add(new MetadataUpdate.AddViewVersion(newVersion));
-      this.history.add(
-          ImmutableViewHistoryEntry.builder()
-              .timestampMillis(newVersion.timestampMillis())
-              .versionId(newVersion.versionId())
-              .build());
-      this.lastAddedVersionId = newVersionId;
-
-      return newVersionId;
+    public Builder addSchema(Schema schema) {
+      addSchemaInternal(schema);
+      return this;
     }
 
     private int addSchemaInternal(Schema schema) {
-      if (schema.schemaId() == -1) {
-        ValidationException.check(
-            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
-
-        return addSchemaInternal(
-            new Schema(lastAddedSchemaId, schema.columns(), schema.identifierFieldIds()));
-      }
-
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
-      if (schemas.stream().anyMatch(s -> s.schemaId() == newSchemaId)) {
-        boolean isNewSchema =
-            lastAddedSchemaId != null
-                && changes(MetadataUpdate.AddSchema.class)
-                    .anyMatch(added -> added.schema().schemaId() == newSchemaId);
-        this.lastAddedSchemaId = isNewSchema ? newSchemaId : null;
+      if (schemasById.containsKey(newSchemaId)) {
+        // this schema existed or was already added in the builder
         return newSchemaId;
       }
 
@@ -290,12 +310,16 @@ public interface ViewMetadata extends Serializable {
         newSchema = schema;
       }
 
-      this.schemas.add(newSchema);
-      // AddSchema changes can only be added once all schemas are known, thus this is done in
-      // setCurrentVersionId(..)
-      this.lastAddedSchemaId = newSchemaId;
+      int highestFieldId = Math.max(highestFieldId(), newSchema.highestFieldId());
+      schemas.add(newSchema);
+      schemasById.put(newSchema.schemaId(), newSchema);
+      changes.add(new MetadataUpdate.AddSchema(newSchema, highestFieldId));
 
       return newSchemaId;
+    }
+
+    private int highestFieldId() {
+      return schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0);
     }
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
@@ -312,23 +336,13 @@ public interface ViewMetadata extends Serializable {
       return newSchemaId;
     }
 
-    public Builder addSchema(Schema schema) {
-      addSchemaInternal(schema);
-      return this;
-    }
-
-    public Builder addVersion(ViewVersion version) {
-      addVersionInternal(version);
-      return this;
-    }
-
     public Builder setProperties(Map<String, String> updated) {
       if (updated.isEmpty()) {
         return this;
       }
 
-      this.properties.putAll(updated);
-      this.changes.add(new MetadataUpdate.SetProperties(updated));
+      properties.putAll(updated);
+      changes.add(new MetadataUpdate.SetProperties(updated));
       return this;
     }
 
@@ -337,95 +351,80 @@ public interface ViewMetadata extends Serializable {
         return this;
       }
 
-      propertiesToRemove.forEach(this.properties::remove);
-      this.changes.add(new MetadataUpdate.RemoveProperties(propertiesToRemove));
+      propertiesToRemove.forEach(properties::remove);
+      changes.add(new MetadataUpdate.RemoveProperties(propertiesToRemove));
       return this;
-    }
-
-    private static Map<Integer, ViewVersion> indexVersions(List<ViewVersion> versionsToIndex) {
-      ImmutableMap.Builder<Integer, ViewVersion> builder = ImmutableMap.builder();
-      for (ViewVersion version : versionsToIndex) {
-        builder.put(version.versionId(), version);
-      }
-
-      return builder.build();
-    }
-
-    private static Map<Integer, Schema> indexSchemas(List<Schema> schemasToIndex) {
-      ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
-      for (Schema schema : schemasToIndex) {
-        builder.put(schema.schemaId(), schema);
-      }
-
-      return builder.build();
     }
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
 
-      checkCurrentVersionIdIsValid(currentVersionId);
-
-      int versionHistorySizeToKeep =
+      int historySize =
           PropertyUtil.propertyAsInt(
               properties,
               ViewProperties.VERSION_HISTORY_SIZE,
               ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
 
       Preconditions.checkArgument(
-          versionHistorySizeToKeep > 0,
+          historySize > 0,
           "%s must be positive but was %s",
           ViewProperties.VERSION_HISTORY_SIZE,
-          versionHistorySizeToKeep);
+          historySize);
 
-      if (versions.size() > versionHistorySizeToKeep) {
-        List<ViewVersion> versionsToKeep =
-            versions.subList(versions.size() - versionHistorySizeToKeep, versions.size());
-        List<ViewHistoryEntry> historyToKeep =
-            history.subList(history.size() - versionHistorySizeToKeep, history.size());
-        List<MetadataUpdate> changesToKeep = Lists.newArrayList(changes);
-        Set<MetadataUpdate.AddViewVersion> toRemove =
-            changesToKeep.stream()
-                .filter(update -> update instanceof MetadataUpdate.AddViewVersion)
-                .map(update -> (MetadataUpdate.AddViewVersion) update)
-                .filter(
-                    update ->
-                        update.viewVersion().versionId() != currentVersionId
-                            && !versionsToKeep.contains(update.viewVersion()))
-                .collect(Collectors.toSet());
-        changesToKeep.removeAll(toRemove);
+      // expire old versions, but keep at least the versions added in this builder
+      int numAddedVersions = (int) changes(MetadataUpdate.AddViewVersion.class).count();
+      int numVersionsToKeep = Math.max(numAddedVersions, historySize);
 
-        versions = versionsToKeep;
-        history = historyToKeep;
-        changes = changesToKeep;
+      List<ViewVersion> retainedVersions;
+      List<ViewHistoryEntry> retainedHistory;
+      if (versions.size() > numVersionsToKeep) {
+        retainedVersions = expireVersions(versionsById, numVersionsToKeep);
+        Set<Integer> retainedVersionIds =
+            retainedVersions.stream().map(ViewVersion::versionId).collect(Collectors.toSet());
+        retainedHistory = updateHistory(history, retainedVersionIds);
+      } else {
+        retainedVersions = versions;
+        retainedHistory = history;
       }
 
       return ImmutableViewMetadata.of(
           formatVersion,
           location,
-          schemas,
+          ImmutableList.copyOf(schemas),
           currentVersionId,
-          versions,
-          history,
-          properties,
-          changes);
+          ImmutableList.copyOf(retainedVersions),
+          ImmutableList.copyOf(retainedHistory),
+          ImmutableMap.copyOf(properties),
+          ImmutableList.copyOf(changes));
     }
 
-    private void checkCurrentVersionIdIsValid(int versionId) {
-      Map<Integer, ViewVersion> versionsById = indexVersions(versions);
-      Preconditions.checkArgument(
-          versionsById.containsKey(versionId),
-          "Cannot find current version %s in view versions: %s",
-          versionId,
-          versionsById.keySet());
+    static List<ViewVersion> expireVersions(
+        Map<Integer, ViewVersion> versionsById, int numVersionsToKeep) {
+      // version ids are assigned sequentially. keep the latest versions by ID.
+      List<Integer> ids = Lists.newArrayList(versionsById.keySet());
+      ids.sort(Comparator.reverseOrder());
 
-      int currentSchemaId = versionsById.get(versionId).schemaId();
-      Map<Integer, Schema> schemasById = indexSchemas(schemas);
-      Preconditions.checkArgument(
-          schemasById.containsKey(currentSchemaId),
-          "Cannot find current schema with id %s in schemas: %s",
-          currentSchemaId,
-          schemasById.keySet());
+      List<ViewVersion> retainedVersions = Lists.newArrayList();
+      for (int idToKeep : ids.subList(0, numVersionsToKeep)) {
+        retainedVersions.add(versionsById.get(idToKeep));
+      }
+
+      return retainedVersions;
+    }
+
+    static List<ViewHistoryEntry> updateHistory(List<ViewHistoryEntry> history, Set<Integer> ids) {
+      List<ViewHistoryEntry> retainedHistory = Lists.newArrayList();
+      for (ViewHistoryEntry entry : history) {
+        if (ids.contains(entry.versionId())) {
+          retainedHistory.add(entry);
+        } else {
+          // clear history past any unknown version
+          retainedHistory.clear();
+        }
+      }
+
+      return retainedHistory;
     }
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {

@@ -21,8 +21,11 @@ package org.apache.iceberg.view;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -32,6 +35,47 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 public class TestViewMetadata {
+
+  private ViewVersion newViewVersion(int id, String sql) {
+    return ImmutableViewVersion.builder()
+        .versionId(id)
+        .timestampMillis(System.currentTimeMillis())
+        .defaultCatalog("prod")
+        .defaultNamespace(Namespace.of("default"))
+        .summary(ImmutableMap.of("operation", "create"))
+        .schemaId(1)
+        .build();
+  }
+
+  @Test
+  public void testExpiration() {
+    // purposely use versions and timestamps that do not match to check that version ID is used
+    ViewVersion v1 = newViewVersion(1, "select 1 as count");
+    ViewVersion v3 = newViewVersion(3, "select count from t1");
+    ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
+    Map<Integer, ViewVersion> versionsById = ImmutableMap.of(1, v1, 2, v2, 3, v3);
+
+    List<ViewVersion> retainedVersions = ViewMetadata.Builder.expireVersions(versionsById, 2);
+    assertThat(retainedVersions).hasSameElementsAs(ImmutableList.of(v2, v3));
+  }
+
+  @Test
+  public void testUpdateHistory() {
+    ViewVersion v1 = newViewVersion(1, "select 1 as count");
+    ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
+    ViewVersion v3 = newViewVersion(3, "select count from t1");
+
+    Set<Integer> versionsById = ImmutableSet.of(2, 3);
+
+    List<ViewHistoryEntry> history = ImmutableList.of(
+        ImmutableViewHistoryEntry.builder().versionId(v1.versionId()).timestampMillis(v1.timestampMillis()).build(),
+        ImmutableViewHistoryEntry.builder().versionId(v2.versionId()).timestampMillis(v2.timestampMillis()).build(),
+        ImmutableViewHistoryEntry.builder().versionId(v3.versionId()).timestampMillis(v3.timestampMillis()).build()
+    );
+
+    List<ViewHistoryEntry> retainedHistory = ViewMetadata.Builder.updateHistory(history, versionsById);
+    assertThat(retainedHistory).hasSameElementsAs(history.subList(1, 3));
+  }
 
   @Test
   public void nullAndMissingFields() {
@@ -46,7 +90,7 @@ public class TestViewMetadata {
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find current version 1 in view versions: []");
+        .hasMessage("Cannot set current version to unknown version: 1");
   }
 
   @Test
@@ -56,6 +100,8 @@ public class TestViewMetadata {
                 ViewMetadata.builder()
                     .upgradeFormatVersion(23)
                     .setLocation("location")
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -64,8 +110,6 @@ public class TestViewMetadata {
                             .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -87,7 +131,7 @@ public class TestViewMetadata {
     assertThatThrownBy(
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find current version 1 in view versions: []");
+        .hasMessage("Cannot set current version to unknown version: 1");
   }
 
   @Test
@@ -107,7 +151,7 @@ public class TestViewMetadata {
                     .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find current schema with id 1 in schemas: []");
+        .hasMessage("Cannot add version with unknown schema: 1");
   }
 
   @Test
@@ -116,6 +160,8 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -124,12 +170,10 @@ public class TestViewMetadata {
                             .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .setCurrentVersionId(23)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find current version 23 in view versions: [1]");
+        .hasMessage("Cannot set current version to unknown version: 23");
   }
 
   @Test
@@ -138,6 +182,8 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(23)
@@ -146,12 +192,10 @@ public class TestViewMetadata {
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
                             .build())
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find current schema with id 23 in schemas: [1]");
+        .hasMessage("Cannot add version with unknown schema: 23");
   }
 
   @Test
@@ -161,6 +205,8 @@ public class TestViewMetadata {
                 ViewMetadata.builder()
                     .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
                     .setLocation("location")
+                    .addSchema(
+                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
                             .schemaId(1)
@@ -185,8 +231,6 @@ public class TestViewMetadata {
                             .putSummary("operation", "c")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
                     .setCurrentVersionId(3)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -221,24 +265,30 @@ public class TestViewMetadata {
             .defaultNamespace(Namespace.of("ns"))
             .build();
 
-    ViewMetadata viewMetadata =
+    ViewMetadata originalViewMetadata =
         ViewMetadata.builder()
             .setProperties(properties)
             .setLocation("location")
+            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
             .setCurrentVersionId(3)
             .build();
 
+    // the first build will not expire versions that were added in the builder
+    assertThat(originalViewMetadata.versions()).hasSize(3);
+    assertThat(originalViewMetadata.history()).hasSize(3);
+
+    // rebuild the metadata to expire older versions
+    ViewMetadata viewMetadata = ViewMetadata.buildFrom(originalViewMetadata).build();
     assertThat(viewMetadata.versions()).hasSize(2);
     assertThat(viewMetadata.history()).hasSize(2);
 
     // make sure that metadata changes reflect the current state after the history was adjusted,
     // meaning that the first view version shouldn't be included
-    List<MetadataUpdate> changes = viewMetadata.changes();
-    assertThat(changes).hasSize(6);
+    List<MetadataUpdate> changes = originalViewMetadata.changes();
+    assertThat(changes).hasSize(7);
     assertThat(changes)
         .element(0)
         .isInstanceOf(MetadataUpdate.SetProperties.class)
@@ -255,20 +305,6 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionTwo);
-
-    assertThat(changes)
-        .element(3)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
-
-    assertThat(changes)
-        .element(4)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
@@ -276,7 +312,28 @@ public class TestViewMetadata {
         .isEqualTo(1);
 
     assertThat(changes)
+        .element(3)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionOne);
+
+    assertThat(changes)
+        .element(4)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionTwo);
+
+    assertThat(changes)
         .element(5)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionThree);
+
+    assertThat(changes)
+        .element(6)
         .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
         .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
@@ -317,11 +374,11 @@ public class TestViewMetadata {
         ViewMetadata.builder()
             .setLocation("custom-location")
             .setProperties(properties)
+            .addSchema(schemaOne)
+            .addSchema(schemaTwo)
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
-            .addSchema(schemaOne)
-            .addSchema(schemaTwo)
             .setCurrentVersionId(3)
             .build();
 
@@ -356,27 +413,6 @@ public class TestViewMetadata {
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionOne);
-
-    assertThat(changes)
-        .element(3)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionTwo);
-
-    assertThat(changes)
-        .element(4)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
-
-    assertThat(changes)
-        .element(5)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
@@ -384,12 +420,33 @@ public class TestViewMetadata {
         .isEqualTo(1);
 
     assertThat(changes)
-        .element(6)
+        .element(3)
         .isInstanceOf(MetadataUpdate.AddSchema.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
         .isEqualTo(2);
+
+    assertThat(changes)
+        .element(4)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionOne);
+
+    assertThat(changes)
+        .element(5)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionTwo);
+
+    assertThat(changes)
+        .element(6)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionThree);
 
     assertThat(changes)
         .element(7)
