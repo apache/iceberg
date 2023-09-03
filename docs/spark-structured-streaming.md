@@ -99,7 +99,7 @@ data.writeStream
     .toTable("database.table_name")
 ```
 
-Fanout writer opens the files per partition value and doesn't close these files till write task is finished. This option is discouraged for batch writing, as explicit sort against output rows is cheap for batch workloads.
+Fanout writer opens the files per partition value and doesn't close these files till the write task finishes. Avoid using the fanout writer for batch writing, as explicit sort against output rows is cheap for batch workloads.
 
 ## Maintenance for streaming tables
 
