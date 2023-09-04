@@ -40,7 +40,12 @@ from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table import (
+    CommitTableRequest,
+    CommitTableResponse,
+    Table,
+    TableMetadata,
+)
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -75,6 +80,7 @@ class CatalogType(Enum):
     HIVE = "hive"
     GLUE = "glue"
     DYNAMODB = "dynamodb"
+    SQL = "sql"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -110,16 +116,26 @@ def load_dynamodb(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("AWS DynamoDB support not installed: pip install 'pyiceberg[dynamodb]'") from exc
 
 
+def load_sql(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.sql import SqlCatalog
+
+        return SqlCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("SQLAlchemy support not installed: pip install 'pyiceberg[sql-postgres]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
     CatalogType.GLUE: load_glue,
     CatalogType.DYNAMODB: load_dynamodb,
+    CatalogType.SQL: load_sql,
 }
 
 
 def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional[CatalogType]:
-    """Tries to infer the type based on the dict.
+    """Try to infer the type based on the dict.
 
     Args:
         name: Name of the catalog.
@@ -137,6 +153,8 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
                 return CatalogType.REST
             elif uri.startswith("thrift"):
                 return CatalogType.HIVE
+            elif uri.startswith("postgresql"):
+                return CatalogType.SQL
             else:
                 raise ValueError(f"Could not infer the catalog type from the uri: {uri}")
         else:
@@ -146,7 +164,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     )
 
 
-def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
+def load_catalog(name: Optional[str] = None, **properties: Optional[str]) -> Catalog:
     """Load the catalog based on the properties.
 
     Will look up the properties from the config, based on the name.
@@ -184,7 +202,7 @@ def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
 
 
 def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
-    """Helper to delete files.
+    """Delete files.
 
     Log warnings if failing to delete any file.
 
@@ -201,7 +219,7 @@ def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
 
 
 def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
-    """Helper to delete data files linked to given manifests.
+    """Delete data files linked to given manifests.
 
     Log warnings if failing to delete any file.
 
@@ -281,7 +299,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'.
         Note: This method doesn't scan data stored in the table.
@@ -294,6 +312,21 @@ class Catalog(ABC):
 
         Raises:
             NoSuchTableError: If a table with the name does not exist.
+        """
+
+    @abstractmethod
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
         """
 
     @abstractmethod
@@ -320,6 +353,20 @@ class Catalog(ABC):
 
         Raises:
             NoSuchTableError: If a table with the name does not exist.
+        """
+
+    @abstractmethod
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Update one or more tables.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
         """
 
     @abstractmethod
@@ -392,9 +439,9 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and updates properties for a namespace.
 
         Args:
             namespace (str | Identifier): Namespace identifier.
@@ -408,7 +455,7 @@ class Catalog(ABC):
 
     @staticmethod
     def identifier_to_tuple(identifier: Union[str, Identifier]) -> Identifier:
-        """Parses an identifier to a tuple.
+        """Parse an identifier to a tuple.
 
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
 
@@ -422,7 +469,7 @@ class Catalog(ABC):
 
     @staticmethod
     def table_name_from(identifier: Union[str, Identifier]) -> str:
-        """Extracts table name from a table identifier.
+        """Extract table name from a table identifier.
 
         Args:
             identifier (str | Identifier: a table identifier.
@@ -434,7 +481,7 @@ class Catalog(ABC):
 
     @staticmethod
     def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
-        """Extracts table namespace from a table identifier.
+        """Extract table namespace from a table identifier.
 
         Args:
             identifier (Union[str, Identifier]): a table identifier.
@@ -505,7 +552,7 @@ class Catalog(ABC):
         io = load_file_io(self.properties, table.metadata_location)
         metadata = table.metadata
         manifest_lists_to_delete = set()
-        manifests_to_delete = []
+        manifests_to_delete: List[ManifestFile] = []
         for snapshot in metadata.snapshots:
             manifests_to_delete += snapshot.manifests(io)
             if snapshot.manifest_list is not None:

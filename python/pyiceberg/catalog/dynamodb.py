@@ -52,7 +52,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import CommitTableRequest, CommitTableResponse, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -168,9 +168,38 @@ class DynamoDbCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        raise NotImplementedError
+
+    def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
+        """Update the table.
+
+        Args:
+            table_request (CommitTableRequest): The table requests to be carried out.
+
+        Returns:
+            CommitTableResponse: The updated metadata.
+
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist.
+        """
+        raise NotImplementedError
+
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """
-        Loads the table's metadata and returns the table instance.
+        Load the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
@@ -430,7 +459,7 @@ class DynamoDbCatalog(Catalog):
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """
-        Removes or updates provided property keys for a namespace.
+        Remove or update provided property keys for a namespace.
 
         Args:
             namespace: Namespace identifier
@@ -577,6 +606,7 @@ class DynamoDbCatalog(Catalog):
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
 
@@ -715,7 +745,7 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
-    """Converts a dynamo json to a regular json.
+    """Convert a dynamo json to a regular json.
 
     Example of a dynamo json:
     {

@@ -40,10 +40,13 @@ import java.util.stream.Stream;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
@@ -795,5 +798,10 @@ public class TestHelpers {
 
   public static Types.StructType nonDerivedSchema(Dataset<Row> metadataTable) {
     return SparkSchemaUtil.convert(TestHelpers.selectNonDerived(metadataTable).schema()).asStruct();
+  }
+
+  public static List<DataFile> dataFiles(Table table) {
+    CloseableIterable<FileScanTask> tasks = table.newScan().includeColumnStats().planFiles();
+    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 }

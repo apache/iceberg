@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -89,10 +92,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private String catalogName;
   private String warehousePath;
   private AwsProperties awsProperties;
-  private FileIO fileIO;
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
+  private Cache<TableOperations, FileIO> fileIOCloser;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -113,7 +116,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public void initialize(String name, Map<String, String> properties) {
     this.catalogProperties = ImmutableMap.copyOf(properties);
     AwsClientFactory awsClientFactory;
-    FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
         properties,
         AwsProperties.GLUE_LAKEFORMATION_ENABLED,
@@ -133,10 +135,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
           "Detected LakeFormation enabled for Glue catalog, should use a client factory that extends %s, but found %s",
           LakeFormationAwsClientFactory.class.getName(),
           factoryImpl);
-      catalogFileIO = null;
     } else {
       awsClientFactory = AwsClientFactories.from(properties);
-      catalogFileIO = GlueTableOperations.initializeFileIO(properties, hadoopConf);
     }
 
     initialize(
@@ -144,8 +144,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         awsClientFactory.glue(),
-        initializeLockManager(properties),
-        catalogFileIO);
+        initializeLockManager(properties));
   }
 
   private LockManager initializeLockManager(Map<String, String> properties) {
@@ -170,33 +169,26 @@ public class GlueCatalog extends BaseMetastoreCatalog
       AwsProperties properties,
       GlueClient client,
       LockManager lock,
-      FileIO io,
       Map<String, String> catalogProps) {
     this.catalogProperties = catalogProps;
-    initialize(name, path, properties, client, lock, io);
+    initialize(name, path, properties, client, lock);
   }
 
   @VisibleForTesting
   void initialize(
-      String name,
-      String path,
-      AwsProperties properties,
-      GlueClient client,
-      LockManager lock,
-      FileIO io) {
+      String name, String path, AwsProperties properties, GlueClient client, LockManager lock) {
     this.catalogName = name;
     this.awsProperties = properties;
     this.warehousePath =
         (path != null && path.length() > 0) ? LocationUtil.stripTrailingSlash(path) : null;
     this.glue = client;
     this.lockManager = lock;
-    this.fileIO = io;
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(glue);
     closeableGroup.addCloseable(lockManager);
-    closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
+    this.fileIOCloser = newFileIOCloser();
   }
 
   @Override
@@ -231,24 +223,30 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
       // initialized each time
-      return new GlueTableOperations(
-          glue,
-          lockManager,
-          catalogName,
-          awsProperties,
-          tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
-          hadoopConf,
-          tableIdentifier);
+      GlueTableOperations glueTableOperations =
+          new GlueTableOperations(
+              glue,
+              lockManager,
+              catalogName,
+              awsProperties,
+              tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
+              hadoopConf,
+              tableIdentifier);
+      fileIOCloser.put(glueTableOperations, glueTableOperations.io());
+      return glueTableOperations;
     }
 
-    return new GlueTableOperations(
-        glue,
-        lockManager,
-        catalogName,
-        awsProperties,
-        catalogProperties,
-        hadoopConf,
-        tableIdentifier);
+    GlueTableOperations glueTableOperations =
+        new GlueTableOperations(
+            glue,
+            lockManager,
+            catalogName,
+            awsProperties,
+            catalogProperties,
+            hadoopConf,
+            tableIdentifier);
+    fileIOCloser.put(glueTableOperations, glueTableOperations.io());
+    return glueTableOperations;
   }
 
   /**
@@ -622,6 +620,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public void close() throws IOException {
     closeableGroup.close();
+    if (fileIOCloser != null) {
+      fileIOCloser.invalidateAll();
+      fileIOCloser.cleanUp();
+    }
   }
 
   @Override
@@ -632,5 +634,18 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  private Cache<TableOperations, FileIO> newFileIOCloser() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .removalListener(
+            (RemovalListener<TableOperations, FileIO>)
+                (ops, fileIO, cause) -> {
+                  if (null != fileIO) {
+                    fileIO.close();
+                  }
+                })
+        .build();
   }
 }

@@ -138,7 +138,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
 
 @singledispatch
 def visit(obj: BooleanExpression, visitor: BooleanExpressionVisitor[T]) -> T:
-    """A generic function for applying a boolean expression visitor to any point within an expression.
+    """Apply a boolean expression visitor to any point within an expression.
 
     The function traverses the expression in post-order fashion.
 
@@ -1061,7 +1061,7 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
 def expression_to_plain_format(
     expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
 ) -> List[List[Tuple[str, str, Any]]]:
-    """Formats a Disjunctive Normal Form expression.
+    """Format a Disjunctive Normal Form expression.
 
     These are the formats that the expression can be fed into:
 
@@ -1095,13 +1095,16 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
     lower_bounds: Dict[int, bytes]
     upper_bounds: Dict[int, bytes]
 
-    def __init__(self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True) -> None:
+    def __init__(
+        self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True, include_empty_files: bool = False
+    ) -> None:
         self.struct = schema.as_struct()
+        self.include_empty_files = include_empty_files
         self.expr = bind(schema, rewrite_not(expr), case_sensitive)
 
     def eval(self, file: DataFile) -> bool:
         """Test whether the file may contain records that match the expression."""
-        if file.record_count == 0:
+        if not self.include_empty_files and file.record_count == 0:
             return ROWS_CANNOT_MATCH
 
         if file.record_count < 0:

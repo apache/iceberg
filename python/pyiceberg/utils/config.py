@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
-    """Merges right-hand side into the left-hand side."""
+    """Merge right-hand side into the left-hand side."""
     new_config = lhs.copy()
     for rhs_key, rhs_value in rhs.items():
         if rhs_key in new_config:
@@ -66,7 +66,7 @@ class Config:
 
     @staticmethod
     def _from_configuration_files() -> Optional[RecursiveDict]:
-        """Loads the first configuration file that its finds.
+        """Load the first configuration file that its finds.
 
         Will first look in the PYICEBERG_HOME env variable,
         and then in the home directory.
@@ -94,7 +94,7 @@ class Config:
 
     @staticmethod
     def _from_environment_variables(config: RecursiveDict) -> RecursiveDict:
-        """Reads the environment variables, to check if there are any prepended by PYICEBERG_.
+        """Read the environment variables, to check if there are any prepended by PYICEBERG_.
 
         Args:
             config: Existing configuration that's being amended with configuration from environment variables.
@@ -132,7 +132,7 @@ class Config:
         return config
 
     def get_default_catalog_name(self) -> str:
-        """Returns the default catalog name.
+        """Return the default catalog name.
 
         Returns: The name of the default catalog in `default-catalog`.
                  Returns `default` when the key cannot be found in the config file.

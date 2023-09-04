@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -83,20 +85,33 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    AssertHelpers.assertThrows(
-        "Cannot create an existing branch",
-        IllegalArgumentException.class,
-        "Ref b1 already exists",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref b1 already exists");
   }
 
   @Test
   public void testCreateBranchOnEmptyTable() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot complete create or replace branch operation on %s, main has no snapshot",
-            tableName);
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1");
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
+    Assertions.assertThat(mainRef).isNull();
+
+    SnapshotRef ref = table.refs().get(branchName);
+    Assertions.assertThat(ref).isNotNull();
+    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
+    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
+    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+
+    Snapshot snapshot = table.snapshot(ref.snapshotId());
+    Assertions.assertThat(snapshot.parentId()).isNull();
+    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
   }
 
   @Test
@@ -179,12 +194,13 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertNull(ref.maxRefAgeMs());
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "no viable alternative at input 'WITH SNAPSHOT RETENTION'",
-        () ->
-            sql("ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION",
+                    tableName, branchName))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("no viable alternative at input 'WITH SNAPSHOT RETENTION'");
   }
 
   @Test
@@ -200,26 +216,24 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}",
-        () ->
-            sql(
-                "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
-                tableName, branchName, maxRefAge));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
+                    tableName, branchName, maxRefAge))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}");
   }
 
   @Test
@@ -241,11 +255,10 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropBranchDoesNotExist() {
-    AssertHelpers.assertThrows(
-        "Cannot perform drop branch on branch which does not exist",
-        IllegalArgumentException.class,
-        "Branch does not exist: nonExistingBranch",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: nonExistingBranch");
   }
 
   @Test
@@ -254,29 +267,23 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform drop branch on tag",
-        IllegalArgumentException.class,
-        "Ref b1 is a tag not a branch",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref b1 is a tag not a branch");
   }
 
   @Test
   public void testDropBranchNonConformingName() {
-    AssertHelpers.assertThrows(
-        "Non-conforming branch name",
-        IcebergParseException.class,
-        "mismatched input '123'",
-        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input '123'");
   }
 
   @Test
   public void testDropMainBranchFails() {
-    AssertHelpers.assertThrows(
-        "Cannot drop the main branch",
-        IllegalArgumentException.class,
-        "Cannot remove main branch",
-        () -> sql("ALTER TABLE %s DROP BRANCH main", tableName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot remove main branch");
   }
 
   @Test
@@ -298,5 +305,93 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.writeTo(tableName).append();
     return validationCatalog.loadTable(tableIdent);
+  }
+
+  @Test
+  public void createOrReplace() throws NoSuchTableException {
+    Table table = insertRows();
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    insertRows();
+    long second = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch(branchName, second).commit();
+
+    sql(
+        "ALTER TABLE %s CREATE OR REPLACE BRANCH %s AS OF VERSION %d",
+        tableName, branchName, first);
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId()).isEqualTo(second);
+  }
+
+  @Test
+  public void testCreateOrReplaceBranchOnEmptyTable() {
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE OR REPLACE BRANCH %s", tableName, "b1");
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
+    Assertions.assertThat(mainRef).isNull();
+
+    SnapshotRef ref = table.refs().get(branchName);
+    Assertions.assertThat(ref).isNotNull();
+    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
+    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
+    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+
+    Snapshot snapshot = table.snapshot(ref.snapshotId());
+    Assertions.assertThat(snapshot.parentId()).isNull();
+    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+  }
+
+  @Test
+  public void createOrReplaceWithNonExistingBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    String branchName = "b1";
+    insertRows();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    sql(
+        "ALTER TABLE %s CREATE OR REPLACE BRANCH %s AS OF VERSION %d",
+        tableName, branchName, snapshotId);
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId()).isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void replaceBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    long first = table.currentSnapshot().snapshotId();
+    String branchName = "b1";
+    long expectedMaxRefAgeMs = 1000;
+    table
+        .manageSnapshots()
+        .createBranch(branchName, first)
+        .setMaxRefAgeMs(branchName, expectedMaxRefAgeMs)
+        .commit();
+
+    insertRows();
+    long second = table.currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d", tableName, branchName, second);
+    table.refresh();
+    SnapshotRef ref = table.refs().get(branchName);
+    assertThat(ref.snapshotId()).isEqualTo(second);
+    assertThat(ref.maxRefAgeMs()).isEqualTo(expectedMaxRefAgeMs);
+  }
+
+  @Test
+  public void replaceBranchDoesNotExist() throws NoSuchTableException {
+    Table table = insertRows();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
+                    tableName, "someBranch", table.currentSnapshot().snapshotId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch does not exist: someBranch");
   }
 }

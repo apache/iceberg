@@ -102,3 +102,11 @@ class ConditionalCheckFailedException(DynamoDbError):
 
 class GenericDynamoDbError(DynamoDbError):
     pass
+
+
+class CommitFailedException(RESTError):
+    """Commit failed, refresh and try again."""
+
+
+class CommitStateUnknownException(RESTError):
+    """Commit failed due to unknown reason."""

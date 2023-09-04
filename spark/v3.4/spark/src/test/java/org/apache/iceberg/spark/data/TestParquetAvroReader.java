@@ -84,7 +84,8 @@ public class TestParquetAvroReader {
                       optional(22, "jumpy", Types.DoubleType.get()),
                       required(23, "koala", Types.TimeType.get()),
                       required(24, "couch rope", Types.IntegerType.get())))),
-          optional(2, "slide", Types.StringType.get()));
+          optional(2, "slide", Types.StringType.get()),
+          required(25, "foo", Types.DecimalType.of(7, 5)));
 
   @Ignore
   public void testStructSchema() throws IOException {

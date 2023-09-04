@@ -29,6 +29,7 @@ class SnapshotRefType(str, Enum):
     TAG = "tag"
 
     def __repr__(self) -> str:
+        """Return the string representation of the SnapshotRefType class."""
         return f"SnapshotRefType.{self.name}"
 
 

@@ -600,6 +600,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public synchronized void testUpdateWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
 
@@ -687,6 +690,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
 

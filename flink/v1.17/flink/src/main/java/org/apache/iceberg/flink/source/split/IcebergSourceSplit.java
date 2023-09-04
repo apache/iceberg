@@ -21,19 +21,28 @@ package org.apache.iceberg.flink.source.split;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceSplit;
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.util.InstantiationUtil;
+import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.FileScanTaskParser;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 @Internal
 public class IcebergSourceSplit implements SourceSplit, Serializable {
   private static final long serialVersionUID = 1L;
+  private static final ThreadLocal<DataOutputSerializer> SERIALIZER_CACHE =
+      ThreadLocal.withInitial(() -> new DataOutputSerializer(1024));
 
   private final CombinedScanTask task;
 
@@ -109,6 +118,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     if (serializedBytesCache == null) {
       serializedBytesCache = InstantiationUtil.serializeObject(this);
     }
+
     return serializedBytesCache;
   }
 
@@ -119,5 +129,49 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     } catch (ClassNotFoundException e) {
       throw new RuntimeException("Failed to deserialize the split.", e);
     }
+  }
+
+  byte[] serializeV2() throws IOException {
+    if (serializedBytesCache == null) {
+      DataOutputSerializer out = SERIALIZER_CACHE.get();
+      Collection<FileScanTask> fileScanTasks = task.tasks();
+      Preconditions.checkArgument(
+          fileOffset >= 0 && fileOffset < fileScanTasks.size(),
+          "Invalid file offset: %s. Should be within the range of [0, %s)",
+          fileOffset,
+          fileScanTasks.size());
+
+      out.writeInt(fileOffset);
+      out.writeLong(recordOffset);
+      out.writeInt(fileScanTasks.size());
+
+      for (FileScanTask fileScanTask : fileScanTasks) {
+        String taskJson = FileScanTaskParser.toJson(fileScanTask);
+        out.writeUTF(taskJson);
+      }
+
+      serializedBytesCache = out.getCopyOfBuffer();
+      out.clear();
+    }
+
+    return serializedBytesCache;
+  }
+
+  static IcebergSourceSplit deserializeV2(byte[] serialized, boolean caseSensitive)
+      throws IOException {
+    DataInputDeserializer in = new DataInputDeserializer(serialized);
+    int fileOffset = in.readInt();
+    long recordOffset = in.readLong();
+    int taskCount = in.readInt();
+
+    List<FileScanTask> tasks = Lists.newArrayListWithCapacity(taskCount);
+    for (int i = 0; i < taskCount; ++i) {
+      String taskJson = in.readUTF();
+      FileScanTask task = FileScanTaskParser.fromJson(taskJson, caseSensitive);
+      tasks.add(task);
+    }
+
+    CombinedScanTask combinedScanTask = new BaseCombinedScanTask(tasks);
+    return IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, fileOffset, recordOffset);
   }
 }

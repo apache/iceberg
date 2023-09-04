@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.junit.Assert.assertThrows;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ChangelogOperation;
@@ -45,27 +47,24 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  public void createTableWith2Columns() {
+  public void createTableWithTwoColumns() {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
   }
 
-  private void createTableWith3Columns() {
+  private void createTableWithThreeColumns() {
     sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
   }
 
   private void createTableWithIdentifierField() {
     sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 
   @Test
   public void testCustomizedViewName() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
 
@@ -98,7 +97,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNoSnapshotIdInput() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -129,7 +128,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testTimestampsBasedQuery() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     long beginning = System.currentTimeMillis();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -189,7 +188,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testWithCarryovers() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -224,7 +223,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdate() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -283,7 +282,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithFilter() {
-    createTableWith2Columns();
+    createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -315,7 +314,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithMultipleIdentifierColumns() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -347,7 +346,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOvers() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -381,7 +380,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOversWithoutUpdatedRows() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -412,8 +411,73 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testNetChangesWithRemoveCarryOvers() {
+    // partitioned by id
+    createTableWithThreeColumns();
+
+    // insert rows: (1, 'a', 12) (2, 'b', 11) (2, 'e', 12)
+    sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // delete rows: (2, 'b', 11) (2, 'e', 12)
+    // insert rows: (3, 'c', 13) (2, 'd', 11) (2, 'e', 12)
+    sql("INSERT OVERWRITE %s VALUES (3, 'c', 13), (2, 'd', 11), (2, 'e', 12)", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // delete rows: (2, 'd', 11) (2, 'e', 12) (3, 'c', 13)
+    // insert rows: (3, 'c', 15) (2, 'e', 12)
+    sql("INSERT OVERWRITE %s VALUES (3, 'c', 15), (2, 'e', 12)", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // test with all snapshots
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(3, "c", 15, INSERT, 2, snap3.snapshotId()),
+            row(2, "e", 12, INSERT, 2, snap3.snapshotId())),
+        sql("select * from %s order by _change_ordinal, data", viewName));
+
+    // test with snap2 and snap3
+    sql(
+        "CALL %s.system.create_changelog_view(table => '%s', "
+            + "options => map('start-snapshot-id','%s'), "
+            + "net_changes => true)",
+        catalogName, tableName, snap1.snapshotId());
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", 11, DELETE, 0, snap2.snapshotId()),
+            row(3, "c", 15, INSERT, 1, snap3.snapshotId())),
+        sql("select * from %s order by _change_ordinal, data", viewName));
+  }
+
+  @Test
+  public void testNetChangesWithComputeUpdates() {
+    createTableWithTwoColumns();
+    assertThrows(
+        "Should fail because net_changes is not supported with computing updates",
+        IllegalArgumentException.class,
+        () ->
+            sql(
+                "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
+                catalogName, tableName));
+  }
+
+  @Test
   public void testNotRemoveCarryOvers() {
-    createTableWith3Columns();
+    createTableWithThreeColumns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
     Table table = validationCatalog.loadTable(tableIdent);

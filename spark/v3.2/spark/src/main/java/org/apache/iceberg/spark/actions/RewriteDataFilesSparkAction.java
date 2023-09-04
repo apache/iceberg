@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -38,9 +37,8 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
-import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.BinPackStrategy;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -157,7 +155,7 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
-      return new BaseRewriteDataFilesResult(ImmutableList.of());
+      return ImmutableRewriteDataFiles.Result.builder().build();
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
@@ -175,7 +173,7 @@ public class RewriteDataFilesSparkAction
 
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
-      return new BaseRewriteDataFilesResult(Collections.emptyList());
+      return ImmutableRewriteDataFiles.Result.builder().build();
     }
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
@@ -334,7 +332,7 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return new BaseRewriteDataFilesResult(rewriteResults);
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
   }
 
   private Result doExecuteWithPartialProgress(
@@ -374,7 +372,7 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return new BaseRewriteDataFilesResult(rewriteResults);
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
   }
 
   Stream<RewriteFileGroup> toGroupStream(
@@ -392,8 +390,11 @@ public class RewriteDataFilesSparkAction
                             int globalIndex = ctx.currentGlobalIndex();
                             int partitionIndex = ctx.currentPartitionIndex(partition);
                             FileGroupInfo info =
-                                new BaseRewriteDataFilesFileGroupInfo(
-                                    globalIndex, partitionIndex, partition);
+                                ImmutableRewriteDataFiles.FileGroupInfo.builder()
+                                    .globalIndex(globalIndex)
+                                    .partitionIndex(partitionIndex)
+                                    .partition(partition)
+                                    .build();
                             return new RewriteFileGroup(info, tasks);
                           });
                 });

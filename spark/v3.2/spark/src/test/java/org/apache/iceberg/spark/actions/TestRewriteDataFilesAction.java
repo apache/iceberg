@@ -84,6 +84,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -94,6 +95,7 @@ import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -253,9 +255,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     shouldHaveFiles(table, 8);
     table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles =
-        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
@@ -299,9 +299,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     shouldHaveFiles(table, 1);
     table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles =
-        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
@@ -373,7 +371,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackWithStartingSequenceNumberV1Compatibility() {
-    Table table = createTablePartitioned(4, 2);
+    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "1");
+    Table table = createTablePartitioned(4, 2, SCALE, properties);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
     table.refresh();

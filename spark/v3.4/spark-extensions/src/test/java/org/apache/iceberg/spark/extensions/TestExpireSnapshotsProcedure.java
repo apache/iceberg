@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Snapshot;
@@ -164,44 +163,36 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    AssertHelpers.assertThrows(
-        "Should reject call",
-        ValidationException.class,
-        "Cannot expire snapshots: GC is disabled",
-        () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot expire snapshots: GC is disabled");
   }
 
   @Test
   public void testInvalidExpireSnapshotsCases() {
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.expire_snapshots not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.expire_snapshots()", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Missing required parameters: [table]");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type",
-        () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Wrong arg type for older_than: cannot cast DecimalType(2,1) to TimestampType");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.expire_snapshots('')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
   @Test
@@ -219,14 +210,13 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg",
         anotherCatalog, tableIdent);
 
-    AssertHelpers.assertThrows(
-        "Should reject calls for a table in another catalog",
-        IllegalArgumentException.class,
-        "Cannot run procedure in catalog",
-        () ->
-            sql(
-                "CALL %s.system.expire_snapshots('%s')",
-                catalogName, anotherCatalog + "." + tableName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.expire_snapshots('%s')",
+                    catalogName, anotherCatalog + "." + tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot run procedure in catalog");
   }
 
   @Test
@@ -256,23 +246,21 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   public void testConcurrentExpireSnapshotsWithInvalidInput() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows(
-        "Should throw an error when max_concurrent_deletes = 0",
-        IllegalArgumentException.class,
-        "max_concurrent_deletes should have value > 0",
-        () ->
-            sql(
-                "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
-                catalogName, tableIdent, 0));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+                    catalogName, tableIdent, 0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("max_concurrent_deletes should have value > 0, value: 0");
 
-    AssertHelpers.assertThrows(
-        "Should throw an error when max_concurrent_deletes < 0 ",
-        IllegalArgumentException.class,
-        "max_concurrent_deletes should have value > 0",
-        () ->
-            sql(
-                "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
-                catalogName, tableIdent, -1));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+                    catalogName, tableIdent, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("max_concurrent_deletes should have value > 0, value: -1");
   }
 
   @Test
@@ -405,19 +393,18 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
 
-    AssertHelpers.assertThrows(
-        "Should reject call",
-        IllegalArgumentException.class,
-        "Cannot expire",
-        () ->
-            sql(
-                "CALL %s.system.expire_snapshots("
-                    + "table => '%s',"
-                    + "snapshot_ids => ARRAY(%d, %d))",
-                catalogName,
-                tableIdent,
-                table.currentSnapshot().snapshotId(),
-                table.currentSnapshot().parentId()));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.expire_snapshots("
+                        + "table => '%s',"
+                        + "snapshot_ids => ARRAY(%d, %d))",
+                    catalogName,
+                    tableIdent,
+                    table.currentSnapshot().snapshotId(),
+                    table.currentSnapshot().parentId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot expire");
   }
 
   @Test

@@ -63,7 +63,6 @@ public class DefaultCounter implements Counter {
 
   @Override
   public void increment(long amount) {
-    Math.addExact(counter.longValue(), amount);
     counter.add(amount);
   }
 
@@ -107,7 +106,6 @@ public class DefaultCounter implements Counter {
 
     @Override
     public void increment(Integer amount) {
-      Math.addExact(counter.intValue(), amount);
       DefaultCounter.this.increment(amount);
     }
 
@@ -118,7 +116,11 @@ public class DefaultCounter implements Counter {
 
     @Override
     public Integer value() {
-      return counter.intValue();
+      long value = counter.longValue();
+      if (value > Integer.MAX_VALUE) {
+        throw new ArithmeticException("integer overflow");
+      }
+      return (int) value;
     }
 
     @Override

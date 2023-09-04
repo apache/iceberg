@@ -33,8 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
@@ -50,7 +49,8 @@ public class TestIcebergToGlueConverter {
 
   @Test
   public void testToDatabaseName() {
-    Assert.assertEquals("db", IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false));
+    Assertions.assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false))
+        .isEqualTo("db");
   }
 
   @Test
@@ -78,7 +78,8 @@ public class TestIcebergToGlueConverter {
     List<Namespace> acceptableNames =
         Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db-1-1-1"));
     for (Namespace name : acceptableNames) {
-      Assert.assertEquals(name.toString(), IcebergToGlueConverter.toDatabaseName(name, true));
+      Assertions.assertThat(IcebergToGlueConverter.toDatabaseName(name, true))
+          .isEqualTo(name.toString());
     }
   }
 
@@ -90,7 +91,8 @@ public class TestIcebergToGlueConverter {
             TableIdentifier.parse("db.a-1-1"),
             TableIdentifier.parse("db.a#1"));
     for (TableIdentifier identifier : acceptableIdentifiers) {
-      Assert.assertEquals(identifier.name(), IcebergToGlueConverter.getTableName(identifier, true));
+      Assertions.assertThat(IcebergToGlueConverter.getTableName(identifier, true))
+          .isEqualTo(identifier.name());
     }
   }
 
@@ -106,19 +108,25 @@ public class TestIcebergToGlueConverter {
             "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
-    Assert.assertEquals("Description should be set", "description", databaseInput.description());
-    Assert.assertEquals(
-        "Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
-    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
+    Assertions.assertThat(databaseInput.locationUri())
+        .as("Location should be set")
+        .isEqualTo("s3://location");
+    Assertions.assertThat(databaseInput.description())
+        .as("Description should be set")
+        .isEqualTo("description");
+    Assertions.assertThat(databaseInput.parameters())
+        .as("Parameters should be set")
+        .isEqualTo(ImmutableMap.of("key", "val"));
+    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
   public void testToDatabaseInputNoParameter() {
     DatabaseInput input = DatabaseInput.builder().name("db").parameters(ImmutableMap.of()).build();
     Namespace namespace = Namespace.of("db");
-    Assert.assertEquals(
-        input, IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false));
+    Assertions.assertThat(
+            IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false))
+        .isEqualTo(input);
   }
 
   @Test
@@ -128,11 +136,14 @@ public class TestIcebergToGlueConverter {
             IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assert.assertNull("Location should not be set", databaseInput.locationUri());
-    Assert.assertEquals("Description should be set", "description", databaseInput.description());
-    Assert.assertEquals(
-        "Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
-    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
+    Assertions.assertThat(databaseInput.locationUri()).as("Location should not be set").isNull();
+    Assertions.assertThat(databaseInput.description())
+        .as("Description should be set")
+        .isEqualTo("description");
+    Assertions.assertThat(databaseInput.parameters())
+        .as("Parameters should be set")
+        .isEqualTo(ImmutableMap.of("key", "val"));
+    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
@@ -141,11 +152,14 @@ public class TestIcebergToGlueConverter {
         ImmutableMap.of(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
-    Assert.assertNull("Description should not be set", databaseInput.description());
-    Assert.assertEquals(
-        "Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
-    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
+    Assertions.assertThat(databaseInput.locationUri())
+        .as("Location should be set")
+        .isEqualTo("s3://location");
+    Assertions.assertThat(databaseInput.description()).as("Description should not be set").isNull();
+    Assertions.assertThat(databaseInput.parameters())
+        .as("Parameters should be set")
+        .isEqualTo(ImmutableMap.of("key", "val"));
+    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
@@ -199,18 +213,15 @@ public class TestIcebergToGlueConverter {
                     .build())
             .build();
 
-    Assert.assertEquals(
-        "additionalLocations should match",
-        expectedTableInput.storageDescriptor().additionalLocations(),
-        actualTableInput.storageDescriptor().additionalLocations());
-    Assert.assertEquals(
-        "Location should match",
-        expectedTableInput.storageDescriptor().location(),
-        actualTableInput.storageDescriptor().location());
-    Assert.assertEquals(
-        "Columns should match",
-        expectedTableInput.storageDescriptor().columns(),
-        actualTableInput.storageDescriptor().columns());
+    Assertions.assertThat(actualTableInput.storageDescriptor().additionalLocations())
+        .as("additionalLocations should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().additionalLocations());
+    Assertions.assertThat(actualTableInput.storageDescriptor().location())
+        .as("Location should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().location());
+    Assertions.assertThat(actualTableInput.storageDescriptor().columns())
+        .as("Columns should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
 
   @Test
@@ -268,17 +279,14 @@ public class TestIcebergToGlueConverter {
                     .build())
             .build();
 
-    Assert.assertEquals(
-        "additionalLocations should match",
-        expectedTableInput.storageDescriptor().additionalLocations(),
-        actualTableInput.storageDescriptor().additionalLocations());
-    Assert.assertEquals(
-        "Location should match",
-        expectedTableInput.storageDescriptor().location(),
-        actualTableInput.storageDescriptor().location());
-    Assert.assertEquals(
-        "Columns should match",
-        expectedTableInput.storageDescriptor().columns(),
-        actualTableInput.storageDescriptor().columns());
+    Assertions.assertThat(actualTableInput.storageDescriptor().additionalLocations())
+        .as("additionalLocations should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().additionalLocations());
+    Assertions.assertThat(actualTableInput.storageDescriptor().location())
+        .as("Location should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().location());
+    Assertions.assertThat(actualTableInput.storageDescriptor().columns())
+        .as("Columns should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
 }

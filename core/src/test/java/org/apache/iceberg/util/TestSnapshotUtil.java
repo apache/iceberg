@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.util.Iterator;
@@ -34,16 +35,13 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSnapshotUtil {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
+  @TempDir private File tableDir;
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
@@ -52,7 +50,6 @@ public class TestSnapshotUtil {
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).build();
 
-  protected File tableDir = null;
   protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
@@ -81,9 +78,8 @@ public class TestSnapshotUtil {
     return appendFileTo(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Before
+  @BeforeEach
   public void before() throws Exception {
-    this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
@@ -110,26 +106,26 @@ public class TestSnapshotUtil {
     table.expireSnapshots().expireSnapshotId(snapshotFork0Id).commit();
   }
 
-  @After
+  @AfterEach
   public void cleanupTables() {
     TestTables.clearTables();
   }
 
   @Test
   public void isParentAncestorOf() {
-    Assert.assertTrue(SnapshotUtil.isParentAncestorOf(table, snapshotMain1Id, snapshotBaseId));
-    Assert.assertFalse(SnapshotUtil.isParentAncestorOf(table, snapshotBranchId, snapshotMain1Id));
-    Assert.assertTrue(SnapshotUtil.isParentAncestorOf(table, snapshotFork2Id, snapshotFork0Id));
+    assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotMain1Id, snapshotBaseId)).isTrue();
+    assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotBranchId, snapshotMain1Id)).isFalse();
+    assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotFork2Id, snapshotFork0Id)).isTrue();
   }
 
   @Test
   public void isAncestorOf() {
-    Assert.assertTrue(SnapshotUtil.isAncestorOf(table, snapshotMain1Id, snapshotBaseId));
-    Assert.assertFalse(SnapshotUtil.isAncestorOf(table, snapshotBranchId, snapshotMain1Id));
-    Assert.assertFalse(SnapshotUtil.isAncestorOf(table, snapshotFork2Id, snapshotFork0Id));
+    assertThat(SnapshotUtil.isAncestorOf(table, snapshotMain1Id, snapshotBaseId)).isTrue();
+    assertThat(SnapshotUtil.isAncestorOf(table, snapshotBranchId, snapshotMain1Id)).isFalse();
+    assertThat(SnapshotUtil.isAncestorOf(table, snapshotFork2Id, snapshotFork0Id)).isFalse();
 
-    Assert.assertTrue(SnapshotUtil.isAncestorOf(table, snapshotMain1Id));
-    Assert.assertFalse(SnapshotUtil.isAncestorOf(table, snapshotBranchId));
+    assertThat(SnapshotUtil.isAncestorOf(table, snapshotMain1Id)).isTrue();
+    assertThat(SnapshotUtil.isAncestorOf(table, snapshotBranchId)).isFalse();
   }
 
   @Test
@@ -138,29 +134,28 @@ public class TestSnapshotUtil {
     expectedSnapshots(new long[] {snapshotMain2Id, snapshotMain1Id, snapshotBaseId}, snapshots);
 
     List<Long> snapshotList = SnapshotUtil.currentAncestorIds(table);
-    Assert.assertArrayEquals(
-        new Long[] {snapshotMain2Id, snapshotMain1Id, snapshotBaseId},
-        snapshotList.toArray(new Long[0]));
+    assertThat(snapshotList.toArray(new Long[0]))
+        .isEqualTo(new Long[] {snapshotMain2Id, snapshotMain1Id, snapshotBaseId});
   }
 
   @Test
   public void oldestAncestor() {
     Snapshot snapshot = SnapshotUtil.oldestAncestor(table);
-    Assert.assertEquals(snapshotBaseId, snapshot.snapshotId());
+    assertThat(snapshot.snapshotId()).isEqualTo(snapshotBaseId);
 
     snapshot = SnapshotUtil.oldestAncestorOf(table, snapshotMain2Id);
-    Assert.assertEquals(snapshotBaseId, snapshot.snapshotId());
+    assertThat(snapshot.snapshotId()).isEqualTo(snapshotBaseId);
 
     snapshot = SnapshotUtil.oldestAncestorAfter(table, snapshotBaseTimestamp + 1);
-    Assert.assertEquals(snapshotMain1Id, snapshot.snapshotId());
+    assertThat(snapshot.snapshotId()).isEqualTo(snapshotMain1Id);
   }
 
   @Test
   public void snapshotsBetween() {
     List<Long> snapshotIdsBetween =
         SnapshotUtil.snapshotIdsBetween(table, snapshotBaseId, snapshotMain2Id);
-    Assert.assertArrayEquals(
-        new Long[] {snapshotMain2Id, snapshotMain1Id}, snapshotIdsBetween.toArray(new Long[0]));
+    assertThat(snapshotIdsBetween.toArray(new Long[0]))
+        .isEqualTo(new Long[] {snapshotMain2Id, snapshotMain1Id});
 
     Iterable<Snapshot> ancestorsBetween =
         SnapshotUtil.ancestorsBetween(table, snapshotMain2Id, snapshotMain1Id);
@@ -190,6 +185,6 @@ public class TestSnapshotUtil {
         StreamSupport.stream(snapshotsActual.spliterator(), false)
             .mapToLong(Snapshot::snapshotId)
             .toArray();
-    Assert.assertArrayEquals(snapshotIdExpected, actualSnapshots);
+    assertThat(actualSnapshots).isEqualTo(snapshotIdExpected);
   }
 }

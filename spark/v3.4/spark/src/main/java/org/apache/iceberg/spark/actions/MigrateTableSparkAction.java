@@ -56,8 +56,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
-  private final Identifier backupIdent;
 
+  private Identifier backupIdent;
   private boolean dropBackup = false;
 
   MigrateTableSparkAction(
@@ -99,6 +99,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   @Override
   public MigrateTableSparkAction dropBackup() {
     this.dropBackup = true;
+    return this;
+  }
+
+  @Override
+  public MigrateTableSparkAction backupTableName(String tableName) {
+    this.backupIdent = Identifier.of(sourceTableIdent().namespace(), tableName);
     return this;
   }
 
