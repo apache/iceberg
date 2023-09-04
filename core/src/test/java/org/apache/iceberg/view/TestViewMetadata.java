@@ -21,15 +21,15 @@ package org.apache.iceberg.view;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
@@ -67,13 +67,23 @@ public class TestViewMetadata {
 
     Set<Integer> versionsById = ImmutableSet.of(2, 3);
 
-    List<ViewHistoryEntry> history = ImmutableList.of(
-        ImmutableViewHistoryEntry.builder().versionId(v1.versionId()).timestampMillis(v1.timestampMillis()).build(),
-        ImmutableViewHistoryEntry.builder().versionId(v2.versionId()).timestampMillis(v2.timestampMillis()).build(),
-        ImmutableViewHistoryEntry.builder().versionId(v3.versionId()).timestampMillis(v3.timestampMillis()).build()
-    );
+    List<ViewHistoryEntry> history =
+        ImmutableList.of(
+            ImmutableViewHistoryEntry.builder()
+                .versionId(v1.versionId())
+                .timestampMillis(v1.timestampMillis())
+                .build(),
+            ImmutableViewHistoryEntry.builder()
+                .versionId(v2.versionId())
+                .timestampMillis(v2.timestampMillis())
+                .build(),
+            ImmutableViewHistoryEntry.builder()
+                .versionId(v3.versionId())
+                .timestampMillis(v3.timestampMillis())
+                .build());
 
-    List<ViewHistoryEntry> retainedHistory = ViewMetadata.Builder.updateHistory(history, versionsById);
+    List<ViewHistoryEntry> retainedHistory =
+        ViewMetadata.Builder.updateHistory(history, versionsById);
     assertThat(retainedHistory).hasSameElementsAs(history.subList(1, 3));
   }
 

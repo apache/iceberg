@@ -29,7 +29,6 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -117,13 +116,11 @@ public interface ViewMetadata extends Serializable {
   }
 
   @Value.Check
-  default ViewMetadata checkAndNormalize() {
+  default void check() {
     Preconditions.checkArgument(
         formatVersion() > 0 && formatVersion() <= ViewMetadata.SUPPORTED_VIEW_FORMAT_VERSION,
         "Unsupported format version: %s",
         formatVersion());
-
-    return this;
   }
 
   static Builder builder() {
@@ -391,12 +388,12 @@ public interface ViewMetadata extends Serializable {
       return ImmutableViewMetadata.of(
           formatVersion,
           location,
-          ImmutableList.copyOf(schemas),
+          schemas,
           currentVersionId,
-          ImmutableList.copyOf(retainedVersions),
-          ImmutableList.copyOf(retainedHistory),
-          ImmutableMap.copyOf(properties),
-          ImmutableList.copyOf(changes));
+          retainedVersions,
+          retainedHistory,
+          properties,
+          changes);
     }
 
     static List<ViewVersion> expireVersions(
