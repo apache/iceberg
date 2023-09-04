@@ -85,6 +85,7 @@ def _construct_create_table_input(table_name: str, metadata_location: str, prope
 def _construct_rename_table_input(to_table_name: str, glue_table: TableTypeDef) -> TableInputTypeDef:
     rename_table_input: TableInputTypeDef = {"Name": to_table_name}
     # use the same Glue info to create the new table, pointing to the old metadata
+    assert glue_table["TableType"]
     rename_table_input["TableType"] = glue_table["TableType"]
     if "Owner" in glue_table:
         rename_table_input["Owner"] = glue_table["Owner"]
@@ -135,23 +136,25 @@ class GlueCatalog(Catalog):
     def _convert_glue_to_iceberg(self, glue_table: TableTypeDef) -> Table:
         properties: Properties = glue_table["Parameters"]
 
+        assert glue_table["DatabaseName"]
+        assert glue_table["Parameters"]
         database_name = glue_table["DatabaseName"]
         table_name = glue_table["Name"]
 
         if TABLE_TYPE not in properties:
             raise NoSuchPropertyException(
-                f"Property {TABLE_TYPE} missing, could not determine type: " f"{database_name}.{table_name}"
+                f"Property {TABLE_TYPE} missing, could not determine type: {database_name}.{table_name}"
             )
         glue_table_type = properties[TABLE_TYPE]
 
         if glue_table_type.lower() != ICEBERG:
             raise NoSuchIcebergTableError(
-                f"Property table_type is {glue_table_type}, expected {ICEBERG}: " f"{database_name}.{table_name}"
+                f"Property table_type is {glue_table_type}, expected {ICEBERG}: {database_name}.{table_name}"
             )
 
         if METADATA_LOCATION not in properties:
             raise NoSuchPropertyException(
-                f"Table property {METADATA_LOCATION} is missing, cannot find metadata for: " f"{database_name}.{table_name}"
+                f"Table property {METADATA_LOCATION} is missing, cannot find metadata for: {database_name}.{table_name}"
             )
         metadata_location = properties[METADATA_LOCATION]
 
