@@ -291,8 +291,6 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
-    annotationProcessor libs.immutables.value
-    compileOnly libs.immutables.value
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
   }
@@ -517,6 +515,27 @@ project(':iceberg-aws') {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
+  }
+}
+
+project(':iceberg-azure') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    compileOnly platform(libs.azuresdk.bom)
+    compileOnly "com.azure:azure-storage-file-datalake"
+    compileOnly "com.azure:azure-identity"
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.testcontainers
   }
 }
 

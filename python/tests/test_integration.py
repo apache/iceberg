@@ -229,7 +229,7 @@ def test_pyarrow_to_iceberg_all_types(table_test_all_types: Table) -> None:
         uri = urlparse(data_file_path)
         with fs.open_input_file(f"{uri.netloc}{uri.path}") as fout:
             parquet_schema = pq.read_schema(fout)
-            stored_iceberg_schema = Schema.parse_raw(parquet_schema.metadata.get(b"iceberg.schema"))
+            stored_iceberg_schema = Schema.model_validate_json(parquet_schema.metadata.get(b"iceberg.schema"))
             converted_iceberg_schema = pyarrow_to_schema(parquet_schema)
             assert converted_iceberg_schema == stored_iceberg_schema
 

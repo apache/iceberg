@@ -66,7 +66,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       IncrementalChangelogScan scan,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
+      List<Expression> filters,
+      boolean emptyScan) {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
@@ -79,6 +80,9 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
+    if (emptyScan) {
+      this.taskGroups = Collections.emptyList();
+    }
   }
 
   @Override

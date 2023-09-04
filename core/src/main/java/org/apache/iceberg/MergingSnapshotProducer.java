@@ -157,16 +157,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return deleteExpression;
   }
 
-  /**
-   * Returns added data files.
-   *
-   * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link #addedDataFiles()}.
-   */
-  @Deprecated
-  protected List<DataFile> addedFiles() {
-    return addedDataFiles();
-  }
-
   protected List<DataFile> addedDataFiles() {
     return ImmutableList.copyOf(newDataFiles);
   }
@@ -688,25 +678,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return manifestGroup.entries();
   }
 
-  /**
-   * Sets a data sequence number for new data files.
-   *
-   * @param sequenceNumber a data sequence number
-   * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link
-   *     #setNewDataFilesDataSequenceNumber(long)};
-   */
-  @Deprecated
-  protected void setNewFilesSequenceNumber(long sequenceNumber) {
-    setNewDataFilesDataSequenceNumber(sequenceNumber);
-  }
-
   protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {
     this.newDataFilesDataSequenceNumber = sequenceNumber;
   }
 
-  private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
-    if (staringSnapshotId != null && metadata.snapshot(staringSnapshotId) != null) {
-      Snapshot startingSnapshot = metadata.snapshot(staringSnapshotId);
+  private long startingSequenceNumber(TableMetadata metadata, Long startingSnapshotId) {
+    if (startingSnapshotId != null && metadata.snapshot(startingSnapshotId) != null) {
+      Snapshot startingSnapshot = metadata.snapshot(startingSnapshotId);
       return startingSnapshot.sequenceNumber();
     } else {
       return TableMetadata.INITIAL_SEQUENCE_NUMBER;

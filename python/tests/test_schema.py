@@ -86,7 +86,7 @@ def test_schema_str(table_schema_simple: Schema) -> None:
 
 def test_schema_repr_single_field() -> None:
     """Test schema representation"""
-    actual = repr(schema.Schema(NestedField(1, "foo", StringType()), schema_id=1))
+    actual = repr(schema.Schema(NestedField(field_id=1, name="foo", field_type=StringType()), schema_id=1))
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
 
@@ -94,7 +94,11 @@ def test_schema_repr_single_field() -> None:
 def test_schema_repr_two_fields() -> None:
     """Test schema representation"""
     actual = repr(
-        schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1)
+        schema.Schema(
+            NestedField(field_id=1, name="foo", field_type=StringType()),
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), required=False),
+            schema_id=1,
+        )
     )
     expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False), schema_id=1, identifier_field_ids=[])"
     assert expected == actual
@@ -109,7 +113,7 @@ def test_schema_raise_on_duplicate_names() -> None:
             NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
             NestedField(field_id=4, name="baz", field_type=BooleanType(), required=False),
             schema_id=1,
-            identifier_field_ids=[1],
+            identifier_field_ids=[2],
         )
 
     assert "Invalid schema, multiple fields for name baz: 3 and 4" in str(exc_info.value)
@@ -235,7 +239,7 @@ def test_schema_index_by_name_visitor(table_schema_nested: Schema) -> None:
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
     index = schema.index_by_name(table_schema_nested)
     assert index == {
@@ -330,78 +334,6 @@ def test_schema_find_field_type_by_id(table_schema_simple: Schema) -> None:
     assert index[3] == NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False)
 
 
-def test_index_by_id_schema_visitor(table_schema_nested: Schema) -> None:
-    """Test the index_by_id function that uses the IndexById schema visitor"""
-    assert schema.index_by_id(table_schema_nested) == {
-        1: NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-        2: NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-        3: NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-        4: NestedField(
-            field_id=4,
-            name="qux",
-            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
-            required=True,
-        ),
-        5: NestedField(field_id=5, name="element", field_type=StringType(), required=True),
-        6: NestedField(
-            field_id=6,
-            name="quux",
-            field_type=MapType(
-                key_id=7,
-                key_type=StringType(),
-                value_id=8,
-                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
-                value_required=True,
-            ),
-            required=True,
-        ),
-        7: NestedField(field_id=7, name="key", field_type=StringType(), required=True),
-        8: NestedField(
-            field_id=8,
-            name="value",
-            field_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
-            required=True,
-        ),
-        9: NestedField(field_id=9, name="key", field_type=StringType(), required=True),
-        10: NestedField(field_id=10, name="value", field_type=IntegerType(), required=True),
-        11: NestedField(
-            field_id=11,
-            name="location",
-            field_type=ListType(
-                element_id=12,
-                element_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-                ),
-                element_required=True,
-            ),
-            required=True,
-        ),
-        12: NestedField(
-            field_id=12,
-            name="element",
-            field_type=StructType(
-                NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-            ),
-            required=True,
-        ),
-        13: NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-        14: NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-        15: NestedField(
-            field_id=15,
-            name="person",
-            field_type=StructType(
-                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-            ),
-            required=False,
-        ),
-        16: NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-        17: NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-    }
-
-
 def test_index_by_id_schema_visitor_raise_on_unregistered_type() -> None:
     """Test raising a NotImplementedError when an invalid type is provided to the index_by_id function"""
     with pytest.raises(NotImplementedError) as exc_info:
@@ -486,28 +418,30 @@ def test_build_position_accessors_with_struct(table_schema_nested: Schema) -> No
 
 
 def test_serialize_schema(table_schema_simple: Schema) -> None:
-    actual = table_schema_simple.json()
-    expected = """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
+    actual = table_schema_simple.model_dump_json()
+    expected = """{"type":"struct","fields":[{"id":1,"name":"foo","type":"string","required":false},{"id":2,"name":"bar","type":"int","required":true},{"id":3,"name":"baz","type":"boolean","required":false}],"schema-id":1,"identifier-field-ids":[2]}"""
     assert actual == expected
 
 
 def test_deserialize_schema(table_schema_simple: Schema) -> None:
-    actual = Schema.parse_raw(
+    actual = Schema.model_validate_json(
         """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
     )
     expected = table_schema_simple
     assert actual == expected
 
 
-def test_prune_columns_string(table_schema_nested: Schema) -> None:
-    assert prune_columns(table_schema_nested, {1}, False) == Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False), schema_id=1, identifier_field_ids=[1]
+def test_prune_columns_string(table_schema_nested_with_struct_key_map: Schema) -> None:
+    assert prune_columns(table_schema_nested_with_struct_key_map, {1}, False) == Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[1]
     )
 
 
-def test_prune_columns_string_full(table_schema_nested: Schema) -> None:
-    assert prune_columns(table_schema_nested, {1}, True) == Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False), schema_id=1, identifier_field_ids=[1]
+def test_prune_columns_string_full(table_schema_nested_with_struct_key_map: Schema) -> None:
+    assert prune_columns(table_schema_nested_with_struct_key_map, {1}, True) == Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
+        schema_id=1,
+        identifier_field_ids=[1],
     )
 
 
@@ -690,7 +624,7 @@ def test_prune_columns_struct_in_map() -> None:
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
     assert prune_columns(table_schema_nested, {11}, False) == Schema(
         NestedField(
@@ -760,7 +694,7 @@ def test_schema_select(table_schema_nested: Schema) -> None:
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         schema_id=1,
-        identifier_field_ids=[],
+        identifier_field_ids=[2],
     )
 
 
@@ -790,6 +724,52 @@ def should_promote(file_type: IcebergType, read_type: IcebergType) -> bool:
     if isinstance(file_type, FixedType) and isinstance(read_type, UUIDType) and len(file_type) == 16:
         return True
     return False
+
+
+def test_identifier_fields_fails(table_schema_nested_with_struct_key_map: Schema) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[999])
+    assert "Could not find field with id: 999" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[11])
+    assert "Identifier field 11 invalid: not a primitive type field" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[3])
+    assert "Identifier field 3 invalid: not a required field" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[28])
+    assert "Identifier field 28 invalid: must not be float or double field" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[29])
+    assert "Identifier field 29 invalid: must not be float or double field" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[23])
+    assert (
+        "Cannot add field zip as an identifier field: must not be nested in %s"
+        % table_schema_nested_with_struct_key_map.find_field("location")
+        in str(exc_info.value)
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[26])
+    assert (
+        "Cannot add field x as an identifier field: must not be nested in %s"
+        % table_schema_nested_with_struct_key_map.find_field("points")
+        in str(exc_info.value)
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        Schema(*table_schema_nested_with_struct_key_map.fields, schema_id=1, identifier_field_ids=[17])
+    assert (
+        "Cannot add field age as an identifier field: must not be nested in an optional field %s"
+        % table_schema_nested_with_struct_key_map.find_field("person")
+        in str(exc_info.value)
+    )
 
 
 @pytest.mark.parametrize(

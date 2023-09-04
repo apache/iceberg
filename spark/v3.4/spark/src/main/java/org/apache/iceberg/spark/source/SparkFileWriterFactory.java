@@ -34,6 +34,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -47,6 +48,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType dataSparkType;
   private StructType equalityDeleteSparkType;
   private StructType positionDeleteSparkType;
+  private Map<String, String> writeProperties;
 
   SparkFileWriterFactory(
       Table table,
@@ -60,7 +62,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
       StructType equalityDeleteSparkType,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
-      StructType positionDeleteSparkType) {
+      StructType positionDeleteSparkType,
+      Map<String, String> writeProperties) {
 
     super(
         table,
@@ -76,6 +79,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     this.dataSparkType = dataSparkType;
     this.equalityDeleteSparkType = equalityDeleteSparkType;
     this.positionDeleteSparkType = positionDeleteSparkType;
+    this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
   }
 
   static Builder builderFor(Table table) {
@@ -85,11 +89,13 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   @Override
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
     builder.createWriterFunc(ignored -> new SparkAvroWriter(dataSparkType()));
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
     builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteSparkType()));
+    builder.setAll(writeProperties);
   }
 
   @Override
@@ -102,17 +108,21 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
       StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
       builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
     }
+
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
     builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
     builder.createWriterFunc(
         msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
+    builder.setAll(writeProperties);
   }
 
   @Override
@@ -120,22 +130,26 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     builder.createWriterFunc(
         msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
     builder.createWriterFunc(SparkOrcWriter::new);
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
     builder.createWriterFunc(SparkOrcWriter::new);
+    builder.setAll(writeProperties);
   }
 
   @Override
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
     builder.createWriterFunc(SparkOrcWriter::new);
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
+    builder.setAll(writeProperties);
   }
 
   private StructType dataSparkType() {
@@ -180,6 +194,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
     private StructType positionDeleteSparkType;
+    private Map<String, String> writeProperties;
 
     Builder(Table table) {
       this.table = table;
@@ -250,6 +265,11 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
       return this;
     }
 
+    Builder writeProperties(Map<String, String> properties) {
+      this.writeProperties = properties;
+      return this;
+    }
+
     SparkFileWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
@@ -269,7 +289,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
           equalityDeleteSparkType,
           equalityDeleteSortOrder,
           positionDeleteRowSchema,
-          positionDeleteSparkType);
+          positionDeleteSparkType,
+          writeProperties);
     }
   }
 }

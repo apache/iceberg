@@ -68,7 +68,7 @@ _DOUBLE_STRUCT = Struct("<d")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
-    """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__".
+    """Handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__".
 
     Args:
         func (Callable): A function registered to the singledispatch function `partition_to_py`.
@@ -86,7 +86,7 @@ def handle_none(func: Callable) -> Callable:  # type: ignore
 
 @singledispatch
 def partition_to_py(primitive_type: PrimitiveType, value_str: str) -> Union[int, float, str, uuid.UUID, bytes, Decimal]:
-    """A generic function which converts a partition string to a python built-in.
+    """Convert a partition string to a python built-in.
 
     Args:
         primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
@@ -109,7 +109,7 @@ def _(primitive_type: BooleanType, value_str: str) -> Union[int, float, str, uui
 @partition_to_py.register(TimestamptzType)
 @handle_none
 def _(primitive_type: PrimitiveType, value_str: str) -> int:
-    """Converts a string to an integer value.
+    """Convert a string to an integer value.
 
     Raises:
         ValueError: If the scale/exponent is not 0.
@@ -156,7 +156,7 @@ def _(_: DecimalType, value_str: str) -> Decimal:
 def to_bytes(
     primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, date, datetime, float, int, str, time, uuid.UUID]
 ) -> bytes:
-    """A generic function which converts a built-in python value to bytes.
+    """Convert a built-in python value to bytes.
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
     can be found at https://iceberg.apache.org/spec/#appendix-d-single-value-serialization
@@ -208,7 +208,7 @@ def _(_: TimeType, value: Union[time, int]) -> bytes:
 
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
-    """Converts a float value into bytes.
+    """Convert a float value into bytes.
 
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.
@@ -268,7 +268,7 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 @singledispatch
 def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
-    """A generic function which converts bytes to a built-in python value.
+    """Convert bytes to a built-in python value.
 
     Args:
         primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.

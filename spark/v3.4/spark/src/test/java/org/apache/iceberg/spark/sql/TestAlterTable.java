@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -27,7 +30,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -55,7 +57,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
 
   @Test
   public void testAddColumnNotNull() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
         .isInstanceOf(SparkException.class)
         .hasMessage(
             "Unsupported table change: Incompatible change: cannot add required column: c3");
@@ -155,7 +157,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         validationCatalog.loadTable(tableIdent).schema().asStruct());
 
     // should not allow changing map key column
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
         .isInstanceOf(SparkException.class)
         .hasMessageStartingWith("Unsupported table change: Cannot add fields to map keys:");
   }
@@ -250,8 +252,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         expectedSchema,
         validationCatalog.loadTable(tableIdent).schema().asStruct());
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s ALTER COLUMN data SET NOT NULL", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ALTER COLUMN data SET NOT NULL", tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Cannot change nullable column to non-nullable: data");
   }
@@ -308,21 +309,23 @@ public class TestAlterTable extends SparkCatalogTestBase {
   public void testSetTableProperties() {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('prop'='value')", tableName);
 
-    Assert.assertEquals(
-        "Should have the new table property",
-        "value",
-        validationCatalog.loadTable(tableIdent).properties().get("prop"));
+    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+        .as("Should have the new table property")
+        .isEqualTo("value");
 
     sql("ALTER TABLE %s UNSET TBLPROPERTIES ('prop')", tableName);
 
-    Assert.assertNull(
-        "Should not have the removed table property",
-        validationCatalog.loadTable(tableIdent).properties().get("prop"));
+    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+        .as("Should not have the removed table property")
+        .isNull();
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('sort-order'='value')", tableName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith(
-            "Cannot specify the 'sort-order' because it's a reserved table property");
+    String[] reservedProperties = new String[] {"sort-order", "identifier-fields"};
+    for (String reservedProp : reservedProperties) {
+      assertThatThrownBy(
+              () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='value')", tableName, reservedProp))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageStartingWith(
+              "Cannot specify the '%s' because it's a reserved table property", reservedProp);
+    }
   }
 }
