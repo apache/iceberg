@@ -289,6 +289,11 @@ class BaseSnapshot implements Snapshot {
   }
 
   @Override
+  public String partitionStatsFileLocation() {
+    return summary.get(SnapshotSummary.PARTITION_STATS_FILE_LOCATION);
+  }
+
+  @Override
   public boolean equals(Object o) {
     if (this == o) {
       return true;

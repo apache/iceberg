@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -36,6 +37,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -200,6 +202,19 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     apply.addAll(base.currentSnapshot().deleteManifests(ops.io()));
 
     return apply;
+  }
+
+  @Override
+  protected String writeUpdatedPartitionStats(long snapshotCreatedTimeInMillis) {
+    OutputFile outputFile = newPartitionStatsFile();
+    // get entries from base snapshot and use it for current snapshot.
+    try (CloseableIterable<Partition> recordIterator = partitionStatsEntriesFromParentSnapshot()) {
+      writePartitionStatsEntries(recordIterator, outputFile);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return outputFile.location();
   }
 
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {

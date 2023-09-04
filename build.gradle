@@ -882,6 +882,7 @@ project(':iceberg-nessie') {
 
       testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
       testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+      testImplementation libs.hadoop2.mapreduce.client.core
 
       // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
       testCompileOnly libs.microprofile.openapi.api

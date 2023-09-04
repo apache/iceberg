@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -124,10 +125,16 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         "Incorrect number of manifest lists deleted",
         expectedManifestListsDeleted,
         results.deletedManifestListsCount());
+    long expected = expectedOtherFilesDeleted;
+    if (PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.PARTITION_STATS_ENABLED,
+        TableProperties.PARTITION_STATS_ENABLED_DEFAULT)) {
+      // one partition stats file per snapshot (or manifestList)
+      expected += expectedManifestListsDeleted;
+    }
     Assert.assertEquals(
-        "Incorrect number of other lists deleted",
-        expectedOtherFilesDeleted,
-        results.deletedOtherFilesCount());
+        "Incorrect number of other lists deleted", expected, results.deletedOtherFilesCount());
   }
 
   @Test

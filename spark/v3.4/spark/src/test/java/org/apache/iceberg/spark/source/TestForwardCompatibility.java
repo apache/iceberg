@@ -199,7 +199,14 @@ public class TestForwardCompatibility {
       manifestWriter.close();
     }
 
+    table.updateProperties().set(TableProperties.PARTITION_STATS_ENABLED, "false").commit();
     table.newFastAppend().appendManifest(manifestWriter.toManifestFile()).commit();
+    table
+        .updateProperties()
+        .set(
+            TableProperties.PARTITION_STATS_ENABLED,
+            String.valueOf(TableProperties.PARTITION_STATS_ENABLED_DEFAULT))
+        .commit();
 
     Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 

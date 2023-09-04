@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -35,11 +36,14 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
+import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
@@ -454,6 +458,18 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             table.io());
     table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
 
+    String partitionStatsFileLocation1 = statsFileLocation(table.location());
+    PartitionStatisticsFile partitionStatisticsFile1 =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            partitionStatsFileLocation1,
+            table.io());
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(partitionStatisticsFile1.snapshotId(), partitionStatisticsFile1)
+        .commit();
+
     sql("INSERT INTO %s SELECT 20, 'def'", tableName);
     table.refresh();
     String statsFileLocation2 = statsFileLocation(table.location());
@@ -465,6 +481,18 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             table.io());
     table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
 
+    String partitionStatsFileLocation2 = statsFileLocation(table.location());
+    PartitionStatisticsFile partitionStatisticsFile2 =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            partitionStatsFileLocation2,
+            table.io());
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(partitionStatisticsFile2.snapshotId(), partitionStatisticsFile2)
+        .commit();
+
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
@@ -472,7 +500,9 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         sql(
             "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
-    Assertions.assertThat(output.get(0)[5]).as("should be 1 deleted statistics file").isEqualTo(1L);
+    Assertions.assertThat(output.get(0)[5])
+        .as("should be 1 deleted statistics file and 1 partition statistics file")
+        .isEqualTo(2L);
 
     table.refresh();
     List<StatisticsFile> statsWithSnapshotId1 =
@@ -497,6 +527,36 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     Assertions.assertThat(new File(statsFileLocation2))
         .as("Statistics file should exist for snapshot %s", statisticsFile2.snapshotId())
+        .exists();
+
+    List<PartitionStatisticsFile> partitionStatsWithSnapshotId1 =
+        table.partitionStatisticsFiles().stream()
+            .filter(
+                statisticsFile ->
+                    statisticsFile.snapshotId() == partitionStatisticsFile1.snapshotId())
+            .collect(Collectors.toList());
+    Assertions.assertThat(partitionStatsWithSnapshotId1)
+        .as(
+            "Partition statistics file entry in TableMetadata should be deleted for the snapshot %s",
+            partitionStatisticsFile1.snapshotId())
+        .isEmpty();
+    Assertions.assertThat(table.partitionStatisticsFiles())
+        .as(
+            "Partition statistics file entry in TableMetadata should be present for the snapshot %s",
+            partitionStatisticsFile2.snapshotId())
+        .extracting(PartitionStatisticsFile::snapshotId)
+        .containsExactly(partitionStatisticsFile2.snapshotId());
+
+    Assertions.assertThat(new File(partitionStatsFileLocation1))
+        .as(
+            "Partition statistics file should not exist for snapshot %s",
+            partitionStatisticsFile1.snapshotId())
+        .doesNotExist();
+
+    Assertions.assertThat(new File(partitionStatsFileLocation2))
+        .as(
+            "Partition statistics file should exist for snapshot %s",
+            partitionStatisticsFile2.snapshotId())
         .exists();
   }
 
@@ -527,5 +587,21 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   private String statsFileLocation(String tableLocation) {
     String statsFileName = "stats-file-" + UUID.randomUUID();
     return tableLocation.replaceFirst("file:", "") + "/metadata/" + statsFileName;
+  }
+
+  private PartitionStatisticsFile writePartitionStatsFile(
+      long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO) {
+    PositionOutputStream positionOutputStream;
+    try {
+      positionOutputStream = fileIO.newOutputFile(statsLocation).create();
+      positionOutputStream.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return ImmutableGenericPartitionStatisticsFile.builder()
+        .snapshotId(snapshotId)
+        .maxDataSequenceNumber(snapshotSequenceNumber)
+        .path(statsLocation)
+        .build();
   }
 }

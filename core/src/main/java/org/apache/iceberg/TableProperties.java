@@ -365,4 +365,7 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String PARTITION_STATS_ENABLED = "write.partition.statistics";
+  public static final boolean PARTITION_STATS_ENABLED_DEFAULT = true;
 }

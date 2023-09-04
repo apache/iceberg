@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -617,7 +619,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
 
-    Set<String> expectedDeletes = Sets.newHashSet();
+    Set<CharSequence> expectedDeletes = Sets.newHashSet();
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
@@ -639,6 +641,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
                 expectedDeletes.add(file.path());
               }
             });
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(snapshotA, snapshotB), expectedDeletes);
     Assert.assertSame(
         "Files deleted count should be expected", expectedDeletes.size(), deletedFiles.size());
     // Take the diff
@@ -798,10 +801,9 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         table.currentSnapshot().snapshotId());
     Assert.assertNull(
         "Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
-    Assert.assertEquals(
-        "Should remove only the expired manifest list location",
-        Sets.newHashSet(firstSnapshot.manifestListLocation()),
-        deletedFiles);
+    Set<CharSequence> expected = Sets.newHashSet(firstSnapshot.manifestListLocation());
+    checkAndAddPartitionStatsFiles(Collections.singleton(firstSnapshot), expected);
+    Assert.assertEquals("Should remove expected files", expected, deletedFiles);
 
     checkExpirationResults(0, 0, 0, 0, 1, result);
   }
@@ -851,8 +853,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         "Expire should remove the second oldest snapshot",
         table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and deleted data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
             firstSnapshot
@@ -864,7 +865,11 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
                 .allManifests(table.io())
                 .get(0)
                 .path(), // manifest contained only deletes, was dropped
-            FILE_A.path()), // deleted
+            FILE_A.path());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(firstSnapshot, secondSnapshot), expected);
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // deleted
         deletedFiles);
 
     checkExpirationResults(1, 0, 0, 2, 2, result);
@@ -924,8 +929,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         "Expire should remove the second oldest snapshot",
         table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and deleted data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
             firstSnapshot
@@ -933,7 +937,11 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
                 .get(0)
                 .path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
-            FILE_A.path()), // deleted
+            FILE_A.path());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(firstSnapshot, secondSnapshot), expected);
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // deleted
         deletedFiles);
 
     checkExpirationResults(1, 0, 0, 1, 2, result);
@@ -986,12 +994,14 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertNull(
         "Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and reverted appended data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
-            Iterables.getOnlyElement(secondSnapshotManifests)
-                .path()), // manifest is no longer referenced
+            Iterables.getOnlyElement(secondSnapshotManifests).path());
+    checkAndAddPartitionStatsFiles(Collections.singleton(secondSnapshot), expected);
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // manifest is no longer referenced
         deletedFiles);
 
     checkExpirationResults(0, 0, 0, 1, 1, result);
@@ -1041,13 +1051,16 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertNull(
         "Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and reverted appended data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests)
                 .path(), // manifest is no longer referenced
-            FILE_B.path()), // added, but rolled back
+            FILE_B.path());
+    checkAndAddPartitionStatsFiles(Collections.singleton(secondSnapshot), expected);
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // added, but rolled back
         deletedFiles);
 
     checkExpirationResults(1, 0, 0, 1, 1, result);
@@ -1090,7 +1103,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
             .deleteWith(deletedFiles::add)
             .execute();
 
-    Set<String> expectedDeletes =
+    Set<CharSequence> expectedDeletes =
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(),
             secondSnapshot.manifestListLocation(),
@@ -1111,6 +1124,9 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
             .map(ManifestFile::path)
             .map(CharSequence::toString)
             .collect(Collectors.toSet()));
+    checkAndAddPartitionStatsFiles(
+        Sets.newHashSet(firstSnapshot, secondSnapshot, thirdSnapshot, fourthSnapshot),
+        expectedDeletes);
 
     Assert.assertEquals(
         "Should remove expired manifest lists and deleted data file",
@@ -1165,13 +1181,12 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertNull(
         "Should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
 
-    Assert.assertEquals("Pending deletes should contain one row", 1, pending.size());
+    Set<CharSequence> expected = Sets.newHashSet(firstSnapshot.manifestListLocation());
+    checkAndAddPartitionStatsFiles(Collections.singleton(firstSnapshot), expected);
     Assert.assertEquals(
-        "Pending delete should be the expired manifest list location",
-        firstSnapshot.manifestListLocation(),
-        pending.get(0).getPath());
-    Assert.assertEquals(
-        "Pending delete should be a manifest list", "Manifest List", pending.get(0).getType());
+        "Pending deletes should match",
+        expected,
+        pending.stream().map(FileInfo::getPath).collect(Collectors.toSet()));
 
     Assert.assertEquals("Should not delete any files", 0, deletedFiles.size());
 
@@ -1244,10 +1259,17 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
 
     List<FileInfo> typedExpiredFiles = action.expireFiles().collectAsList();
-    Assert.assertEquals("Expired results must match", 1, typedExpiredFiles.size());
+    int expected = 1;
+    if (PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.PARTITION_STATS_ENABLED,
+        TableProperties.PARTITION_STATS_ENABLED_DEFAULT)) {
+      expected = 2;
+    }
+    Assert.assertEquals("Expired results must match", expected, typedExpiredFiles.size());
 
     List<FileInfo> untypedExpiredFiles = action.expireFiles().collectAsList();
-    Assert.assertEquals("Expired results must match", 1, untypedExpiredFiles.size());
+    Assert.assertEquals("Expired results must match", expected, untypedExpiredFiles.size());
   }
 
   @Test
@@ -1296,7 +1318,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     long end = rightAfterSnapshot();
 
-    Set<String> expectedDeletes = Sets.newHashSet();
+    Set<CharSequence> expectedDeletes = Sets.newHashSet();
     expectedDeletes.addAll(ReachableFileUtil.manifestListLocations(table));
     // all snapshot manifest lists except current will be deleted
     expectedDeletes.remove(table.currentSnapshot().manifestListLocation());
@@ -1304,6 +1326,9 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         manifestsBefore); // new manifests are reachable from current snapshot and not deleted
     expectedDeletes.addAll(
         dataFiles); // new data files are reachable from current snapshot and not deleted
+    Set<Snapshot> expiredSnapshots = Sets.newHashSet(table.snapshots());
+    expiredSnapshots.remove(table.currentSnapshot());
+    checkAndAddPartitionStatsFiles(expiredSnapshots, expectedDeletes);
 
     Set<String> deletedFiles = Sets.newHashSet();
     SparkActions.get()
@@ -1348,5 +1373,15 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertFalse(deletedFiles.contains(FILE_B.path().toString()));
     Assert.assertFalse(deletedFiles.contains(FILE_C.path().toString()));
     Assert.assertFalse(deletedFiles.contains(FILE_D.path().toString()));
+  }
+
+  private void checkAndAddPartitionStatsFiles(
+      Set<Snapshot> expiredSnapshots, Set<CharSequence> expected) {
+    if (PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.PARTITION_STATS_ENABLED,
+        TableProperties.PARTITION_STATS_ENABLED_DEFAULT)) {
+      expiredSnapshots.forEach(snapshot -> expected.add(snapshot.partitionStatsFileLocation()));
+    }
   }
 }

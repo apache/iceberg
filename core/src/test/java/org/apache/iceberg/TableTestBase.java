@@ -206,12 +206,13 @@ public class TableTestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
+                        && !name.startsWith("partition-stats")
                         && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   public static long countAllMetadataFiles(File tableDir) {
     return Arrays.stream(new File(tableDir, "metadata").listFiles())
-        .filter(f -> f.isFile())
+        .filter(f -> f.isFile() && !f.getName().startsWith("partition-stats"))
         .count();
   }
 

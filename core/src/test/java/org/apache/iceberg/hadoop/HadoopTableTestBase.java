@@ -132,7 +132,9 @@ public class HadoopTableTestBase {
     return Lists.newArrayList(
         metadataDir.listFiles(
             (dir, name) ->
-                !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+                !name.startsWith("snap")
+                    && !name.startsWith("partition-stats")
+                    && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   List<File> listMetadataJsonFiles() {

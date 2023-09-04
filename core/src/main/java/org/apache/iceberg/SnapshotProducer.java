@@ -28,10 +28,13 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARTITION_STATS_ENABLED;
+import static org.apache.iceberg.TableProperties.PARTITION_STATS_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -54,11 +58,14 @@ import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
+import org.apache.iceberg.partition.stats.PartitionStatsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -97,6 +104,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
+  private final boolean writePartitionStats;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -113,6 +121,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    writePartitionStats =
+        ops.current().spec().isPartitioned()
+            && PropertyUtil.propertyAsBoolean(
+                base.properties(), PARTITION_STATS_ENABLED, PARTITION_STATS_ENABLED_DEFAULT);
   }
 
   protected abstract ThisT self();
@@ -211,6 +223,61 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
+  /**
+   * Update stats for each partition along with previous values and write new stats file for the
+   * current snapshot.
+   *
+   * @return the stats file location
+   */
+  protected abstract String writeUpdatedPartitionStats(long snapshotCreatedTimeInMillis);
+
+  protected CloseableIterable<Partition> partitionStatsEntriesFromParentSnapshot() {
+    if (base.currentSnapshot() == null) {
+      return CloseableIterable.empty();
+    }
+
+    String oldPartitionStatsFileLocation = base.currentSnapshot().partitionStatsFileLocation();
+    if (oldPartitionStatsFileLocation == null) {
+      return CloseableIterable.empty();
+    }
+
+    return PartitionStatsUtil.readPartitionStatsFile(
+        Partition.icebergSchema(Partitioning.partitionType(base.specsById().values())),
+        ops.io().newInputFile(oldPartitionStatsFileLocation));
+  }
+
+  protected void writePartitionStatsEntries(
+      Iterable<Partition> partitionStatsEntries, OutputFile file) {
+    PartitionStatsUtil.writePartitionStatsFile(
+        partitionStatsEntries.iterator(), file, ops.current().specsById().values());
+  }
+
+  protected void updatePartitionStatsMapWithParentEntries(
+      long snapshotCreatedTimeInMillis, PartitionsTable.PartitionMap partitionMap) {
+    // update the snapshot ID and snapshot created time for the current snapshot
+    // as this information was not available at the place of partition creation.
+    // see PartitionStatsMap#updatePartitionMap()
+    partitionMap
+        .all()
+        .forEach(
+            partition -> {
+              partition.setLastUpdatedAt(snapshotCreatedTimeInMillis * 1000L);
+              partition.setLastUpdatedSnapshotId(snapshotId());
+            });
+
+    // get entries from base snapshot and add to current snapshot's entries
+    try (CloseableIterable<Partition> recordIterator = partitionStatsEntriesFromParentSnapshot()) {
+      recordIterator.forEach(
+          partition -> partitionMap.get(partition.partitionData()).add(partition));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public boolean writePartitionStats() {
+    return writePartitionStats;
+  }
+
   @Override
   public Snapshot apply() {
     refresh();
@@ -249,13 +316,25 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    long snapshotCreatedTimeInMillis = System.currentTimeMillis();
+
+    Map<String, String> additionalSummary = Maps.newHashMap();
+    // Update Partition Stats for new Snapshot
+    if (writePartitionStats) {
+      String partitionStatsLocation = writeUpdatedPartitionStats(snapshotCreatedTimeInMillis);
+      if (partitionStatsLocation != null) {
+        additionalSummary.put(
+            SnapshotSummary.PARTITION_STATS_FILE_LOCATION, partitionStatsLocation);
+      }
+    }
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotCreatedTimeInMillis,
         operation(),
-        summary(base),
+        summary(base, additionalSummary),
         base.currentSchemaId(),
         manifestList.location());
   }
@@ -263,7 +342,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected abstract Map<String, String> summary();
 
   /** Returns the snapshot summary from the implementation and updates totals. */
-  private Map<String, String> summary(TableMetadata previous) {
+  private Map<String, String> summary(
+      TableMetadata previous, Map<String, String> additionalSummary) {
     Map<String, String> summary = summary();
 
     if (summary == null) {
@@ -340,6 +420,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         SnapshotSummary.ADDED_EQ_DELETES_PROP,
         SnapshotSummary.REMOVED_EQ_DELETES_PROP);
 
+    if (!additionalSummary.isEmpty()) {
+      builder.putAll(additionalSummary);
+    }
+
     return builder.build();
   }
 
@@ -379,6 +463,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   update.addSnapshot(newSnapshot);
                 } else {
                   update.setBranchSnapshot(newSnapshot, targetBranch);
+                }
+
+                if (newSnapshot.partitionStatsFileLocation() != null) {
+                  PartitionStatisticsFile partitionStatisticsFile =
+                      ImmutableGenericPartitionStatisticsFile.builder()
+                          .snapshotId(newSnapshotId.get())
+                          .path(newSnapshot.partitionStatsFileLocation())
+                          .maxDataSequenceNumber(newSnapshot.sequenceNumber())
+                          .build();
+                  update.setPartitionStatistics(newSnapshotId.get(), partitionStatisticsFile);
                 }
 
                 TableMetadata updated = update.build();
@@ -488,6 +582,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         .newOutputFile(
             ops.metadataFileLocation(
                 FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
+  }
+
+  protected OutputFile newPartitionStatsFile() {
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.PARQUET.addExtension(
+                    String.format("partition-stats-%d", snapshotId()))));
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {

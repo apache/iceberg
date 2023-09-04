@@ -267,6 +267,10 @@ public class PartitionsTable extends BaseMetadataTable {
       return partition;
     }
 
+    boolean isEmpty() {
+      return partitions.isEmpty();
+    }
+
     Iterable<Partition> all() {
       return partitions.values();
     }

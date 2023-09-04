@@ -171,4 +171,10 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * Returns the partition stats file location from snapshot summary, or null if this information is
+   * not available.
+   */
+  String partitionStatsFileLocation();
 }

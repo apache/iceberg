@@ -78,6 +78,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
+  private final PartitionStatsMap deletePartitionStatsMap;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -89,11 +90,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Supplier<ExecutorService> workerPoolSupplier;
 
   protected ManifestFilterManager(
-      Map<Integer, PartitionSpec> specsById, Supplier<ExecutorService> executorSupplier) {
+      Map<Integer, PartitionSpec> specsById,
+      Supplier<ExecutorService> executorSupplier,
+      boolean writePartitionStats) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
     this.workerPoolSupplier = executorSupplier;
+    this.deletePartitionStatsMap = writePartitionStats ? new PartitionStatsMap(specsById) : null;
   }
 
   protected abstract void deleteFile(String location);
@@ -438,6 +442,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
                       if (allRowsMatch) {
                         writer.delete(entry);
+                        if (entry.file() instanceof DataFile && deletePartitionStatsMap != null) {
+                          deletePartitionStatsMap.put(entry.file());
+                        }
 
                         CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
                         if (deletedPaths.contains(wrapper)) {
@@ -530,5 +537,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       }
       return metricsEvaluators.get(partition);
     }
+  }
+
+  public PartitionStatsMap partitionStatsMap() {
+    return deletePartitionStatsMap;
   }
 }

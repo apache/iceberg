@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -100,10 +102,9 @@ public class TestRemoveSnapshots extends TableTestBase {
         table.currentSnapshot().snapshotId());
     Assert.assertNull(
         "Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
-    Assert.assertEquals(
-        "Should remove only the expired manifest list location",
-        Sets.newHashSet(firstSnapshot.manifestListLocation()),
-        deletedFiles);
+    Set<CharSequence> expected = Sets.newHashSet(firstSnapshot.manifestListLocation());
+    checkAndAddPartitionStatsFiles(Collections.singleton(firstSnapshot), expected);
+    Assert.assertEquals("Should remove only the expected files", expected, deletedFiles);
   }
 
   @Test
@@ -146,8 +147,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         "Expire should remove the second oldest snapshot",
         table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and deleted data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
             firstSnapshot
@@ -159,7 +159,12 @@ public class TestRemoveSnapshots extends TableTestBase {
                 .allManifests(table.io())
                 .get(0)
                 .path(), // manifest contained only deletes, was dropped
-            FILE_A.path()), // deleted
+            FILE_A.path());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(firstSnapshot, secondSnapshot), expected);
+
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // deleted
         deletedFiles);
   }
 
@@ -212,8 +217,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         "Expire should remove the second oldest snapshot",
         table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and deleted data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
             firstSnapshot
@@ -221,7 +225,12 @@ public class TestRemoveSnapshots extends TableTestBase {
                 .get(0)
                 .path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
-            FILE_A.path()), // deleted
+            FILE_A.path());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(firstSnapshot, secondSnapshot), expected);
+
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // deleted
         deletedFiles);
   }
 
@@ -267,12 +276,15 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertNull(
         "Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and reverted appended data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
-            Iterables.getOnlyElement(secondSnapshotManifests)
-                .path()), // manifest is no longer referenced
+            Iterables.getOnlyElement(secondSnapshotManifests).path());
+    checkAndAddPartitionStatsFiles(Collections.singleton(secondSnapshot), expected);
+
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // manifest is no longer referenced
         deletedFiles);
   }
 
@@ -315,14 +327,27 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertNull(
         "Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals(
-        "Should remove expired manifest lists and reverted appended data file",
+    Set<CharSequence> expected =
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests)
                 .path(), // manifest is no longer referenced
-            FILE_B.path()), // added, but rolled back
+            FILE_B.path());
+    checkAndAddPartitionStatsFiles(Collections.singleton(secondSnapshot), expected);
+    Assert.assertEquals(
+        "Should remove expected files",
+        expected, // added, but rolled back
         deletedFiles);
+  }
+
+  private void checkAndAddPartitionStatsFiles(
+      Set<Snapshot> expiredSnapshots, Set<CharSequence> expected) {
+    if (PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.PARTITION_STATS_ENABLED,
+        TableProperties.PARTITION_STATS_ENABLED_DEFAULT)) {
+      expiredSnapshots.forEach(snapshot -> expected.add(snapshot.partitionStatsFileLocation()));
+    }
   }
 
   @Test
@@ -891,7 +916,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .expireOlderThan(snapshotB.timestampMillis() + 1)
         .commit();
 
-    Set<String> expectedDeletes = Sets.newHashSet();
+    Set<CharSequence> expectedDeletes = Sets.newHashSet();
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
@@ -913,6 +938,7 @@ public class TestRemoveSnapshots extends TableTestBase {
                 expectedDeletes.add(file.path());
               }
             });
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(snapshotA, snapshotB), expectedDeletes);
     Assert.assertSame(
         "Files deleted count should be expected", expectedDeletes.size(), deletedFiles.size());
     // Take the diff
@@ -1100,11 +1126,11 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals(
         "Should not change current snapshot", thirdSnapshot, table.currentSnapshot());
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
-    Assert.assertEquals(
-        "Should remove expired manifest lists",
+    Set<CharSequence> expected =
         Sets.newHashSet(
-            firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation()),
-        deletedFiles);
+            firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(firstSnapshot, secondSnapshot), expected);
+    Assert.assertEquals("Should remove expected files", expected, deletedFiles);
   }
 
   @Test
@@ -1150,21 +1176,20 @@ public class TestRemoveSnapshots extends TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     removeSnapshots(table).expireOlderThan(fourthSnapshotTs).deleteWith(deletedFiles::add).commit();
 
-    Assert.assertEquals(
-        "Should remove old delete files and delete file manifests",
-        ImmutableSet.builder()
-            .add(FILE_A.path())
-            .add(FILE_A_DELETES.path())
-            .add(firstSnapshot.manifestListLocation())
-            .add(secondSnapshot.manifestListLocation())
-            .add(thirdSnapshot.manifestListLocation())
-            .addAll(manifestPaths(secondSnapshot, table.io()))
-            .addAll(
-                manifestOfDeletedFiles.stream()
-                    .map(ManifestFile::path)
-                    .collect(Collectors.toList()))
-            .build(),
-        deletedFiles);
+    Set<CharSequence> expected =
+        Sets.newHashSet(
+            FILE_A.path(),
+            FILE_A_DELETES.path(),
+            firstSnapshot.manifestListLocation(),
+            secondSnapshot.manifestListLocation(),
+            thirdSnapshot.manifestListLocation());
+    expected.addAll(manifestPaths(secondSnapshot, table.io()));
+    expected.addAll(
+        manifestOfDeletedFiles.stream().map(ManifestFile::path).collect(Collectors.toList()));
+    checkAndAddPartitionStatsFiles(
+        Sets.newHashSet(firstSnapshot, secondSnapshot, thirdSnapshot), expected);
+
+    Assert.assertEquals("Should remove expected files", expected, deletedFiles);
   }
 
   @Test
@@ -1625,13 +1650,14 @@ public class TestRemoveSnapshots extends TableTestBase {
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
-    Set<String> expectedDeletes = Sets.newHashSet();
+    Set<CharSequence> expectedDeletes = Sets.newHashSet();
 
     // Only deletionA's manifest list and manifests should be removed
     expectedDeletes.add(deletionA.manifestListLocation());
     expectedDeletes.addAll(manifestPaths(deletionA, table.io()));
     table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
+    checkAndAddPartitionStatsFiles(Collections.singleton(deletionA), expectedDeletes);
     Assert.assertEquals(2, Iterables.size(table.snapshots()));
     Assert.assertEquals(expectedDeletes, deletedFiles);
 
@@ -1658,6 +1684,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     expectedDeletes.add(branchDelete.manifestListLocation());
     expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
     expectedDeletes.add(FILE_A.path().toString());
+    checkAndAddPartitionStatsFiles(Sets.newHashSet(appendA, branchDelete), expectedDeletes);
 
     Assert.assertEquals(2, Iterables.size(table.snapshots()));
     Assert.assertEquals(expectedDeletes, deletedFiles);

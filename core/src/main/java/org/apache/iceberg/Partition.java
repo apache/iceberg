@@ -116,6 +116,14 @@ public class Partition implements IndexedRecord {
     return lastUpdatedSnapshotId;
   }
 
+  public void setLastUpdatedAt(Long newLastUpdatedAt) {
+    this.lastUpdatedAt = newLastUpdatedAt;
+  }
+
+  public void setLastUpdatedSnapshotId(Long newLastUpdatedSnapshotId) {
+    this.lastUpdatedSnapshotId = newLastUpdatedSnapshotId;
+  }
+
   synchronized void update(ContentFile<?> file, Snapshot snapshot) {
     if (snapshot != null) {
       long snapshotCommitTime = snapshot.timestampMillis() * 1000;
@@ -144,6 +152,38 @@ public class Partition implements IndexedRecord {
         break;
       default:
         throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+  }
+
+  synchronized void add(Partition partition) {
+    this.dataRecordCount += partition.dataRecordCount;
+    this.dataFileCount += partition.dataFileCount;
+    this.dataFileSizeInBytes += partition.dataFileSizeInBytes;
+    this.posDeleteRecordCount += partition.posDeleteRecordCount;
+    this.posDeleteFileCount += partition.posDeleteFileCount;
+    this.eqDeleteRecordCount += partition.eqDeleteRecordCount;
+    this.eqDeleteFileCount += partition.eqDeleteFileCount;
+    updateRemaining(partition);
+  }
+
+  synchronized void subtract(Partition partition) {
+    this.dataRecordCount -= partition.dataRecordCount;
+    this.dataFileCount -= partition.dataFileCount;
+    this.dataFileSizeInBytes -= partition.dataFileSizeInBytes;
+    this.posDeleteRecordCount -= partition.posDeleteRecordCount;
+    this.posDeleteFileCount -= partition.posDeleteFileCount;
+    this.eqDeleteRecordCount -= partition.eqDeleteRecordCount;
+    this.eqDeleteFileCount -= partition.eqDeleteFileCount;
+    updateRemaining(partition);
+  }
+
+  private void updateRemaining(Partition partition) {
+    this.specId = Math.max(this.specId, partition.specId);
+    if (partition.lastUpdatedAt != null
+        && partition.lastUpdatedSnapshotId != null
+        && (this.lastUpdatedAt == null || this.lastUpdatedAt < partition.lastUpdatedAt)) {
+      this.lastUpdatedAt = partition.lastUpdatedAt;
+      this.lastUpdatedSnapshotId = partition.lastUpdatedSnapshotId;
     }
   }
 

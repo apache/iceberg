@@ -1289,6 +1289,11 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
+    // the new spec will again have a field ID 1000 (which is same as old spec) and it is ambiguous
+    // for partition stats writing. This is not ideal scenario. Hence, disable the partition stats
+    // writing.
+    table.updateProperties().set(TableProperties.PARTITION_STATS_ENABLED, "false").commit();
+
     // create a new with the table's current spec
     DataFile newFile =
         DataFiles.builder(table.spec())
@@ -1299,6 +1304,13 @@ public class TestMergeAppend extends TableTestBase {
             .build();
 
     Snapshot committedSnapshot = commit(table, table.newAppend().appendFile(newFile), branch);
+
+    table
+        .updateProperties()
+        .set(
+            TableProperties.PARTITION_STATS_ENABLED,
+            String.valueOf(TableProperties.PARTITION_STATS_ENABLED_DEFAULT))
+        .commit();
 
     V2Assert.assertEquals(
         "Snapshot sequence number should be 2", 2, committedSnapshot.sequenceNumber());
