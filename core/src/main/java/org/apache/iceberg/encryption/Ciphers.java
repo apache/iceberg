@@ -80,7 +80,7 @@ public class Ciphers {
         int ciphertextOffset,
         byte[] aad) {
       Preconditions.checkArgument(
-          plaintextLength > 0, "Invalid plain text length: %s", plaintextLength);
+          plaintextLength >= 0, "Invalid plain text length: %s", plaintextLength);
       randomGenerator.nextBytes(nonce);
       int enciphered;
 
@@ -148,7 +148,7 @@ public class Ciphers {
         int plaintextOffset,
         byte[] aad) {
       Preconditions.checkState(
-          ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH >= 1,
+          ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH >= 0,
           "Cannot decrypt cipher text of length "
               + ciphertext.length
               + " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted"

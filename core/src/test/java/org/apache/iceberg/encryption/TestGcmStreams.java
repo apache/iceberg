@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -46,17 +47,35 @@ public class TestGcmStreams {
     random.nextBytes(key);
     byte[] aadPrefix = new byte[16];
     random.nextBytes(aadPrefix);
+    byte[] readBytes = new byte[1];
+
     File testFile = temp.newFile();
+
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
     PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
     encryptedStream.close();
 
     AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
-    SeekableInputStream decryptedStream = decryptedFile.newStream();
-
     Assert.assertEquals("File size", 0, decryptedFile.getLength());
-    decryptedStream.close();
+
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readBytes))
+          .isInstanceOf(EOFException.class);
+    }
+
+    // check that the AAD is still verified, even for an empty file
+    byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
+    badAAD[1] -= 1; // modify the AAD slightly
+    AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
+    Assert.assertEquals("File size", 0, badAADFile.getLength());
+
+    try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readBytes))
+          .isInstanceOf(RuntimeException.class)
+          .hasCauseInstanceOf(AEADBadTagException.class)
+          .hasMessageContaining("GCM tag check failed");
+    }
   }
 
   @Test

@@ -107,6 +107,10 @@ public class AesGcmInputStream extends SeekableInputStream {
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkArgument(len >= 0, "Invalid read length: " + len);
 
+    if (currentPlainBlockIndex < 0) {
+      decryptBlock(0);
+    }
+
     if (available() <= 0 && len > 0) {
       throw new EOFException();
     }

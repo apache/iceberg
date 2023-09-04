@@ -109,9 +109,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
       writeHeader();
     }
 
-    if (positionInPlainBlock > 0) {
-      encryptAndWriteBlock();
-    }
+    encryptAndWriteBlock();
 
     targetStream.close();
   }
@@ -129,7 +127,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
       throw new IOException("Cannot write block: exceeded Integer.MAX_VALUE blocks");
     }
 
-    if (positionInPlainBlock == 0) {
+    if (positionInPlainBlock == 0 && currentBlockIndex != 0) {
       return;
     }
 
