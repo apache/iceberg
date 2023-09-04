@@ -30,7 +30,7 @@ lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run pytest tests/ -m "unmarked or parametrize" ${PYTEST_ARGS}
+	poetry run pytest tests/ -m "(unmarked or parametrize) and not integration" ${PYTEST_ARGS}
 
 test-s3:
 	sh ./dev/run-minio.sh
@@ -53,15 +53,18 @@ test-adlfs:
 	sh ./dev/run-azurite.sh
 	poetry run pytest tests/ -m adlfs ${PYTEST_ARGS}
 
-test-coverage:
-	sh ./dev/run-minio.sh
-	sh ./dev/run-azurite.sh
-	sh ./dev/run-gcs-server.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not integration" ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
-
 test-gcs:
 	sh ./dev/run-gcs-server.sh
 	poetry run  pytest tests/ -m gcs ${PYTEST_ARGS}
+
+test-coverage:
+	docker-compose -f dev/docker-compose-integration.yml kill
+	docker-compose -f dev/docker-compose-integration.yml rm -f
+	docker-compose -f dev/docker-compose-integration.yml up -d
+	sh ./dev/run-azurite.sh
+	sh ./dev/run-gcs-server.sh
+	docker-compose -f dev/docker-compose-integration.yml exec -T spark-iceberg ipython ./provision.py
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml
