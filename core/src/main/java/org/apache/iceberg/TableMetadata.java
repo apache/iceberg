@@ -1292,7 +1292,7 @@ public class TableMetadata implements Serializable {
      * @param suppress whether the operation is suppressing snapshots (retains history) or removing
      * @return this for method chaining
      */
-    public Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
+    private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
       for (Snapshot snapshot : snapshots) {
