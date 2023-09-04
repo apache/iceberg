@@ -708,7 +708,7 @@ Blob metadata is a struct with the following fields:
 Partition statistics files are based on [Partition Statistics file spec](#partition-statistics-file). Partition statistics are informational. A reader can choose to
 ignore partition statistics information. Partition statistics support is not required to read the table correctly. A table can contain
 many partition statistics files associated with different table snapshots.
-A writer can optionally write the partition statistics file during each write operation. If the statistics file is written for the specific snapshot, 
+A writer can optionally write the partition statistics file during each write operation. If the statistics file is written for the specific snapshot,
 it must be accurate and must be registered in the table metadata file to be considered as a valid statistics file for the reader.
 
 Partition statistics files metadata within `partition-statistics` table metadata field is a struct with the following fields:
@@ -721,8 +721,8 @@ Partition statistics files metadata within `partition-statistics` table metadata
 
 #### Partition Statistics file
 
-Statistics information for every partition tuple is stored as a row in the **table default format**. 
-These rows are sorted (in ascending manner with NULL FIRST) based on the first partition column from `partition` 
+Statistics information for every partition tuple is stored as a row in the **table default format**.
+These rows are sorted (in ascending manner with NULL FIRST) based on the first partition column from `partition`
 to optimize filtering rows while scanning.
 Each unique partition tuple must have exactly one corresponding row, ensuring all partition tuples are present.
 
