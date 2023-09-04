@@ -1255,6 +1255,24 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    /**
+     * Suppresses snapshots that are historical, removing the metadata for lazy snapshot loading.
+     *
+     * <p>Note that the snapshots are not considered removed from metadata and no RemoveSnapshot
+     * changes are created.
+     *
+     * <p>A snapshot is historical if no ref directly references its ID.
+     *
+     * @return this for method chaining
+     */
+    public Builder suppressHistoricalSnapshots() {
+      Set<Long> refSnapshotIds =
+          refs.values().stream().map(SnapshotRef::snapshotId).collect(Collectors.toSet());
+      Set<Long> suppressedSnapshotIds = Sets.difference(snapshotsById.keySet(), refSnapshotIds);
+      rewriteSnapshotsInternal(suppressedSnapshotIds, true);
+      return this;
+    }
+
     public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
       Set<Long> idsToRemove =
           snapshotsToRemove.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
@@ -1262,13 +1280,28 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeSnapshots(Collection<Long> idsToRemove) {
+      return rewriteSnapshotsInternal(idsToRemove, false);
+    }
+
+    /**
+     * Rewrite this builder's snapshots by removing the snapshots for a list of IDs.
+     *
+     * <p>If suppress is true, changes are not created.
+     *
+     * @param idsToRemove collection of snapshot IDs to remove from this builder
+     * @param suppress whether the operation is suppressing snapshots (retains history) or removing
+     * @return this for method chaining
+     */
+    private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
-          changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+          if (!suppress) {
+            changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+          }
           removeStatistics(snapshotId);
         } else {
           retainedSnapshots.add(snapshot);
@@ -1611,6 +1644,14 @@ public class TableMetadata implements Serializable {
     /**
      * Finds intermediate snapshots that have not been committed as the current snapshot.
      *
+     * <p>Transactions can create snapshots that are never the current snapshot because several
+     * changes are combined by the transaction into one table metadata update. when each
+     * intermediate snapshot is added to table metadata, it is added to the snapshot log, assuming
+     * that it will be the current snapshot. when there are multiple snapshot updates, the log must
+     * be corrected by suppressing the intermediate snapshot entries.
+     *
+     * <p>A snapshot is an intermediate snapshot if it was added but is not the current snapshot.
+     *
      * @return a set of snapshot ids for all added snapshots that were later replaced as the current
      *     snapshot in changes
      */
@@ -1642,19 +1683,14 @@ public class TableMetadata implements Serializable {
         Map<Long, Snapshot> snapshotsById,
         long currentSnapshotId,
         List<MetadataUpdate> changes) {
-      // find intermediate snapshots to suppress incorrect entries in the snapshot log.
-      //
-      // transactions can create snapshots that are never the current snapshot because several
-      // changes are combined
-      // by the transaction into one table metadata update. when each intermediate snapshot is added
-      // to table metadata,
-      // it is added to the snapshot log, assuming that it will be the current snapshot. when there
-      // are multiple
-      // snapshot updates, the log must be corrected by suppressing the intermediate snapshot
-      // entries.
-      //
-      // a snapshot is an intermediate snapshot if it was added but is not the current snapshot.
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
+      boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
+      boolean hasRemovedSnapshots =
+          changes.stream().anyMatch(MetadataUpdate.RemoveSnapshot.class::isInstance);
+
+      if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
+        return snapshotLog;
+      }
 
       // update the snapshot log
       List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
@@ -1665,7 +1701,7 @@ public class TableMetadata implements Serializable {
             // copy the log entries that are still valid
             newSnapshotLog.add(logEntry);
           }
-        } else {
+        } else if (hasRemovedSnapshots) {
           // any invalid entry causes the history before it to be removed. otherwise, there could be
           // history gaps that cause time-travel queries to produce incorrect results. for example,
           // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
