@@ -35,7 +35,10 @@ from struct import Struct
 from typing import (
     Any,
     Callable,
+    Generic,
     Optional,
+    Tuple,
+    TypeVar,
     Union,
 )
 
@@ -60,11 +63,27 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 
-_BOOL_STRUCT = Struct("<?")
-_INT_STRUCT = Struct("<i")
-_LONG_STRUCT = Struct("<q")
-_FLOAT_STRUCT = Struct("<f")
-_DOUBLE_STRUCT = Struct("<d")
+T = TypeVar("T")
+
+
+class SingleTypePackedStruct(Generic["T"]):
+    """A type safe class that packs a single type to and from bytes."""
+
+    def __init__(self, struct_format: str | bytes) -> None:
+        self._struct = Struct(struct_format)
+
+    def pack(self, *v: T) -> bytes:
+        return self._struct.pack(*v)
+
+    def unpack(self, buffer: bytes) -> Tuple[T, ...]:
+        return self._struct.unpack(buffer)
+
+
+_BOOL_STRUCT = SingleTypePackedStruct[bool]("<?")
+_INT_STRUCT = SingleTypePackedStruct[int]("<i")
+_LONG_STRUCT = SingleTypePackedStruct[int]("<q")
+_FLOAT_STRUCT = SingleTypePackedStruct[float]("<f")
+_DOUBLE_STRUCT = SingleTypePackedStruct[float]("<d")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
@@ -171,7 +190,7 @@ def to_bytes(
 
 @to_bytes.register(BooleanType)
 def _(_: BooleanType, value: bool) -> bytes:
-    return _BOOL_STRUCT.pack(1 if value else 0)
+    return _BOOL_STRUCT.pack(bool(value))
 
 
 @to_bytes.register(IntegerType)
