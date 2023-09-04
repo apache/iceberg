@@ -45,6 +45,8 @@ public class Ciphers {
 
   private static final int GCM_TAG_LENGTH_BITS = 8 * GCM_TAG_LENGTH;
 
+  static final int MIN_STREAM_LENGTH = GCM_STREAM_HEADER_LENGTH + NONCE_LENGTH + GCM_TAG_LENGTH;
+
   private Ciphers() {}
 
   public static class AesGcmEncryptor {
