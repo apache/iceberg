@@ -71,10 +71,7 @@ public class StandardEncryptionManager implements EncryptionManager {
 
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
-    if (encrypted.keyMetadata().buffer() == null) {
-      throw new SecurityException(
-          "Unencrypted file " + encrypted.encryptedInputFile().location() + " in encrypted table");
-    }
+    Preconditions.checkNotNull(encrypted.keyMetadata().buffer(), "Invalid key metadata: null");
 
     KeyMetadata keyMetadata = KeyMetadata.parse(encrypted.keyMetadata().buffer());
 
