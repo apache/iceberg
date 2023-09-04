@@ -21,10 +21,15 @@ package org.apache.iceberg.encryption;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Random;
+import javax.crypto.AEADBadTagException;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -52,6 +57,167 @@ public class TestGcmStreams {
 
     Assert.assertEquals("File size", 0, decryptedFile.getLength());
     decryptedStream.close();
+  }
+
+  @Test
+  public void testAADValidation() throws IOException {
+    Random random = new Random();
+    byte[] key = new byte[16];
+    random.nextBytes(key);
+    byte[] aadPrefix = new byte[16];
+    random.nextBytes(aadPrefix);
+    byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
+    random.nextBytes(content);
+
+    File testFile = temp.newFile();
+
+    AesGcmOutputFile encryptedFile =
+        new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
+    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
+      encryptedStream.write(content);
+    }
+
+    // verify the data can be read correctly with the right AAD
+    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      int bytesRead = decryptedStream.read(readContent);
+      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
+      Assert.assertEquals(
+          "Content should match",
+          ByteBuffer.wrap(content),
+          ByteBuffer.wrap(readContent, 0, bytesRead));
+    }
+
+    // test with the wrong AAD
+    byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
+    badAAD[1] -= 1; // modify the AAD slightly
+    AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
+    Assert.assertEquals("File size", content.length, badAADFile.getLength());
+
+    try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+          .isInstanceOf(RuntimeException.class)
+          .hasCauseInstanceOf(AEADBadTagException.class)
+          .hasMessageContaining("GCM tag check failed");
+    }
+
+    // modify the file contents
+    try (FileChannel out = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE)) {
+      long lastTagPosition = testFile.length() - Ciphers.GCM_TAG_LENGTH;
+      out.position(lastTagPosition);
+      out.write(ByteBuffer.wrap(key)); // overwrite the tag with other random bytes (the key)
+    }
+
+    // read with the correct AAD and verify the tag check fails
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+          .isInstanceOf(RuntimeException.class)
+          .hasCauseInstanceOf(AEADBadTagException.class)
+          .hasMessageContaining("GCM tag check failed");
+    }
+  }
+
+  @Test
+  public void testCorruptNonce() throws IOException {
+    Random random = new Random();
+    byte[] key = new byte[16];
+    random.nextBytes(key);
+    byte[] aadPrefix = new byte[16];
+    random.nextBytes(aadPrefix);
+    byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
+    random.nextBytes(content);
+
+    File testFile = temp.newFile();
+
+    AesGcmOutputFile encryptedFile =
+        new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
+    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
+      encryptedStream.write(content);
+    }
+
+    // verify the data can be read correctly with the right AAD
+    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      int bytesRead = decryptedStream.read(readContent);
+      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
+      Assert.assertEquals(
+          "Content should match",
+          ByteBuffer.wrap(content),
+          ByteBuffer.wrap(readContent, 0, bytesRead));
+    }
+
+    // replace the first block's nonce
+    try (FileChannel out = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE)) {
+      out.position(Ciphers.GCM_STREAM_HEADER_LENGTH);
+      // overwrite the nonce with other random bytes (the key)
+      out.write(ByteBuffer.wrap(key, 0, Ciphers.NONCE_LENGTH));
+    }
+
+    // read with the correct AAD and verify the read fails
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+          .isInstanceOf(RuntimeException.class)
+          .hasCauseInstanceOf(AEADBadTagException.class)
+          .hasMessageContaining("GCM tag check failed");
+    }
+  }
+
+  @Test
+  public void testCorruptCiphertext() throws IOException {
+    Random random = new Random();
+    byte[] key = new byte[16];
+    random.nextBytes(key);
+    byte[] aadPrefix = new byte[16];
+    random.nextBytes(aadPrefix);
+    byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
+    random.nextBytes(content);
+
+    File testFile = temp.newFile();
+
+    AesGcmOutputFile encryptedFile =
+        new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
+    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
+      encryptedStream.write(content);
+    }
+
+    // verify the data can be read correctly with the right AAD
+    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      int bytesRead = decryptedStream.read(readContent);
+      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
+      Assert.assertEquals(
+          "Content should match",
+          ByteBuffer.wrap(content),
+          ByteBuffer.wrap(readContent, 0, bytesRead));
+    }
+
+    // replace part of the first block's content
+    try (FileChannel out = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE)) {
+      out.position(Ciphers.GCM_STREAM_HEADER_LENGTH + Ciphers.NONCE_LENGTH + 34);
+      // overwrite the nonce with other random bytes (the key)
+      out.write(ByteBuffer.wrap(key));
+    }
+
+    // read with the correct AAD and verify the read fails
+    try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
+      byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
+      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+          .isInstanceOf(RuntimeException.class)
+          .hasCauseInstanceOf(AEADBadTagException.class)
+          .hasMessageContaining("GCM tag check failed");
+    }
   }
 
   @Test

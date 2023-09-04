@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AesGcmOutputStream extends PositionOutputStream {
 
@@ -31,29 +32,30 @@ public class AesGcmOutputStream extends PositionOutputStream {
           .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
           .putInt(Ciphers.PLAIN_BLOCK_SIZE)
           .array();
+
   private final Ciphers.AesGcmEncryptor gcmEncryptor;
   private final PositionOutputStream targetStream;
   private final byte[] fileAadPrefix;
   private final byte[] singleByte;
+  private final byte[] plainBlock;
+  private final byte[] cipherBlock;
 
-  private byte[] plainBlock;
-  private byte[] cipherBlock;
   private int positionInPlainBlock;
-  private long streamPosition;
   private int currentBlockIndex;
   private boolean isHeaderWritten;
+  private boolean lastBlockWritten;
 
   AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix) {
     this.targetStream = targetStream;
     this.gcmEncryptor = new Ciphers.AesGcmEncryptor(aesKey);
+    this.fileAadPrefix = fileAadPrefix;
+    this.singleByte = new byte[1];
     this.plainBlock = new byte[Ciphers.PLAIN_BLOCK_SIZE];
     this.cipherBlock = new byte[Ciphers.CIPHER_BLOCK_SIZE];
     this.positionInPlainBlock = 0;
-    this.streamPosition = 0;
     this.currentBlockIndex = 0;
-    this.fileAadPrefix = fileAadPrefix;
     this.isHeaderWritten = false;
-    this.singleByte = new byte[1];
+    this.lastBlockWritten = false;
   }
 
   @Override
@@ -85,17 +87,15 @@ public class AesGcmOutputStream extends PositionOutputStream {
       offset += toWrite;
       remaining -= toWrite;
 
-      if (positionInPlainBlock == Ciphers.PLAIN_BLOCK_SIZE) {
+      if (positionInPlainBlock == plainBlock.length) {
         encryptAndWriteBlock();
       }
     }
-
-    streamPosition += len;
   }
 
   @Override
   public long getPos() throws IOException {
-    return streamPosition;
+    return (long) currentBlockIndex * Ciphers.PLAIN_BLOCK_SIZE + positionInPlainBlock;
   }
 
   @Override
@@ -114,23 +114,28 @@ public class AesGcmOutputStream extends PositionOutputStream {
     }
 
     targetStream.close();
-    plainBlock = null;
-    cipherBlock = null;
   }
 
   private void writeHeader() throws IOException {
-
     targetStream.write(HEADER_BYTES);
     isHeaderWritten = true;
   }
 
   private void encryptAndWriteBlock() throws IOException {
+    Preconditions.checkState(
+        !lastBlockWritten, "Cannot encrypt block: a partial block has already been written");
+
     if (currentBlockIndex == Integer.MAX_VALUE) {
       throw new IOException("Cannot write block: exceeded Integer.MAX_VALUE blocks");
     }
 
     if (positionInPlainBlock == 0) {
-      throw new IOException("Empty plain block");
+      return;
+    }
+
+    if (positionInPlainBlock != plainBlock.length) {
+      // signal that a partial block has been written and must be the last
+      this.lastBlockWritten = true;
     }
 
     byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);

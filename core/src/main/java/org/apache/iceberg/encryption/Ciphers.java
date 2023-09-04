@@ -54,20 +54,8 @@ public class Ciphers {
     private final byte[] nonce;
 
     public AesGcmEncryptor(byte[] keyBytes) {
-      Preconditions.checkArgument(keyBytes != null, "Key can't be null");
-      int keyLength = keyBytes.length;
-      Preconditions.checkArgument(
-          (keyLength == 16 || keyLength == 24 || keyLength == 32),
-          "Cannot use a key of length "
-              + keyLength
-              + " because AES only allows 16, 24 or 32 bytes");
-      this.aesKey = new SecretKeySpec(keyBytes, "AES");
-
-      try {
-        this.cipher = Cipher.getInstance("AES/GCM/NoPadding");
-      } catch (GeneralSecurityException e) {
-        throw new RuntimeException("Failed to create GCM cipher", e);
-      }
+      this.aesKey = newKey(keyBytes);
+      this.cipher = newCipher();
 
       this.randomGenerator = new SecureRandom();
       this.nonce = new byte[NONCE_LENGTH];
@@ -136,20 +124,8 @@ public class Ciphers {
     private final Cipher cipher;
 
     public AesGcmDecryptor(byte[] keyBytes) {
-      Preconditions.checkArgument(keyBytes != null, "Key can't be null");
-      int keyLength = keyBytes.length;
-      Preconditions.checkArgument(
-          (keyLength == 16 || keyLength == 24 || keyLength == 32),
-          "Cannot use a key of length "
-              + keyLength
-              + " because AES only allows 16, 24 or 32 bytes");
-      this.aesKey = new SecretKeySpec(keyBytes, "AES");
-
-      try {
-        this.cipher = Cipher.getInstance("AES/GCM/NoPadding");
-      } catch (GeneralSecurityException e) {
-        throw new RuntimeException("Failed to create GCM cipher", e);
-      }
+      this.aesKey = newKey(keyBytes);
+      this.cipher = newCipher();
     }
 
     public byte[] decrypt(byte[] ciphertext, byte[] aad) {
@@ -204,6 +180,24 @@ public class Ciphers {
       }
 
       return plaintextLength;
+    }
+  }
+
+  private static SecretKeySpec newKey(byte[] keyBytes) {
+    Preconditions.checkArgument(keyBytes != null, "Invalid key: null");
+    int keyLength = keyBytes.length;
+    Preconditions.checkArgument(
+        (keyLength == 16 || keyLength == 24 || keyLength == 32),
+        "Invalid key length: %s (must be 16, 24, or 32 bytes)",
+        keyLength);
+    return new SecretKeySpec(keyBytes, "AES");
+  }
+
+  private static Cipher newCipher() {
+    try {
+      return Cipher.getInstance("AES/GCM/NoPadding");
+    } catch (GeneralSecurityException e) {
+      throw new RuntimeException("Failed to create GCM cipher", e);
     }
   }
 
