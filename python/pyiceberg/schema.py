@@ -35,7 +35,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_validator
 
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, StructProtocol
@@ -90,19 +90,19 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self) -> str:
-        """Returns the string representation of the Schema class."""
+        """Return the string representation of the Schema class."""
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Schema class."""
+        """Return the string representation of the Schema class."""
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the Literal class."""
+        """Return the length of an instance of the Literal class."""
         return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Schema class."""
+        """Return the equality of two instances of the Schema class."""
         if not other:
             return False
 
@@ -117,6 +117,14 @@ class Schema(IcebergBaseModel):
 
         return identifier_field_ids_is_equal and schema_is_equal
 
+    @model_validator(mode="after")
+    def check_schema(self) -> Schema:
+        if self.identifier_field_ids:
+            for field_id in self.identifier_field_ids:
+                self._validate_identifier_field(field_id)
+
+        return self
+
     @property
     def columns(self) -> Tuple[NestedField, ...]:
         """A tuple of the top-level fields."""
@@ -124,15 +132,23 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_field(self) -> Dict[int, NestedField]:
-        """Returns an index of field ID to NestedField instance.
+        """Return an index of field ID to NestedField instance.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return index_by_id(self)
 
     @cached_property
+    def _lazy_id_to_parent(self) -> Dict[int, int]:
+        """Returns an index of field ID to parent field IDs.
+
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
+        """
+        return _index_parents(self)
+
+    @cached_property
     def _lazy_name_to_id_lower(self) -> Dict[str, int]:
-        """Returns an index of lower-case field names to field IDs.
+        """Return an index of lower-case field names to field IDs.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -140,7 +156,7 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_name(self) -> Dict[int, str]:
-        """Returns an index of field ID to full name.
+        """Return an index of field ID to full name.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -148,14 +164,14 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_accessor(self) -> Dict[int, Accessor]:
-        """Returns an index of field ID to accessor.
+        """Return an index of field ID to accessor.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return build_position_accessors(self)
 
     def as_struct(self) -> StructType:
-        """Returns the schema as a struct."""
+        """Return the schema as a struct."""
         return StructType(*self.fields)
 
     def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
@@ -219,7 +235,7 @@ class Schema(IcebergBaseModel):
     @property
     def column_names(self) -> List[str]:
         """
-        Returns a list of all the column names, including nested fields.
+        Return a list of all the column names, including nested fields.
 
         Excludes short names.
 
@@ -244,6 +260,21 @@ class Schema(IcebergBaseModel):
             raise ValueError(f"Could not find accessor for field with id: {field_id}")
 
         return self._lazy_id_to_accessor[field_id]
+
+    def identifier_field_names(self) -> Set[str]:
+        """Return the names of the identifier fields.
+
+        Returns:
+            Set of names of the identifier fields
+        """
+        ids = set()
+        for field_id in self.identifier_field_ids:
+            column_name = self.find_column_name(field_id)
+            if column_name is None:
+                raise ValueError(f"Could not find identifier column id: {field_id}")
+            ids.add(column_name)
+
+        return ids
 
     def select(self, *names: str, case_sensitive: bool = True) -> Schema:
         """Return a new schema instance pruned to a subset of columns.
@@ -270,8 +301,45 @@ class Schema(IcebergBaseModel):
 
     @property
     def field_ids(self) -> Set[int]:
-        """Returns the IDs of the current schema."""
+        """Return the IDs of the current schema."""
         return set(self._name_to_id.values())
+
+    def _validate_identifier_field(self, field_id: int) -> None:
+        """Validate that the field with the given ID is a valid identifier field.
+
+        Args:
+          field_id: The ID of the field to validate.
+
+        Raises:
+          ValueError: If the field is not valid.
+        """
+        field = self.find_field(field_id)
+        if not field.field_type.is_primitive:
+            raise ValueError(f"Identifier field {field_id} invalid: not a primitive type field")
+
+        if not field.required:
+            raise ValueError(f"Identifier field {field_id} invalid: not a required field")
+
+        if isinstance(field.field_type, (DoubleType, FloatType)):
+            raise ValueError(f"Identifier field {field_id} invalid: must not be float or double field")
+
+        # Check whether the nested field is in a chain of required struct fields
+        # Exploring from root for better error message for list and map types
+        parent_id = self._lazy_id_to_parent.get(field.field_id)
+        fields: List[int] = []
+        while parent_id is not None:
+            fields.append(parent_id)
+            parent_id = self._lazy_id_to_parent.get(parent_id)
+
+        while fields:
+            parent = self.find_field(fields.pop())
+            if not parent.field_type.is_struct:
+                raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
+
+            if not parent.required:
+                raise ValueError(
+                    f"Cannot add field {field.name} as an identifier field: must not be nested in an optional field {parent}"
+                )
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -506,23 +574,23 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
 class PartnerAccessor(Generic[P], ABC):
     @abstractmethod
     def schema_partner(self, partner: Optional[P]) -> Optional[P]:
-        """Returns the equivalent of the schema as a struct."""
+        """Return the equivalent of the schema as a struct."""
 
     @abstractmethod
     def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
-        """Returns the equivalent struct field by name or id in the partner struct."""
+        """Return the equivalent struct field by name or id in the partner struct."""
 
     @abstractmethod
     def list_element_partner(self, partner_list: Optional[P]) -> Optional[P]:
-        """Returns the equivalent list element in the partner list."""
+        """Return the equivalent list element in the partner list."""
 
     @abstractmethod
     def map_key_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map key in the partner map."""
+        """Return the equivalent map key in the partner map."""
 
     @abstractmethod
     def map_value_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map value in the partner map."""
+        """Return the equivalent map value in the partner map."""
 
 
 @singledispatch
@@ -687,15 +755,15 @@ class Accessor:
     inner: Optional[Accessor] = None
 
     def __str__(self) -> str:
-        """Returns the string representation of the Accessor class."""
+        """Return the string representation of the Accessor class."""
         return f"Accessor(position={self.position},inner={self.inner})"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Accessor class."""
+        """Return the string representation of the Accessor class."""
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:
-        """Returns the value at self.position in `container`.
+        """Return the value at self.position in `container`.
 
         Args:
             container (StructProtocol): A container to access at position `self.position`.
@@ -715,7 +783,7 @@ class Accessor:
 
 @singledispatch
 def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema.
+    """Apply a schema visitor to any point within a schema.
 
     The function traverses the schema in post-order fashion.
 
@@ -781,7 +849,7 @@ def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
 
 @singledispatch
 def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema.
+    """Apply a schema visitor to any point within a schema.
 
     The function traverses the schema in pre-order fashion. This is a slimmed down version
     compared to the post-order traversal (missing before and after methods), mostly
@@ -882,6 +950,57 @@ def index_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, NestedF
     return visit(schema_or_type, _IndexById())
 
 
+class _IndexParents(SchemaVisitor[Dict[int, int]]):
+    def __init__(self) -> None:
+        self.id_to_parent: Dict[int, int] = {}
+        self.id_stack: List[int] = []
+
+    def before_field(self, field: NestedField) -> None:
+        self.id_stack.append(field.field_id)
+
+    def after_field(self, field: NestedField) -> None:
+        self.id_stack.pop()
+
+    def schema(self, schema: Schema, struct_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def struct(self, struct: StructType, field_results: List[Dict[int, int]]) -> Dict[int, int]:
+        for field in struct.fields:
+            parent_id = self.id_stack[-1] if self.id_stack else None
+            if parent_id is not None:
+                # fields in the root struct are not added
+                self.id_to_parent[field.field_id] = parent_id
+
+        return self.id_to_parent
+
+    def field(self, field: NestedField, field_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def list(self, list_type: ListType, element_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[list_type.element_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def map(self, map_type: MapType, key_result: Dict[int, int], value_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[map_type.key_id] = self.id_stack[-1]
+        self.id_to_parent[map_type.value_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def primitive(self, primitive: PrimitiveType) -> Dict[int, int]:
+        return self.id_to_parent
+
+
+def _index_parents(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, int]:
+    """Generate an index of field IDs to their parent field IDs.
+
+    Args:
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
+
+    Returns:
+        Dict[int, int]: An index of field IDs to their parent field IDs.
+    """
+    return visit(schema_or_type, _IndexParents())
+
+
 class _IndexByName(SchemaVisitor[Dict[str, int]]):
     """A schema visitor for generating a field name to field ID index."""
 
@@ -891,12 +1010,6 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._combined_index: Dict[str, int] = {}
         self._field_names: List[str] = []
         self._short_field_names: List[str] = []
-
-    def before_map_key(self, key: NestedField) -> None:
-        self.before_field(key)
-
-    def after_map_key(self, key: NestedField) -> None:
-        self.after_field(key)
 
     def before_map_value(self, value: NestedField) -> None:
         if not isinstance(value.field_type, StructType):
@@ -978,7 +1091,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return self._index
 
     def by_name(self) -> Dict[str, int]:
-        """Returns an index of combined full and short names.
+        """Return an index of combined full and short names.
 
         Note: Only short names that do not conflict with full names are included.
         """
@@ -987,7 +1100,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return combined_index
 
     def by_id(self) -> Dict[int, str]:
-        """Returns an index of ID to full names."""
+        """Return an index of ID to full names."""
         id_to_full_name = {value: key for key, value in self._index.items()}
         return id_to_full_name
 
@@ -1161,6 +1274,16 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
 
 def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
+    """Prunes a column by only selecting a set of field-ids.
+
+    Args:
+        schema: The schema to be pruned.
+        selected: The field-ids to be included.
+        select_full_types: Return the full struct when a subset is recorded
+
+    Returns:
+        The pruned schema.
+    """
     result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
     return Schema(
         *(result or StructType()).fields,

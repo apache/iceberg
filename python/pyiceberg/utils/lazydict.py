@@ -53,16 +53,16 @@ class LazyDict(Mapping[K, V]):
         return self._dict
 
     def __getitem__(self, key: K, /) -> V:
-        """Returns the value for the given key."""
+        """Return the value for the given key."""
         source = self._dict or self._build_dict()
         return source[key]
 
     def __iter__(self) -> Iterator[K]:
-        """Returns an iterator over the keys of the dictionary."""
+        """Return an iterator over the keys of the dictionary."""
         source = self._dict or self._build_dict()
         return iter(source)
 
     def __len__(self) -> int:
-        """Returns the number of items in the dictionary."""
+        """Return the number of items in the dictionary."""
         source = self._dict or self._build_dict()
         return len(source)

@@ -181,8 +181,23 @@ class SqlCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        raise NotImplementedError
+
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and return the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'.
         Note: This method doesn't scan data stored in the table.
@@ -269,7 +284,7 @@ class SqlCatalog(Catalog):
         return self.load_table(to_identifier)
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates one or more tables.
+        """Update one or more tables.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -431,7 +446,7 @@ class SqlCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and update properties for a namespace.
 
         Args:
             namespace (str | Identifier): Namespace identifier.

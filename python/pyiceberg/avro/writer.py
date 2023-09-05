@@ -45,7 +45,7 @@ class Writer(Singleton):
         ...
 
     def __repr__(self) -> str:
-        """Returns string representation of this object."""
+        """Return string representation of this object."""
         return f"{self.__class__.__name__}()"
 
 
@@ -116,11 +116,11 @@ class FixedWriter(Writer):
         encoder.write(val)
 
     def __len__(self) -> int:
-        """Returns the length of this object."""
+        """Return the length of this object."""
         return self._len
 
     def __repr__(self) -> str:
-        """Returns string representation of this object."""
+        """Return string representation of this object."""
         return f"FixedWriter({self._len})"
 
 
@@ -140,7 +140,7 @@ class DecimalWriter(Writer):
         return encoder.write(decimal_to_bytes(val, byte_length=decimal_required_bytes(self.precision)))
 
     def __repr__(self) -> str:
-        """Returns string representation of this object."""
+        """Return string representation of this object."""
         return f"DecimalWriter({self.precision}, {self.scale})"
 
 
@@ -165,15 +165,15 @@ class StructWriter(Writer):
             writer.write(encoder, value)
 
     def __eq__(self, other: Any) -> bool:
-        """Implements the equality operator for this object."""
+        """Implement the equality operator for this object."""
         return self.field_writers == other.field_writers if isinstance(other, StructWriter) else False
 
     def __repr__(self) -> str:
-        """Returns string representation of this object."""
+        """Return string representation of this object."""
         return f"StructWriter({','.join(repr(field) for field in self.field_writers)})"
 
     def __hash__(self) -> int:
-        """Returns the hash of the writer as hash of this object."""
+        """Return the hash of the writer as hash of this object."""
         return hash(self.field_writers)
 
 

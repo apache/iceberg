@@ -110,6 +110,9 @@ class InMemoryCatalog(Catalog):
             self.__tables[identifier] = table
             return table
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        raise NotImplementedError
+
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         new_metadata: Optional[TableMetadata] = None
         metadata_location = ""
@@ -542,7 +545,7 @@ def test_commit_table(catalog: InMemoryCatalog) -> None:
 def test_add_column(catalog: InMemoryCatalog) -> None:
     given_table = given_catalog_has_a_table(catalog)
 
-    given_table.update_schema().add_column(name="new_column1", type_var=IntegerType()).commit()
+    given_table.update_schema().add_column(path="new_column1", field_type=IntegerType()).commit()
 
     assert given_table.schema() == Schema(
         NestedField(field_id=1, name="x", field_type=LongType(), required=True),
@@ -554,7 +557,7 @@ def test_add_column(catalog: InMemoryCatalog) -> None:
     )
 
     transaction = given_table.transaction()
-    transaction.update_schema().add_column(name="new_column2", type_var=IntegerType(), doc="doc").commit()
+    transaction.update_schema().add_column(path="new_column2", field_type=IntegerType(), doc="doc").commit()
     transaction.commit_transaction()
 
     assert given_table.schema() == Schema(
@@ -572,7 +575,7 @@ def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
     given_table = given_catalog_has_a_table(catalog)
 
     with given_table.update_schema() as tx:
-        tx.add_column(name="new_column1", type_var=IntegerType())
+        tx.add_column(path="new_column1", field_type=IntegerType())
 
     assert given_table.schema() == Schema(
         NestedField(field_id=1, name="x", field_type=LongType(), required=True),
@@ -584,7 +587,7 @@ def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
     )
 
     with given_table.transaction() as tx:
-        tx.update_schema().add_column(name="new_column2", type_var=IntegerType(), doc="doc").commit()
+        tx.update_schema().add_column(path="new_column2", field_type=IntegerType(), doc="doc").commit()
 
     assert given_table.schema() == Schema(
         NestedField(field_id=1, name="x", field_type=LongType(), required=True),

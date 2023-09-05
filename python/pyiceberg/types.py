@@ -156,11 +156,11 @@ class PrimitiveType(IcebergRootModel[str], IcebergType, Singleton):
     root: Any = Field()
 
     def __repr__(self) -> str:
-        """Returns the string representation of the PrimitiveType class."""
+        """Return the string representation of the PrimitiveType class."""
         return f"{type(self).__name__}()"
 
     def __str__(self) -> str:
-        """Returns the string representation of the PrimitiveType class."""
+        """Return the string representation of the PrimitiveType class."""
         return self.root
 
 
@@ -186,19 +186,19 @@ class FixedType(PrimitiveType):
         return f"fixed[{self.root}]"
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the FixedType class."""
+        """Return the length of an instance of the FixedType class."""
         return self.root
 
     def __str__(self) -> str:
-        """Returns the string representation."""
+        """Return the string representation."""
         return f"fixed[{self.root}]"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the FixedType class."""
+        """Return the string representation of the FixedType class."""
         return f"FixedType(length={self.root})"
 
     def __getnewargs__(self) -> tuple[int]:
-        """A magic function for pickling the FixedType class."""
+        """Pickle the FixedType class."""
         return (self.root,)
 
 
@@ -219,37 +219,37 @@ class DecimalType(PrimitiveType):
 
     @model_serializer
     def ser_model(self) -> str:
-        """Used when serialized to a string."""
+        """Serialize the model to a string."""
         return f"decimal({self.precision}, {self.scale})"
 
     @property
     def precision(self) -> int:
-        """Returns the precision of the decimal."""
+        """Return the precision of the decimal."""
         return self.root[0]
 
     @property
     def scale(self) -> int:
-        """Returns the scale of the decimal."""
+        """Return the scale of the decimal."""
         return self.root[1]
 
     def __repr__(self) -> str:
-        """Returns the string representation of the DecimalType class."""
+        """Return the string representation of the DecimalType class."""
         return f"DecimalType(precision={self.precision}, scale={self.scale})"
 
     def __str__(self) -> str:
-        """Returns the string representation."""
+        """Return the string representation."""
         return f"decimal({self.precision}, {self.scale})"
 
     def __hash__(self) -> int:
-        """Returns the hash of the tuple."""
+        """Return the hash of the tuple."""
         return hash(self.root)
 
     def __getnewargs__(self) -> Tuple[int, int]:
-        """A magic function for pickling the DecimalType class."""
+        """Pickle the DecimalType class."""
         return self.precision, self.scale
 
     def __eq__(self, other: Any) -> bool:
-        """Compares to root to another object."""
+        """Compare to root to another object."""
         return self.root == other.root if isinstance(other, DecimalType) else False
 
 
@@ -304,13 +304,13 @@ class NestedField(IcebergType):
         super().__init__(**data)
 
     def __str__(self) -> str:
-        """Returns the string representation of the NestedField class."""
+        """Return the string representation of the NestedField class."""
         doc = "" if not self.doc else f" ({self.doc})"
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
     def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
-        """A magic function for pickling the NestedField class."""
+        """Pickle the NestedField class."""
         return (self.field_id, self.name, self.field_type, self.required, self.doc)
 
     @property
@@ -347,27 +347,27 @@ class StructType(IcebergType):
         return None
 
     def __str__(self) -> str:
-        """Returns the string representation of the StructType class."""
+        """Return the string representation of the StructType class."""
         return f"struct<{', '.join(map(str, self.fields))}>"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the StructType class."""
+        """Return the string representation of the StructType class."""
         return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the StructType class."""
+        """Return the length of an instance of the StructType class."""
         return len(self.fields)
 
     def __getnewargs__(self) -> Tuple[NestedField, ...]:
-        """A magic function for pickling the StructType class."""
+        """Pickle the StructType class."""
         return self.fields
 
     def __hash__(self) -> int:
-        """Used the cache hash value of the StructType class."""
+        """Use the cache hash value of the StructType class."""
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
-        """Compares the object if it is equal to another object."""
+        """Compare the object if it is equal to another object."""
         return self.fields == other.fields if isinstance(other, StructType) else False
 
 
@@ -405,19 +405,19 @@ class ListType(IcebergType):
         )
 
     def __str__(self) -> str:
-        """Returns the string representation of the ListType class."""
+        """Return the string representation of the ListType class."""
         return f"list<{self.element_type}>"
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
-        """A magic function for pickling the ListType class."""
+        """Pickle the ListType class."""
         return (self.element_id, self.element_type, self.element_required)
 
     def __hash__(self) -> int:
-        """Used the cache hash value of the StructType class."""
+        """Use the cache hash value of the StructType class."""
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
-        """Compares the list type to another list type."""
+        """Compare the list type to another list type."""
         return self.element_field == other.element_field if isinstance(other, ListType) else False
 
 
@@ -473,19 +473,19 @@ class MapType(IcebergType):
         )
 
     def __str__(self) -> str:
-        """Returns the string representation of the MapType class."""
+        """Return the string representation of the MapType class."""
         return f"map<{self.key_type}, {self.value_type}>"
 
     def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
-        """A magic function for pickling the MapType class."""
+        """Pickle the MapType class."""
         return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
     def __hash__(self) -> int:
-        """Returns the hash of the MapType."""
+        """Return the hash of the MapType."""
         return self._hash
 
     def __eq__(self, other: Any) -> bool:
-        """Compares the MapType to another object."""
+        """Compare the MapType to another object."""
         return (
             self.key_field == other.key_field and self.value_field == other.value_field if isinstance(other, MapType) else False
         )

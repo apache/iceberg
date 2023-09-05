@@ -192,7 +192,7 @@ class FsspecInputFile(InputFile):
         super().__init__(location=location)
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
         if size := object_info.get("Size"):
             return size
@@ -201,7 +201,7 @@ class FsspecInputFile(InputFile):
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 
     def exists(self) -> bool:
-        """Checks whether the location exists."""
+        """Check whether the location exists."""
         return self._fs.lexists(self.location)
 
     def open(self, seekable: bool = True) -> InputStream:
@@ -236,7 +236,7 @@ class FsspecOutputFile(OutputFile):
         super().__init__(location=location)
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
         if size := object_info.get("Size"):
             return size
@@ -245,7 +245,7 @@ class FsspecOutputFile(OutputFile):
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 
     def exists(self) -> bool:
-        """Checks whether the location exists."""
+        """Check whether the location exists."""
         return self._fs.lexists(self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -271,7 +271,7 @@ class FsspecOutputFile(OutputFile):
         return self._fs.open(self.location, "wb")
 
     def to_input_file(self) -> FsspecInputFile:
-        """Returns a new FsspecInputFile for the location at `self.location`."""
+        """Return a new FsspecInputFile for the location at `self.location`."""
         return FsspecInputFile(location=self.location, fs=self._fs)
 
 

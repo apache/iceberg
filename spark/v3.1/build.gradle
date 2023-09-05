@@ -215,6 +215,7 @@ project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
     implementation project(':iceberg-spark:iceberg-spark-3.1_2.12')
     implementation project(':iceberg-spark:iceberg-spark-extensions-3.1_2.12')
     implementation project(':iceberg-aws')
+    implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'

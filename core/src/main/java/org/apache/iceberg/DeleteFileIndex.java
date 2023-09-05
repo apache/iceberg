@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -75,6 +76,7 @@ class DeleteFileIndex {
   private final DeleteFileGroup globalDeletes;
   private final Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition;
   private final boolean isEmpty;
+  private final boolean useColumnStatsFiltering;
 
   /** @deprecated since 1.4.0, will be removed in 1.5.0. */
   @Deprecated
@@ -83,13 +85,14 @@ class DeleteFileIndex {
       long[] globalSeqs,
       DeleteFile[] globalDeletes,
       Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition) {
-    this(specs, index(specs, globalSeqs, globalDeletes), index(specs, deletesByPartition));
+    this(specs, index(specs, globalSeqs, globalDeletes), index(specs, deletesByPartition), true);
   }
 
   private DeleteFileIndex(
       Map<Integer, PartitionSpec> specs,
       DeleteFileGroup globalDeletes,
-      Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition) {
+      Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition,
+      boolean useColumnStatsFiltering) {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specs.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
@@ -97,6 +100,7 @@ class DeleteFileIndex {
     this.globalDeletes = globalDeletes;
     this.deletesByPartition = deletesByPartition;
     this.isEmpty = globalDeletes == null && deletesByPartition.isEmpty();
+    this.useColumnStatsFiltering = useColumnStatsFiltering;
   }
 
   public boolean isEmpty() {
@@ -148,7 +152,16 @@ class DeleteFileIndex {
 
     if (globalDeletes == null && partitionDeletes == null) {
       return NO_DELETES;
+    } else if (useColumnStatsFiltering) {
+      return limitWithColumnStatsFiltering(sequenceNumber, file, partitionDeletes);
+    } else {
+      return limitWithoutColumnStatsFiltering(sequenceNumber, partitionDeletes);
     }
+  }
+
+  // limits deletes using sequence numbers and checks whether columns stats overlap
+  private DeleteFile[] limitWithColumnStatsFiltering(
+      long sequenceNumber, DataFile file, DeleteFileGroup partitionDeletes) {
 
     Stream<IndexedDeleteFile> matchingDeletes;
     if (partitionDeletes == null) {
@@ -165,6 +178,21 @@ class DeleteFileIndex {
         .filter(deleteFile -> canContainDeletesForFile(file, deleteFile))
         .map(IndexedDeleteFile::wrapped)
         .toArray(DeleteFile[]::new);
+  }
+
+  // limits deletes using sequence numbers but skips expensive column stats filtering
+  private DeleteFile[] limitWithoutColumnStatsFiltering(
+      long sequenceNumber, DeleteFileGroup partitionDeletes) {
+
+    if (partitionDeletes == null) {
+      return globalDeletes.filter(sequenceNumber);
+    } else if (globalDeletes == null) {
+      return partitionDeletes.filter(sequenceNumber);
+    } else {
+      DeleteFile[] matchingGlobalDeletes = globalDeletes.filter(sequenceNumber);
+      DeleteFile[] matchingPartitionDeletes = partitionDeletes.filter(sequenceNumber);
+      return ObjectArrays.concat(matchingGlobalDeletes, matchingPartitionDeletes, DeleteFile.class);
+    }
   }
 
   private static boolean canContainDeletesForFile(DataFile dataFile, IndexedDeleteFile deleteFile) {
@@ -483,6 +511,8 @@ class DeleteFileIndex {
     DeleteFileIndex build() {
       Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
+      boolean useColumnStatsFiltering = false;
+
       // build a map from (specId, partition) to delete file entries
       Map<Integer, StructLikeWrapper> wrappersBySpecId = Maps.newHashMap();
       ListMultimap<Pair<Integer, StructLikeWrapper>, IndexedDeleteFile> deleteFilesByPartition =
@@ -494,7 +524,13 @@ class DeleteFileIndex {
             wrappersBySpecId
                 .computeIfAbsent(specId, id -> StructLikeWrapper.forType(spec.partitionType()))
                 .copyFor(file.partition());
-        deleteFilesByPartition.put(Pair.of(specId, wrapper), new IndexedDeleteFile(spec, file));
+        IndexedDeleteFile indexedFile = new IndexedDeleteFile(spec, file);
+        deleteFilesByPartition.put(Pair.of(specId, wrapper), indexedFile);
+
+        if (!useColumnStatsFiltering) {
+          useColumnStatsFiltering = indexedFile.hasLowerAndUpperBounds();
+        }
+
         ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }
 
@@ -535,7 +571,8 @@ class DeleteFileIndex {
         }
       }
 
-      return new DeleteFileIndex(specsById, globalDeletes, sortedDeletesByPartition);
+      return new DeleteFileIndex(
+          specsById, globalDeletes, sortedDeletesByPartition, useColumnStatsFiltering);
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
@@ -597,7 +634,28 @@ class DeleteFileIndex {
       this.files = files;
     }
 
+    public DeleteFile[] filter(long seq) {
+      int start = findStartIndex(seq);
+
+      if (start >= files.length) {
+        return NO_DELETES;
+      }
+
+      DeleteFile[] matchingFiles = new DeleteFile[files.length - start];
+
+      for (int index = start; index < files.length; index++) {
+        matchingFiles[index - start] = files[index].wrapped();
+      }
+
+      return matchingFiles;
+    }
+
     public Stream<IndexedDeleteFile> limit(long seq) {
+      int start = findStartIndex(seq);
+      return Arrays.stream(files, start, files.length);
+    }
+
+    private int findStartIndex(long seq) {
       int pos = Arrays.binarySearch(seqs, seq);
       int start;
       if (pos < 0) {
@@ -612,7 +670,7 @@ class DeleteFileIndex {
         }
       }
 
-      return Arrays.stream(files, start, files.length);
+      return start;
     }
 
     public Iterable<DeleteFile> referencedDeleteFiles() {

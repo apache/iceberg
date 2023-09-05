@@ -87,7 +87,7 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (dataManifests.size() > 1 && shouldPlanWithExecutor()) {
+    if (shouldPlanWithExecutor() && (dataManifests.size() > 1 || deleteManifests.size() > 1)) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 

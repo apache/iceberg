@@ -490,7 +490,7 @@ def bound_double_reference() -> BoundReference[float]:
     schema = Schema(
         NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
         schema_id=1,
-        identifier_field_ids=[2],
+        identifier_field_ids=[],
     )
     return BoundReference(schema.find_field(1), schema.accessor_for_field(1))
 

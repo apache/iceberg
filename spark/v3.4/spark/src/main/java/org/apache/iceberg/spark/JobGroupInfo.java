@@ -20,9 +20,13 @@ package org.apache.iceberg.spark;
 
 /** Captures information about the current job which is used for displaying on the UI */
 public class JobGroupInfo {
-  private String groupId;
-  private String description;
-  private boolean interruptOnCancel;
+  private final String groupId;
+  private final String description;
+  private final boolean interruptOnCancel;
+
+  public JobGroupInfo(String groupId, String desc) {
+    this(groupId, desc, false);
+  }
 
   public JobGroupInfo(String groupId, String desc, boolean interruptOnCancel) {
     this.groupId = groupId;

@@ -26,7 +26,7 @@ class ExecutorFactory:
 
     @staticmethod
     def get_or_create() -> Executor:
-        """Returns the same executor in each call."""
+        """Return the same executor in each call."""
         if ExecutorFactory._instance is None:
             max_workers = ExecutorFactory.max_workers()
             ExecutorFactory._instance = ThreadPoolExecutor(max_workers=max_workers)
@@ -35,7 +35,7 @@ class ExecutorFactory:
 
     @staticmethod
     def max_workers() -> Optional[int]:
-        """Returns the max number of workers configured."""
+        """Return the max number of workers configured."""
         config = Config()
         val = config.config.get("max-workers")
 

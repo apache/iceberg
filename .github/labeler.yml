@@ -72,15 +72,20 @@ PIG:
   - pig/**/*
 AWS:
   - aws/**/*
+  - aws-bundle/**/*
 NESSIE:
   - nessie/**/*
 ALIYUN:
   - aliyun/**/*
 GCP:
   - gcp/**/*
+  - gcp-bundle/**/*
 DELL:
   - dell/**/*
 SNOWFLAKE:
   - snowflake/**/*
 OPENAPI:
   - open-api/**/*
+AZURE:
+  - azure/**/*
+  - azure-bundle/**/*

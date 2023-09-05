@@ -97,7 +97,7 @@ class Reader(Singleton):
         ...
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Reader class."""
+        """Return the string representation of the Reader class."""
         return f"{self.__class__.__name__}()"
 
 
@@ -217,11 +217,11 @@ class FixedReader(Reader):
         decoder.skip(len(self))
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the FixedReader class."""
+        """Return the length of an instance of the FixedReader class."""
         return self._len
 
     def __repr__(self) -> str:
-        """Returns the string representation of the FixedReader class."""
+        """Return the string representation of the FixedReader class."""
         return f"FixedReader({self._len})"
 
 
@@ -263,7 +263,7 @@ class DecimalReader(Reader):
         decoder.skip_bytes()
 
     def __repr__(self) -> str:
-        """Returns the string representation of the DecimalReader class."""
+        """Return the string representation of the DecimalReader class."""
         return f"DecimalReader({self.precision}, {self.scale})"
 
 
@@ -346,7 +346,7 @@ class StructReader(Reader):
             field.skip(decoder)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the StructReader class."""
+        """Return the equality of two instances of the StructReader class."""
         return (
             self.field_readers == other.field_readers and self.create_struct == other.create_struct
             if isinstance(other, StructReader)
@@ -354,11 +354,11 @@ class StructReader(Reader):
         )
 
     def __repr__(self) -> str:
-        """Returns the string representation of the StructReader class."""
+        """Return the string representation of the StructReader class."""
         return f"StructReader(({','.join(repr(field) for field in self.field_readers)}), {repr(self.create_struct)})"
 
     def __hash__(self) -> int:
-        """Returns a hashed representation of the StructReader class."""
+        """Return a hashed representation of the StructReader class."""
         return self._hash
 
 
@@ -392,7 +392,7 @@ class ListReader(Reader):
         _skip_map_array(decoder, lambda: self.element.skip(decoder))
 
     def __hash__(self) -> int:
-        """Returns a hashed representation of the ListReader class."""
+        """Return a hashed representation of the ListReader class."""
         return self._hash
 
 
@@ -492,5 +492,5 @@ class MapReader(Reader):
         _skip_map_array(decoder, skip)
 
     def __hash__(self) -> int:
-        """Returns a hashed representation of the MapReader class."""
+        """Return a hashed representation of the MapReader class."""
         return self._hash
