@@ -30,6 +30,8 @@ public class AesGcmInputStream extends SeekableInputStream {
   private final SeekableInputStream sourceStream;
   private final byte[] fileAADPrefix;
   private final Ciphers.AesGcmDecryptor decryptor;
+  private final byte[] cipherBlockBuffer;
+  private final byte[] currentPlainBlock;
   private final long numBlocks;
   private final int lastCipherBlockSize;
   private final long plainStreamSize;
@@ -37,8 +39,6 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   private long plainStreamPosition;
   private long currentPlainBlockIndex;
-  private byte[] cipherBlockBuffer;
-  private byte[] currentPlainBlock;
   private int currentPlainBlockSize;
 
   AesGcmInputStream(
@@ -106,6 +106,10 @@ public class AesGcmInputStream extends SeekableInputStream {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkArgument(len >= 0, "Invalid read length: " + len);
+
+    if (currentPlainBlockIndex < 0) {
+      decryptBlock(0);
+    }
 
     if (available() <= 0 && len > 0) {
       throw new EOFException();
@@ -183,16 +187,12 @@ public class AesGcmInputStream extends SeekableInputStream {
       return -1;
     }
 
-    int unsignedByte = singleByte[0] >= 0 ? singleByte[0] : 256 + singleByte[0];
-
-    return unsignedByte;
+    return singleByte[0] >= 0 ? singleByte[0] : 256 + singleByte[0];
   }
 
   @Override
   public void close() throws IOException {
     sourceStream.close();
-    this.currentPlainBlock = null;
-    this.cipherBlockBuffer = null;
   }
 
   private void decryptBlock(long blockIndex) throws IOException {
