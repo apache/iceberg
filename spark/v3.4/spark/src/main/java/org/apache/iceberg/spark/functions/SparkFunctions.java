@@ -65,12 +65,11 @@ public class SparkFunctions {
   }
 
   public static UnboundFunction loadFunctionByClass(Class<?> functionClass) {
-    String clasCanonicalName = functionClass.getCanonicalName();
-    if (!clasCanonicalName.startsWith(SparkFunctions.class.getPackage().getName())) {
+    Class<?> declaringClass = functionClass.getDeclaringClass();
+    if (declaringClass == null) {
       return null;
     }
 
-    Class<?> declaringClass = functionClass.getDeclaringClass();
     return CLASS_TO_FUNCTIONS.get(declaringClass);
   }
 }

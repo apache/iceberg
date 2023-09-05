@@ -19,23 +19,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.expressions.Expressions.month;
-import static org.apache.iceberg.expressions.Expressions.notEqual;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -64,18 +54,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -86,14 +72,10 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTableWithFilters;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelWrite;
-import org.apache.spark.sql.connector.expressions.filter.Predicate;
-import org.apache.spark.sql.execution.CommandResultExec;
 import org.apache.spark.sql.execution.SparkPlan;
-import org.apache.spark.sql.execution.datasources.v2.DeleteFromTableExec;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -1323,101 +1305,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });
-  }
-
-  @Test
-  public void testDeleteFilterWithSystemFuncOnPartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
-
-    int targetYears = timestampStrToYearOrdinal("2018-12-21T00:00:00.000000+00:00");
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql(
-                  "SELECT * FROM %s WHERE %s.system.years(ts) != %s ORDER BY id",
-                  tableName, catalogName, targetYears);
-          container.add(expected);
-        });
-
-    String deleteSql =
-        String.format(
-            "DELETE FROM %s WHERE %s.system.years(ts) == %s", tableName, catalogName, targetYears);
-    // Metadata delete
-    Dataset<Row> df = spark.sql(deleteSql);
-    CommandResultExec commandResultExec =
-        (CommandResultExec) df.queryExecution().sparkPlan().collectLeaves().apply(0);
-    Assertions.assertThat(commandResultExec.commandPhysicalPlan())
-        .isInstanceOf(DeleteFromTableExec.class);
-    DeleteFromTableExec deleteFromTable =
-        (DeleteFromTableExec) commandResultExec.commandPhysicalPlan();
-    Assertions.assertThat(deleteFromTable.condition().length).isEqualTo(1);
-    Predicate predicate = deleteFromTable.condition()[0];
-    Assertions.assertThat(predicate.toString()).isEqualTo("years(ts) = " + targetYears);
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
-  }
-
-  @Test
-  public void testDeleteFilterWithSystemFuncOnUnpartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createUnpartitionedTable(spark, tableName, tableProperties);
-
-    RowLevelOperationMode operationMode =
-        RowLevelOperationMode.fromName(
-            extraTableProperties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT));
-
-    int targetMonths = timestampStrToMonthOrdinal("2018-12-21T00:00:00.000000+00:00");
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql(
-                  "SELECT * FROM %s WHERE %s.system.months(ts) = %s ORDER BY id",
-                  tableName, catalogName, targetMonths);
-          container.add(expected);
-        });
-
-    String deleteSql =
-        String.format(
-            "DELETE FROM %s WHERE %s.system.months(ts) != %s",
-            tableName, catalogName, targetMonths);
-    Dataset<Row> df = spark.sql(deleteSql);
-    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-    List<Expression> pushedFilers;
-    if (COPY_ON_WRITE == operationMode) {
-      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-    } else {
-      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-    }
-
-    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-    Expression actualPushed = pushedFilers.get(0);
-    Expression expectedPushed = notEqual(month("ts"), targetMonths);
-    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-        .isTrue();
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
   }
 
   // TODO: multiple stripes for ORC

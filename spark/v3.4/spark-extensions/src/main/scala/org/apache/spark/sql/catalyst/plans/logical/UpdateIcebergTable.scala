@@ -50,8 +50,4 @@ case class UpdateIcebergTable(
       copy(table = newTable, rewritePlan = Some(newRewritePlan))
     }
   }
-
-  override def withNewCondition(newCondition: Expression): RowLevelCommand = {
-    copy(condition = Some(newCondition))
-  }
 }

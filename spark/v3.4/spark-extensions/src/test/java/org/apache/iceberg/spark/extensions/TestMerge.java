@@ -19,24 +19,14 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.MERGE_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.month;
-import static org.apache.iceberg.expressions.Expressions.year;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -62,15 +52,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -81,7 +67,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -2747,128 +2732,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
-  }
-
-  @Test
-  public void testMergeFilterWithSystemFunctionsOnPartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createPartitionedTable(spark, tableName, "years(ts)", tableProperties);
-
-    RowLevelOperationMode operationMode =
-        RowLevelOperationMode.fromName(
-            extraTableProperties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT));
-
-    createOrReplaceView(
-        "source",
-        "id BIGINT, ts TIMESTAMP, data STRING",
-        "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
-            + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
-
-    int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
-          container.add(expected);
-        });
-
-    String mergeSql =
-        String.format(
-            "MERGE INTO %s AS t USING source AS s "
-                + "ON t.id = s.id AND %s.system.years(t.ts) = %s "
-                + "WHEN MATCHED "
-                + "  THEN UPDATE SET t.data = s.data "
-                + "WHEN NOT MATCHED AND s.id != 5 "
-                + "  THEN INSERT *",
-            tableName, catalogName, targetYears);
-    Dataset<Row> df = spark.sql(mergeSql);
-    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-    List<Expression> pushedFilers;
-    if (COPY_ON_WRITE == operationMode) {
-      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-    } else {
-      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-    }
-
-    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-    Expression actualPushed = pushedFilers.get(0);
-    Expression expectedPushed = equal(year("ts"), targetYears);
-    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-        .isTrue();
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
-  }
-
-  @Test
-  public void testMergeFilterWithSystemFunctionsOnUnpartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createUnpartitionedTable(spark, tableName, tableProperties);
-
-    RowLevelOperationMode operationMode =
-        RowLevelOperationMode.fromName(
-            extraTableProperties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT));
-
-    createOrReplaceView(
-        "source",
-        "id BIGINT, ts TIMESTAMP, data STRING",
-        "{ \"id\": 0, \"ts\": \"2023-08-01T09:20:44.294658+00:00\", \"data\": \"new-data-0\"}\n"
-            + "{ \"id\": 5, \"ts\": \"2023-08-02T09:23:44.294658+00:00\", \"data\": \"new-data-5\"}\n");
-
-    int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql("SELECT id, ts, IF(id = 0, 'new-data-0', data) FROM %s ORDER BY id", tableName);
-          container.add(expected);
-        });
-
-    String mergeSql =
-        String.format(
-            "MERGE INTO %s AS t USING source AS s "
-                + "ON t.id = s.id AND %s.system.months(t.ts) = %s "
-                + "WHEN MATCHED "
-                + "  THEN UPDATE SET t.data = s.data "
-                + "WHEN NOT MATCHED AND s.id != 5 "
-                + "  THEN INSERT *",
-            tableName, catalogName, targetMonths);
-    Dataset<Row> df = spark.sql(mergeSql);
-    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-    List<Expression> pushedFilers;
-    if (COPY_ON_WRITE == operationMode) {
-      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-    } else {
-      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-    }
-
-    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-    Expression actualPushed = pushedFilers.get(0);
-    Expression expectedPushed = equal(month("ts"), targetMonths);
-    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-        .isTrue();
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {

@@ -26,20 +26,10 @@ import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
-import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
-import org.apache.spark.sql.catalyst.plans.logical.RowLevelWrite
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
-import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
-import org.apache.spark.sql.connector.write.RowLevelOperation
-import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.types.StructField
@@ -62,63 +52,7 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
   }
 
   private def rewrite(plan: LogicalPlan): LogicalPlan = plan transform {
-    case command: RowLevelCommand if command.rewritePlan.nonEmpty && command.condition.nonEmpty =>
-      command.rewritePlan.get match {
-        // Some special cases need to handle for copy-on-write because the follows:
-        // For group-based MERGE operations, it pushes down the join condition
-        // For others, it pushes down the filter from the command condition instead of the filter in the rewrite plan
-        case rd: ReplaceIcebergData =>
-          val condition = command.condition.get
-          val newCondition = replaceStaticInvoke(condition)
-
-          if (condition fastEquals newCondition) {
-            // There is not any StaticInvoke needs to replace
-            command
-          } else {
-            command match {
-              case _: MergeIntoIcebergTable =>
-                // Trying to rewrite the join condition in group-based MERGE operations
-                val newQuery = rd.query.transform {
-                  case join: Join if join.condition.nonEmpty =>
-                    join.copy(condition = Some(replaceStaticInvoke(join.condition.get)))
-                }
-
-                command.withNewCondition(newCondition).withNewRewritePlan(rd.copy(query = newQuery))
-
-              case _ =>
-                command.withNewCondition(newCondition)
-            }
-          }
-
-        // The query have filters that can be pushed down directly
-        case wd: WriteIcebergDelta =>
-          val newQuery = rewriteFilterCondition(wd.query, false)
-          command.withNewRewritePlan(wd.copy(query = newQuery))
-      }
-
-    // For copy-on-write mode delete
-    // Just needs to rewrite the condition because both metadata delete and filter push down are based on condition
-    case replaceData: ReplaceData if icebergRelation(replaceData.table, false) && isDeleteCommand(replaceData) =>
-      val newCondition = replaceStaticInvoke(replaceData.condition)
-      replaceData.copy(condition = newCondition)
-
-    // For merge-on-read mode delete
-    // Rewrite the condition because metadata delete is based on the condition
-    // Rewrite the query because it has filters which will be pushed down
-    case writeDelta: WriteDelta if icebergRelation(writeDelta.table, false) && isDeleteCommand(writeDelta) =>
-      val newCondition = replaceStaticInvoke(writeDelta.condition)
-      val newQuery = rewriteFilterCondition(writeDelta.query, false)
-      writeDelta.copy(condition = newCondition, query = newQuery)
-
-    // Row level command has already been handled. Exclude it because this could rewrite row-level command.
-    // For example, rewrite copy-on-write command which will only push down condition of the command
-    case other => rewriteFilterCondition(other, true)
-  }
-
-  private def rewriteFilterCondition(
-      plan: LogicalPlan,
-      excludeRowLevelOperationTable: Boolean): LogicalPlan = plan transform {
-    case filter @ Filter(condition, child) if icebergRelation(child, excludeRowLevelOperationTable) =>
+    case filter @ Filter(condition, child) if icebergRelation(child) =>
       val newCondition = replaceStaticInvoke(condition)
       if (newCondition fastEquals condition) {
         filter
@@ -134,20 +68,16 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
     ).toBoolean
   }
 
-  private def isDeleteCommand(rowLevelWrite: RowLevelWrite): Boolean = {
-    rowLevelWrite.operation.command() == RowLevelOperation.Command.DELETE
-  }
-
   private def replaceStaticInvoke(expression: Expression): Expression = expression.transform {
     case invoke: StaticInvoke =>
       invoke.functionName match {
         case "invoke" =>
-          // Adaptive from `resolveV2Function` in org.apache.spark.sql.catalyst.analysis.ResolveFunctions
           if (invoke.arguments.forall(_.foldable)) {
             // The invoke should be folded into constant
             return invoke
           }
 
+          // Adaptive from `resolveV2Function` in org.apache.spark.sql.catalyst.analysis.ResolveFunctions
           val unbound = SparkFunctions.loadFunctionByClass(invoke.staticObject)
           if (unbound == null) {
             return invoke
@@ -177,12 +107,10 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
   }
 
   @tailrec
-  private def icebergRelation(plan: LogicalPlan, excludeRowLevelOperationTable: Boolean): Boolean = {
+  private def icebergRelation(plan: LogicalPlan): Boolean = {
 
-    @tailrec
     def isIcebergTable(table: Table): Boolean = table match {
       case _: SparkTable => true
-      case r: RowLevelOperationTable if !excludeRowLevelOperationTable => isIcebergTable(r.table)
       case _ => false
     }
 
@@ -190,7 +118,7 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
       case relation: DataSourceV2Relation =>
         isIcebergTable(relation.table)
       case scanRelation: DataSourceV2ScanRelation =>
-        icebergRelation(scanRelation.relation, excludeRowLevelOperationTable)
+        icebergRelation(scanRelation.relation)
       case _ => false
     }
   }

@@ -25,5 +25,4 @@ trait RowLevelCommand extends Command with SupportsSubquery {
   def condition: Option[Expression]
   def rewritePlan: Option[LogicalPlan]
   def withNewRewritePlan(newRewritePlan: LogicalPlan): RowLevelCommand
-  def withNewCondition(newCondition: Expression): RowLevelCommand
 }

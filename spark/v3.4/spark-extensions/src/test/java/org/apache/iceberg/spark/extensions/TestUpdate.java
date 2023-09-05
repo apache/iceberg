@@ -23,21 +23,13 @@ import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.expressions.Expressions.bucket;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.STRUCT;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
-import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
@@ -62,17 +54,13 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -82,7 +70,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -1481,106 +1468,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
-  }
-
-  @Test
-  public void testUpdateFilterWithSystemFunctionOnUnpartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createUnpartitionedTable(spark, tableName, tableProperties);
-
-    RowLevelOperationMode operationMode =
-        RowLevelOperationMode.fromName(
-            extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql(
-                  "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
-                  catalogName, tableName);
-          container.add(expected);
-        });
-
-    String updateSql =
-        String.format(
-            "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
-            tableName, catalogName);
-    Dataset<Row> df = spark.sql(updateSql);
-    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-    List<Expression> pushedFilers;
-    if (COPY_ON_WRITE == operationMode) {
-      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-    } else {
-      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-    }
-
-    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-    Expression actualPushed = pushedFilers.get(0);
-    Expression expectedPushed = equal(bucket("id", 5), 1);
-    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-        .isTrue();
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
-  }
-
-  @Test
-  public void testUpdateFilterWithSystemFunctionOnPartitionedTable() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);
-    tableProperties.put(WRITE_DISTRIBUTION_MODE, distributionMode);
-    tableProperties.put(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, String.valueOf(fanoutEnabled));
-    tableProperties.putAll(extraTableProperties());
-    createPartitionedTable(spark, tableName, "bucket(5, id)", tableProperties);
-
-    RowLevelOperationMode operationMode =
-        RowLevelOperationMode.fromName(
-            extraTableProperties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT));
-
-    List<List<Object[]>> container = Lists.newArrayList();
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED, "false"),
-        () -> {
-          List<Object[]> expected =
-              sql(
-                  "SELECT id, ts, IF(%s.system.bucket(5, id) = 1, 'new_data', data) FROM %s ORDER BY id",
-                  catalogName, tableName);
-          container.add(expected);
-        });
-
-    String updateSql =
-        String.format(
-            "UPDATE %s SET data = 'new_data' WHERE %s.system.bucket(5, id) = 1",
-            tableName, catalogName);
-    Dataset<Row> df = spark.sql(updateSql);
-    SparkPlan sparkPlan = df.queryExecution().sparkPlan();
-
-    List<Expression> pushedFilers;
-    if (COPY_ON_WRITE == operationMode) {
-      pushedFilers = PlanUtils.getCopyOnWritePushDownFilters(sparkPlan);
-    } else {
-      pushedFilers = PlanUtils.getMergeOnReadPushDownFilters(sparkPlan);
-    }
-
-    Assertions.assertThat(pushedFilers.size()).isEqualTo(1);
-    Expression actualPushed = pushedFilers.get(0);
-    Expression expectedPushed = equal(bucket("id", 5), 1);
-    Assertions.assertThat(ExpressionUtil.equivalent(expectedPushed, actualPushed, STRUCT, true))
-        .isTrue();
-
-    List<Object[]> actual = sql("SELECT * FROM %s ORDER BY id", tableName);
-    assertEquals("Results should match", container.get(0), actual);
   }
 
   private RowLevelOperationMode mode(Table table) {
