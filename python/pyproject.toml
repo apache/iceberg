@@ -134,6 +134,7 @@ force_grid_wrap = 4
 all = true
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 no_implicit_optional = true
 namespace_packages = false
 warn_redundant_casts = true
