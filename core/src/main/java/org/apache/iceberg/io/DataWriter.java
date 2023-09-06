@@ -58,7 +58,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
       StructLike partition,
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder) {
-    this(appender, format, location, spec, partition, keyMetadata, sortOrder, -1);
+    this(appender, format, location, spec, partition, keyMetadata, sortOrder, null);
   }
 
   public DataWriter(

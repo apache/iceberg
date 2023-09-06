@@ -41,7 +41,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final ByteBuffer keyMetadata;
   private final int[] equalityFieldIds;
   private final SortOrder sortOrder;
-  private final int schemaId;
+  private final Integer schemaId;
   private DeleteFile deleteFile = null;
 
   public EqualityDeleteWriter(
@@ -53,7 +53,16 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder,
       int... equalityFieldIds) {
-    this(appender, format, location, spec, partition, keyMetadata, sortOrder, -1, equalityFieldIds);
+    this(
+        appender,
+        format,
+        location,
+        spec,
+        partition,
+        keyMetadata,
+        sortOrder,
+        null,
+        equalityFieldIds);
   }
 
   public EqualityDeleteWriter(
@@ -64,7 +73,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
       StructLike partition,
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder,
-      int schemaId,
+      Integer schemaId,
       int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;

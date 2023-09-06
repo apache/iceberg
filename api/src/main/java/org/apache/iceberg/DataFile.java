@@ -111,7 +111,6 @@ public interface DataFile extends ContentFile<DataFile> {
         CONTENT,
         FILE_PATH,
         FILE_FORMAT,
-        SCHEMA_ID,
         SPEC_ID,
         required(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         RECORD_COUNT,
@@ -125,7 +124,8 @@ public interface DataFile extends ContentFile<DataFile> {
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS,
-        SORT_ORDER_ID);
+        SORT_ORDER_ID,
+        SCHEMA_ID);
   }
 
   /** @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES */

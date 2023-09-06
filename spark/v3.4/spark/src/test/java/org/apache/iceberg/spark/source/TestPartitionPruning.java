@@ -383,11 +383,11 @@ public class TestPartitionPruning {
 
   private Set<String> extractFilePathsMatchingConditionOnPartition(
       List<Row> files, Predicate<Row> condition) {
-    // idx 1: file_path, idx 5: partition
+    // idx 1: file_path, idx 3: partition
     return files.stream()
         .filter(
             r -> {
-              Row partition = r.getStruct(5);
+              Row partition = r.getStruct(4);
               return condition.test(partition);
             })
         .map(r -> CountOpenLocalFileSystem.stripScheme(r.getString(1)))

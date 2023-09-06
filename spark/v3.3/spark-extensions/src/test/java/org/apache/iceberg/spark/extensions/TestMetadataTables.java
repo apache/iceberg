@@ -718,7 +718,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     if (partValue == null) {
       return true;
     }
-    Record partition = (Record) file.get(5);
+    Record partition = (Record) file.get(4);
     return partValue.equals(partition.get(0).toString());
   }
 }

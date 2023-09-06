@@ -2048,7 +2048,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private static void asMetadataRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
-    file.put(4, 0); // specId
+    file.put(3, 0); // specId
   }
 
   public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
