@@ -18,9 +18,7 @@
  */
 package org.apache.spark.sql.catalyst.optimizer
 
-import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.iceberg.spark.functions.SparkFunctions
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -28,13 +26,10 @@ import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.catalyst.trees.TreePattern.FILTER
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
-import scala.annotation.tailrec
 
 /**
  * Spark analyzes the Iceberg system function to {@link StaticInvoke} which could not be pushed
@@ -43,16 +38,10 @@ import scala.annotation.tailrec
  */
 object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
 
-  override def apply(plan: LogicalPlan): LogicalPlan = {
-    if (systemFuncPushDownEnabled()) {
-      rewrite(plan)
-    } else {
-      plan
-    }
-  }
+  override def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning (
+    _.containsAnyPattern(FILTER)) {
 
-  private def rewrite(plan: LogicalPlan): LogicalPlan = plan transform {
-    case filter @ Filter(condition, child) if icebergRelation(child) =>
+    case filter @ Filter(condition, _) =>
       val newCondition = replaceStaticInvoke(condition)
       if (newCondition fastEquals condition) {
         filter
@@ -61,18 +50,11 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
       }
   }
 
-  private def systemFuncPushDownEnabled(): Boolean = {
-    conf.getConfString(
-      SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED,
-      SparkSQLProperties.SYSTEM_FUNC_PUSH_DOWN_ENABLED_DEFAULT.toString
-    ).toBoolean
-  }
-
   private def replaceStaticInvoke(expression: Expression): Expression = expression.transform {
     case invoke: StaticInvoke =>
       invoke.functionName match {
         case "invoke" =>
-          if (invoke.arguments.forall(_.foldable)) {
+          if (invoke.foldable) {
             // The invoke should be folded into constant
             return invoke
           }
@@ -104,22 +86,5 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
             case _ => invoke
           }
       }
-  }
-
-  @tailrec
-  private def icebergRelation(plan: LogicalPlan): Boolean = {
-
-    def isIcebergTable(table: Table): Boolean = table match {
-      case _: SparkTable => true
-      case _ => false
-    }
-
-    plan match {
-      case relation: DataSourceV2Relation =>
-        isIcebergTable(relation.table)
-      case scanRelation: DataSourceV2ScanRelation =>
-        icebergRelation(scanRelation.relation)
-      case _ => false
-    }
   }
 }
