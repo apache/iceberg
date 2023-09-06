@@ -51,14 +51,7 @@ import org.projectnessie.model.TableReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Nessie implementation of Iceberg Catalog.
- *
- * <p>A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created
- * or deleted. The create and delete namespace methods are no-ops for the NessieCatalog. One can
- * still list namespaces that have objects stored in them to assist with namespace-centric catalog
- * exploration.
- */
+/** Nessie implementation of Iceberg Catalog. */
 public class NessieCatalog extends BaseMetastoreCatalog
     implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
