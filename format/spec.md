@@ -705,11 +705,11 @@ Blob metadata is a struct with the following fields:
 
 #### Partition statistics
 
-Partition statistics files are based on [Partition Statistics file spec](#partition-statistics-file). Partition statistics are informational. A reader can choose to
-ignore partition statistics information. Partition statistics support is not required to read the table correctly. A table can contain
-many partition statistics files associated with different table snapshots.
+Partition statistics files are based on [Partition Statistics file spec](#partition-statistics-file). 
+Partition statistics are not required for reading or planning and readers may ignore them.
+Each table snapshot may be associated with at most one partition statistic file.
 A writer can optionally write the partition statistics file during each write operation. If the statistics file is written for the specific snapshot,
-it must be accurate and must be registered in the table metadata file to be considered as a valid statistics file for the reader.
+it must be registered in the table metadata file to be considered as a valid statistics file for the reader.
 
 Partition statistics files metadata within `partition-statistics` table metadata field is a struct with the following fields:
 
@@ -721,16 +721,15 @@ Partition statistics files metadata within `partition-statistics` table metadata
 
 #### Partition Statistics file
 
-Statistics information for every partition tuple is stored as a row in the **table default format**.
-These rows are sorted (in ascending manner with NULL FIRST) based on the first partition column from `partition`
+Statistics information for each unique partition tuple is stored as a row in the default data file format of the table (for example, Parquet or ORC).
+These rows are sorted (in ascending manner with NULL FIRST) based on all partition columns from `partition` in the same order
 to optimize filtering rows while scanning.
-Each unique partition tuple must have exactly one corresponding row, ensuring all partition tuples are present.
 
-Partition statistics file store the statistics as a struct with the following fields:
+The schema of the partition statistics file is as follows:
 
 | v1 | v2 | Field id, name | Type | Description |
 |----|----|----------------|------|-------------|
-| _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
+| _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the unified partition type considering all specs in a table |
 | _required_ | _required_ | **`2 spec_id`** | `int` | Partition spec id |
 | _required_ | _required_ | **`3 data_record_count`** | `long` | Count of records in data files |
 | _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
@@ -739,8 +738,13 @@ Partition statistics file store the statistics as a struct with the following fi
 | _optional_ | _optional_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
 | _optional_ | _optional_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
 | _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
-| _optional_ | _optional_ | **`10 last_updated_at`** | `timestamptz` | Commit time of snapshot that last updated this partition |
-| _optional_ | _optional_ | **`11 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
+| _optional_ | _optional_ | **`10 total_record_count`** | `long` | Accurate count of records in a partition after applying the delete files if any |
+| _optional_ | _optional_ | **`11 last_updated_at`** | `long` | Timestamp in milliseconds from the unix epoch when the partition was last updated |
+| _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
+
+Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table. 
+In other words, the struct fields represent a union of all known partition fields.
 
 #### Commit Conflict Resolution and Retry
 
