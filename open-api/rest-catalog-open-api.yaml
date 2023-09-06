@@ -230,6 +230,8 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -306,6 +308,8 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -336,6 +340,8 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
