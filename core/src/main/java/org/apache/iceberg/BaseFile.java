@@ -540,7 +540,7 @@ abstract class BaseFile<F>
         .add("sort_order_id", sortOrderId)
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
-        .add("schema_id", schemaId)
+        .add("schema_id", schemaId == null ? "null" : schemaId)
         .toString();
   }
 }
