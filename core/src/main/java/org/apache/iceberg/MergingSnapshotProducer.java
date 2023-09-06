@@ -872,8 +872,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Map<String, String> summary;
     if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to
-      // eventual
-      // consistency problems in refresh.
+      // eventual consistency problems in refresh.
       LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
       summary = summary();
     } else {
