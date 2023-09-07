@@ -23,6 +23,12 @@ import static org.apache.iceberg.DistributionMode.NONE;
 import static org.apache.iceberg.DistributionMode.RANGE;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
@@ -425,70 +431,18 @@ public class SparkWriteConf {
     return branch;
   }
 
-  public String parquetCompressionCodec() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_CODEC)
-        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
-        .tableProperty(TableProperties.PARQUET_COMPRESSION)
-        .defaultValue(TableProperties.PARQUET_COMPRESSION_DEFAULT)
-        .parse();
-  }
-
-  public String parquetCompressionLevel() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_LEVEL)
-        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
-        .tableProperty(TableProperties.PARQUET_COMPRESSION_LEVEL)
-        .defaultValue(TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT)
-        .parseOptional();
-  }
-
-  public String avroCompressionCodec() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_CODEC)
-        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
-        .tableProperty(TableProperties.AVRO_COMPRESSION)
-        .defaultValue(TableProperties.AVRO_COMPRESSION_DEFAULT)
-        .parse();
-  }
-
-  public String avroCompressionLevel() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_LEVEL)
-        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
-        .tableProperty(TableProperties.AVRO_COMPRESSION_LEVEL)
-        .defaultValue(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)
-        .parseOptional();
-  }
-
-  public String orcCompressionCodec() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_CODEC)
-        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
-        .tableProperty(TableProperties.ORC_COMPRESSION)
-        .defaultValue(TableProperties.ORC_COMPRESSION_DEFAULT)
-        .parse();
-  }
-
-  public String orcCompressionStrategy() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.COMPRESSION_STRATEGY)
-        .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
-        .tableProperty(TableProperties.ORC_COMPRESSION_STRATEGY)
-        .defaultValue(TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT)
-        .parse();
-  }
-
-  public Map<String, String> writeProperties(FileFormat format) {
+  public Map<String, String> writeProperties() {
     Map<String, String> writeProperties = Maps.newHashMap();
+    writeProperties.putAll(dataWriteProperties());
+    writeProperties.putAll(deleteWriteProperties());
+    return writeProperties;
+  }
 
-    switch (format) {
+  private Map<String, String> dataWriteProperties() {
+    Map<String, String> writeProperties = Maps.newHashMap();
+    FileFormat dataFormat = dataFileFormat();
+
+    switch (dataFormat) {
       case PARQUET:
         writeProperties.put(PARQUET_COMPRESSION, parquetCompressionCodec());
         String parquetCompressionLevel = parquetCompressionLevel();
@@ -501,7 +455,7 @@ public class SparkWriteConf {
         writeProperties.put(AVRO_COMPRESSION, avroCompressionCodec());
         String avroCompressionLevel = avroCompressionLevel();
         if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel());
+          writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel);
         }
         break;
 
@@ -515,5 +469,179 @@ public class SparkWriteConf {
     }
 
     return writeProperties;
+  }
+
+  private Map<String, String> deleteWriteProperties() {
+    Map<String, String> writeProperties = Maps.newHashMap();
+    FileFormat deleteFormat = deleteFileFormat();
+
+    switch (deleteFormat) {
+      case PARQUET:
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_PARQUET_COMPRESSION,
+            deleteParquetCompressionCodec(),
+            parquetCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_PARQUET_COMPRESSION_LEVEL,
+            deleteParquetCompressionLevel(),
+            parquetCompressionLevel());
+        break;
+
+      case AVRO:
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_AVRO_COMPRESSION,
+            deleteAvroCompressionCodec(),
+            avroCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_AVRO_COMPRESSION_LEVEL,
+            deleteAvroCompressionLevel(),
+            avroCompressionLevel());
+        break;
+
+      case ORC:
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_ORC_COMPRESSION,
+            deleteOrcCompressionCodec(),
+            orcCompressionCodec());
+        setWritePropertyWithFallback(
+            writeProperties,
+            DELETE_ORC_COMPRESSION_STRATEGY,
+            deleteOrcCompressionStrategy(),
+            orcCompressionStrategy());
+        break;
+
+      default:
+        // skip
+    }
+
+    return writeProperties;
+  }
+
+  private void setWritePropertyWithFallback(
+      Map<String, String> writeProperties, String key, String value, String fallbackValue) {
+    if (value != null) {
+      writeProperties.put(key, value);
+    } else if (fallbackValue != null) {
+      writeProperties.put(key, fallbackValue);
+    }
+  }
+
+  private String parquetCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  private String deleteParquetCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(DELETE_PARQUET_COMPRESSION)
+        .parseOptional();
+  }
+
+  private String parquetCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_LEVEL)
+        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT)
+        .parseOptional();
+  }
+
+  private String deleteParquetCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_LEVEL)
+        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
+        .tableProperty(DELETE_PARQUET_COMPRESSION_LEVEL)
+        .parseOptional();
+  }
+
+  private String avroCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.AVRO_COMPRESSION)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  private String deleteAvroCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(DELETE_AVRO_COMPRESSION)
+        .parseOptional();
+  }
+
+  private String avroCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_LEVEL)
+        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.AVRO_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)
+        .parseOptional();
+  }
+
+  private String deleteAvroCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_LEVEL)
+        .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
+        .tableProperty(DELETE_AVRO_COMPRESSION_LEVEL)
+        .parseOptional();
+  }
+
+  private String orcCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.ORC_COMPRESSION)
+        .defaultValue(TableProperties.ORC_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  private String deleteOrcCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_CODEC)
+        .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
+        .tableProperty(DELETE_ORC_COMPRESSION)
+        .parseOptional();
+  }
+
+  private String orcCompressionStrategy() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_STRATEGY)
+        .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
+        .tableProperty(TableProperties.ORC_COMPRESSION_STRATEGY)
+        .defaultValue(TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT)
+        .parse();
+  }
+
+  private String deleteOrcCompressionStrategy() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.COMPRESSION_STRATEGY)
+        .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
+        .tableProperty(DELETE_ORC_COMPRESSION_STRATEGY)
+        .parseOptional();
   }
 }

@@ -108,7 +108,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.fileSetId = writeConf.rewrittenFileSetId();
     this.specId = specId;
     this.partition = partition;
-    this.writeProperties = writeConf.writeProperties(format);
+    this.writeProperties = writeConf.writeProperties();
   }
 
   @Override
@@ -221,6 +221,7 @@ public class SparkPositionDeletesRewrite implements Write {
               .deleteFileFormat(format)
               .positionDeleteRowSchema(positionDeleteRowSchema)
               .positionDeleteSparkType(deleteSparkType)
+              .writeProperties(writeProperties)
               .build();
       SparkFileWriterFactory writerFactoryWithoutRow =
           SparkFileWriterFactory.builderFor(table)
