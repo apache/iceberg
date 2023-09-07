@@ -418,8 +418,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
           updateProperties.commit();
 
-          Map<String, String> writeOptions = ImmutableMap.of();
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
           Map<String, String> writeProperties = writeConf.writeProperties();
           Map<String, String> expectedProperties = propertiesSuite.get(2);
           Assert.assertEquals(expectedProperties.size(), writeConf.writeProperties().size());
