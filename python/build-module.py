@@ -19,9 +19,7 @@ import os
 import shutil
 from pathlib import Path
 
-# Uncommend if your library can still function if extensions fail to compile.
-allowed_to_fail = False
-# allowed_to_fail = os.environ.get("CIBUILDWHEEL", "0") != "1"
+allowed_to_fail = os.environ.get("CIBUILDWHEEL", "0") != "1"
 
 
 def build_cython_extensions() -> None:
