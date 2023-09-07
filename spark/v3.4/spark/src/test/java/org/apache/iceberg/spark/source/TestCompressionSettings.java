@@ -180,14 +180,13 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     List<ManifestFile> deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
     Map<Integer, PartitionSpec> specMap = Maps.newHashMap();
     specMap.put(0, PartitionSpec.unpartitioned());
-    // TODO compression write conf currently does not apply to position deletes
-    //    try (ManifestReader<DeleteFile> reader =
-    //        ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
-    //      DeleteFile file = reader.iterator().next();
-    //      InputFile inputFile = table.io().newInputFile(file.path().toString());
-    //      Assertions.assertThat(getCompressionType(inputFile))
-    //         .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
-    //    }
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
+      DeleteFile file = reader.iterator().next();
+      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      Assertions.assertThat(getCompressionType(inputFile))
+          .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
+    }
 
     if (PARQUET.equals(format)) {
       SparkActions.get(spark)

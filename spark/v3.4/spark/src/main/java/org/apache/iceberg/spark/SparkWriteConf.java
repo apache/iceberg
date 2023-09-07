@@ -430,8 +430,8 @@ public class SparkWriteConf {
 
     return branch;
   }
-  
-  public Map<String, String> writeProperties(FileFormat format) {
+
+  public Map<String, String> writeProperties() {
     Map<String, String> writeProperties = Maps.newHashMap();
     writeProperties.putAll(dataWriteProperties());
     writeProperties.putAll(deleteWriteProperties());
