@@ -35,6 +35,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -253,12 +254,34 @@ public class CatalogHandlers {
     }
   }
 
-  public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
+  private static TableMetadata getTableMetaData(
+      BaseTable baseTable, RESTSessionCatalog.SnapshotMode snapshotMode) {
+    TableMetadata tableMetadata = baseTable.operations().current();
+
+    switch (snapshotMode) {
+      case ALL:
+        return tableMetadata;
+      case REFS:
+        {
+          TableMetadata refsMetaData = TableMetadata.buildFrom(tableMetadata).build();
+          Set<Long> referencedSnapshotIds =
+              refsMetaData.refs().values().stream()
+                  .map(SnapshotRef::snapshotId)
+                  .collect(Collectors.toSet());
+          refsMetaData.removeSnapshotsIf(s -> !referencedSnapshotIds.contains(s.snapshotId()));
+          return refsMetaData;
+        }
+    }
+    return tableMetadata;
+  }
+
+  public static LoadTableResponse loadTable(
+      Catalog catalog, TableIdentifier ident, RESTSessionCatalog.SnapshotMode snapshotMode) {
     Table table = catalog.loadTable(ident);
 
     if (table instanceof BaseTable) {
       return LoadTableResponse.builder()
-          .withTableMetadata(((BaseTable) table).operations().current())
+          .withTableMetadata(getTableMetaData((BaseTable) table, snapshotMode))
           .build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now

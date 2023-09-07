@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.BaseTable;
@@ -347,8 +348,14 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case LOAD_TABLE:
         {
+          RESTSessionCatalog.SnapshotMode snapshotMode =
+              RESTSessionCatalog.SnapshotMode.valueOf(
+                  PropertyUtil.propertyAsString(
+                          vars, "snapshots", RESTSessionCatalog.SnapshotMode.ALL.name())
+                      .toUpperCase(Locale.ENGLISH));
           TableIdentifier ident = identFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.loadTable(catalog, ident));
+          return castResponse(
+              responseType, CatalogHandlers.loadTable(catalog, ident, snapshotMode));
         }
 
       case REGISTER_TABLE:
