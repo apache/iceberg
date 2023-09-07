@@ -1527,3 +1527,19 @@ def test_writing_avro_file_gcs(generated_manifest_entry_file: str, pyarrow_filei
             assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3
 
     pyarrow_fileio_gcs.delete(f"gs://warehouse/{filename}")
+
+
+def test_parse_hdfs_location() -> None:
+    locations = ["hdfs://127.0.0.1:9000/root/foo.txt", "hdfs://127.0.0.1/root/foo.txt"]
+    for location in locations:
+        schema, path = PyArrowFileIO.parse_location(location)
+        assert schema == "hdfs"
+        assert location == path
+
+
+def test_parse_local_location() -> None:
+    locations = ["/root/foo.txt", "/root/tmp/foo.txt"]
+    for location in locations:
+        schema, path = PyArrowFileIO.parse_location(location)
+        assert schema == "file"
+        assert location == path
