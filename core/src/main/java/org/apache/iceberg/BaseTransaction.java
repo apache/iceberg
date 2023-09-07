@@ -495,6 +495,8 @@ public class BaseTransaction implements Transaction {
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
+      deletedFiles.clear();
+
       for (PendingUpdate update : updates) {
         // re-commit each update in the chain to apply it and update current
         try {
