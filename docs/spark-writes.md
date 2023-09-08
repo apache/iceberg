@@ -313,6 +313,22 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
+### Schema Merge
+
+Iceberg support dynamic `schemaMerge` at writing time. The table must be configured to accept any schema.
+
+```sql
+ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+  'write.spark.accept-any-schema'='true'
+)
+```
+The writer must enable the `schema-merge` option.
+
+```scala
+data.writeTo("prod.db.sample").option("mergeSchema","true").append()
+```
+
+
 ## Writing Distribution Modes
 
 Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This 
