@@ -41,7 +41,8 @@ packages = [
 ]
 include = [
   { path = "dev", format = "sdist" },
-  { path = "pyiceberg/**/*.so", format = "wheel" }
+  { path = "pyiceberg/**/*.so", format = "wheel" },
+  { path = "pyiceberg/**/*.pyd", format = "wheel" },
 ]
 
 [tool.poetry.dependencies]
