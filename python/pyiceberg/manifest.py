@@ -14,30 +14,46 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-outer-name,arguments-renamed,fixme
+from __future__ import annotations
+
+import math
+from abc import ABC, abstractmethod
 from enum import Enum
+from types import TracebackType
 from typing import (
     Any,
     Dict,
     Iterator,
     List,
     Optional,
+    Type,
 )
 
-from pyiceberg.avro.file import AvroFile
-from pyiceberg.io import FileIO, InputFile
+from pyiceberg import conversions
+from pyiceberg.avro.file import AvroFile, AvroOutputFile
+from pyiceberg.conversions import to_bytes
+from pyiceberg.exceptions import ValidationError
+from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
     MapType,
     NestedField,
+    PrimitiveType,
     StringType,
     StructType,
 )
+
+# TODO: Double-check what's its purpose in java
+UNASSIGNED_SEQ = -1
 
 
 class DataFileContent(int, Enum):
@@ -78,89 +94,106 @@ class FileFormat(str, Enum):
         """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
+    def add_extension(self, filename: str) -> str:
+        if filename.endswith(f".{self.name.lower()}"):
+            return filename
+        return f"{filename}.{self.name.lower()}"
 
-DATA_FILE_TYPE = StructType(
-    NestedField(
-        field_id=134,
-        name="content",
-        field_type=IntegerType(),
-        required=False,
-        doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
-        initial_default=DataFileContent.DATA,
-    ),
-    NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
-    NestedField(
-        field_id=101, name="file_format", field_type=StringType(), required=True, doc="File format name: avro, orc, or parquet"
-    ),
-    NestedField(
-        field_id=102,
-        name="partition",
-        field_type=StructType(),
-        required=True,
-        doc="Partition data tuple, schema based on the partition spec",
-    ),
-    NestedField(field_id=103, name="record_count", field_type=LongType(), required=True, doc="Number of records in the file"),
-    NestedField(field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"),
-    NestedField(
-        field_id=108,
-        name="column_sizes",
-        field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
-        required=False,
-        doc="Map of column id to total size on disk",
-    ),
-    NestedField(
-        field_id=109,
-        name="value_counts",
-        field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
-        required=False,
-        doc="Map of column id to total count, including null and NaN",
-    ),
-    NestedField(
-        field_id=110,
-        name="null_value_counts",
-        field_type=MapType(key_id=121, key_type=IntegerType(), value_id=122, value_type=LongType()),
-        required=False,
-        doc="Map of column id to null value count",
-    ),
-    NestedField(
-        field_id=137,
-        name="nan_value_counts",
-        field_type=MapType(key_id=138, key_type=IntegerType(), value_id=139, value_type=LongType()),
-        required=False,
-        doc="Map of column id to number of NaN values in the column",
-    ),
-    NestedField(
-        field_id=125,
-        name="lower_bounds",
-        field_type=MapType(key_id=126, key_type=IntegerType(), value_id=127, value_type=BinaryType()),
-        required=False,
-        doc="Map of column id to lower bound",
-    ),
-    NestedField(
-        field_id=128,
-        name="upper_bounds",
-        field_type=MapType(key_id=129, key_type=IntegerType(), value_id=130, value_type=BinaryType()),
-        required=False,
-        doc="Map of column id to upper bound",
-    ),
-    NestedField(field_id=131, name="key_metadata", field_type=BinaryType(), required=False, doc="Encryption key metadata blob"),
-    NestedField(
-        field_id=132,
-        name="split_offsets",
-        field_type=ListType(element_id=133, element_type=LongType(), element_required=True),
-        required=False,
-        doc="Splittable offsets",
-    ),
-    NestedField(
-        field_id=135,
-        name="equality_ids",
-        field_type=ListType(element_id=136, element_type=LongType(), element_required=True),
-        required=False,
-        doc="Equality comparison field IDs",
-    ),
-    NestedField(field_id=140, name="sort_order_id", field_type=IntegerType(), required=False, doc="Sort order ID"),
-    NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
-)
+
+def data_file_type(partition_type: StructType) -> StructType:
+    return StructType(
+        NestedField(
+            field_id=134,
+            name="content",
+            field_type=IntegerType(),
+            required=False,
+            doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
+            initial_default=DataFileContent.DATA,
+        ),
+        NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
+        NestedField(
+            field_id=101,
+            name="file_format",
+            field_type=StringType(),
+            required=True,
+            doc="File format name: avro, orc, or parquet",
+        ),
+        NestedField(
+            field_id=102,
+            name="partition",
+            field_type=partition_type,
+            required=True,
+            doc="Partition data tuple, schema based on the partition spec",
+        ),
+        NestedField(field_id=103, name="record_count", field_type=LongType(), required=True, doc="Number of records in the file"),
+        NestedField(
+            field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"
+        ),
+        NestedField(
+            field_id=108,
+            name="column_sizes",
+            field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
+            required=False,
+            doc="Map of column id to total size on disk",
+        ),
+        NestedField(
+            field_id=109,
+            name="value_counts",
+            field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
+            required=False,
+            doc="Map of column id to total count, including null and NaN",
+        ),
+        NestedField(
+            field_id=110,
+            name="null_value_counts",
+            field_type=MapType(key_id=121, key_type=IntegerType(), value_id=122, value_type=LongType()),
+            required=False,
+            doc="Map of column id to null value count",
+        ),
+        NestedField(
+            field_id=137,
+            name="nan_value_counts",
+            field_type=MapType(key_id=138, key_type=IntegerType(), value_id=139, value_type=LongType()),
+            required=False,
+            doc="Map of column id to number of NaN values in the column",
+        ),
+        NestedField(
+            field_id=125,
+            name="lower_bounds",
+            field_type=MapType(key_id=126, key_type=IntegerType(), value_id=127, value_type=BinaryType()),
+            required=False,
+            doc="Map of column id to lower bound",
+        ),
+        NestedField(
+            field_id=128,
+            name="upper_bounds",
+            field_type=MapType(key_id=129, key_type=IntegerType(), value_id=130, value_type=BinaryType()),
+            required=False,
+            doc="Map of column id to upper bound",
+        ),
+        NestedField(
+            field_id=131, name="key_metadata", field_type=BinaryType(), required=False, doc="Encryption key metadata blob"
+        ),
+        NestedField(
+            field_id=132,
+            name="split_offsets",
+            field_type=ListType(element_id=133, element_type=LongType(), element_required=True),
+            required=False,
+            doc="Splittable offsets",
+        ),
+        NestedField(
+            field_id=135,
+            name="equality_ids",
+            field_type=ListType(element_id=136, element_type=LongType(), element_required=True),
+            required=False,
+            doc="Equality comparison field IDs",
+        ),
+        NestedField(field_id=140, name="sort_order_id", field_type=IntegerType(), required=False, doc="Sort order ID"),
+        NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
+    )
+
+
+DATA_FILE_TYPE = data_file_type(StructType())
 
 
 class DataFile(Record):
@@ -204,13 +237,17 @@ class DataFile(Record):
         return self.file_path == other.file_path if isinstance(other, DataFile) else False
 
 
-MANIFEST_ENTRY_SCHEMA = Schema(
-    NestedField(0, "status", IntegerType(), required=True),
-    NestedField(1, "snapshot_id", LongType(), required=False),
-    NestedField(3, "data_sequence_number", LongType(), required=False),
-    NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
-)
+def manifest_entry_schema(data_file: StructType) -> Schema:
+    return Schema(
+        NestedField(0, "status", IntegerType(), required=True),
+        NestedField(1, "snapshot_id", LongType(), required=False),
+        NestedField(3, "data_sequence_number", LongType(), required=False),
+        NestedField(4, "file_sequence_number", LongType(), required=False),
+        NestedField(2, "data_file", data_file, required=True),
+    )
+
+
+MANIFEST_ENTRY_SCHEMA = manifest_entry_schema(DATA_FILE_TYPE)
 
 
 class ManifestEntry(Record):
@@ -240,6 +277,65 @@ class PartitionFieldSummary(Record):
 
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": PARTITION_FIELD_SUMMARY_TYPE, **named_data})
+
+
+class PartitionFieldStats:
+    _type: PrimitiveType
+    _contains_null: bool
+    _contains_nan: bool
+    _min: Optional[Any]
+    _max: Optional[Any]
+
+    def __init__(self, iceberg_type: IcebergType) -> None:
+        assert isinstance(iceberg_type, PrimitiveType), f"Expected a primitive type for the partition field, got {iceberg_type}"
+        self._type = iceberg_type
+        self._contains_null = False
+        self._contains_nan = False
+        self._min = None
+        self._max = None
+
+    def to_summary(self) -> PartitionFieldSummary:
+        return PartitionFieldSummary(
+            contains_null=self._contains_null,
+            contains_nan=self._contains_nan,
+            lower_bound=to_bytes(self._type, self._min) if self._min is not None else None,
+            upper_bound=to_bytes(self._type, self._max) if self._max is not None else None,
+        )
+
+    def update(self, value: Any) -> PartitionFieldStats:
+        if value is None:
+            self._contains_null = True
+        elif math.isnan(value):
+            self._contains_nan = True
+        else:
+            if self._min is None:
+                self._min = value
+                self._max = value
+            # TODO: may need to implement a custom comparator for incompatible types
+            elif value < self._min:
+                self._min = value
+            elif value > self._max:
+                self._max = value
+        return self
+
+
+class PartitionSummary:
+    _fields: List[PartitionFieldStats]
+    _types: List[IcebergType]
+
+    def __init__(self, spec: PartitionSpec, schema: Schema):
+        self._types = [field.field_type for field in spec.partition_type(schema).fields]
+        self._fields = [PartitionFieldStats(field_type) for field_type in self._types]
+
+    def summaries(self) -> List[PartitionFieldSummary]:
+        return [field.to_summary() for field in self._fields]
+
+    def update(self, partition_keys: Record) -> PartitionSummary:
+        for i, field_type in enumerate(self._types):
+            assert isinstance(field_type, PrimitiveType), f"Expected a primitive type for the partition field, got {field_type}"
+            partition_key = partition_keys[i]
+            self._fields[i].update(conversions.partition_to_py(field_type, partition_key))
+        return self
 
 
 MANIFEST_FILE_SCHEMA: Schema = Schema(
@@ -363,3 +459,232 @@ def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> Ma
         entry.file_sequence_number = manifest.sequence_number
 
     return entry
+
+
+class ManifestWriter(ABC):
+    closed: bool
+    _spec: PartitionSpec
+    _output_file: OutputFile
+    _writer: AvroOutputFile[ManifestEntry]
+    _snapshot_id: int
+    _meta: Dict[str, str]
+    _added_files: int
+    _added_rows: int
+    _existing_files: int
+    _existing_rows: int
+    _deleted_files: int
+    _deleted_rows: int
+    _min_data_sequence_number: Optional[int]
+    _partition_summary: PartitionSummary
+
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int, meta: Dict[str, str]):
+        self.closed = False
+        self._spec = spec
+        self._output_file = output_file
+        self._snapshot_id = snapshot_id
+        self._meta = meta
+
+        self._added_files = 0
+        self._added_rows = 0
+        self._existing_files = 0
+        self._existing_rows = 0
+        self._deleted_files = 0
+        self._deleted_rows = 0
+        self._min_data_sequence_number = None
+        self._partition_summary = PartitionSummary(spec, schema)
+        self._manifest_entry_schema = manifest_entry_schema(data_file_type(spec.partition_type(schema)))
+
+    def __enter__(self) -> ManifestWriter:
+        """Opens the writer."""
+        self._writer = AvroOutputFile[ManifestEntry](self._output_file, self._manifest_entry_schema, "manifest_entry", self._meta)
+        self._writer.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Closes the writer."""
+        self.closed = True
+        self._writer.__exit__(exc_type, exc_value, traceback)
+
+    @abstractmethod
+    def content(self) -> ManifestContent:
+        ...
+
+    def to_manifest_file(self) -> ManifestFile:
+        """Returns the manifest file."""
+        # once the manifest file is generated, no more entries can be added
+        self.closed = True
+        min_sequence_number = self._min_data_sequence_number or UNASSIGNED_SEQ
+        return ManifestFile(
+            manifest_path=self._output_file.location,
+            manifest_length=len(self._writer.output_file),
+            partition_spec_id=self._spec.spec_id,
+            content=self.content(),
+            sequence_number=UNASSIGNED_SEQ,
+            min_sequence_number=min_sequence_number,
+            added_snapshot_id=self._snapshot_id,
+            added_files_count=self._added_files,
+            existing_files_count=self._existing_files,
+            deleted_files_count=self._deleted_files,
+            added_rows_count=self._added_rows,
+            existing_rows_count=self._existing_rows,
+            deleted_rows_count=self._deleted_rows,
+            partitions=self._partition_summary.summaries(),
+            key_metadatas=None,
+        )
+
+    def add_entry(self, entry: ManifestEntry) -> ManifestWriter:
+        if self.closed:
+            raise RuntimeError("Cannot add entry to closed manifest writer")
+        if entry.status == ManifestEntryStatus.ADDED:
+            self._added_files += 1
+            self._added_rows += entry.data_file.record_count
+        elif entry.status == ManifestEntryStatus.EXISTING:
+            self._existing_files += 1
+            self._existing_rows += entry.data_file.record_count
+        elif entry.status == ManifestEntryStatus.DELETED:
+            self._deleted_files += 1
+            self._deleted_rows += entry.data_file.record_count
+
+        self._partition_summary.update(entry.data_file.partition)
+
+        if (
+            (entry.status == ManifestEntryStatus.ADDED or entry.status == ManifestEntryStatus.EXISTING)
+            and entry.data_sequence_number is not None
+            and (self._min_data_sequence_number is None or entry.data_sequence_number < self._min_data_sequence_number)
+        ):
+            self._min_data_sequence_number = entry.data_sequence_number
+
+        self._writer.write_block([entry])
+        return self
+
+
+class ManifestWriterV1(ManifestWriter):
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int):
+        super().__init__(
+            spec,
+            schema,
+            output_file,
+            snapshot_id,
+            {
+                "schema": schema.json(),
+                "partition-spec": spec.json(),
+                "partition-spec-id": str(spec.spec_id),
+                "format-version": "1",
+            },
+        )
+
+    def content(self) -> ManifestContent:
+        return ManifestContent.DATA
+
+
+class ManifestWriterV2(ManifestWriter):
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int):
+        super().__init__(
+            spec,
+            schema,
+            output_file,
+            snapshot_id,
+            {
+                "schema": schema.json(),
+                "partition-spec": spec.json(),
+                "partition-spec-id": str(spec.spec_id),
+                "format-version": "2",
+                "content": "data",
+            },
+        )
+
+    def content(self) -> ManifestContent:
+        return ManifestContent.DATA
+
+
+def write_manifest(
+    format_version: int, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int
+) -> ManifestWriter:
+    if format_version == 1:
+        return ManifestWriterV1(spec, schema, output_file, snapshot_id)
+    elif format_version == 2:
+        return ManifestWriterV2(spec, schema, output_file, snapshot_id)
+    else:
+        # TODO: replace it with UnsupportedOperationException
+        raise ValueError(f"Cannot write manifest for table version: {format_version}")
+
+
+class ManifestListWriter(ABC):
+    _output_file: OutputFile
+    _meta: Dict[str, str]
+    _manifest_files: List[ManifestFile]
+    _writer: AvroOutputFile[ManifestFile]
+
+    def __init__(self, output_file: OutputFile, meta: Dict[str, str]):
+        self._output_file = output_file
+        self._meta = meta
+        self._manifest_files = []
+
+    def __enter__(self) -> ManifestListWriter:
+        """Opens the writer for writing."""
+        self._writer = AvroOutputFile[ManifestFile](self._output_file, MANIFEST_FILE_SCHEMA, "manifest_file", self._meta)
+        self._writer.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Closes the writer."""
+        self._writer.__exit__(exc_type, exc_value, traceback)
+        return
+
+    @abstractmethod
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        ...
+
+    def add_manifests(self, manifest_files: List[ManifestFile]) -> ManifestListWriter:
+        self._writer.write_block([self.prepare_manifest(manifest_file) for manifest_file in manifest_files])
+        return self
+
+
+class ManifestListWriterV1(ManifestListWriter):
+    def __init__(self, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int):
+        super().__init__(
+            output_file, {"snapshot-id": str(snapshot_id), "parent-snapshot-id": str(parent_snapshot_id), "format-version": "1"}
+        )
+
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        if manifest_file.content != ManifestContent.DATA:
+            raise ValidationError("Cannot store delete manifests in a v1 table")
+        return manifest_file
+
+
+class ManifestListWriterV2(ManifestListWriter):
+    def __init__(self, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int):
+        super().__init__(
+            output_file,
+            {
+                "snapshot-id": str(snapshot_id),
+                "parent-snapshot-id": str(parent_snapshot_id),
+                "sequence-number": str(sequence_number),
+                "format-version": "2",
+            },
+        )
+
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        return manifest_file
+
+
+def write_manifest_list(
+    format_version: int, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int
+) -> ManifestListWriter:
+    if format_version == 1:
+        return ManifestListWriterV1(output_file, snapshot_id, parent_snapshot_id)
+    elif format_version == 2:
+        return ManifestListWriterV2(output_file, snapshot_id, parent_snapshot_id, sequence_number)
+    else:
+        # TODO: replace it with UnsupportedOperationException
+        raise ValueError(f"Cannot write manifest list for table version: {format_version}")
