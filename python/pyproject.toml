@@ -18,7 +18,7 @@
 name = "pyiceberg"
 version = "0.5.0"
 readme = "README.md"
-homepage = "https://iceberg.apache.org/"
+homepage = "https://py.iceberg.apache.org/"
 repository = "https://github.com/apache/iceberg/"
 description = "Apache Iceberg is an open table format for huge analytic datasets"
 authors = ["Apache Software Foundation <dev@iceberg.apache.org>"]
