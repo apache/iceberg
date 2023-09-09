@@ -44,6 +44,8 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.UnboundTerm;
+import org.apache.iceberg.expressions.UnboundTransform;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -626,35 +628,46 @@ public class Spark3Util {
     public <T> String predicate(UnboundPredicate<T> pred) {
       switch (pred.op()) {
         case IS_NULL:
-          return pred.ref().name() + " IS NULL";
+          return sqlString(pred.term()) + " IS NULL";
         case NOT_NULL:
-          return pred.ref().name() + " IS NOT NULL";
+          return sqlString(pred.term()) + " IS NOT NULL";
         case IS_NAN:
-          return "is_nan(" + pred.ref().name() + ")";
+          return "is_nan(" + sqlString(pred.term()) + ")";
         case NOT_NAN:
-          return "not_nan(" + pred.ref().name() + ")";
+          return "not_nan(" + sqlString(pred.term()) + ")";
         case LT:
-          return pred.ref().name() + " < " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " < " + sqlString(pred.literal());
         case LT_EQ:
-          return pred.ref().name() + " <= " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " <= " + sqlString(pred.literal());
         case GT:
-          return pred.ref().name() + " > " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " > " + sqlString(pred.literal());
         case GT_EQ:
-          return pred.ref().name() + " >= " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " >= " + sqlString(pred.literal());
         case EQ:
-          return pred.ref().name() + " = " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " = " + sqlString(pred.literal());
         case NOT_EQ:
-          return pred.ref().name() + " != " + sqlString(pred.literal());
+          return sqlString(pred.term()) + " != " + sqlString(pred.literal());
         case STARTS_WITH:
-          return pred.ref().name() + " LIKE '" + pred.literal().value() + "%'";
+          return sqlString(pred.term()) + " LIKE '" + pred.literal().value() + "%'";
         case NOT_STARTS_WITH:
-          return pred.ref().name() + " NOT LIKE '" + pred.literal().value() + "%'";
+          return sqlString(pred.term()) + " NOT LIKE '" + pred.literal().value() + "%'";
         case IN:
-          return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
+          return sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
-          return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
+          return sqlString(pred.term()) + " NOT IN (" + sqlString(pred.literals()) + ")";
         default:
           throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
+      }
+    }
+
+    private static <T> String sqlString(UnboundTerm<T> term) {
+      if (term instanceof org.apache.iceberg.expressions.NamedReference) {
+        return term.ref().name();
+      } else if (term instanceof UnboundTransform) {
+        UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
+        return transform.transform().toString() + "(" + transform.ref().name() + ")";
+      } else {
+        throw new UnsupportedOperationException("Cannot convert term to SQL: " + term);
       }
     }
 

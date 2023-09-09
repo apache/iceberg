@@ -28,6 +28,7 @@ Note:
     implementations that share the same conversion logic, registrations can be stacked.
 """
 import uuid
+from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
@@ -56,6 +57,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.datetime import date_to_days, datetime_to_micros, time_to_micros
 from pyiceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 
 _BOOL_STRUCT = Struct("<?")
@@ -63,11 +65,10 @@ _INT_STRUCT = Struct("<i")
 _LONG_STRUCT = Struct("<q")
 _FLOAT_STRUCT = Struct("<f")
 _DOUBLE_STRUCT = Struct("<d")
-_UUID_STRUCT = Struct(">QQ")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
-    """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__".
+    """Handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__".
 
     Args:
         func (Callable): A function registered to the singledispatch function `partition_to_py`.
@@ -85,7 +86,7 @@ def handle_none(func: Callable) -> Callable:  # type: ignore
 
 @singledispatch
 def partition_to_py(primitive_type: PrimitiveType, value_str: str) -> Union[int, float, str, uuid.UUID, bytes, Decimal]:
-    """A generic function which converts a partition string to a python built-in.
+    """Convert a partition string to a python built-in.
 
     Args:
         primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
@@ -108,7 +109,7 @@ def _(primitive_type: BooleanType, value_str: str) -> Union[int, float, str, uui
 @partition_to_py.register(TimestamptzType)
 @handle_none
 def _(primitive_type: PrimitiveType, value_str: str) -> int:
-    """Converts a string to an integer value.
+    """Convert a string to an integer value.
 
     Raises:
         ValueError: If the scale/exponent is not 0.
@@ -152,8 +153,10 @@ def _(_: DecimalType, value_str: str) -> Decimal:
 
 
 @singledispatch
-def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
-    """A generic function which converts a built-in python value to bytes.
+def to_bytes(
+    primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, date, datetime, float, int, str, time, uuid.UUID]
+) -> bytes:
+    """Convert a built-in python value to bytes.
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
     can be found at https://iceberg.apache.org/spec/#appendix-d-single-value-serialization
@@ -172,22 +175,40 @@ def _(_: BooleanType, value: bool) -> bytes:
 
 
 @to_bytes.register(IntegerType)
-@to_bytes.register(DateType)
 def _(_: PrimitiveType, value: int) -> bytes:
     return _INT_STRUCT.pack(value)
 
 
 @to_bytes.register(LongType)
-@to_bytes.register(TimeType)
+def _(_: PrimitiveType, value: int) -> bytes:
+    return _LONG_STRUCT.pack(value)
+
+
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
-def _(_: PrimitiveType, value: int) -> bytes:
+def _(_: TimestampType, value: Union[datetime, int]) -> bytes:
+    if isinstance(value, datetime):
+        value = datetime_to_micros(value)
+    return _LONG_STRUCT.pack(value)
+
+
+@to_bytes.register(DateType)
+def _(_: DateType, value: Union[date, int]) -> bytes:
+    if isinstance(value, date):
+        value = date_to_days(value)
+    return _INT_STRUCT.pack(value)
+
+
+@to_bytes.register(TimeType)
+def _(_: TimeType, value: Union[time, int]) -> bytes:
+    if isinstance(value, time):
+        value = time_to_micros(value)
     return _LONG_STRUCT.pack(value)
 
 
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
-    """Converts a float value into bytes.
+    """Convert a float value into bytes.
 
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.
@@ -206,8 +227,10 @@ def _(_: StringType, value: str) -> bytes:
 
 
 @to_bytes.register(UUIDType)
-def _(_: UUIDType, value: uuid.UUID) -> bytes:
-    return _UUID_STRUCT.pack((value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
+def _(_: UUIDType, value: Union[uuid.UUID, bytes]) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    return value.bytes
 
 
 @to_bytes.register(BinaryType)
@@ -245,7 +268,7 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 @singledispatch
 def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
-    """A generic function which converts bytes to a built-in python value.
+    """Convert bytes to a built-in python value.
 
     Args:
         primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
@@ -288,14 +311,9 @@ def _(_: StringType, b: bytes) -> str:
     return bytes(b).decode("utf-8")
 
 
-@from_bytes.register(UUIDType)
-def _(_: UUIDType, b: bytes) -> uuid.UUID:
-    unpacked_bytes = _UUID_STRUCT.unpack(b)
-    return uuid.UUID(int=unpacked_bytes[0] << 64 | unpacked_bytes[1])
-
-
 @from_bytes.register(BinaryType)
 @from_bytes.register(FixedType)
+@from_bytes.register(UUIDType)
 def _(_: PrimitiveType, b: bytes) -> bytes:
     return b
 

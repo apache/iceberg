@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -289,11 +288,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 
@@ -949,6 +948,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1037,6 +1039,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1188,10 +1193,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution
-      // behavior
-      // that's why the number of changed partitions is 4 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }

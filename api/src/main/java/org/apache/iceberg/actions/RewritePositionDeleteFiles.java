@@ -22,14 +22,12 @@ import java.util.List;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
-import org.immutables.value.Value;
 
 /**
  * An action for rewriting position delete files.
  *
  * <p>Generally used for optimizing the size and layout of position delete files within a table.
  */
-@Value.Enclosing
 public interface RewritePositionDeleteFiles
     extends SnapshotUpdate<RewritePositionDeleteFiles, RewritePositionDeleteFiles.Result> {
 
@@ -93,7 +91,6 @@ public interface RewritePositionDeleteFiles
   RewritePositionDeleteFiles filter(Expression expression);
 
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     List<FileGroupRewriteResult> rewriteResults();
 
@@ -127,7 +124,6 @@ public interface RewritePositionDeleteFiles
    * newly created and the number of files which were formerly part of the table but have been
    * rewritten.
    */
-  @Value.Immutable
   interface FileGroupRewriteResult {
     /** Description of this position delete file group. */
     FileGroupInfo info();
@@ -149,7 +145,6 @@ public interface RewritePositionDeleteFiles
    * A description of a position delete file group, when it was processed, and within which
    * partition. For use tracking rewrite operations and for returning results.
    */
-  @Value.Immutable
   interface FileGroupInfo {
     /**
      * Returns which position delete file group this is out of the total set of file groups for this

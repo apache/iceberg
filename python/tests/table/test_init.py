@@ -15,19 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name
-from typing import Any, Dict
+from typing import Dict
 
 import pytest
 from sortedcontainers import SortedList
 
-from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     EqualTo,
     In,
 )
-from pyiceberg.io import PY_IO_IMPL, load_file_io
+from pyiceberg.io import PY_IO_IMPL
 from pyiceberg.manifest import (
     DataFile,
     DataFileContent,
@@ -37,8 +36,14 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import StaticTable, Table, _match_deletes_to_datafile
-from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadataV2
+from pyiceberg.table import (
+    SetPropertiesUpdate,
+    StaticTable,
+    Table,
+    UpdateSchema,
+    _match_deletes_to_datafile,
+)
+from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER
 from pyiceberg.table.snapshots import (
     Operation,
     Snapshot,
@@ -52,19 +57,25 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform
-from pyiceberg.types import LongType, NestedField
-
-
-@pytest.fixture
-def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
-    table_metadata = TableMetadataV2(**example_table_metadata_v2)
-    return Table(
-        identifier=("database", "table"),
-        metadata=table_metadata,
-        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
-        io=load_file_io(),
-        catalog=NoopCatalog("NoopCatalog"),
-    )
+from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    ListType,
+    LongType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StringType,
+    StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
+)
 
 
 def test_schema(table: Table) -> None:
@@ -184,8 +195,8 @@ def test_snapshot_by_name_does_not_exist(table: Table) -> None:
 
 def test_history(table: Table) -> None:
     assert table.history() == [
-        SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
-        SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
+        SnapshotLogEntry(snapshot_id=3051729675574597004, timestamp_ms=1515100955770),
+        SnapshotLogEntry(snapshot_id=3055729675574597004, timestamp_ms=1555100955770),
     ]
 
 
@@ -379,3 +390,107 @@ def test_match_deletes_to_datafile_duplicate_number() -> None:
         delete_entry_1.data_file,
         delete_entry_2.data_file,
     }
+
+
+def test_serialize_set_properties_updates() -> None:
+    assert SetPropertiesUpdate(updates={"abc": "🤪"}).model_dump_json() == """{"action":"set-properties","updates":{"abc":"🤪"}}"""
+
+
+def test_add_column(table: Table) -> None:
+    update = UpdateSchema(table)
+    update.add_column(path="b", field_type=IntegerType())
+    apply_schema: Schema = update._apply()  # pylint: disable=W0212
+    assert len(apply_schema.fields) == 4
+
+    assert apply_schema == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        NestedField(field_id=4, name="b", field_type=IntegerType(), required=False),
+        identifier_field_ids=[1, 2],
+    )
+    assert apply_schema.schema_id == 2
+    assert apply_schema.highest_field_id == 4
+
+
+def test_add_primitive_type_column(table: Table) -> None:
+    primitive_type: Dict[str, PrimitiveType] = {
+        "boolean": BooleanType(),
+        "int": IntegerType(),
+        "long": LongType(),
+        "float": FloatType(),
+        "double": DoubleType(),
+        "date": DateType(),
+        "time": TimeType(),
+        "timestamp": TimestampType(),
+        "timestamptz": TimestamptzType(),
+        "string": StringType(),
+        "uuid": UUIDType(),
+        "binary": BinaryType(),
+    }
+
+    for name, type_ in primitive_type.items():
+        field_name = f"new_column_{name}"
+        update = UpdateSchema(table)
+        update.add_column(path=field_name, field_type=type_, doc=f"new_column_{name}")
+        new_schema = update._apply()  # pylint: disable=W0212
+
+        field: NestedField = new_schema.find_field(field_name)
+        assert field.field_type == type_
+        assert field.doc == f"new_column_{name}"
+
+
+def test_add_nested_type_column(table: Table) -> None:
+    # add struct type column
+    field_name = "new_column_struct"
+    update = UpdateSchema(table)
+    struct_ = StructType(
+        NestedField(1, "lat", DoubleType()),
+        NestedField(2, "long", DoubleType()),
+    )
+    update.add_column(path=field_name, field_type=struct_)
+    schema_ = update._apply()  # pylint: disable=W0212
+    field: NestedField = schema_.find_field(field_name)
+    assert field.field_type == StructType(
+        NestedField(5, "lat", DoubleType()),
+        NestedField(6, "long", DoubleType()),
+    )
+    assert schema_.highest_field_id == 6
+
+
+def test_add_nested_map_type_column(table: Table) -> None:
+    # add map type column
+    field_name = "new_column_map"
+    update = UpdateSchema(table)
+    map_ = MapType(1, StringType(), 2, IntegerType(), False)
+    update.add_column(path=field_name, field_type=map_)
+    new_schema = update._apply()  # pylint: disable=W0212
+    field: NestedField = new_schema.find_field(field_name)
+    assert field.field_type == MapType(5, StringType(), 6, IntegerType(), False)
+    assert new_schema.highest_field_id == 6
+
+
+def test_add_nested_list_type_column(table: Table) -> None:
+    # add list type column
+    field_name = "new_column_list"
+    update = UpdateSchema(table)
+    list_ = ListType(
+        element_id=101,
+        element_type=StructType(
+            NestedField(102, "lat", DoubleType()),
+            NestedField(103, "long", DoubleType()),
+        ),
+        element_required=False,
+    )
+    update.add_column(path=field_name, field_type=list_)
+    new_schema = update._apply()  # pylint: disable=W0212
+    field: NestedField = new_schema.find_field(field_name)
+    assert field.field_type == ListType(
+        element_id=5,
+        element_type=StructType(
+            NestedField(6, "lat", DoubleType()),
+            NestedField(7, "long", DoubleType()),
+        ),
+        element_required=False,
+    )
+    assert new_schema.highest_field_id == 7

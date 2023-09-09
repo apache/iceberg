@@ -278,6 +278,9 @@ class S3OutputStream extends PositionOutputStream {
     if (writeTags != null && !writeTags.isEmpty()) {
       requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
     }
+    if (s3FileIOProperties.writeStorageClass() != null) {
+      requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
+    }
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
     S3RequestUtil.configurePermission(s3FileIOProperties, requestBuilder);
@@ -423,6 +426,10 @@ class S3OutputStream extends PositionOutputStream {
 
       if (writeTags != null && !writeTags.isEmpty()) {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+      }
+
+      if (s3FileIOProperties.writeStorageClass() != null) {
+        requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
       }
 
       if (isChecksumEnabled) {

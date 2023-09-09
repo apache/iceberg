@@ -74,19 +74,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   // Schema passed to create tables
   protected static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(3, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(1, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(2, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema REPLACE_SCHEMA =
       new Schema(
-          required(2, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(3, "data", Types.StringType.get()));
 
   // another schema that is not the same
@@ -113,7 +113,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   static final SortOrder REPLACE_WRITE_ORDER =
       SortOrder.builderFor(REPLACE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  static final DataFile FILE_A =
+  protected static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)

@@ -56,7 +56,7 @@ from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
-BOTO_SESSION_CONFIG_KEYS = ["aws_secret_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
+BOTO_SESSION_CONFIG_KEYS = ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
 
 GLUE_CLIENT = "glue"
 
@@ -225,8 +225,23 @@ class GlueCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        raise NotImplementedError
+
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -240,7 +255,7 @@ class GlueCatalog(Catalog):
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
@@ -444,10 +459,8 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
 
         database = database_response[PROP_GLUE_DATABASE]
-        if PROP_GLUE_DATABASE_PARAMETERS not in database:
-            return {}
 
-        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        properties = dict(database.get(PROP_GLUE_DATABASE_PARAMETERS, {}))
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[LOCATION] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
@@ -458,7 +471,7 @@ class GlueCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and updates properties for a namespace.
 
         Args:
             namespace: Namespace identifier.

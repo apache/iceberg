@@ -70,7 +70,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   public void testWithReferenceAfterRecreatingBranch()
       throws NessieConflictException, NessieNotFoundException {
     String branch = "branchToBeDropped";
-    createBranch(branch, null);
+    createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
 
     // just create a new commit on the branch and then delete & re-create it
@@ -82,7 +82,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .deleteBranch()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
         .delete();
-    createBranch(branch, null);
+    createBranch(branch);
 
     // make sure the client uses the re-created branch
     Reference ref = client.getApi().getReference().refName(branch).get();

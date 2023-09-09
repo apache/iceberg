@@ -1621,6 +1621,9 @@ components:
         current-snapshot-id:
           type: integer
           format: int64
+        last-sequence-number:
+          type: integer
+          format: int64
         # logs
         snapshot-log:
           $ref: '#/components/schemas/SnapshotLog'

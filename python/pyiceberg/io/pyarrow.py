@@ -24,13 +24,12 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
-import multiprocessing
+import concurrent.futures
 import os
 from abc import ABC, abstractmethod
+from concurrent.futures import Future
 from functools import lru_cache, singledispatch
 from itertools import chain
-from multiprocessing.pool import ThreadPool
-from multiprocessing.sharedctypes import Synchronized
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -38,6 +37,7 @@ from typing import (
     Dict,
     Generic,
     Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -58,10 +58,13 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
+    GcsFileSystem,
+    HadoopFileSystem,
     LocalFileSystem,
     PyFileSystem,
     S3FileSystem,
 )
+from sortedcontainers import SortedList
 
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
@@ -78,6 +81,14 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT_MS,
+    HDFS_HOST,
+    HDFS_KERB_TICKET,
+    HDFS_PORT,
+    HDFS_USER,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
     S3_PROXY_URI,
@@ -124,6 +135,8 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.concurrent import ExecutorFactory
+from pyiceberg.utils.datetime import millis_to_datetime
 from pyiceberg.utils.singleton import Singleton
 
 if TYPE_CHECKING:
@@ -173,7 +186,7 @@ class PyArrowFile(InputFile, OutputFile):
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
-        """Retrieves a pyarrow.fs.FileInfo object for the location.
+        """Retrieve a pyarrow.fs.FileInfo object for the location.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
@@ -191,12 +204,12 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
         file_info = self._file_info()
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the location exists."""
+        """Check whether the location exists."""
         try:
             self._file_info()  # raises FileNotFoundError if it does not exist
             return True
@@ -204,7 +217,7 @@ class PyArrowFile(InputFile, OutputFile):
             return False
 
     def open(self, seekable: bool = True) -> InputStream:
-        """Opens the location using a PyArrow FileSystem inferred from the location.
+        """Open the location using a PyArrow FileSystem inferred from the location.
 
         Args:
             seekable: If the stream should support seek, or if it is consumed sequential.
@@ -235,7 +248,7 @@ class PyArrowFile(InputFile, OutputFile):
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
+        """Create a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
 
         Args:
             overwrite (bool): Whether to overwrite the file if it already exists.
@@ -266,7 +279,7 @@ class PyArrowFile(InputFile, OutputFile):
         return output_file
 
     def to_input_file(self) -> PyArrowFile:
-        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance.
+        """Return a new PyArrowFile for the location of an existing PyArrowFile instance.
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
         PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
@@ -282,9 +295,14 @@ class PyArrowFileIO(FileIO):
 
     @staticmethod
     def parse_location(location: str) -> Tuple[str, str]:
-        """Returns the path without the scheme."""
+        """Return the path without the scheme."""
         uri = urlparse(location)
-        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+        if not uri.scheme:
+            return "file", os.path.abspath(location)
+        elif uri.scheme == "hdfs":
+            return uri.scheme, location
+        else:
+            return uri.scheme, f"{uri.netloc}{uri.path}"
 
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
@@ -300,6 +318,31 @@ class PyArrowFileIO(FileIO):
                 client_kwargs["proxy_options"] = proxy_uri
 
             return S3FileSystem(**client_kwargs)
+        elif scheme == "hdfs":
+            hdfs_kwargs: Dict[str, Any] = {}
+            if host := self.properties.get(HDFS_HOST):
+                hdfs_kwargs["host"] = host
+            if port := self.properties.get(HDFS_PORT):
+                # port should be an integer type
+                hdfs_kwargs["port"] = int(port)
+            if user := self.properties.get(HDFS_USER):
+                hdfs_kwargs["user"] = user
+            if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
+                hdfs_kwargs["kerb_ticket"] = kerb_ticket
+            return HadoopFileSystem(**hdfs_kwargs)
+        elif scheme in {"gs", "gcs"}:
+            gcs_kwargs: Dict[str, Any] = {}
+            if access_token := self.properties.get(GCS_TOKEN):
+                gcs_kwargs["access_token"] = access_token
+            if expiration := self.properties.get(GCS_TOKEN_EXPIRES_AT_MS):
+                gcs_kwargs["credential_token_expiration"] = millis_to_datetime(int(expiration))
+            if bucket_location := self.properties.get(GCS_DEFAULT_LOCATION):
+                gcs_kwargs["default_bucket_location"] = bucket_location
+            if endpoint := self.properties.get(GCS_ENDPOINT):
+                url_parts = urlparse(endpoint)
+                gcs_kwargs["scheme"] = url_parts.scheme
+                gcs_kwargs["endpoint_override"] = url_parts.netloc
+            return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
             return LocalFileSystem()
         else:
@@ -438,7 +481,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
 def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
     if not isinstance(iceberg_type, PrimitiveType):
         raise ValueError(f"Expected primitive type, got: {iceberg_type}")
-    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
+    return pa.scalar(value=value, type=schema_to_pyarrow(iceberg_type))
 
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
@@ -548,7 +591,7 @@ def pyarrow_to_schema(schema: pa.Schema) -> Schema:
 
 @singledispatch
 def visit_pyarrow(obj: Union[pa.DataType, pa.Schema], visitor: PyArrowSchemaVisitor[T]) -> T:
-    """A generic function for applying a pyarrow schema visitor to any point within a schema.
+    """Apply a pyarrow schema visitor to any point within a schema.
 
     The function traverses the schema in post-order fashion.
 
@@ -733,10 +776,10 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    rows_counter: Synchronized[int],
+    row_counts: List[int],
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and rows_counter.value >= limit:
+    if limit and sum(row_counts) >= limit:
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -749,7 +792,7 @@ def _task_to_table(
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
         #  see https://github.com/apache/iceberg/issues/7451
-        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
+        file_schema = Schema.model_validate_json(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
         if bound_row_filter is not AlwaysTrue():
@@ -798,25 +841,24 @@ def _task_to_table(
             else:
                 arrow_table = fragment_scanner.to_table()
 
-        if limit:
-            with rows_counter.get_lock():
-                if rows_counter.value >= limit:
-                    return None
-                rows_counter.value += len(arrow_table)
-
-        # If there is no data, we don't have to go through the schema
-        if len(arrow_table) > 0:
-            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
-        else:
+        if len(arrow_table) < 1:
             return None
 
+        if limit is not None and sum(row_counts) >= limit:
+            return None
 
-def _read_all_delete_files(fs: FileSystem, pool: ThreadPool, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+        row_counts.append(len(arrow_table))
+
+        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+
+
+def _read_all_delete_files(fs: FileSystem, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
     deletes_per_file: Dict[str, List[ChunkedArray]] = {}
     unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
     if len(unique_deletes) > 0:
-        deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
-            func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
+        executor = ExecutorFactory.get_or_create()
+        deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
+            lambda args: _read_deletes(*args), [(fs, delete) for delete in unique_deletes]
         )
         for delete in deletes_per_files:
             for file, arr in delete.items():
@@ -836,7 +878,7 @@ def project_table(
     case_sensitive: bool = True,
     limit: Optional[int] = None,
 ) -> pa.Table:
-    """Resolves the right columns based on the identifier.
+    """Resolve the right columns based on the identifier.
 
     Args:
         tasks (Iterable[FileScanTask]): A URI or a path to a local file.
@@ -870,40 +912,50 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    rows_counter = multiprocessing.Value("i", 0)
+    row_counts: List[int] = []
+    deletes_per_file = _read_all_delete_files(fs, tasks)
+    executor = ExecutorFactory.get_or_create()
+    futures = [
+        executor.submit(
+            _task_to_table,
+            fs,
+            task,
+            bound_row_filter,
+            projected_schema,
+            projected_field_ids,
+            deletes_per_file.get(task.file.file_path),
+            case_sensitive,
+            row_counts,
+            limit,
+        )
+        for task in tasks
+    ]
 
-    with ThreadPool() as pool:
-        deletes_per_file = _read_all_delete_files(fs, pool, tasks)
-        tables = [
-            table
-            for table in pool.starmap(
-                func=_task_to_table,
-                iterable=[
-                    (
-                        fs,
-                        task,
-                        bound_row_filter,
-                        projected_schema,
-                        projected_field_ids,
-                        deletes_per_file.get(task.file.file_path),
-                        case_sensitive,
-                        rows_counter,
-                        limit,
-                    )
-                    for task in tasks
-                ],
-            )
-            if table is not None
-        ]
+    # for consistent ordering, we need to maintain future order
+    futures_index = {f: i for i, f in enumerate(futures)}
+    completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
+    for future in concurrent.futures.as_completed(futures):
+        completed_futures.add(future)
 
-    if len(tables) > 1:
-        final_table = pa.concat_tables(tables)
-    elif len(tables) == 1:
-        final_table = tables[0]
-    else:
-        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+        # stop early if limit is satisfied
+        if limit is not None and sum(row_counts) >= limit:
+            break
 
-    return final_table.slice(0, limit)
+    # by now, we've either completed all tasks or satisfied the limit
+    if limit is not None:
+        _ = [f.cancel() for f in futures if not f.done()]
+
+    tables = [f.result() for f in completed_futures if f.result()]
+
+    if len(tables) < 1:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+
+    result = pa.concat_tables(tables)
+
+    if limit is not None:
+        return result.slice(0, limit)
+
+    return result
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

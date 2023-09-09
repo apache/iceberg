@@ -20,6 +20,20 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.day;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.hour;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.month;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -29,7 +43,9 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -120,6 +136,35 @@ public class TestSpark3Util extends SparkTestBase {
     Catalog catalog = Spark3Util.loadIcebergCatalog(spark, "test_cat");
     Assert.assertTrue(
         "Should retrieve underlying catalog class", catalog instanceof CachingCatalog);
+  }
+
+  @Test
+  public void testDescribeExpression() {
+    Expression refExpression = equal("id", 1);
+    Assertions.assertThat(Spark3Util.describe(refExpression)).isEqualTo("id = 1");
+
+    Expression yearExpression = greaterThan(year("ts"), 10);
+    Assertions.assertThat(Spark3Util.describe(yearExpression)).isEqualTo("year(ts) > 10");
+
+    Expression monthExpression = greaterThanOrEqual(month("ts"), 10);
+    Assertions.assertThat(Spark3Util.describe(monthExpression)).isEqualTo("month(ts) >= 10");
+
+    Expression dayExpression = lessThan(day("ts"), 10);
+    Assertions.assertThat(Spark3Util.describe(dayExpression)).isEqualTo("day(ts) < 10");
+
+    Expression hourExpression = lessThanOrEqual(hour("ts"), 10);
+    Assertions.assertThat(Spark3Util.describe(hourExpression)).isEqualTo("hour(ts) <= 10");
+
+    Expression bucketExpression = in(bucket("id", 5), 3);
+    Assertions.assertThat(Spark3Util.describe(bucketExpression)).isEqualTo("bucket[5](id) IN (3)");
+
+    Expression truncateExpression = notIn(truncate("name", 3), "abc");
+    Assertions.assertThat(Spark3Util.describe(truncateExpression))
+        .isEqualTo("truncate[3](name) NOT IN ('abc')");
+
+    Expression andExpression = and(refExpression, yearExpression);
+    Assertions.assertThat(Spark3Util.describe(andExpression))
+        .isEqualTo("(id = 1 AND year(ts) > 10)");
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {

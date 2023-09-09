@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import codecs
 import gzip
-import json
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -35,7 +34,7 @@ class Compressor(ABC):
 
     @abstractmethod
     def stream_decompressor(self, inp: InputStream) -> InputStream:
-        """Returns a stream decompressor.
+        """Return a stream decompressor.
 
         Args:
             inp: The input stream that needs decompressing.
@@ -46,7 +45,7 @@ class Compressor(ABC):
 
     @abstractmethod
     def bytes_compressor(self) -> Callable[[bytes], bytes]:
-        """Returns a function to compress bytes.
+        """Return a function to compress bytes.
 
         Returns:
             A function that can be used to compress bytes.
@@ -89,9 +88,9 @@ class FromByteStream:
         with compression.stream_decompressor(byte_stream) as byte_stream:
             reader = codecs.getreader(encoding)
             json_bytes = reader(byte_stream)
-            metadata = json.load(json_bytes)
+            metadata = json_bytes.read()
 
-        return TableMetadataUtil.parse_obj(metadata)
+        return TableMetadataUtil.parse_raw(metadata)
 
 
 class FromInputFile:
@@ -127,6 +126,6 @@ class ToOutputFile:
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
         with output_file.create(overwrite=overwrite) as output_stream:
-            json_bytes = metadata.json().encode("utf-8")
+            json_bytes = metadata.model_dump_json().encode("utf-8")
             json_bytes = Compressor.get_compressor(output_file.location).bytes_compressor()(json_bytes)
             output_stream.write(json_bytes)

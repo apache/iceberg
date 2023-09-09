@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,7 +40,6 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -119,7 +119,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  public abstract Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec);
+  public abstract Table createTable(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties);
 
   public abstract Table loadTable(TableIdentifier ident, String entriesSuffix);
 
@@ -132,6 +133,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @After
   public void removeTable() {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
+  }
+
+  private Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+    return createTable(ident, schema, spec, ImmutableMap.of());
   }
 
   @Test
@@ -192,8 +197,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       // each row must inherit snapshot_id and sequence_number
       rows.forEach(
           row -> {
-            row.put(2, 0L); // data sequence number
-            row.put(3, 0L); // file sequence number
+            row.put(2, 1L); // data sequence number
+            row.put(3, 1L); // file sequence number
             GenericData.Record file = (GenericData.Record) row.get("data_file");
             TestHelpers.asMetadataRecord(file);
             expected.add(row);
@@ -387,8 +392,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              row.put(2, 0L); // data sequence number
-              row.put(3, 0L); // file sequence number
+              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
+                row.put(2, 3L); // data sequence number
+                row.put(3, 3L); // file sequence number
+              } else {
+                row.put(2, 1L); // data sequence number
+                row.put(3, 1L); // file sequence number
+              }
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               TestHelpers.asMetadataRecord(file);
               expected.add(row);
@@ -545,10 +555,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public void testEntriesTableWithSnapshotIdInheritance() throws Exception {
+  public void testV1EntriesTableWithSnapshotIdInheritance() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
-    PartitionSpec spec = SPEC;
-    Table table = createTable(tableIdentifier, SCHEMA, spec);
+    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "1");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC, properties);
 
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
@@ -1493,7 +1503,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             AvroSchemaUtil.convert(
                 partitionsTable.schema().findType("partition").asStructType(), "partition"));
 
-    List<DataFile> dataFiles = dataFiles(table);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     assertDataFilePartitions(dataFiles, Arrays.asList(1, 2, 2));
 
     List<GenericData.Record> expected = Lists.newArrayList();
@@ -2257,11 +2267,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
     return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
-  }
-
-  private List<DataFile> dataFiles(Table table) {
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
   private void assertDataFilePartitions(

@@ -123,6 +123,26 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testMigrateWithBackupTableName() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    String backupTableName = "backup_table";
+    Object result =
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', backup_table_name => '%s')",
+            catalogName, tableName, backupTableName);
+
+    Assertions.assertThat(result).isEqualTo(1L);
+    String dbName = tableName.split("\\.")[0];
+    Assertions.assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
+  }
+
+  @Test
   public void testMigrateWithInvalidMetricsConfig() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
@@ -194,5 +214,27 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, "2023/05/30", java.sql.Date.valueOf("2023-05-30"))),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMigrateEmptyPartitionedTable() throws Exception {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+    Assert.assertEquals(0L, result);
+  }
+
+  @Test
+  public void testMigrateEmptyTable() throws Exception {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+    Assert.assertEquals(0L, result);
   }
 }

@@ -15,11 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=protected-access
+import io
 import json
+from typing import Callable
 
 import pytest
 
-from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.decoder import StreamingBinaryDecoder
+from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -30,6 +33,7 @@ from pyiceberg.avro.reader import (
     FixedReader,
     FloatReader,
     IntegerReader,
+    ReadableDecoder,
     StringReader,
     StructReader,
     TimeReader,
@@ -38,7 +42,7 @@ from pyiceberg.avro.reader import (
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
-from pyiceberg.io.memory import MemoryInputStream
+from pyiceberg.io import InputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
@@ -62,6 +66,8 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+
+AVAILABLE_DECODERS = [StreamingBinaryDecoder, lambda stream: CythonBinaryDecoder(stream.read())]
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
@@ -323,7 +329,7 @@ def test_binary_reader() -> None:
 
 def test_unknown_type() -> None:
     class UnknownType(PrimitiveType):
-        __root__ = "UnknownType"
+        root: str = "UnknownType"
 
     with pytest.raises(ValueError) as exc_info:
         construct_reader(UnknownType())
@@ -335,18 +341,19 @@ def test_uuid_reader() -> None:
     assert construct_reader(UUIDType()) == UUIDReader()
 
 
-def test_read_struct() -> None:
-    mis = MemoryInputStream(b"\x18")
-    decoder = BinaryDecoder(mis)
-
+@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
+def test_read_struct(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
+    mis = io.BytesIO(b"\x18")
+    decoder = decoder_class(mis)
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
     assert repr(result) == "Record[id=12]"
 
 
-def test_read_struct_lambda() -> None:
-    mis = MemoryInputStream(b"\x18")
-    decoder = BinaryDecoder(mis)
+@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
+def test_read_struct_lambda(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
+    mis = io.BytesIO(b"\x18")
+    decoder = decoder_class(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     # You can also pass in an arbitrary function that returns a struct
@@ -356,9 +363,10 @@ def test_read_struct_lambda() -> None:
     assert repr(result) == "Record[id=12]"
 
 
-def test_read_not_struct_type() -> None:
-    mis = MemoryInputStream(b"\x18")
-    decoder = BinaryDecoder(mis)
+@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
+def test_read_not_struct_type(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
+    mis = io.BytesIO(b"\x18")
+    decoder = decoder_class(mis)
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     with pytest.raises(ValueError) as exc_info:
@@ -367,9 +375,10 @@ def test_read_not_struct_type() -> None:
     assert "Incompatible with StructProtocol: <class 'str'>" in str(exc_info.value)
 
 
-def test_read_struct_exception_handling() -> None:
-    mis = MemoryInputStream(b"\x18")
-    decoder = BinaryDecoder(mis)
+@pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
+def test_read_struct_exception_handling(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
+    mis = io.BytesIO(b"\x18")
+    decoder = decoder_class(mis)
 
     def raise_err(struct: StructType) -> None:
         raise TypeError("boom")

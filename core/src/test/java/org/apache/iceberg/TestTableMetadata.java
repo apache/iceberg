@@ -1086,7 +1086,12 @@ public class TestTableMetadata {
     String location = "file://tmp/db/table";
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            ImmutableMap.of(),
+            1);
 
     Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
         .isInstanceOf(ValidationException.class)
@@ -1322,6 +1327,16 @@ public class TestTableMetadata {
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
+  }
+
+  @Test
+  public void testParseMinimal() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    Assertions.assertThat(parsed.snapshots()).isEmpty();
+    Assertions.assertThat(parsed.snapshotLog()).isEmpty();
+    Assertions.assertThat(parsed.properties()).isEmpty();
+    Assertions.assertThat(parsed.previousFiles()).isEmpty();
   }
 
   @Test

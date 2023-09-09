@@ -440,12 +440,12 @@ public class SparkTableUtil {
       } else {
         List<SparkPartition> sourceTablePartitions =
             getPartitions(spark, sourceTableIdent, partitionFilter);
-        Preconditions.checkArgument(
-            !sourceTablePartitions.isEmpty(),
-            "Cannot find any partitions in table %s",
-            sourceTableIdent);
-        importSparkPartitions(
-            spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        if (sourceTablePartitions.isEmpty()) {
+          targetTable.newAppend().commit();
+        } else {
+          importSparkPartitions(
+              spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        }
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -534,7 +534,7 @@ public class SparkTableUtil {
                 .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
-            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
         Column joinCond =
             existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<String> duplicates =
@@ -605,7 +605,8 @@ public class SparkTableUtil {
           filesToImport
               .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
               .toDF("file_path");
-      Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+      Dataset<Row> existingFiles =
+          loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
       Column joinCond =
           existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<String> duplicates =

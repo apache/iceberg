@@ -39,7 +39,8 @@ class MigrateTableProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
+        ProcedureParameter.optional("backup_table_name", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -91,17 +92,20 @@ class MigrateTableProcedure extends BaseProcedure {
     }
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
+    String backupTableName = args.isNullAt(3) ? null : args.getString(3);
 
     MigrateTableSparkAction migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);
 
-    MigrateTable.Result result;
     if (dropBackup) {
-      result = migrateTableSparkAction.dropBackup().execute();
-    } else {
-      result = migrateTableSparkAction.execute();
+      migrateTableSparkAction = migrateTableSparkAction.dropBackup();
     }
 
+    if (backupTableName != null) {
+      migrateTableSparkAction = migrateTableSparkAction.backupTableName(backupTableName);
+    }
+
+    MigrateTable.Result result = migrateTableSparkAction.execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

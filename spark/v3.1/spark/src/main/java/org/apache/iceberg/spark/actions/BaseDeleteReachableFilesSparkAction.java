@@ -30,8 +30,8 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.actions.BaseDeleteReachableFilesActionResult;
 import org.apache.iceberg.actions.DeleteReachableFiles;
+import org.apache.iceberg.actions.ImmutableDeleteReachableFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -161,7 +161,7 @@ public class BaseDeleteReachableFilesSparkAction
    * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private BaseDeleteReachableFilesActionResult deleteFiles(Iterator<Row> deleted) {
+  private DeleteReachableFiles.Result deleteFiles(Iterator<Row> deleted) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
@@ -206,7 +206,13 @@ public class BaseDeleteReachableFilesSparkAction
     long filesCount =
         dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
     LOG.info("Total files removed: {}", filesCount);
-    return new BaseDeleteReachableFilesActionResult(
-        dataFileCount.get(), manifestCount.get(), manifestListCount.get(), otherFilesCount.get());
+    return ImmutableDeleteReachableFiles.Result.builder()
+        .deletedDataFilesCount(dataFileCount.get())
+        .deletedManifestsCount(manifestCount.get())
+        .deletedManifestListsCount(manifestListCount.get())
+        .deletedOtherFilesCount(otherFilesCount.get())
+        .deletedEqualityDeleteFilesCount(0)
+        .deletedPositionDeleteFilesCount(0)
+        .build();
   }
 }

@@ -51,6 +51,21 @@ S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
 S3_SESSION_TOKEN = "s3.session-token"
 S3_REGION = "s3.region"
 S3_PROXY_URI = "s3.proxy-uri"
+HDFS_HOST = "hdfs.host"
+HDFS_PORT = "hdfs.port"
+HDFS_USER = "hdfs.user"
+HDFS_KERB_TICKET = "hdfs.kerberos_ticket"
+GCS_TOKEN = "gcs.oauth2.token"
+GCS_TOKEN_EXPIRES_AT_MS = "gcs.oauth2.token-expires-at"
+GCS_PROJECT_ID = "gcs.project-id"
+GCS_ACCESS = "gcs.access"
+GCS_CONSISTENCY = "gcs.consistency"
+GCS_CACHE_TIMEOUT = "gcs.cache-timeout"
+GCS_REQUESTER_PAYS = "gcs.requester-pays"
+GCS_SESSION_KWARGS = "gcs.session-kwargs"
+GCS_ENDPOINT = "gcs.endpoint"
+GCS_DEFAULT_LOCATION = "gcs.default-bucket-location"
+GCS_VERSION_AWARE = "gcs.version-aware"
 
 
 @runtime_checkable
@@ -78,13 +93,13 @@ class InputStream(Protocol):
         ...
 
     def __enter__(self) -> InputStream:
-        """Provides setup when opening an InputStream using a 'with' statement."""
+        """Provide setup when opening an InputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
 
 
 @runtime_checkable
@@ -105,13 +120,13 @@ class OutputStream(Protocol):  # pragma: no cover
 
     @abstractmethod
     def __enter__(self) -> OutputStream:
-        """Provides setup when opening an OutputStream using a 'with' statement."""
+        """Provide setup when opening an OutputStream using a 'with' statement."""
 
     @abstractmethod
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
 
 
 class InputFile(ABC):
@@ -130,7 +145,7 @@ class InputFile(ABC):
 
     @abstractmethod
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
 
     @property
     def location(self) -> str:
@@ -139,7 +154,7 @@ class InputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists.
+        """Check whether the location exists.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error.
@@ -147,7 +162,7 @@ class InputFile(ABC):
 
     @abstractmethod
     def open(self, seekable: bool = True) -> InputStream:
-        """This method should return an object that matches the InputStream protocol.
+        """Return an object that matches the InputStream protocol.
 
         Args:
             seekable: If the stream should support seek, or if it is consumed sequential.
@@ -177,7 +192,7 @@ class OutputFile(ABC):
 
     @abstractmethod
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
 
     @property
     def location(self) -> str:
@@ -186,7 +201,7 @@ class OutputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists.
+        """Check whether the location exists.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error.
@@ -194,11 +209,11 @@ class OutputFile(ABC):
 
     @abstractmethod
     def to_input_file(self) -> InputFile:
-        """Returns an InputFile for the location of this output file."""
+        """Return an InputFile for the location of this output file."""
 
     @abstractmethod
     def create(self, overwrite: bool = False) -> OutputStream:
-        """This method should return an object that matches the OutputStream protocol.
+        """Return an object that matches the OutputStream protocol.
 
         Args:
             overwrite (bool): If the file already exists at `self.location`

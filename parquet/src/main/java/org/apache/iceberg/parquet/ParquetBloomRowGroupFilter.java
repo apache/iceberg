@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -333,6 +334,11 @@ public class ParquetBloomRowGroupFilter {
         default:
           return ROWS_MIGHT_MATCH;
       }
+    }
+
+    @Override
+    public <T> Boolean handleNonReference(Bound<T> term) {
+      return ROWS_MIGHT_MATCH;
     }
   }
 }

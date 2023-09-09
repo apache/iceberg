@@ -28,8 +28,8 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 public abstract class HiveMetastoreTest {
 
@@ -41,7 +41,7 @@ public abstract class HiveMetastoreTest {
   protected static HiveConf hiveConf;
   protected static TestHiveMetastore metastore;
 
-  @BeforeClass
+  @BeforeAll
   public static void startMetastore() throws Exception {
     startMetastore(Collections.emptyMap());
   }
@@ -72,7 +72,7 @@ public abstract class HiveMetastoreTest {
                 hiveConfWithOverrides);
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopMetastore() throws Exception {
     HiveMetastoreTest.catalog = null;
 

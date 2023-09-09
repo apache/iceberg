@@ -34,16 +34,16 @@ Some plans are only available when using [Iceberg SQL extensions](../spark-confi
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3 | Notes                                        |
-|--------------------------------------------------|-----------|----------------------------------------------|
-| [SQL insert into](#insert-into)                  | ✔️        |                                              |
-| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions          |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        |                                              |
-| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Spark extensions |
-| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions          |
-| [DataFrame append](#appending-data)              | ✔️        |                                              |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                              |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |                                              |
+| Feature support                                  | Spark 3 | Notes                                                                       |
+|--------------------------------------------------|-----------|-----------------------------------------------------------------------------|
+| [SQL insert into](#insert-into)                  | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
+| [SQL insert overwrite](#insert-overwrite)        | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Iceberg Spark extensions                        |
+| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
+| [DataFrame append](#appending-data)              | ✔️        |                                                                             |
+| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
+| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
 
 
 ## Writing with SQL
@@ -210,7 +210,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](../../tables/branching)
+For more information on branches please refer to [branches](../tables/branching)
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.

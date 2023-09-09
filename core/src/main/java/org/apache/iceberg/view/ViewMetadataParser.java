@@ -33,6 +33,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -45,7 +46,6 @@ public class ViewMetadataParser {
   static final String VERSION_LOG = "version-log";
   static final String PROPERTIES = "properties";
   static final String SCHEMAS = "schemas";
-  static final String CURRENT_SCHEMA_ID = "current-schema-id";
 
   private ViewMetadataParser() {}
 
@@ -65,7 +65,6 @@ public class ViewMetadataParser {
     gen.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     gen.writeStringField(LOCATION, metadata.location());
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), gen);
-    gen.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
 
     gen.writeArrayFieldStart(SCHEMAS);
     for (Schema schema : metadata.schemas()) {
@@ -103,7 +102,6 @@ public class ViewMetadataParser {
     String location = JsonUtil.getString(LOCATION, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);
 
-    int currentSchemaId = JsonUtil.getInt(CURRENT_SCHEMA_ID, json);
     JsonNode schemasNode = JsonUtil.get(SCHEMAS, json);
 
     Preconditions.checkArgument(
@@ -132,16 +130,15 @@ public class ViewMetadataParser {
       historyEntries.add(ViewHistoryEntryParser.fromJson(vLog));
     }
 
-    return ImmutableViewMetadata.builder()
-        .location(location)
-        .currentVersionId(currentVersionId)
-        .properties(properties)
-        .versions(versions)
-        .schemas(schemas)
-        .currentSchemaId(currentSchemaId)
-        .history(historyEntries)
-        .formatVersion(formatVersion)
-        .build();
+    return ImmutableViewMetadata.of(
+        formatVersion,
+        location,
+        schemas,
+        currentVersionId,
+        versions,
+        historyEntries,
+        properties,
+        ImmutableList.of());
   }
 
   public static void overwrite(ViewMetadata metadata, OutputFile outputFile) {

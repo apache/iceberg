@@ -60,7 +60,6 @@ The view version metadata file has the following fields:
 |-------------|----------------------|-------------|
 | _required_  | `format-version`     | An integer version number for the view format; must be 1 |
 | _required_  | `location`           | The view's base location; used to create metadata file locations |
-| _required_  | `current-schema-id`  | ID of the current schema of the view, if known |
 | _required_  | `schemas`            | A list of known schemas |
 | _required_  | `current-version-id` | ID of the current version of the view (`version-id`) |
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
@@ -75,13 +74,17 @@ Notes:
 
 Each version in `versions` is a struct with the following fields:
 
-| Requirement | Field name        | Description                                                              |
-|-------------|-------------------|--------------------------------------------------------------------------|
-| _required_  | `version-id`      | ID for the version                                                       |
-| _required_  | `schema-id`       | ID of the schema for the view version                                    |
-| _required_  | `timestamp-ms`    | Timestamp when the version was created (ms from epoch)                   |
-| _required_  | `summary`         | A string to string map of [summary metadata](#summary) about the version |
-| _required_  | `representations` | A list of [representations](#representations) for the view definition    |
+| Requirement | Field name          | Description                                                                   |
+|-------------|---------------------|-------------------------------------------------------------------------------|
+| _required_  | `version-id`        | ID for the version                                                            |
+| _required_  | `schema-id`         | ID of the schema for the view version                                         |
+| _required_  | `timestamp-ms`      | Timestamp when the version was created (ms from epoch)                        |
+| _required_  | `summary`           | A string to string map of [summary metadata](#summary) about the version      |
+| _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
+| _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
+| _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
+
+When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
 #### Summary
 
@@ -117,10 +120,6 @@ A view version can have multiple SQL representations of different dialects, but 
 | _required_  | `type`              | `string`       | Must be `sql` |
 | _required_  | `sql`               | `string`       | A SQL SELECT statement |
 | _required_  | `dialect`           | `string`       | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark") |
-| _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
-| _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
-| _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement |
-| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement |
 
 For example:
 
@@ -144,12 +143,10 @@ This create statement would produce the following `sql` representation metadata:
 | `type`              | `"sql"` |
 | `sql`               | `"SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2"` |
 | `dialect`           | `"spark"` |
-| `default-catalog`   | `"prod"` |
-| `default-namespace` | `["default"]` |
-| `field-aliases`     | `["event_count", "event_date"]` |
-| `field-comments`    | `["Count of events", null]` |
 
 If a create statement does not include column names or comments before `AS`, the fields should be omitted.
+
+The `event_count` (with the `Count of events` comment) and `event_date` field aliases must be part of the view version's `schema`.
 
 #### Version log
 
@@ -205,6 +202,8 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "version-id" : 1,
     "timestamp-ms" : 1573518431292,
     "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
     "summary" : {
       "operation" : "create",
       "engine-name" : "Spark",
@@ -213,25 +212,21 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "representations" : [ {
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
-      "dialect" : "spark",
-      "default-catalog" : "prod",
-      "default-namespace" : [ "default" ],
-      "field-aliases" : ["event_count", "event_date"],
-      "field-comments" : ["Count of events", null]
+      "dialect" : "spark"
     } ]
   } ],
-  "current-schema-id": 1,
   "schemas": [ {
     "schema-id": 1,
     "type" : "struct",
     "fields" : [ {
       "id" : 1,
-      "name" : "col1",
+      "name" : "event_count",
       "required" : false,
-      "type" : "int"
+      "type" : "int",
+      "doc" : "Count of events"
     }, {
       "id" : 2,
-      "name" : "col2",
+      "name" : "event_date",
       "required" : false,
       "type" : "date"
     } ]
@@ -274,6 +269,8 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "version-id" : 1,
     "timestamp-ms" : 1573518431292,
     "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
     "summary" : {
       "operation" : "create",
       "engine-name" : "Spark",
@@ -282,15 +279,14 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "representations" : [ {
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
-      "dialect" : "spark",
-      "default-catalog" : "prod",
-      "default-namespace" : [ "default" ],
-      "field-aliases" : ["event_count", "event_date"],
-      "field-comments" : ["Count of events", null]
+      "dialect" : "spark"
     } ]
   }, {
     "version-id" : 2,
     "timestamp-ms" : 1573518981593,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
     "summary" : {
       "operation" : "create",
       "engine-name" : "Spark",
@@ -299,24 +295,21 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "representations" : [ {
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM prod.default.events\nGROUP BY 2",
-      "dialect" : "spark",
-      "default-catalog" : "prod",
-      "default-namespace" : [ "default" ],
-      "field-aliases" : ["event_count", "event_date"]
+      "dialect" : "spark"
     } ]
   } ],
-  "current-schema-id": 1,
   "schemas": [ {
     "schema-id": 1,
     "type" : "struct",
     "fields" : [ {
       "id" : 1,
-      "name" : "col1",
+      "name" : "event_count",
       "required" : false,
-      "type" : "int"
+      "type" : "int",
+      "doc" : "Count of events"
     }, {
       "id" : 2,
-      "name" : "col2",
+      "name" : "event_date",
       "required" : false,
       "type" : "date"
     } ]

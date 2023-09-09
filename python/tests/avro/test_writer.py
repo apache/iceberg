@@ -21,6 +21,7 @@ import struct
 from typing import Dict, List
 
 import pytest
+from _decimal import Decimal
 
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.resolver import construct_writer
@@ -127,7 +128,7 @@ def test_binary_writer() -> None:
 
 def test_unknown_type() -> None:
     class UnknownType(PrimitiveType):
-        __root__ = "UnknownType"
+        root: str = "UnknownType"
 
     with pytest.raises(ValueError) as exc_info:
         construct_writer(UnknownType())
@@ -218,3 +219,19 @@ def test_write_struct_with_list() -> None:
             b"\x00",
         ]
     )
+
+
+def test_write_decimal() -> None:
+    output = io.BytesIO()
+    encoder = BinaryEncoder(output)
+
+    schema = StructType(
+        NestedField(1, "decimal", DecimalType(10, 2), required=True),
+    )
+
+    class MyStruct(Record):
+        decimal: Decimal
+
+    construct_writer(schema).write(encoder, MyStruct(Decimal("1000.12")))
+
+    assert output.getvalue() == b"\x00\x00\x01\x86\xac"

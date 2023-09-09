@@ -22,6 +22,13 @@ from uuid import UUID
 
 import mmh3 as mmh3
 import pytest
+from pydantic import (
+    BeforeValidator,
+    PlainSerializer,
+    RootModel,
+    WithJsonSchema,
+)
+from typing_extensions import Annotated
 
 from pyiceberg import transforms
 from pyiceberg.expressions import (
@@ -65,8 +72,8 @@ from pyiceberg.transforms import (
     UnknownTransform,
     VoidTransform,
     YearTransform,
+    parse_transform,
 )
-from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -88,7 +95,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import (
     date_str_to_days,
     date_to_days,
-    time_to_micros,
+    time_str_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
@@ -102,7 +109,7 @@ from pyiceberg.utils.datetime import (
         (34, LongType(), 2017239379),
         (date_to_days(date(2017, 11, 16)), DateType(), -653330422),
         (date_str_to_days("2017-11-16"), DateType(), -653330422),
-        (time_to_micros("22:31:08"), TimeType(), -662762989),
+        (time_str_to_micros("22:31:08"), TimeType(), -662762989),
         (
             timestamp_to_micros("2017-11-16T22:31:08"),
             TimestampType(),
@@ -117,6 +124,7 @@ from pyiceberg.utils.datetime import (
         (b"\x00\x01\x02\x03", FixedType(4), -188683207),
         ("iceberg", StringType(), 1210000089),
         (UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"), UUIDType(), 1488055340),
+        (b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", UUIDType(), 1488055340),
     ],
 )
 def test_bucket_hash_values(test_input: Any, test_type: PrimitiveType, expected: Any) -> None:
@@ -136,6 +144,11 @@ def test_bucket_hash_values(test_input: Any, test_type: PrimitiveType, expected:
         (
             BucketTransform(100).transform(UUIDType()),
             UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
+            40,
+        ),
+        (
+            BucketTransform(100).transform(UUIDType()),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
             40,
         ),
         (BucketTransform(128).transform(FixedType(3)), b"foo", 32),
@@ -187,7 +200,7 @@ def test_string_with_surrogate_pair() -> None:
         (17501, DayTransform(), "2017-12-01"),
     ],
 )
-def test_date_to_human_string(date_val: int, date_transform: TimeTransform[Any], expected: str) -> None:
+def test_date_to_human_string(date_val: int, date_transform: Transform[Any, Any], expected: str) -> None:
     assert date_transform.to_human_string(DateType(), date_val) == expected
 
 
@@ -424,16 +437,21 @@ def test_void_transform() -> None:
     assert void_transform.dedup_name == "void"
 
 
-class TestType(IcebergBaseModel):
-    __root__: Transform[Any, Any]
+class FauxModel(RootModel):
+    root: Annotated[  # type: ignore
+        Transform,
+        BeforeValidator(parse_transform),
+        PlainSerializer(lambda c: str(c), return_type=str),  # pylint: disable=W0108
+        WithJsonSchema({"type": "string"}, mode="serialization"),
+    ]
 
 
 def test_bucket_transform_serialize() -> None:
-    assert BucketTransform(num_buckets=22).json() == '"bucket[22]"'
+    assert BucketTransform(num_buckets=22).model_dump_json() == '"bucket[22]"'
 
 
 def test_bucket_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"bucket[22]"').__root__
+    transform = FauxModel.model_validate_json('"bucket[22]"').root
     assert transform == BucketTransform(num_buckets=22)
 
 
@@ -446,11 +464,11 @@ def test_bucket_transform_repr() -> None:
 
 
 def test_truncate_transform_serialize() -> None:
-    assert UnknownTransform("unknown").json() == '"unknown"'
+    assert UnknownTransform("unknown").model_dump_json() == '"unknown"'
 
 
 def test_unknown_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"unknown"').__root__
+    transform = FauxModel.model_validate_json('"unknown"').root
     assert transform == UnknownTransform("unknown")
 
 
@@ -463,11 +481,11 @@ def test_unknown_transform_repr() -> None:
 
 
 def test_void_transform_serialize() -> None:
-    assert VoidTransform().json() == '"void"'
+    assert VoidTransform().model_dump_json() == '"void"'
 
 
 def test_void_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"void"').__root__
+    transform = FauxModel.model_validate_json('"void"').root
     assert transform == VoidTransform()
 
 
@@ -480,38 +498,38 @@ def test_void_transform_repr() -> None:
 
 
 def test_year_transform_serialize() -> None:
-    assert YearTransform().json() == '"year"'
+    assert YearTransform().model_dump_json() == '"year"'
 
 
 def test_year_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"year"').__root__
+    transform = FauxModel.model_validate_json('"year"').root
     assert transform == YearTransform()
 
 
 def test_month_transform_serialize() -> None:
-    assert MonthTransform().json() == '"month"'
+    assert MonthTransform().model_dump_json() == '"month"'
 
 
 def test_month_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"month"').__root__
+    transform = FauxModel.model_validate_json('"month"').root
     assert transform == MonthTransform()
 
 
 def test_day_transform_serialize() -> None:
-    assert DayTransform().json() == '"day"'
+    assert DayTransform().model_dump_json() == '"day"'
 
 
 def test_day_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"day"').__root__
+    transform = FauxModel.model_validate_json('"day"').root
     assert transform == DayTransform()
 
 
 def test_hour_transform_serialize() -> None:
-    assert HourTransform().json() == '"hour"'
+    assert HourTransform().model_dump_json() == '"hour"'
 
 
 def test_hour_transform_deserialize() -> None:
-    transform = TestType.parse_raw('"hour"').__root__
+    transform = FauxModel.model_validate_json('"hour"').root
     assert transform == HourTransform()
 
 
