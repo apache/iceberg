@@ -113,7 +113,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   static final SortOrder REPLACE_WRITE_ORDER =
       SortOrder.builderFor(REPLACE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  static final DataFile FILE_A =
+  protected static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)

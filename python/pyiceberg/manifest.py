@@ -46,7 +46,7 @@ class DataFileContent(int, Enum):
     EQUALITY_DELETES = 2
 
     def __repr__(self) -> str:
-        """Returns the string representation of the DataFileContent class."""
+        """Return the string representation of the DataFileContent class."""
         return f"DataFileContent.{self.name}"
 
 
@@ -55,7 +55,7 @@ class ManifestContent(int, Enum):
     DELETES = 1
 
     def __repr__(self) -> str:
-        """Returns the string representation of the ManifestContent class."""
+        """Return the string representation of the ManifestContent class."""
         return f"ManifestContent.{self.name}"
 
 
@@ -65,7 +65,7 @@ class ManifestEntryStatus(int, Enum):
     DELETED = 2
 
     def __repr__(self) -> str:
-        """Returns the string representation of the ManifestEntryStatus class."""
+        """Return the string representation of the ManifestEntryStatus class."""
         return f"ManifestEntryStatus.{self.name}"
 
 
@@ -75,7 +75,7 @@ class FileFormat(str, Enum):
     ORC = "ORC"
 
     def __repr__(self) -> str:
-        """Returns the string representation of the FileFormat class."""
+        """Return the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
 
 
@@ -202,7 +202,7 @@ class DataFile(Record):
     spec_id: Optional[int]
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """Used for assigning a key/value to a DataFile."""
+        """Assign a key/value to a DataFile."""
         # The file_format is written as a string, so we need to cast it to the Enum
         if name == "file_format":
             value = FileFormat[value]
@@ -212,11 +212,11 @@ class DataFile(Record):
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
     def __hash__(self) -> int:
-        """Returns the hash of the file path."""
+        """Return the hash of the file path."""
         return hash(self.file_path)
 
     def __eq__(self, other: Any) -> bool:
-        """Compares the datafile with another object.
+        """Compare the datafile with another object.
 
         If it is a datafile, it will compare based on the file_path.
         """
@@ -335,7 +335,7 @@ class ManifestFile(Record):
 
     def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
         """
-        Reads the manifest entries from the manifest file.
+        Read the manifest entries from the manifest file.
 
         Args:
             io: The FileIO to fetch the file.
@@ -360,7 +360,7 @@ class ManifestFile(Record):
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
     """
-    Reads the manifests from the manifest list.
+    Read the manifests from the manifest list.
 
     Args:
         input_file: The input file where the stream can be read from.

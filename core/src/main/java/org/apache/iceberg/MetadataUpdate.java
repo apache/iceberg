@@ -23,10 +23,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewVersion;
 
-/** Represents a change to table metadata. */
+/** Represents a change to table or view metadata. */
 public interface MetadataUpdate extends Serializable {
-  void applyTo(TableMetadata.Builder metadataBuilder);
+  default void applyTo(TableMetadata.Builder metadataBuilder) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot apply update %s to a table", this.getClass().getSimpleName()));
+  }
+
+  default void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot apply update %s to a view", this.getClass().getSimpleName()));
+  }
 
   class AssignUUID implements MetadataUpdate {
     private final String uuid;
@@ -60,6 +70,11 @@ public interface MetadataUpdate extends Serializable {
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.upgradeFormatVersion(formatVersion);
     }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.upgradeFormatVersion(formatVersion);
+    }
   }
 
   class AddSchema implements MetadataUpdate {
@@ -82,6 +97,11 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.addSchema(schema, lastColumnId);
+    }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.addSchema(schema);
     }
   }
 
@@ -343,6 +363,11 @@ public interface MetadataUpdate extends Serializable {
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.setProperties(updated);
     }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.setProperties(updated);
+    }
   }
 
   class RemoveProperties implements MetadataUpdate {
@@ -360,6 +385,11 @@ public interface MetadataUpdate extends Serializable {
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.removeProperties(removed);
     }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.removeProperties(removed);
+    }
   }
 
   class SetLocation implements MetadataUpdate {
@@ -376,6 +406,45 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.setLocation(location);
+    }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.setLocation(location);
+    }
+  }
+
+  class AddViewVersion implements MetadataUpdate {
+    private final ViewVersion viewVersion;
+
+    public AddViewVersion(ViewVersion viewVersion) {
+      this.viewVersion = viewVersion;
+    }
+
+    public ViewVersion viewVersion() {
+      return viewVersion;
+    }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.addVersion(viewVersion);
+    }
+  }
+
+  class SetCurrentViewVersion implements MetadataUpdate {
+    private final int versionId;
+
+    public SetCurrentViewVersion(int versionId) {
+      this.versionId = versionId;
+    }
+
+    public int versionId() {
+      return versionId;
+    }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
+      viewMetadataBuilder.setCurrentVersionId(versionId);
     }
   }
 }

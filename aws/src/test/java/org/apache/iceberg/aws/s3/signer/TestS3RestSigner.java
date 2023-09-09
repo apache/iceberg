@@ -20,12 +20,14 @@ package org.apache.iceberg.aws.s3.signer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.s3.MinioContainer;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.eclipse.jetty.server.Server;
@@ -56,8 +58,11 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
@@ -148,7 +153,15 @@ public class TestS3RestSigner {
   }
 
   private static Server initHttpServer() throws Exception {
-    S3SignerServlet servlet = new S3SignerServlet(S3ObjectMapper.mapper());
+    S3SignerServlet.SignRequestValidator deleteObjectsWithBody =
+        new S3SignerServlet.SignRequestValidator(
+            (s3SignRequest) ->
+                "post".equalsIgnoreCase(s3SignRequest.method())
+                    && s3SignRequest.uri().getQuery().contains("delete"),
+            (s3SignRequest) -> s3SignRequest.body() != null && !s3SignRequest.body().isEmpty(),
+            "Sign request for delete objects should have a request body");
+    S3SignerServlet servlet =
+        new S3SignerServlet(S3ObjectMapper.mapper(), ImmutableList.of(deleteObjectsWithBody));
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
@@ -175,6 +188,22 @@ public class TestS3RestSigner {
   public void validatePutObject() {
     s3.putObject(
         PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(), Paths.get("/etc/hosts"));
+  }
+
+  @Test
+  public void validateDeleteObjects() {
+    Path sourcePath = Paths.get("/etc/hosts");
+    s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key1").build(), sourcePath);
+    s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key2").build(), sourcePath);
+
+    Delete objectsToDelete =
+        Delete.builder()
+            .objects(
+                ObjectIdentifier.builder().key("some/key1").build(),
+                ObjectIdentifier.builder().key("some/key2").build())
+            .build();
+
+    s3.deleteObjects(DeleteObjectsRequest.builder().bucket(BUCKET).delete(objectsToDelete).build());
   }
 
   @Test

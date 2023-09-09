@@ -32,7 +32,7 @@ class BinaryEncoder:
         self._output_stream.write(b)
 
     def write_boolean(self, boolean: bool) -> None:
-        """A boolean is written as a single byte whose value is either 0 (false) or 1 (true).
+        """Write a boolean as a single byte whose value is either 0 (false) or 1 (true).
 
         Args:
             boolean: The boolean to write.
@@ -48,11 +48,11 @@ class BinaryEncoder:
         self.write(bytearray([datum]))
 
     def write_float(self, f: float) -> None:
-        """A float is written as 4 bytes."""
+        """Write a float as 4 bytes."""
         self.write(STRUCT_FLOAT.pack(f))
 
     def write_double(self, f: float) -> None:
-        """A double is written as 8 bytes."""
+        """Write a double as 8 bytes."""
         self.write(STRUCT_DOUBLE.pack(f))
 
     def write_bytes(self, b: bytes) -> None:
@@ -61,7 +61,7 @@ class BinaryEncoder:
         self.write(b)
 
     def write_utf8(self, s: str) -> None:
-        """A string is encoded as a long followed by that many bytes of UTF-8 encoded character data."""
+        """Encode a string as a long followed by that many bytes of UTF-8 encoded character data."""
         self.write_bytes(s.encode("utf-8"))
 
     def write_uuid(self, uuid: UUID) -> None:

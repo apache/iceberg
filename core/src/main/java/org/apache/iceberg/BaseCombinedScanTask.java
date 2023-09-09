@@ -28,6 +28,7 @@ import org.apache.iceberg.util.TableScanUtil;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
   private final FileScanTask[] tasks;
+  private transient volatile List<FileScanTask> taskList = null;
 
   public BaseCombinedScanTask(FileScanTask... tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
@@ -41,7 +42,38 @@ public class BaseCombinedScanTask implements CombinedScanTask {
 
   @Override
   public Collection<FileScanTask> files() {
-    return ImmutableList.copyOf(tasks);
+    if (taskList == null) {
+      this.taskList = ImmutableList.copyOf(tasks);
+    }
+
+    return taskList;
+  }
+
+  @Override
+  public long sizeBytes() {
+    long sizeBytes = 0L;
+    for (FileScanTask task : tasks) {
+      sizeBytes += task.sizeBytes();
+    }
+    return sizeBytes;
+  }
+
+  @Override
+  public long estimatedRowsCount() {
+    long estimatedRowsCount = 0L;
+    for (FileScanTask task : tasks) {
+      estimatedRowsCount += task.estimatedRowsCount();
+    }
+    return estimatedRowsCount;
+  }
+
+  @Override
+  public int filesCount() {
+    int filesCount = 0;
+    for (FileScanTask task : tasks) {
+      filesCount += task.filesCount();
+    }
+    return filesCount;
   }
 
   @Override

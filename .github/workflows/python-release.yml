@@ -49,17 +49,17 @@ jobs:
         run: pip3 install poetry
         working-directory: ./python
 
+      - name: Set version
+        run: python3 -m poetry version "${{ inputs.version }}"
+        working-directory: ./python
+        if: "${{ github.event.inputs.version != 'master' }}"
+
       # Publish the source distribution with the version that's in
       # the repository, otherwise the tests will fail
       - name: Compile source distribution
         run: python3 -m poetry build --format=sdist
         if: "${{ matrix.os == 'ubuntu-20.04' }}"
         working-directory: ./python
-
-      - name: Set version
-        run: python3 -m poetry version "${{ inputs.version }}"
-        working-directory: ./python
-        if: "${{ github.event.inputs.version != 'master' }}"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0

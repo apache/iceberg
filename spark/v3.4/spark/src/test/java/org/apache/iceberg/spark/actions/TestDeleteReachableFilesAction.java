@@ -267,8 +267,6 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
   @Test
   public void testPositionDeleteFiles() {
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
-
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -277,13 +275,11 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
-    checkRemoveFilesResults(2, 1, 0, 3, 3, 6, baseRemoveFilesSparkAction.execute());
+    checkRemoveFilesResults(2, 1, 0, 3, 3, 5, baseRemoveFilesSparkAction.execute());
   }
 
   @Test
   public void testEqualityDeleteFiles() {
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
-
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -292,7 +288,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
-    checkRemoveFilesResults(2, 0, 1, 3, 3, 6, baseRemoveFilesSparkAction.execute());
+    checkRemoveFilesResults(2, 0, 1, 3, 3, 5, baseRemoveFilesSparkAction.execute());
   }
 
   @Test
