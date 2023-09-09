@@ -537,7 +537,7 @@ class ManifestWriter(ABC):
         self._manifest_entry_schema = manifest_entry_schema(data_file_type(spec.partition_type(schema)))
 
     def __enter__(self) -> ManifestWriter:
-        """Opens the writer."""
+        """Open the writer."""
         self._writer = AvroOutputFile[ManifestEntry](self._output_file, self._manifest_entry_schema, "manifest_entry", self._meta)
         self._writer.__enter__()
         return self
@@ -548,7 +548,7 @@ class ManifestWriter(ABC):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        """Closes the writer."""
+        """Close the writer."""
         self.closed = True
         self._writer.__exit__(exc_type, exc_value, traceback)
 
@@ -557,7 +557,7 @@ class ManifestWriter(ABC):
         ...
 
     def to_manifest_file(self) -> ManifestFile:
-        """Returns the manifest file."""
+        """Return the manifest file."""
         # once the manifest file is generated, no more entries can be added
         self.closed = True
         min_sequence_number = self._min_data_sequence_number or UNASSIGNED_SEQ
@@ -668,7 +668,7 @@ class ManifestListWriter(ABC):
         self._manifest_files = []
 
     def __enter__(self) -> ManifestListWriter:
-        """Opens the writer for writing."""
+        """Open the writer for writing."""
         self._writer = AvroOutputFile[ManifestFile](self._output_file, MANIFEST_FILE_SCHEMA, "manifest_file", self._meta)
         self._writer.__enter__()
         return self
@@ -679,7 +679,7 @@ class ManifestListWriter(ABC):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        """Closes the writer."""
+        """Close the writer."""
         self._writer.__exit__(exc_type, exc_value, traceback)
         return
 
