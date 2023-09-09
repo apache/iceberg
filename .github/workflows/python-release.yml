@@ -67,16 +67,17 @@ jobs:
           output-dir: wheelhouse
           config-file: "python/pyproject.toml"
         env:
+          # Ignore 32 bit architectures
+          CIBW_ARCHS: "auto64"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=3.8,<3.12"
           CIBW_TEST_REQUIRES: "pytest moto"
           CIBW_TEST_EXTRAS: "s3fs,glue"
-          # The -Werror is important. It will fail when PyIceberg falls back to the
-          # pure Python implementation, because that will emit a warning.
           CIBW_TEST_COMMAND: "pytest -Werror {project}/python/tests/avro/test_decoder.py"
           # There is an upstream issue with installing on MacOSX
           # https://github.com/pypa/cibuildwheel/issues/1603
-          # disable those tests for now, we already know that it works
-          CIBW_TEST_SKIP: "*macosx*"
+          # Ignore tests for pypy since not all dependencies are compiled for it
+          # and would require a local rust build chain
+          CIBW_TEST_SKIP: "pp* *macosx*"
 
       - name: Add source distribution
         if: "${{ matrix.os == 'ubuntu-20.04' }}"
