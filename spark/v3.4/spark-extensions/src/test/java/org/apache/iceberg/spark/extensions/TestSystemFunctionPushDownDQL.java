@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.day;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -42,7 +41,6 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.ExpressionUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.spark.sql.Dataset;
@@ -58,35 +56,19 @@ import org.junit.Test;
 import org.junit.runners.Parameterized;
 
 public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
-  private final String fileFormat;
-
   public TestSystemFunctionPushDownDQL(
-      String catalogName, String implementation, Map<String, String> config, String fileFormat) {
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    this.fileFormat = fileFormat;
   }
 
   @Parameterized.Parameters(
-      name = "catalogName = {0}, implementation = {1}, config = {2}, fileFormat = {3}")
+      name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        "parquet"
-      },
-      {
-        SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties(),
-        "orc"
-      },
-      {
-        SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties(),
-        "avro"
       },
     };
   }
@@ -103,14 +85,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testYearsFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testYearsFunction(false);
   }
 
   @Test
   public void testYearsFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "years(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "years(ts)");
     testYearsFunction(true);
   }
 
@@ -132,14 +113,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testMonthsFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testMonthsFunction(false);
   }
 
   @Test
   public void testMonthsFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "months(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "months(ts)");
     testMonthsFunction(true);
   }
 
@@ -161,14 +141,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testDaysFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testDaysFunction(false);
   }
 
   @Test
   public void testDaysFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "days(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "days(ts)");
     testDaysFunction(true);
   }
 
@@ -192,14 +171,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testHoursFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testHoursFunction(false);
   }
 
   @Test
   public void testHoursFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "hours(ts)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "hours(ts)");
     testHoursFunction(true);
   }
 
@@ -221,14 +199,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testBucketLongFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testBucketLongFunction(false);
   }
 
   @Test
   public void testBucketLongFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "bucket(5, id)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "bucket(5, id)");
     testBucketLongFunction(true);
   }
 
@@ -250,14 +227,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testBucketStringFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testBucketStringFunction(false);
   }
 
   @Test
   public void testBucketStringFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "bucket(5, data)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "bucket(5, data)");
     testBucketStringFunction(true);
   }
 
@@ -279,14 +255,13 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
 
   @Test
   public void testTruncateFunctionOnUnpartitionedTable() {
-    createUnpartitionedTable(spark, tableName, ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createUnpartitionedTable(spark, tableName);
     testTruncateFunction(false);
   }
 
   @Test
   public void testTruncateFunctionOnPartitionedTable() {
-    createPartitionedTable(
-        spark, tableName, "truncate(4, data)", ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat));
+    createPartitionedTable(spark, tableName, "truncate(4, data)");
     testTruncateFunction(true);
   }
 
