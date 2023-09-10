@@ -863,36 +863,36 @@ test = ["pytest (>=6)"]
 
 [[package]]
 name = "fastavro"
-version = "1.8.2"
+version = "1.8.3"
 description = "Fast read/write of AVRO files"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "fastavro-1.8.2-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:0e08964b2e9a455d831f2557402a683d4c4d45206f2ab9ade7c69d3dc14e0e58"},
-    {file = "fastavro-1.8.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:401a70b1e5c7161420c6019e0c8afa88f7c8a373468591f5ec37639a903c2509"},
-    {file = "fastavro-1.8.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:eef1ed3eaa4240c05698d02d8d0c010b9a03780eda37b492da6cd4c9d37e04ec"},
-    {file = "fastavro-1.8.2-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:543185a672ff6306beb329b57a7b8a3a2dd1eb21a5ccc530150623d58d48bb98"},
-    {file = "fastavro-1.8.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:ffbf8bae1edb50fe7beeffc3afa8e684686550c2e5d31bf01c25cfa213f581e1"},
-    {file = "fastavro-1.8.2-cp310-cp310-win_amd64.whl", hash = "sha256:bb545eb9d876bc7b785e27e98e7720ada7eee7d7a1729798d2ed51517f13500a"},
-    {file = "fastavro-1.8.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2b837d3038c651046252bc92c1b9899bf21c7927a148a1ff89599c36c2a331ca"},
-    {file = "fastavro-1.8.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d3510e96c0a47e4e914bd1a29c954eb662bfa24849ad92e597cb97cc79f21af7"},
-    {file = "fastavro-1.8.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ccc0e74f2c2ab357f39bb73d67fcdb6dc10e23fdbbd399326139f72ec0fb99a3"},
-    {file = "fastavro-1.8.2-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:add51c70d0ab1175601c75cd687bbe9d16ae312cd8899b907aafe0d79ee2bc1d"},
-    {file = "fastavro-1.8.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:d9e2662f57e6453e9a2c9fb4f54b2a9e62e3e46f5a412ac00558112336d23883"},
-    {file = "fastavro-1.8.2-cp311-cp311-win_amd64.whl", hash = "sha256:fea75cf53a93c56dd56e68abce8d314ef877b27451c870cd7ede7582d34c08a7"},
-    {file = "fastavro-1.8.2-cp38-cp38-macosx_11_0_x86_64.whl", hash = "sha256:f489020bb8664c2737c03457ad5dbd490579ddab6f0a7b5c17fecfe982715a89"},
-    {file = "fastavro-1.8.2-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a547625c138efd5e61300119241041906ee8cb426fc7aa789900f87af7ed330d"},
-    {file = "fastavro-1.8.2-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:53beb458f30c9ad4aa7bff4a42243ff990ffb713b6ce0cd9b360cbc3d648fe52"},
-    {file = "fastavro-1.8.2-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:7b1b2cbd2dd851452306beed0ab9bdaeeab1cc8ad46f84b47cd81eeaff6dd6b8"},
-    {file = "fastavro-1.8.2-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:d29e9baee0b2f37ecd09bde3b487cf900431fd548c85be3e4fe1b9a0b2a917f1"},
-    {file = "fastavro-1.8.2-cp38-cp38-win_amd64.whl", hash = "sha256:66e132c710663230292bc63e2cb79cf95b16ccb94a5fc99bb63694b24e312fc5"},
-    {file = "fastavro-1.8.2-cp39-cp39-macosx_11_0_x86_64.whl", hash = "sha256:38aca63ce604039bcdf2edd14912d00287bdbf8b76f9aa42b28e6ca0bf950092"},
-    {file = "fastavro-1.8.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9787835f6449ee94713e7993a700432fce3763024791ffa8a58dc91ef9d1f950"},
-    {file = "fastavro-1.8.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:536cb448bc83811056be02749fd9df37a69621678f02597d272970a769e9b40c"},
-    {file = "fastavro-1.8.2-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:e9d5027cf7d9968f8f819958b41bfedb933323ea6d6a0485eefacaa1afd91f54"},
-    {file = "fastavro-1.8.2-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:792adfc0c80c7f1109e0ab4b0decef20691fdf0a45091d397a0563872eb56d42"},
-    {file = "fastavro-1.8.2-cp39-cp39-win_amd64.whl", hash = "sha256:650b22766259f7dd7519dfa4e4658f0e233c319efa130b9cf0c36a500e09cc57"},
-    {file = "fastavro-1.8.2.tar.gz", hash = "sha256:ab9d9226d4b66b6b3d0661a57cd45259b0868fed1c0cd4fac95249b9e0973320"},
+    {file = "fastavro-1.8.3-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:0e7d98e27cfff61befa23b11422e72a9516fe571d87fd41a656074a958d1f5df"},
+    {file = "fastavro-1.8.3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:60bfc8b6d3a3e27ae68ce952f9c7a63001dd82f96a519ff25d105a2b61b4bae9"},
+    {file = "fastavro-1.8.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d107cde443d92be8b65007ef304a602702853925c4b9ce63b66b8cdf04938af0"},
+    {file = "fastavro-1.8.3-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:4bf02deeea731910d55e24f3b44a848007b600ddd0b8861dab9075aa116b0da1"},
+    {file = "fastavro-1.8.3-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:b30bbe06289310ff60c32c0ab01c394354f5bcae421842f06915ee7e401232ee"},
+    {file = "fastavro-1.8.3-cp310-cp310-win_amd64.whl", hash = "sha256:c38ba23be298b1df63eaadf0663e8c1dc3fe355608ba3ce769554f61cc20f2d8"},
+    {file = "fastavro-1.8.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:4e5d8ad6dcf7cc4e15fc5f30344e4fcb1bac5c0c1b48ae88a46ceef470c04b0c"},
+    {file = "fastavro-1.8.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2bf6f1debda2bf84f57bdeee289e38e1ea8b23722792b7bdec8be6b3bf4dac67"},
+    {file = "fastavro-1.8.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:eb2702976cf9bf4e1c66bae3534f498a93272eaa4cf2ba24fe18aa29c5fab647"},
+    {file = "fastavro-1.8.3-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:dfc73765b294ef56f71c1bb064ee81efa1da13bb0b1134dd53674bbb89477c78"},
+    {file = "fastavro-1.8.3-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:fa282c78485be06df1e25f0c9b6837de520a22838e7c9af95b58fc68c6c9ce34"},
+    {file = "fastavro-1.8.3-cp311-cp311-win_amd64.whl", hash = "sha256:65e59420ce7a8cbb256363b9bc2b98fcd0c220723ec50541aa0aaf137dfa21fb"},
+    {file = "fastavro-1.8.3-cp38-cp38-macosx_11_0_x86_64.whl", hash = "sha256:4416fdf69c82364d737e77c2a6ab06eeb20375d84813c061789e20bc047132a5"},
+    {file = "fastavro-1.8.3-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d3f00ead48738e882832cc7ad87060365eb3eeace196ff9a5905a4caf0bab351"},
+    {file = "fastavro-1.8.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3ce57e57ec56a235ab012fde3ce7eaa3846980a9026448fcb32cb065f2460514"},
+    {file = "fastavro-1.8.3-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:b74fbcf860084576bd773169a18ddd140d06f9e85bb622756f557023947f179f"},
+    {file = "fastavro-1.8.3-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:b9164d7cb1541d15587c3a446f17719bc1f20008a1df1583e55d8b5a323266b5"},
+    {file = "fastavro-1.8.3-cp38-cp38-win_amd64.whl", hash = "sha256:7ca4e19db2ded435dd393f58f65297102e7329ca8ba31d03be9c480b34be9123"},
+    {file = "fastavro-1.8.3-cp39-cp39-macosx_11_0_x86_64.whl", hash = "sha256:821b1de9785e266142a8658e25df52bceaa40936c087925688a4fad4dee0beb0"},
+    {file = "fastavro-1.8.3-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0116bf82a10eb3553d61d6d884f18c8b21049463fdefaaea9275d8bad64a0f5b"},
+    {file = "fastavro-1.8.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6035368cbcbbb1063c2d1ce763ed5a602f4b6af13b325e77a6b61e45f8172067"},
+    {file = "fastavro-1.8.3-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:c0c194340ad5c6a5a5347ba0170d1413c149cd87faddcc519d9fcdedadaa1619"},
+    {file = "fastavro-1.8.3-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:7d2c093be35bcf77547d5cdeeefae2c18b88ae529fa3866da81f5c7c342fceb3"},
+    {file = "fastavro-1.8.3-cp39-cp39-win_amd64.whl", hash = "sha256:861efe9ad25fc26c3d360761d48930e6aad0cabe5ae888f92a721699bfe612ed"},
+    {file = "fastavro-1.8.3.tar.gz", hash = "sha256:a6c2ec69516e908fce64d93a13e6e83afb880f2edb5ad3adaa1eb04c918de6d8"},
 ]
 
 [package.extras]
@@ -3641,4 +3641,4 @@ zstandard = ["zstandard"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "4197a767861aa7236511fd0e5337d2a95468eff21e1d0578e5cce2806b91d6c1"
+content-hash = "40f5f6f67c2627f2601ad914c278ba4fa2388ac7292bade9e2079bb89a90f34d"

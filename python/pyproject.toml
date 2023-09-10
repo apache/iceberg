@@ -73,7 +73,7 @@ sqlalchemy = { version = "^2.0.18", optional = true }
 pytest = "7.4.1"
 pytest-checkdocs = "2.10.1"
 pre-commit = "3.4.0"
-fastavro = "1.8.2"
+fastavro = "1.8.3"
 coverage = { version = "^7.3.1", extras = ["toml"] }
 requests-mock = "1.11.0"
 moto = "^4.2.0"
