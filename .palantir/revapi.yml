@@ -802,6 +802,10 @@ acceptedBreaks:
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
     org.apache.iceberg:iceberg-core:
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      justification: "Static utility class - should not have public constructor"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult"
       justification: "Removing deprecated code"
