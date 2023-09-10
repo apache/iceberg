@@ -114,6 +114,7 @@ gcsfs = ["gcsfs"]
 
 [tool.pytest.ini_options]
 markers = [
+  "unmarked: marks a test as a unittest",
   "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint args)",
   "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)",
   "integration: marks integration tests against Apache Spark",
