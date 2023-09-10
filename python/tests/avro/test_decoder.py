@@ -21,12 +21,12 @@ import struct
 from io import SEEK_SET
 from types import TracebackType
 from typing import Callable, Optional, Type
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyiceberg.avro.decoder import StreamingBinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder, new_decoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
-from pyiceberg.avro.reader import ReadableDecoder
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream
 from pyiceberg.types import DoubleType, FloatType
@@ -35,19 +35,19 @@ AVAILABLE_DECODERS = [StreamingBinaryDecoder, CythonBinaryDecoder]
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_boolean_true(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_boolean_true(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x01")
     assert decoder.read_boolean() is True
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_boolean_false(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_boolean_false(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00")
     assert decoder.read_boolean() is False
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_skip_boolean(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_skip_boolean(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00")
     assert decoder.tell() == 0
     decoder.skip_boolean()
@@ -55,13 +55,13 @@ def test_skip_boolean(decoder_class: Callable[[bytes], ReadableDecoder]) -> None
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_int(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_int(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
     assert decoder.read_int() == 12
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_int_longer(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_int_longer(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x8e\xd1\x87\x01")
     assert decoder.read_int() == 1111111
 
@@ -80,7 +80,7 @@ def zigzag_encode(datum: int) -> bytes:
     "decoder_class, expected_value",
     list(itertools.product(AVAILABLE_DECODERS, [0, -1, 2**32, -(2**32), (2**63 - 1), -(2**63)])),
 )
-def test_read_int_custom_encode(decoder_class: Callable[[bytes], ReadableDecoder], expected_value: int) -> None:
+def test_read_int_custom_encode(decoder_class: Callable[[bytes], BinaryDecoder], expected_value: int) -> None:
     encoded = zigzag_encode(expected_value)
     decoder = decoder_class(encoded)
     decoded = decoder.read_int()
@@ -88,7 +88,7 @@ def test_read_int_custom_encode(decoder_class: Callable[[bytes], ReadableDecoder
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_skip_int(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_skip_int(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
     assert decoder.tell() == 0
     decoder.skip_int()
@@ -96,7 +96,7 @@ def test_skip_int(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_negative_bytes(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_negative_bytes(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"")
 
     with pytest.raises(ValueError) as exc_info:
@@ -137,19 +137,19 @@ class OneByteAtATimeInputStream(InputStream):
 
 # InMemoryBinaryDecoder doesn't work for a byte at a time reading
 @pytest.mark.parametrize("decoder_class", [StreamingBinaryDecoder])
-def test_read_single_byte_at_the_time(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_single_byte_at_the_time(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(OneByteAtATimeInputStream())  # type: ignore
     assert decoder.read(2) == b"\x01\x02"
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_float(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_float(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00\x00\x9A\x41")
     assert decoder.read_float() == 19.25
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_skip_float(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_skip_float(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00\x00\x9A\x41")
     assert decoder.tell() == 0
     decoder.skip_float()
@@ -157,13 +157,13 @@ def test_skip_float(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_double(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_double(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     assert decoder.read_double() == 19.25
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_skip_double(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_skip_double(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     assert decoder.tell() == 0
     decoder.skip_double()
@@ -171,20 +171,20 @@ def test_skip_double(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_bytes(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_bytes(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x08\x01\x02\x03\x04")
     actual = decoder.read_bytes()
     assert actual == b"\x01\x02\x03\x04"
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_utf8(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_utf8(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x04\x76\x6F")
     assert decoder.read_utf8() == "vo"
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_skip_utf8(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_skip_utf8(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x04\x76\x6F")
     assert decoder.tell() == 0
     decoder.skip_utf8()
@@ -192,7 +192,16 @@ def test_skip_utf8(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_int_as_float(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_int_as_float(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x00\x00\x9A\x41")
     reader = resolve(FloatType(), DoubleType())
     assert reader.read(decoder) == 19.25
+
+
+@patch("pyiceberg.avro.decoder_fast.CythonBinaryDecoder")
+def test_fallback_to_pure_python_decoder(cython_decoder: MagicMock) -> None:
+    cython_decoder.side_effect = ModuleNotFoundError
+
+    with pytest.warns(UserWarning, match="Falling back to pure Python Avro decoder, missing Cython implementation"):
+        dec = new_decoder(b"")
+        assert isinstance(dec, StreamingBinaryDecoder)
