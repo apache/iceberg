@@ -35,7 +35,14 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
+
+try:
+    from pyiceberg.avro.decoder_fast import CythonBinaryDecoder as AvroDecoder
+except ModuleNotFoundError:
+    import warnings
+
+    warnings.warn("Falling back to pure Python Avro decoder, missing Cython extension")
+    from pyiceberg.avro.decoder import StreamingBinaryDecoder as AvroDecoder  # type: ignore
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.reader import ReadableDecoder, Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
@@ -166,7 +173,7 @@ class AvroFile(Generic[D]):
             A generator returning the AvroStructs.
         """
         with self.input_file.open() as f:
-            self.decoder = CythonBinaryDecoder(f.read())
+            self.decoder = AvroDecoder(f.read())
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
@@ -198,7 +205,7 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=CythonBinaryDecoder(block_bytes))
+        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=AvroDecoder(block_bytes))
         return block_records
 
     def __next__(self) -> D:

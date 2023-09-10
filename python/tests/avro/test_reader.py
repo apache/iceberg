@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=protected-access
-import io
 import json
 from typing import Callable
 
@@ -42,7 +41,6 @@ from pyiceberg.avro.reader import (
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
-from pyiceberg.io import InputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
@@ -67,7 +65,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 
-AVAILABLE_DECODERS = [StreamingBinaryDecoder, lambda stream: CythonBinaryDecoder(stream.read())]
+AVAILABLE_DECODERS = [StreamingBinaryDecoder, CythonBinaryDecoder]
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
@@ -342,18 +340,16 @@ def test_uuid_reader() -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
-    mis = io.BytesIO(b"\x18")
-    decoder = decoder_class(mis)
+def test_read_struct(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+    decoder = decoder_class(b"\x18")
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
     assert repr(result) == "Record[id=12]"
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_lambda(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
-    mis = io.BytesIO(b"\x18")
-    decoder = decoder_class(mis)
+def test_read_struct_lambda(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+    decoder = decoder_class(b"\x18")
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     # You can also pass in an arbitrary function that returns a struct
@@ -364,9 +360,8 @@ def test_read_struct_lambda(decoder_class: Callable[[InputStream], ReadableDecod
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_not_struct_type(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
-    mis = io.BytesIO(b"\x18")
-    decoder = decoder_class(mis)
+def test_read_not_struct_type(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+    decoder = decoder_class(b"\x18")
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     with pytest.raises(ValueError) as exc_info:
@@ -376,9 +371,8 @@ def test_read_not_struct_type(decoder_class: Callable[[InputStream], ReadableDec
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_exception_handling(decoder_class: Callable[[InputStream], ReadableDecoder]) -> None:
-    mis = io.BytesIO(b"\x18")
-    decoder = decoder_class(mis)
+def test_read_struct_exception_handling(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+    decoder = decoder_class(b"\x18")
 
     def raise_err(struct: StructType) -> None:
         raise TypeError("boom")
