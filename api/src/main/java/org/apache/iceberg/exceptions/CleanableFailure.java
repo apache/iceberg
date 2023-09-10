@@ -18,21 +18,8 @@
  */
 package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
-
-/** Exception raised when a commit fails because of out of date metadata. */
-public class CommitFailedException extends RuntimeException implements CleanableFailure {
-  @FormatMethod
-  public CommitFailedException(String message, Object... args) {
-    super(String.format(message, args));
-  }
-
-  @FormatMethod
-  public CommitFailedException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
-  }
-
-  public CommitFailedException(Throwable cause) {
-    super(cause);
-  }
-}
+/**
+ * A marker interface for commit exceptions where the state is known to be failure and uncommitted
+ * metadata can be cleaned up.
+ */
+public interface CleanableFailure {}

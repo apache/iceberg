@@ -352,3 +352,15 @@ def test_unpartitioned_fixed_table(catalog: Catalog) -> None:
         b"12345678901234567ass12345",
         b"qweeqwwqq1231231231231111",
     ]
+
+
+@pytest.mark.integration
+def test_scan_tag(test_positional_mor_deletes: Table) -> None:
+    arrow_table = test_positional_mor_deletes.scan().use_ref("tag_12").to_arrow()
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+
+@pytest.mark.integration
+def test_scan_branch(test_positional_mor_deletes: Table) -> None:
+    arrow_table = test_positional_mor_deletes.scan().use_ref("without_5").to_arrow()
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12]

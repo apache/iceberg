@@ -136,6 +136,25 @@ VALUES
 
 spark.sql(
     """
+ALTER TABLE default.test_positional_mor_deletes CREATE TAG tag_12
+    """
+)
+
+spark.sql(
+    """
+ALTER TABLE default.test_positional_mor_deletes CREATE BRANCH without_5
+    """
+)
+
+spark.sql(
+    """
+DELETE FROM default.test_positional_mor_deletes.branch_without_5 WHERE number = 5
+    """
+)
+
+
+spark.sql(
+    """
 DELETE FROM default.test_positional_mor_deletes WHERE number = 9
 """
 )
