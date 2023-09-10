@@ -25,8 +25,8 @@ allowed_to_fail = False
 
 
 def build_cython_extensions() -> None:
-    import Cython.Compiler.Options  # pyright: ignore [reportMissingImports]
-    from Cython.Build import build_ext, cythonize  # pyright: ignore [reportMissingImports]
+    import Cython.Compiler.Options
+    from Cython.Build import build_ext, cythonize
     from setuptools import Extension
     from setuptools.dist import Distribution
 
@@ -40,28 +40,20 @@ def build_cython_extensions() -> None:
         extra_compile_args = [
             "-O3",
         ]
-    # Relative to project root directory
-    include_dirs = {
-        "pyiceberg/",
-    }
 
-    extensions = [
-        Extension(
-            # Your .pyx file will be available to cpython at this location.
-            "pyiceberg.avro.decoder_fast",
-            [
-                "pyiceberg/avro/decoder_fast.pyx",
-            ],
-            include_dirs=list(include_dirs),
-            extra_compile_args=extra_compile_args,
-            language="c",
-        ),
-    ]
+    package_path = "pyiceberg"
 
-    for extension in extensions:
-        include_dirs.update(extension.include_dirs)
+    extension = Extension(
+        # Your .pyx file will be available to cpython at this location.
+        name="pyiceberg.avro.decoder_fast",
+        sources=[
+            os.path.join(package_path, "avro", "decoder_fast.pyx"),
+        ],
+        extra_compile_args=extra_compile_args,
+        language="c",
+    )
 
-    ext_modules = cythonize(extensions, include_path=list(include_dirs), language_level=3, annotate=True)
+    ext_modules = cythonize([extension], include_path=list(package_path), language_level=3, annotate=True)
     dist = Distribution({"ext_modules": ext_modules})
     cmd = build_ext(dist)
     cmd.ensure_finalized()

@@ -34,7 +34,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-20.04, windows-2019, macos-11 ]
+        os: [ ubuntu-22.04, windows-2022, macos-11 ]
 
     steps:
       - uses: actions/checkout@v3
@@ -46,11 +46,10 @@ jobs:
           python-version: '3.8'
 
       - name: Install poetry
-        run: pip3 install poetry
-        working-directory: ./python
+        run: pip install poetry
 
       - name: Set version
-        run: python3 -m poetry version "${{ inputs.version }}"
+        run: python -m poetry version "${{ inputs.version }}"
         working-directory: ./python
         if: "${{ github.event.inputs.version != 'master' }}"
 
@@ -68,7 +67,17 @@ jobs:
           output-dir: wheelhouse
           config-file: "python/pyproject.toml"
         env:
+          # Ignore 32 bit architectures
+          CIBW_ARCHS: "auto64"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=3.8,<3.12"
+          CIBW_TEST_REQUIRES: "pytest moto"
+          CIBW_TEST_EXTRAS: "s3fs,glue"
+          CIBW_TEST_COMMAND: "pytest -Werror {project}/python/tests/avro/test_decoder.py"
+          # There is an upstream issue with installing on MacOSX
+          # https://github.com/pypa/cibuildwheel/issues/1603
+          # Ignore tests for pypy since not all dependencies are compiled for it
+          # and would require a local rust build chain
+          CIBW_TEST_SKIP: "pp* *macosx*"
 
       - name: Add source distribution
         if: "${{ matrix.os == 'ubuntu-20.04' }}"
