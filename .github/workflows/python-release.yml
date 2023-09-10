@@ -70,7 +70,7 @@ jobs:
           # Ignore 32 bit architectures
           CIBW_ARCHS: "auto64"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=3.8,<3.12"
-          CIBW_TEST_REQUIRES: "pytest moto"
+          CIBW_TEST_REQUIRES: "pytest==7.4.2 moto==4.2.2"
           CIBW_TEST_EXTRAS: "s3fs,glue"
           CIBW_TEST_COMMAND: "pytest -Werror {project}/python/tests/avro/test_decoder.py"
           # There is an upstream issue with installing on MacOSX
