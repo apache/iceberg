@@ -171,3 +171,16 @@ class StreamingBinaryDecoder(BinaryDecoder):
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
+
+
+def new_decoder(b: bytes) -> BinaryDecoder:
+    try:
+        from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
+
+        return CythonBinaryDecoder(b)
+    except ModuleNotFoundError:
+        import warnings
+
+        warnings.warn("Falling back to pure Python Avro decoder, missing Cython implementation")
+
+        return StreamingBinaryDecoder(b)

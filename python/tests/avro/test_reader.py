@@ -20,7 +20,7 @@ from typing import Callable
 
 import pytest
 
-from pyiceberg.avro.decoder import StreamingBinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
@@ -32,7 +32,6 @@ from pyiceberg.avro.reader import (
     FixedReader,
     FloatReader,
     IntegerReader,
-    ReadableDecoder,
     StringReader,
     StructReader,
     TimeReader,
@@ -340,7 +339,7 @@ def test_uuid_reader() -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_struct(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
@@ -348,7 +347,7 @@ def test_read_struct(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_lambda(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_struct_lambda(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -360,7 +359,7 @@ def test_read_struct_lambda(decoder_class: Callable[[bytes], ReadableDecoder]) -
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_not_struct_type(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_not_struct_type(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
@@ -371,7 +370,7 @@ def test_read_not_struct_type(decoder_class: Callable[[bytes], ReadableDecoder])
 
 
 @pytest.mark.parametrize("decoder_class", AVAILABLE_DECODERS)
-def test_read_struct_exception_handling(decoder_class: Callable[[bytes], ReadableDecoder]) -> None:
+def test_read_struct_exception_handling(decoder_class: Callable[[bytes], BinaryDecoder]) -> None:
     decoder = decoder_class(b"\x18")
 
     def raise_err(struct: StructType) -> None:
