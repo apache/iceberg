@@ -30,7 +30,7 @@ jobs:
     if: github.repository_owner == 'apache'
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # we need to fetch all tags so that getProjectVersion() in build.gradle correctly determines the next SNAPSHOT version from the newest tag
           fetch-depth: 0

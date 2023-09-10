@@ -58,7 +58,7 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/setup-java@v3
       with:
         distribution: zulu
@@ -82,7 +82,7 @@ jobs:
   build-checks:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/setup-java@v3
       with:
         distribution: zulu
@@ -92,7 +92,7 @@ jobs:
   build-javadoc:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/setup-java@v3
       with:
         distribution: zulu
