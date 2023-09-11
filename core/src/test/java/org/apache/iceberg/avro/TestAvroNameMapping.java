@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import static org.apache.avro.generic.GenericData.Record;
+import static org.apache.iceberg.avro.AvroWritingTestUtils.createAvroTempFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -385,7 +386,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       Schema writeSchema, Schema readSchema, Record record, NameMapping nameMapping)
       throws IOException {
 
-    File file = new File(temp, "test.avro");
+    File file = createAvroTempFile(temp);
     // Write without file ids
     org.apache.avro.Schema writeAvroSchema = RemoveIds.removeIds(writeSchema);
     DatumWriter<Record> datumWriter = new GenericDatumWriter<>(writeAvroSchema);

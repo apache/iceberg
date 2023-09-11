@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.avro;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
@@ -40,7 +40,7 @@ public abstract class TestReadProjection {
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  @TempDir File temp;
+  @TempDir Path temp;
 
   @Test
   public void testFullProjection() throws Exception {
