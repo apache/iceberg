@@ -275,10 +275,9 @@ public class TestGlueCatalog {
     Mockito.doThrow(EntityNotFoundException.class)
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assertions.assertThatThrownBy(() -> glueCatalog.listTables(Namespace.of("invalid_db")))
+    Assertions.assertThatThrownBy(() -> glueCatalog.listTables(Namespace.of("non_existent_db")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "Cannot list tables of namespace invalid_db because namespace invalid_db does not exist");
+        .hasMessage("Cannot list tables of namespace non_existent_db because it does not exist");
   }
 
   @Test
@@ -564,10 +563,7 @@ public class TestGlueCatalog {
     Mockito.doThrow(EntityNotFoundException.class)
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("invalid_db")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "Cannot drop namespace invalid_db because namespace invalid_db does not exist.");
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of("non_existent_db"))).isFalse();
   }
 
   @Test
