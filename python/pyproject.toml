@@ -333,5 +333,5 @@ keep-runtime-typing = true
 
 [tool.ruff.isort]
 detect-same-package = true
-lines-between-types = 1
+lines-between-types = 0
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]

@@ -18,7 +18,6 @@
 import uuid
 
 import pytest
-
 from botocore.awsrequest import AWSRequest
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec

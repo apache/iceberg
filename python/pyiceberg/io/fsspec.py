@@ -19,7 +19,6 @@ import errno
 import json
 import logging
 import os
-
 from functools import lru_cache, partial
 from typing import (
     Any,
@@ -30,7 +29,6 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
-
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem

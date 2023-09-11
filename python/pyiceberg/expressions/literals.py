@@ -22,7 +22,6 @@
 from __future__ import annotations
 
 import struct
-
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod

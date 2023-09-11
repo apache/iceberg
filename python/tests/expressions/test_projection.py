@@ -17,7 +17,6 @@
 # pylint:disable=redefined-outer-name
 
 import pytest
-
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,

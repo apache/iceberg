@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
-
 from abc import ABC, abstractmethod
 from concurrent.futures import Future
 from functools import lru_cache, singledispatch
@@ -53,7 +52,6 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
-
 from pyarrow import ChunkedArray
 from pyarrow.fs import (
     FileInfo,

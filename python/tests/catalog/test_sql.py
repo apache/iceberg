@@ -16,12 +16,10 @@
 # under the License.
 
 import os
-
 from pathlib import Path
 from typing import Generator, List
 
 import pytest
-
 from pyiceberg.catalog import Identifier
 from pyiceberg.catalog.sql import SqlCatalog
 from pyiceberg.exceptions import (

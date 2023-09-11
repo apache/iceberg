@@ -28,7 +28,6 @@ import os
 import re
 import string
 import uuid
-
 from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
@@ -53,7 +52,6 @@ import botocore.awsrequest
 import botocore.model
 import pyarrow as pa
 import pytest
-
 from moto import mock_dynamodb, mock_glue, mock_s3
 from pyarrow import parquet as pq
 from pyiceberg import schema

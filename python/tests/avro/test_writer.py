@@ -18,11 +18,9 @@
 
 import io
 import struct
-
 from typing import Dict, List
 
 import pytest
-
 from _decimal import Decimal
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.resolver import construct_writer

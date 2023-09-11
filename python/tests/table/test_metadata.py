@@ -18,14 +18,12 @@
 
 import io
 import json
-
 from copy import copy
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
-
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema

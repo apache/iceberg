@@ -16,11 +16,9 @@
 # under the License.
 # pylint: disable=W0123,W0613
 import pickle
-
 from typing import Type
 
 import pytest
-
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.types import (
     BinaryType,

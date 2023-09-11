@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import itertools
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property, partial, singledispatch

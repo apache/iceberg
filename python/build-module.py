@@ -17,7 +17,6 @@
 
 import os
 import shutil
-
 from pathlib import Path
 
 # Uncommend if your library can still function if extensions fail to compile.
@@ -27,7 +26,6 @@ allowed_to_fail = False
 
 def build_cython_extensions() -> None:
     import Cython.Compiler.Options  # pyright: ignore [reportMissingImports]
-
     from Cython.Build import build_ext, cythonize  # pyright: ignore [reportMissingImports]
     from setuptools import Extension
     from setuptools.dist import Distribution

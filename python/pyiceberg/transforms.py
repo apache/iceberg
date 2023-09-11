@@ -17,7 +17,6 @@
 
 import base64
 import struct
-
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
@@ -26,7 +25,6 @@ from typing import Literal as LiteralType
 from uuid import UUID
 
 import mmh3
-
 from pydantic import Field, PositiveInt, PrivateAttr
 
 from pyiceberg.expressions import (

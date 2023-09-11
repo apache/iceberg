@@ -18,7 +18,6 @@ from typing import List
 from unittest import mock
 
 import pytest
-
 from moto import mock_glue
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import (

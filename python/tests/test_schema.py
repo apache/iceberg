@@ -19,7 +19,6 @@ from textwrap import dedent
 from typing import Any, Dict
 
 import pytest
-
 from pyiceberg import schema
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.expressions import Accessor

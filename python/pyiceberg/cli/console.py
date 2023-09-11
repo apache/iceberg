@@ -25,7 +25,6 @@ from typing import (
 )
 
 import click
-
 from click import Context
 
 from pyiceberg import __version__

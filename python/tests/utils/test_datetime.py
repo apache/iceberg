@@ -18,7 +18,6 @@ from datetime import datetime, timezone, tzinfo
 
 import pytest
 import pytz
-
 from pyiceberg.utils.datetime import datetime_to_millis, millis_to_datetime
 
 timezones = [

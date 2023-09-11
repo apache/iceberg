@@ -17,7 +17,6 @@
 import os
 
 import pytest
-
 from click.testing import CliRunner
 from pyiceberg.cli.console import run
 from pyiceberg.partitioning import PartitionField, PartitionSpec

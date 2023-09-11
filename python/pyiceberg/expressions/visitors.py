@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import math
-
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
