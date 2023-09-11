@@ -254,8 +254,7 @@ public class LockManagers {
         return false;
       }
 
-      Optional.ofNullable(HEARTBEATS.remove(entityId))
-          .ifPresent(future -> future.cancel(false));
+      Optional.ofNullable(HEARTBEATS.remove(entityId)).ifPresent(future -> future.cancel(false));
       LOCKS.remove(entityId);
       return true;
     }
