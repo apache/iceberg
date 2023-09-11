@@ -58,11 +58,6 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
-    GcsFileSystem,
-    HadoopFileSystem,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
 )
 from sortedcontainers import SortedList
 
@@ -317,6 +312,8 @@ class PyArrowFileIO(FileIO):
             if proxy_uri := self.properties.get(S3_PROXY_URI):
                 client_kwargs["proxy_options"] = proxy_uri
 
+            from pyarrow.fs import S3FileSystem
+
             return S3FileSystem(**client_kwargs)
         elif scheme == "hdfs":
             hdfs_kwargs: Dict[str, Any] = {}
@@ -329,6 +326,8 @@ class PyArrowFileIO(FileIO):
                 hdfs_kwargs["user"] = user
             if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
                 hdfs_kwargs["kerb_ticket"] = kerb_ticket
+            from pyarrow.fs import HadoopFileSystem
+
             return HadoopFileSystem(**hdfs_kwargs)
         elif scheme in {"gs", "gcs"}:
             gcs_kwargs: Dict[str, Any] = {}
@@ -342,8 +341,12 @@ class PyArrowFileIO(FileIO):
                 url_parts = urlparse(endpoint)
                 gcs_kwargs["scheme"] = url_parts.scheme
                 gcs_kwargs["endpoint_override"] = url_parts.netloc
+            from pyarrow.fs import GcsFileSystem
+
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
+            from pyarrow.fs import LocalFileSystem
+
             return LocalFileSystem()
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
@@ -899,6 +902,8 @@ def project_table(
             from pyiceberg.io.fsspec import FsspecFileIO
 
             if isinstance(table.io, FsspecFileIO):
+                from pyarrow.fs import PyFileSystem
+
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
