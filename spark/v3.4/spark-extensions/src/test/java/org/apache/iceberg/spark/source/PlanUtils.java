@@ -20,11 +20,11 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
 import scala.PartialFunction;
@@ -34,7 +34,8 @@ import scala.collection.Seq;
 public class PlanUtils {
   private PlanUtils() {}
 
-  public static List<Expression> getScanPushDownFilters(LogicalPlan logicalPlan) {
+  public static List<org.apache.iceberg.expressions.Expression> collectPushDownFilters(
+      LogicalPlan logicalPlan) {
     return JavaConverters.asJavaCollection(logicalPlan.collectLeaves()).stream()
         .flatMap(
             plan -> {
@@ -53,19 +54,16 @@ public class PlanUtils {
         .collect(Collectors.toList());
   }
 
-  public static List<org.apache.spark.sql.catalyst.expressions.Expression> collectSparkExpressions(
-      LogicalPlan logicalPlan,
-      Function<org.apache.spark.sql.catalyst.expressions.Expression, Boolean> filterFunction) {
-    Seq<List<org.apache.spark.sql.catalyst.expressions.Expression>> list =
+  public static List<Expression> collectSparkExpressions(
+      LogicalPlan logicalPlan, Predicate<Expression> predicate) {
+    Seq<List<Expression>> list =
         logicalPlan.collect(
-            new PartialFunction<
-                LogicalPlan, List<org.apache.spark.sql.catalyst.expressions.Expression>>() {
+            new PartialFunction<LogicalPlan, List<Expression>>() {
 
               @Override
-              public List<org.apache.spark.sql.catalyst.expressions.Expression> apply(
-                  LogicalPlan plan) {
+              public List<Expression> apply(LogicalPlan plan) {
                 return JavaConverters.asJavaCollection(plan.expressions()).stream()
-                    .flatMap(expr -> collectSparkExpressions(expr, filterFunction).stream())
+                    .flatMap(expr -> collectSparkExpressions(expr, predicate).stream())
                     .collect(Collectors.toList());
               }
 
@@ -80,24 +78,19 @@ public class PlanUtils {
         .collect(Collectors.toList());
   }
 
-  private static List<org.apache.spark.sql.catalyst.expressions.Expression> collectSparkExpressions(
-      org.apache.spark.sql.catalyst.expressions.Expression expression,
-      Function<org.apache.spark.sql.catalyst.expressions.Expression, Boolean> filterFunction) {
-    Seq<org.apache.spark.sql.catalyst.expressions.Expression> list =
+  private static List<Expression> collectSparkExpressions(
+      Expression expression, Predicate<Expression> predicate) {
+    Seq<Expression> list =
         expression.collect(
-            new PartialFunction<
-                org.apache.spark.sql.catalyst.expressions.Expression,
-                org.apache.spark.sql.catalyst.expressions.Expression>() {
+            new PartialFunction<Expression, Expression>() {
               @Override
-              public org.apache.spark.sql.catalyst.expressions.Expression apply(
-                  org.apache.spark.sql.catalyst.expressions.Expression expr) {
+              public Expression apply(Expression expr) {
                 return expr;
               }
 
               @Override
-              public boolean isDefinedAt(
-                  org.apache.spark.sql.catalyst.expressions.Expression expr) {
-                return filterFunction.apply(expr);
+              public boolean isDefinedAt(Expression expr) {
+                return predicate.test(expr);
               }
             });
 

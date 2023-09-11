@@ -21,11 +21,13 @@ package org.apache.spark.sql.catalyst.optimizer
 import org.apache.iceberg.spark.functions.SparkFunctions
 import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
+import org.apache.spark.sql.catalyst.expressions.BinaryComparison
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.trees.TreePattern.BINARY_COMPARISON
 import org.apache.spark.sql.catalyst.trees.TreePattern.FILTER
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
 import org.apache.spark.sql.types.StructField
@@ -38,53 +40,55 @@ import org.apache.spark.sql.types.StructType
  */
 object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning (
-    _.containsAnyPattern(FILTER)) {
+  override def apply(plan: LogicalPlan): LogicalPlan =
+    plan.transformWithPruning (_.containsAllPatterns(BINARY_COMPARISON, FILTER)) {
+      case filter @ Filter(condition, _) =>
+        val newCondition = condition.transformWithPruning(_.containsPattern(BINARY_COMPARISON)) {
+          case c @ BinaryComparison(left: StaticInvoke, right) if canReplace(left) && right.foldable =>
+            c.withNewChildren(Seq(replaceStaticInvoke(left), right))
 
-    case filter @ Filter(condition, _) =>
-      val newCondition = replaceStaticInvoke(condition)
-      if (newCondition fastEquals condition) {
-        filter
-      } else {
-        filter.copy(condition = newCondition)
-      }
+          case c @ BinaryComparison(left, right: StaticInvoke) if canReplace(right) && left.foldable =>
+            c.withNewChildren(Seq(left, replaceStaticInvoke(right)))
+        }
+
+        if (newCondition fastEquals condition) {
+          filter
+        } else {
+          filter.copy(condition = newCondition)
+        }
   }
 
-  private def replaceStaticInvoke(expression: Expression): Expression = expression.transform {
-    case invoke: StaticInvoke =>
-      invoke.functionName match {
-        case "invoke" =>
-          if (invoke.foldable) {
-            // The invoke should be folded into constant
-            return invoke
-          }
+  private def replaceStaticInvoke(invoke: StaticInvoke): Expression = {
+    // Adaptive from `resolveV2Function` in org.apache.spark.sql.catalyst.analysis.ResolveFunctions
+    val unbound = SparkFunctions.loadFunctionByClass(invoke.staticObject)
+    if (unbound == null) {
+      return invoke
+    }
 
-          // Adaptive from `resolveV2Function` in org.apache.spark.sql.catalyst.analysis.ResolveFunctions
-          val unbound = SparkFunctions.loadFunctionByClass(invoke.staticObject)
-          if (unbound == null) {
-            return invoke
-          }
+    val inputType = StructType(invoke.arguments.zipWithIndex.map {
+      case (exp, pos) => StructField(s"_$pos", exp.dataType, exp.nullable)
+    })
 
-          val inputType = StructType(invoke.arguments.zipWithIndex.map {
-            case (exp, pos) => StructField(s"_$pos", exp.dataType, exp.nullable)
-          })
+    val bound = try {
+      unbound.bind(inputType)
+    } catch {
+      case _: Exception =>
+        return invoke
+    }
 
-          val bound = try {
-            unbound.bind(inputType)
-          } catch {
-            case _: Exception =>
-              return invoke
-          }
+    if (bound.inputTypes().length != invoke.arguments.length) {
+      return invoke
+    }
 
-          if (bound.inputTypes().length != invoke.arguments.length) {
-            return invoke
-          }
+    bound match {
+      case scalarFunc: ScalarFunction[_] =>
+        ApplyFunctionExpression(scalarFunc, invoke.arguments)
+      case _ => invoke
+    }
+  }
 
-          bound match {
-            case scalarFunc: ScalarFunction[_] =>
-              ApplyFunctionExpression(scalarFunc, invoke.arguments)
-            case _ => invoke
-          }
-      }
+  @inline
+  private def canReplace(invoke: StaticInvoke): Boolean = {
+    invoke.functionName == ScalarFunction.MAGIC_METHOD_NAME && !invoke.foldable
   }
 }

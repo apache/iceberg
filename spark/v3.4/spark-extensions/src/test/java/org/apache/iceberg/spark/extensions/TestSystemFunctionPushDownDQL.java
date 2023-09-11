@@ -61,8 +61,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     super(catalogName, implementation, config);
   }
 
-  @Parameterized.Parameters(
-      name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -305,9 +304,11 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   private void checkPushedFilters(
       LogicalPlan optimizedPlan, org.apache.iceberg.expressions.Expression expected) {
     List<org.apache.iceberg.expressions.Expression> pushedFilters =
-        PlanUtils.getScanPushDownFilters(optimizedPlan);
+        PlanUtils.collectPushDownFilters(optimizedPlan);
     Assertions.assertThat(pushedFilters.size()).isEqualTo(1);
     org.apache.iceberg.expressions.Expression actual = pushedFilters.get(0);
-    Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true)).isTrue();
+    Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true))
+        .as("Pushed filter should match")
+        .isTrue();
   }
 }
