@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
@@ -38,21 +36,6 @@ public class SystemFunctionPushDownHelper {
     insertRecords(spark, tableName);
   }
 
-  public static void createUnpartitionedTable(
-      SparkSession spark, String tableName, Map<String, String> props) {
-    if (props.isEmpty()) {
-      createUnpartitionedTable(spark, tableName);
-    } else {
-      String propsString = Joiner.on("','").withKeyValueSeparator("'='").join(props);
-      sql(
-          spark,
-          "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg TBLPROPERTIES ('%s')",
-          tableName,
-          propsString);
-      insertRecords(spark, tableName);
-    }
-  }
-
   public static void createPartitionedTable(
       SparkSession spark, String tableName, String partitionCol) {
     sql(
@@ -61,22 +44,6 @@ public class SystemFunctionPushDownHelper {
         tableName,
         partitionCol);
     insertRecords(spark, tableName);
-  }
-
-  public static void createPartitionedTable(
-      SparkSession spark, String tableName, String partitionCol, Map<String, String> props) {
-    if (props.isEmpty()) {
-      createPartitionedTable(spark, tableName, partitionCol);
-    } else {
-      String propsString = Joiner.on("','").withKeyValueSeparator("'='").join(props);
-      sql(
-          spark,
-          "CREATE TABLE %s (id BIGINT, ts TIMESTAMP, data STRING) USING iceberg PARTITIONED BY (%s) TBLPROPERTIES ('%s')",
-          tableName,
-          partitionCol,
-          propsString);
-      insertRecords(spark, tableName);
-    }
   }
 
   private static void insertRecords(SparkSession spark, String tableName) {
