@@ -16,22 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.reader;
+package org.apache.iceberg.flink.source.eventtimeextractor;
 
-import org.apache.flink.api.connector.source.SourceOutput;
-import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
-/** Simple emitter which emits the record and updates the split position. */
-final class IcebergSourceRecordEmitter<T>
-    implements RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit> {
+/** The interface used to extract watermarks and event timestamps from splits and records. */
+public interface IcebergEventTimeExtractor<T> {
+  /** Get the watermark for a split. */
+  long extractWatermark(IcebergSourceSplit split);
 
-  IcebergSourceRecordEmitter() {}
-
-  @Override
-  public void emitRecord(
-      RecordAndPosition<T> element, SourceOutput<T> output, IcebergSourceSplit split) {
-    output.collect(element.record());
-    split.updatePosition(element.fileOffset(), element.recordOffset());
-  }
+  /** Get the event timestamp for the record. */
+  long extractEventTime(T record);
 }

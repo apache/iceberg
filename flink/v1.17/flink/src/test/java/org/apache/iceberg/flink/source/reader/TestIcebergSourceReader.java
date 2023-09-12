@@ -167,7 +167,9 @@ public class TestIcebergSourceReader {
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
             new PlaintextEncryptionManager(),
             Collections.emptyList());
-    return new IcebergSourceReader<>(readerMetrics, readerFunction, splitComparator, readerContext);
+    RecordEmitterFactory<RowData> emitterFactory = new IcebergSourceRecordEmitterFactory<>();
+    return new IcebergSourceReader<>(
+        emitterFactory, readerMetrics, readerFunction, splitComparator, readerContext);
   }
 
   private static class IdBasedComparator implements SerializableComparator<IcebergSourceSplit> {

@@ -35,13 +35,14 @@ public class IcebergSourceReader<T>
         RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
 
   public IcebergSourceReader(
+      RecordEmitterFactory<T> emitterFactory,
       IcebergSourceReaderMetrics metrics,
       ReaderFunction<T> readerFunction,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     super(
         () -> new IcebergSourceSplitReader<>(metrics, readerFunction, splitComparator, context),
-        new IcebergSourceRecordEmitter<>(),
+        emitterFactory.emitter(),
         context.getConfiguration(),
         context);
   }
