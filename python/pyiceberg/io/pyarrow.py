@@ -58,11 +58,6 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
-    GcsFileSystem,
-    HadoopFileSystem,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
 )
 from sortedcontainers import SortedList
 
@@ -306,6 +301,8 @@ class PyArrowFileIO(FileIO):
 
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
+            from pyarrow.fs import S3FileSystem
+
             client_kwargs = {
                 "endpoint_override": self.properties.get(S3_ENDPOINT),
                 "access_key": self.properties.get(S3_ACCESS_KEY_ID),
@@ -319,6 +316,8 @@ class PyArrowFileIO(FileIO):
 
             return S3FileSystem(**client_kwargs)
         elif scheme == "hdfs":
+            from pyarrow.fs import HadoopFileSystem
+
             hdfs_kwargs: Dict[str, Any] = {}
             if host := self.properties.get(HDFS_HOST):
                 hdfs_kwargs["host"] = host
@@ -329,8 +328,11 @@ class PyArrowFileIO(FileIO):
                 hdfs_kwargs["user"] = user
             if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
                 hdfs_kwargs["kerb_ticket"] = kerb_ticket
+
             return HadoopFileSystem(**hdfs_kwargs)
         elif scheme in {"gs", "gcs"}:
+            from pyarrow.fs import GcsFileSystem
+
             gcs_kwargs: Dict[str, Any] = {}
             if access_token := self.properties.get(GCS_TOKEN):
                 gcs_kwargs["access_token"] = access_token
@@ -342,8 +344,11 @@ class PyArrowFileIO(FileIO):
                 url_parts = urlparse(endpoint)
                 gcs_kwargs["scheme"] = url_parts.scheme
                 gcs_kwargs["endpoint_override"] = url_parts.netloc
+
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
+            from pyarrow.fs import LocalFileSystem
+
             return LocalFileSystem()
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
@@ -899,6 +904,8 @@ def project_table(
             from pyiceberg.io.fsspec import FsspecFileIO
 
             if isinstance(table.io, FsspecFileIO):
+                from pyarrow.fs import PyFileSystem
+
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
