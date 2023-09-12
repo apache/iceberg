@@ -166,7 +166,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
 
   @Override
   public Map<String, String> properties() {
-    return table().properties();
+    return ImmutableMap.of();
   }
 
   @Override
