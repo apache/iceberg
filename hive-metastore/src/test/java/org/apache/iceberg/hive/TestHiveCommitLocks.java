@@ -205,6 +205,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
+    verify(spyClient, times(1)).showLocks(any()); // Make sure HiveLock's findLock method is called
     assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
@@ -229,6 +230,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
+    verify(spyClient, times(1)).showLocks(any()); // Make sure HiveLock's findLock method is called
     assertThat(spyOps.current().schema().columns()).hasSize(1); // should be 1 again
   }
 
