@@ -717,7 +717,6 @@ it must be registered in the table metadata file to be considered as a valid sta
 |----|----|------------|------|-------------|
 | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
 | _required_ | _required_ | **`statistics-file-path`** | `string` | Path of the partition statistics file. See [Partition Statistics file](#partition-statistics-file). |
-| _required_ | _required_ | **`max-data-sequence-number`** | `long` | Maximum data sequence number of the Iceberg table's snapshot the partition statistics was computed from. |
 
 #### Partition Statistics file
 
