@@ -573,10 +573,8 @@ public class FlinkCatalog extends AbstractCatalog {
         } else {
           propertyChanges.add(change);
         }
-
       } else if (change instanceof TableChange.ResetOption) {
         propertyChanges.add(change);
-
       } else {
         schemaChanges.add(change);
       }

@@ -97,8 +97,7 @@ public class FlinkAlterTableUtil {
   public static void commitManageSnapshots(
       Table table, String setSnapshotId, String cherrypickSnapshotId) {
     // don't allow setting the snapshot and picking a commit at the same time because order is
-    // ambiguous and choosing
-    // one order leads to different results
+    // ambiguous and choosing one order leads to different results
     Preconditions.checkArgument(
         setSnapshotId == null || cherrypickSnapshotId == null,
         "Cannot set the current snapshot ID and cherry-pick snapshot changes");
