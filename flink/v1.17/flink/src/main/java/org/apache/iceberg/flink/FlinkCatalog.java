@@ -442,7 +442,9 @@ public class FlinkCatalog extends AbstractCatalog {
     if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns())
         && Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs())
         && equalsPrimary)) {
-      throw new UnsupportedOperationException("Altering schema is not supported yet.");
+      throw new UnsupportedOperationException(
+          "Altering schema is not supported in the old alterTable API. "
+              + "To alter schema, use the other alterTable API and provide a list of TableChange's.");
     }
 
     validateTablePartition(ct1, ct2);
@@ -486,10 +488,6 @@ public class FlinkCatalog extends AbstractCatalog {
     }
 
     CatalogTable table = toCatalogTable(icebergTable);
-
-    LOG.warn(
-        "This alterTable API only supports altering table properties. "
-            + "To alter columns, use the other alterTable API and provide a list of TableChange's.");
     validateTableSchemaAndPartition(table, (CatalogTable) newTable);
 
     Map<String, String> oldProperties = table.getOptions();
