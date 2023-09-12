@@ -34,12 +34,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
@@ -49,7 +47,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
@@ -814,16 +811,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Answer<?> refsAnswer =
         invocation -> {
           LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
-          TableMetadata fullTableMetadata = originalResponse.tableMetadata();
-
-          Set<Long> referencedSnapshotIds =
-              fullTableMetadata.refs().values().stream()
-                  .map(SnapshotRef::snapshotId)
-                  .collect(Collectors.toSet());
-
           TableMetadata refsMetadata =
-              fullTableMetadata.removeSnapshotsIf(
-                  s -> !referencedSnapshotIds.contains(s.snapshotId()));
+              TableMetadata.buildFrom(originalResponse.tableMetadata())
+                  .suppressHistoricalSnapshots()
+                  .build();
 
           return LoadTableResponse.builder()
               .withTableMetadata(refsMetadata)
@@ -924,16 +915,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Answer<?> refsAnswer =
         invocation -> {
           LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
-          TableMetadata fullTableMetadata = originalResponse.tableMetadata();
-
-          Set<Long> referencedSnapshotIds =
-              fullTableMetadata.refs().values().stream()
-                  .map(SnapshotRef::snapshotId)
-                  .collect(Collectors.toSet());
-
           TableMetadata refsMetadata =
-              fullTableMetadata.removeSnapshotsIf(
-                  s -> !referencedSnapshotIds.contains(s.snapshotId()));
+              TableMetadata.buildFrom(originalResponse.tableMetadata())
+                  .suppressHistoricalSnapshots()
+                  .build();
 
           return LoadTableResponse.builder()
               .withTableMetadata(refsMetadata)
@@ -994,6 +979,73 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(catalog.loadTable(TABLE).snapshots())
         .hasSizeGreaterThan(Lists.newArrayList(table.snapshots()).size());
+  }
+
+  @Test
+  public void lazySnapshotLoadingWithDivergedHistory() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "snapshot-loading-mode",
+            "refs"));
+
+    Table table =
+        catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
+
+    int numSnapshots = 5;
+
+    for (int i = 0; i < numSnapshots; i++) {
+      table
+          .newFastAppend()
+          .appendFile(
+              DataFiles.builder(PartitionSpec.unpartitioned())
+                  .withPath(String.format("/path/to/data-%s.parquet", i))
+                  .withFileSizeInBytes(10)
+                  .withRecordCount(2)
+                  .build())
+          .commit();
+    }
+
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
+
+    // Respond with only referenced snapshots
+    Answer<?> refsAnswer =
+        invocation -> {
+          LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
+          TableMetadata refsMetadata =
+              TableMetadata.buildFrom(originalResponse.tableMetadata())
+                  .suppressHistoricalSnapshots()
+                  .build();
+
+          return LoadTableResponse.builder()
+              .withTableMetadata(refsMetadata)
+              .addAllConfig(originalResponse.config())
+              .build();
+        };
+
+    Mockito.doAnswer(refsAnswer)
+        .when(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.table(TABLE)),
+            eq(ImmutableMap.of("snapshots", "refs")),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table refsTables = catalog.loadTable(TABLE);
+    assertThat(refsTables.currentSnapshot()).isEqualTo(table.currentSnapshot());
+    assertThat(refsTables.snapshots()).hasSize(numSnapshots);
+    assertThat(refsTables.history()).hasSize(numSnapshots);
   }
 
   public void testTableAuth(
