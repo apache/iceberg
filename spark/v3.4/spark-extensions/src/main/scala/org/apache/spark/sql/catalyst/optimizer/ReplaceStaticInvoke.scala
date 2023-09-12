@@ -19,7 +19,6 @@
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.spark.functions.SparkFunctions
-import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
 import org.apache.spark.sql.catalyst.expressions.BinaryComparison
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -38,7 +37,7 @@ import org.apache.spark.sql.types.StructType
  * down to datasource. This rule will replace {@link StaticInvoke} to
  * {@link ApplyFunctionExpression} for Iceberg system function in a filter condition.
  */
-object ReplaceStaticInvoke extends Rule[LogicalPlan] with SQLConfHelper {
+object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
     plan.transformWithPruning (_.containsAllPatterns(BINARY_COMPARISON, FILTER)) {
