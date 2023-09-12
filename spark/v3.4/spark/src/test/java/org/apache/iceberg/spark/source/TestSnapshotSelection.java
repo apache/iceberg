@@ -18,16 +18,22 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -43,8 +49,16 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestSnapshotSelection {
+
+  @Parameterized.Parameters(name = "planningMode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {LOCAL, DISTRIBUTED};
+  }
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA =
@@ -54,6 +68,15 @@ public class TestSnapshotSelection {
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
+
+  private final Map<String, String> properties;
+
+  public TestSnapshotSelection(PlanningMode planningMode) {
+    this.properties =
+        ImmutableMap.of(
+            TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
+  }
 
   @BeforeClass
   public static void startSpark() {
@@ -73,7 +96,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -118,7 +141,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -168,7 +191,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, tableLocation);
+    tables.create(SCHEMA, spec, properties, tableLocation);
 
     Dataset<Row> df = spark.read().format("iceberg").option("snapshot-id", -10).load(tableLocation);
 
@@ -184,7 +207,7 @@ public class TestSnapshotSelection {
     String tableLocation = temp.newFolder("iceberg-table").toString();
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, tableLocation);
+    tables.create(SCHEMA, spec, properties, tableLocation);
 
     Assertions.assertThatThrownBy(
             () ->
@@ -203,7 +226,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     List<SimpleRecord> firstBatchRecords =
         Lists.newArrayList(
@@ -235,7 +258,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -270,7 +293,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -305,7 +328,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -336,7 +359,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     List<SimpleRecord> firstBatchRecords =
         Lists.newArrayList(
@@ -379,7 +402,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
@@ -420,7 +443,7 @@ public class TestSnapshotSelection {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, tableLocation);
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =

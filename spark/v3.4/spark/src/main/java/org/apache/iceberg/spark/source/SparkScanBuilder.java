@@ -33,6 +33,7 @@ import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -436,8 +437,7 @@ public class SparkScanBuilder
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
-        table
-            .newBatchScan()
+        newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema)
@@ -625,8 +625,7 @@ public class SparkScanBuilder
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
-        table
-            .newBatchScan()
+        newBatchScan()
             .useSnapshot(snapshotId)
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
@@ -713,5 +712,13 @@ public class SparkScanBuilder
   @Override
   public StructType readSchema() {
     return build().readSchema();
+  }
+
+  private BatchScan newBatchScan() {
+    if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+      return new SparkDistributedDataScan(spark, table, readConf);
+    } else {
+      return table.newBatchScan();
+    }
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.ManifestContent;
@@ -25,7 +26,8 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 
-public class ManifestFileBean implements ManifestFile {
+/** A serializable bean that contains a bare minimum to read a manifest. */
+public class ManifestFileBean implements ManifestFile, Serializable {
   public static final Encoder<ManifestFileBean> ENCODER = Encoders.bean(ManifestFileBean.class);
 
   private String path = null;
@@ -33,6 +35,20 @@ public class ManifestFileBean implements ManifestFile {
   private Integer partitionSpecId = null;
   private Long addedSnapshotId = null;
   private Integer content = null;
+  private Long sequenceNumber = null;
+
+  public static ManifestFileBean fromManifest(ManifestFile manifest) {
+    ManifestFileBean bean = new ManifestFileBean();
+
+    bean.setPath(manifest.path());
+    bean.setLength(manifest.length());
+    bean.setPartitionSpecId(manifest.partitionSpecId());
+    bean.setAddedSnapshotId(manifest.snapshotId());
+    bean.setContent(manifest.content().id());
+    bean.setSequenceNumber(manifest.sequenceNumber());
+
+    return bean;
+  }
 
   public String getPath() {
     return path;
@@ -74,6 +90,14 @@ public class ManifestFileBean implements ManifestFile {
     this.content = content;
   }
 
+  public Long getSequenceNumber() {
+    return sequenceNumber;
+  }
+
+  public void setSequenceNumber(Long sequenceNumber) {
+    this.sequenceNumber = sequenceNumber;
+  }
+
   @Override
   public String path() {
     return path;
@@ -96,7 +120,7 @@ public class ManifestFileBean implements ManifestFile {
 
   @Override
   public long sequenceNumber() {
-    return 0;
+    return sequenceNumber;
   }
 
   @Override

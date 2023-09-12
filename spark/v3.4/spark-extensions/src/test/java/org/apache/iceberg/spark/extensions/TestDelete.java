@@ -46,6 +46,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -92,7 +93,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       Boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(
         catalogName,
         implementation,
@@ -101,7 +103,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         vectorized,
         distributionMode,
         fanoutEnabled,
-        branch);
+        branch,
+        planningMode);
   }
 
   @BeforeClass

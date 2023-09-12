@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
@@ -37,8 +39,10 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -151,21 +155,23 @@ public class TestFilteredScan {
 
   private final String format;
   private final boolean vectorized;
+  private final PlanningMode planningMode;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {"parquet", false, LOCAL},
+      {"parquet", true, DISTRIBUTED},
+      {"avro", false, LOCAL},
+      {"orc", false, DISTRIBUTED},
+      {"orc", true, LOCAL}
     };
   }
 
-  public TestFilteredScan(String format, boolean vectorized) {
+  public TestFilteredScan(String format, boolean vectorized, PlanningMode planningMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.planningMode = planningMode;
   }
 
   private File parent = null;
@@ -179,7 +185,16 @@ public class TestFilteredScan {
     File dataFolder = new File(unpartitioned, "data");
     Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
 
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(
+                TableProperties.DATA_PLANNING_MODE,
+                planningMode.modeName(),
+                TableProperties.DELETE_PLANNING_MODE,
+                planningMode.modeName()),
+            unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     FileFormat fileFormat = FileFormat.fromString(format);

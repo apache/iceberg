@@ -37,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -222,6 +223,19 @@ class ManifestGroup {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
   }
 
+  /**
+   * Returns an iterable for groups of data files in the set of manifests.
+   *
+   * <p>Files are not copied, it is the caller's responsibility to make defensive copies if adding
+   * these files to a collection.
+   *
+   * @return an iterable of file groups
+   */
+  public Iterable<CloseableIterable<DataFile>> fileGroups() {
+    return entries(
+        (manifest, entries) -> CloseableIterable.transform(entries, ManifestEntry::file));
+  }
+
   private <T> Iterable<CloseableIterable<T>> entries(
       BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>>
           entryFn) {
@@ -349,12 +363,7 @@ class ManifestGroup {
         entry -> {
           DataFile dataFile = entry.file().copy(ctx.shouldKeepStats());
           DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
-          for (DeleteFile deleteFile : deleteFiles) {
-            ctx.scanMetrics().totalDeleteFileSizeInBytes().increment(deleteFile.fileSizeInBytes());
-          }
-          ctx.scanMetrics().totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
-          ctx.scanMetrics().resultDataFiles().increment();
-          ctx.scanMetrics().resultDeleteFiles().increment((long) deleteFiles.length);
+          ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });

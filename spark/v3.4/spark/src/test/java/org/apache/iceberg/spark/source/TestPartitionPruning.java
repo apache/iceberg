@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -37,6 +40,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -74,23 +78,25 @@ public class TestPartitionPruning {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {"parquet", false, DISTRIBUTED},
+      {"parquet", true, LOCAL},
+      {"avro", false, DISTRIBUTED},
+      {"orc", false, LOCAL},
+      {"orc", true, DISTRIBUTED}
     };
   }
 
   private final String format;
   private final boolean vectorized;
+  private final PlanningMode planningMode;
 
-  public TestPartitionPruning(String format, boolean vectorized) {
+  public TestPartitionPruning(String format, boolean vectorized, PlanningMode planningMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.planningMode = planningMode;
   }
 
   private static SparkSession spark = null;
@@ -293,7 +299,11 @@ public class TestPartitionPruning {
 
   private Table createTable(File originTableLocation) {
     String trackedTableLocation = CountOpenLocalFileSystem.convertPath(originTableLocation);
-    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, format,
+            TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
     return TABLES.create(LOG_SCHEMA, spec, properties, trackedTableLocation);
   }
 

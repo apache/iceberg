@@ -157,6 +157,7 @@ abstract class BaseSparkAction<ThisT> {
                 "content",
                 "path",
                 "length",
+                "0 as sequenceNumber",
                 "partition_spec_id as partitionSpecId",
                 "added_snapshot_id as addedSnapshotId")
             .dropDuplicates("path")
