@@ -284,8 +284,10 @@ class PyArrowFile(InputFile, OutputFile):
 
 
 class PyArrowFileIO(FileIO):
+    fs_by_scheme: Callable[[str], FileSystem]
+
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
+        self.fs_by_scheme: Callable[[str], FileSystem] = lru_cache(self._initialize_fs)
         super().__init__(properties=properties)
 
     @staticmethod
@@ -299,7 +301,7 @@ class PyArrowFileIO(FileIO):
         else:
             return uri.scheme, f"{uri.netloc}{uri.path}"
 
-    def _get_fs(self, scheme: str) -> FileSystem:
+    def _initialize_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
             from pyarrow.fs import S3FileSystem
 
@@ -363,8 +365,12 @@ class PyArrowFileIO(FileIO):
             PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location.
@@ -376,8 +382,12 @@ class PyArrowFileIO(FileIO):
             PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location.
@@ -393,7 +403,7 @@ class PyArrowFileIO(FileIO):
         """
         str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         scheme, path = self.parse_location(str_location)
-        fs = self._get_fs(scheme)
+        fs = self.fs_by_scheme(scheme)
 
         try:
             fs.delete_file(path)
@@ -898,7 +908,7 @@ def project_table(
     """
     scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        fs = table.io.get_fs(scheme)
+        fs = table.io.fs_by_scheme(scheme)
     else:
         try:
             from pyiceberg.io.fsspec import FsspecFileIO
