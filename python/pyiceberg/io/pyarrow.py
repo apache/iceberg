@@ -301,6 +301,8 @@ class PyArrowFileIO(FileIO):
 
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
+            from pyarrow.fs import S3FileSystem
+
             client_kwargs = {
                 "endpoint_override": self.properties.get(S3_ENDPOINT),
                 "access_key": self.properties.get(S3_ACCESS_KEY_ID),
@@ -312,10 +314,10 @@ class PyArrowFileIO(FileIO):
             if proxy_uri := self.properties.get(S3_PROXY_URI):
                 client_kwargs["proxy_options"] = proxy_uri
 
-            from pyarrow.fs import S3FileSystem
-
             return S3FileSystem(**client_kwargs)
         elif scheme == "hdfs":
+            from pyarrow.fs import HadoopFileSystem
+
             hdfs_kwargs: Dict[str, Any] = {}
             if host := self.properties.get(HDFS_HOST):
                 hdfs_kwargs["host"] = host
@@ -326,10 +328,11 @@ class PyArrowFileIO(FileIO):
                 hdfs_kwargs["user"] = user
             if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
                 hdfs_kwargs["kerb_ticket"] = kerb_ticket
-            from pyarrow.fs import HadoopFileSystem
 
             return HadoopFileSystem(**hdfs_kwargs)
         elif scheme in {"gs", "gcs"}:
+            from pyarrow.fs import GcsFileSystem
+
             gcs_kwargs: Dict[str, Any] = {}
             if access_token := self.properties.get(GCS_TOKEN):
                 gcs_kwargs["access_token"] = access_token
@@ -341,7 +344,6 @@ class PyArrowFileIO(FileIO):
                 url_parts = urlparse(endpoint)
                 gcs_kwargs["scheme"] = url_parts.scheme
                 gcs_kwargs["endpoint_override"] = url_parts.netloc
-            from pyarrow.fs import GcsFileSystem
 
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
