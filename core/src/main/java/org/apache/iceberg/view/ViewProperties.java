@@ -23,5 +23,8 @@ public class ViewProperties {
   public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
   public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
 
+  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
+  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
+
   private ViewProperties() {}
 }
