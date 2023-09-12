@@ -142,6 +142,10 @@ class DeleteFileIndex {
     return forDataFile(entry.dataSequenceNumber(), entry.file());
   }
 
+  DeleteFile[] forDataFile(DataFile file) {
+    return forDataFile(file.dataSequenceNumber(), file);
+  }
+
   DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
     if (isEmpty) {
       return NO_DELETES;

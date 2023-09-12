@@ -84,6 +84,8 @@ import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
   private static ImmutableMap meta =
@@ -202,8 +204,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     }
   }
 
-  @Test
-  public void testReplaceTxnBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTxnBuilder(int formatVersion) {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
@@ -216,6 +219,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
               .withPartitionSpec(spec)
               .withLocation(location)
               .withProperty("key1", "value1")
+              .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
               .createOrReplaceTransaction();
       createTxn.commitTransaction();
 
@@ -235,14 +239,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       table = catalog.loadTable(tableIdent);
       assertThat(table.location()).isEqualTo(newLocation);
       assertThat(table.currentSnapshot()).isNull();
-      PartitionSpec v1Expected =
-          PartitionSpec.builderFor(table.schema())
-              .alwaysNull("data", "data_bucket")
-              .withSpecId(1)
-              .build();
-      assertThat(table.spec())
-          .as("Table should have a spec with one void field")
-          .isEqualTo(v1Expected);
+      if (formatVersion == 1) {
+        PartitionSpec v1Expected =
+            PartitionSpec.builderFor(table.schema())
+                .alwaysNull("data", "data_bucket")
+                .withSpecId(1)
+                .build();
+        assertThat(table.spec())
+            .as("Table should have a spec with one void field")
+            .isEqualTo(v1Expected);
+      } else {
+        assertThat(table.spec().isUnpartitioned()).as("Table spec must be unpartitioned").isTrue();
+      }
 
       assertThat(table.properties()).containsEntry("key1", "value1");
       assertThat(table.properties()).containsEntry("key2", "value2");

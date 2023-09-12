@@ -82,47 +82,47 @@ class Literal(Generic[L], ABC):
         ...  # pragma: no cover
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Literal class."""
+        """Return the string representation of the Literal class."""
         return f"{type(self).__name__}({self.value!r})"
 
     def __str__(self) -> str:
-        """Returns the string representation of the Literal class."""
+        """Return the string representation of the Literal class."""
         return str(self.value)
 
     def __hash__(self) -> int:
-        """Returns a hashed representation of the Literal class."""
+        """Return a hashed representation of the Literal class."""
         return hash(self.value)
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the Literal class."""
+        """Return the equality of two instances of the Literal class."""
         if not isinstance(other, Literal):
             return False
         return self.value == other.value
 
     def __ne__(self, other: Any) -> bool:
-        """Returns the inequality of two instances of the Literal class."""
+        """Return the inequality of two instances of the Literal class."""
         return not self.__eq__(other)
 
     def __lt__(self, other: Any) -> bool:
-        """Returns if one instance of the Literal class is less than another instance."""
+        """Return if one instance of the Literal class is less than another instance."""
         return self.value < other.value
 
     def __gt__(self, other: Any) -> bool:
-        """Returns if one instance of the Literal class is greater than another instance."""
+        """Return if one instance of the Literal class is greater than another instance."""
         return self.value > other.value
 
     def __le__(self, other: Any) -> bool:
-        """Returns if one instance of the Literal class is less than or equal to another instance."""
+        """Return if one instance of the Literal class is less than or equal to another instance."""
         return self.value <= other.value
 
     def __ge__(self, other: Any) -> bool:
-        """Returns if one instance of the Literal class is greater than or equal to another instance."""
+        """Return if one instance of the Literal class is greater than or equal to another instance."""
         return self.value >= other.value
 
 
 def literal(value: L) -> Literal[L]:
     """
-    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type.
+    Construct an Iceberg Literal based on Python primitive data type.
 
     Args:
         value (Python primitive type): the value to be associated with literal.
@@ -152,21 +152,21 @@ def literal(value: L) -> Literal[L]:
 
 class AboveMax(Literal[L]):
     def __repr__(self) -> str:
-        """Returns the string representation of the AboveMax class."""
+        """Return the string representation of the AboveMax class."""
         return f"{self.__class__.__name__}()"
 
     def __str__(self) -> str:
-        """Returns the string representation of the AboveMax class."""
+        """Return the string representation of the AboveMax class."""
         return self.__class__.__name__
 
 
 class BelowMin(Literal[L]):
     def __repr__(self) -> str:
-        """Returns the string representation of the BelowMin class."""
+        """Return the string representation of the BelowMin class."""
         return f"{self.__class__.__name__}()"
 
     def __str__(self) -> str:
-        """Returns the string representation of the BelowMin class."""
+        """Return the string representation of the BelowMin class."""
         return self.__class__.__name__
 
 
@@ -329,27 +329,27 @@ class FloatLiteral(Literal[float]):
         self._value32 = struct.unpack("<f", struct.pack("<f", value))[0]
 
     def __eq__(self, other: Any) -> bool:
-        """Returns the equality of two instances of the FloatLiteral class."""
+        """Return the equality of two instances of the FloatLiteral class."""
         return self._value32 == other
 
     def __lt__(self, other: Any) -> bool:
-        """Returns if one instance of the FloatLiteral class is less than another instance."""
+        """Return if one instance of the FloatLiteral class is less than another instance."""
         return self._value32 < other
 
     def __gt__(self, other: Any) -> bool:
-        """Returns if one instance of the FloatLiteral class is greater than another instance."""
+        """Return if one instance of the FloatLiteral class is greater than another instance."""
         return self._value32 > other
 
     def __le__(self, other: Any) -> bool:
-        """Returns if one instance of the FloatLiteral class is less than or equal to another instance."""
+        """Return if one instance of the FloatLiteral class is less than or equal to another instance."""
         return self._value32 <= other
 
     def __ge__(self, other: Any) -> bool:
-        """Returns if one instance of the FloatLiteral class is greater than or equal to another instance."""
+        """Return if one instance of the FloatLiteral class is greater than or equal to another instance."""
         return self._value32 >= other
 
     def __hash__(self) -> int:
-        """Returns a hashed representation of the FloatLiteral class."""
+        """Return a hashed representation of the FloatLiteral class."""
         return hash(self._value32)
 
     @singledispatchmethod
@@ -594,7 +594,7 @@ class StringLiteral(Literal[str]):
             raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
     def __repr__(self) -> str:
-        """Returns the string representation of the StringLiteral class."""
+        """Return the string representation of the StringLiteral class."""
         return f"literal({repr(self.value)})"
 
 

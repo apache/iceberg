@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
 
-class ViewVersionParser {
+public class ViewVersionParser {
 
   private static final String VERSION_ID = "version-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
@@ -40,7 +40,7 @@ class ViewVersionParser {
 
   private ViewVersionParser() {}
 
-  static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
+  public static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(version != null, "Cannot serialize null view version");
     generator.writeStartObject();
 
@@ -74,7 +74,7 @@ class ViewVersionParser {
     return JsonUtil.parse(json, ViewVersionParser::fromJson);
   }
 
-  static ViewVersion fromJson(JsonNode node) {
+  public static ViewVersion fromJson(JsonNode node) {
     Preconditions.checkArgument(node != null, "Cannot parse view version from null object");
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse view version from a non-object: %s", node);

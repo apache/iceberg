@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -31,8 +33,10 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
@@ -58,24 +62,26 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   private static SparkSession spark = null;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {"parquet", false, LOCAL},
+      {"parquet", true, DISTRIBUTED},
+      {"avro", false, LOCAL},
+      {"orc", false, DISTRIBUTED},
+      {"orc", true, LOCAL}
     };
   }
 
   private final FileFormat format;
   private final boolean vectorized;
+  private final PlanningMode planningMode;
 
-  public TestSparkReadProjection(String format, boolean vectorized) {
+  public TestSparkReadProjection(String format, boolean vectorized, PlanningMode planningMode) {
     super(format);
     this.format = FileFormat.fromString(format);
     this.vectorized = vectorized;
+    this.planningMode = planningMode;
   }
 
   @BeforeClass
@@ -111,7 +117,15 @@ public class TestSparkReadProjection extends TestReadProjection {
 
     File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 
-    Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
+    Table table =
+        TestTables.create(
+            location,
+            desc,
+            writeSchema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(
+                TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
+                TableProperties.DELETE_PLANNING_MODE, planningMode.modeName()));
     try {
       // Important: use the table's schema for the rest of the test
       // When tables are created, the column ids are reassigned.

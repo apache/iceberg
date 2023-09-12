@@ -35,9 +35,9 @@ from typing import (
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
-from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
+from pyiceberg.avro.decoder import BinaryDecoder, new_decoder
 from pyiceberg.avro.encoder import BinaryEncoder
-from pyiceberg.avro.reader import ReadableDecoder, Reader
+from pyiceberg.avro.reader import Reader
 from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
 from pyiceberg.avro.writer import Writer
 from pyiceberg.io import InputFile, OutputFile, OutputStream
@@ -105,18 +105,18 @@ D = TypeVar("D", bound=StructProtocol)
 class Block(Generic[D]):
     reader: Reader
     block_records: int
-    block_decoder: ReadableDecoder
+    block_decoder: BinaryDecoder
     position: int = 0
 
     def __iter__(self) -> Block[D]:
-        """Returns an iterator for the Block class."""
+        """Return an iterator for the Block class."""
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
     def __next__(self) -> D:
-        """Returns the next item when iterating over the Block class."""
+        """Return the next item when iterating over the Block class."""
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
@@ -143,7 +143,7 @@ class AvroFile(Generic[D]):
     schema: Schema
     reader: Reader
 
-    decoder: ReadableDecoder
+    decoder: BinaryDecoder
     block: Optional[Block[D]]
 
     def __init__(
@@ -160,13 +160,13 @@ class AvroFile(Generic[D]):
         self.block = None
 
     def __enter__(self) -> AvroFile[D]:
-        """Generates a reader tree for the payload within an avro file.
+        """Generate a reader tree for the payload within an avro file.
 
-        Returns:
+        Return:
             A generator returning the AvroStructs.
         """
         with self.input_file.open() as f:
-            self.decoder = CythonBinaryDecoder(f.read())
+            self.decoder = new_decoder(f.read())
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
@@ -179,10 +179,10 @@ class AvroFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
 
     def __iter__(self) -> AvroFile[D]:
-        """Returns an iterator for the AvroFile class."""
+        """Return an iterator for the AvroFile class."""
         return self
 
     def _read_block(self) -> int:
@@ -198,11 +198,11 @@ class AvroFile(Generic[D]):
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
 
-        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=CythonBinaryDecoder(block_bytes))
+        self.block = Block(reader=self.reader, block_records=block_records, block_decoder=new_decoder(block_bytes))
         return block_records
 
     def __next__(self) -> D:
-        """Returns the next item when iterating over the AvroFile class."""
+        """Return the next item when iterating over the AvroFile class."""
         if self.block and self.block.has_next():
             return next(self.block)
 
@@ -238,7 +238,7 @@ class AvroOutputFile(Generic[D]):
 
     def __enter__(self) -> AvroOutputFile[D]:
         """
-        Opens the file and writes the header.
+        Open the file and writes the header.
 
         Returns:
             The file object to write records to
@@ -254,7 +254,7 @@ class AvroOutputFile(Generic[D]):
     def __exit__(
         self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
     ) -> None:
-        """Performs cleanup when exiting the scope of a 'with' statement."""
+        """Perform cleanup when exiting the scope of a 'with' statement."""
         self.output_stream.close()
 
     def _write_header(self) -> None:

@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import io
 from abc import ABC, abstractmethod
 from io import SEEK_CUR
 from typing import (
     Dict,
     List,
     Tuple,
+    Union,
     cast,
 )
 
@@ -29,10 +31,6 @@ from pyiceberg.io import InputStream
 
 class BinaryDecoder(ABC):
     """Decodes bytes into Python physical primitives."""
-
-    @abstractmethod
-    def __init__(self, input_stream: InputStream) -> None:
-        """Create the decoder."""
 
     @abstractmethod
     def tell(self) -> int:
@@ -47,7 +45,7 @@ class BinaryDecoder(ABC):
         """Skip n bytes."""
 
     def read_boolean(self) -> bool:
-        """Reads a value from the stream as a boolean.
+        """Read a value from the stream as a boolean.
 
         A boolean is written as a single byte
         whose value is either 0 (false) or 1 (true).
@@ -55,7 +53,7 @@ class BinaryDecoder(ABC):
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
-        """Reads an int/long value.
+        """Read an int/long value.
 
         int/long values are written using variable-length, zigzag coding.
         """
@@ -70,18 +68,18 @@ class BinaryDecoder(ABC):
         return datum
 
     def read_ints(self, n: int) -> Tuple[int, ...]:
-        """Reads a list of integers."""
+        """Read a list of integers."""
         return tuple(self.read_int() for _ in range(n))
 
     def read_int_bytes_dict(self, n: int, dest: Dict[int, bytes]) -> None:
-        """Reads a dictionary of integers for keys and bytes for values into a destination dictionary."""
+        """Read a dictionary of integers for keys and bytes for values into a destination dictionary."""
         for _ in range(n):
             k = self.read_int()
             v = self.read_bytes()
             dest[k] = v
 
     def read_float(self) -> float:
-        """Reads a value from the stream as a float.
+        """Read a value from the stream as a float.
 
         A float is written as 4 bytes.
         The float is converted into a 32-bit integer using a method equivalent to
@@ -90,7 +88,7 @@ class BinaryDecoder(ABC):
         return float(cast(Tuple[float, ...], STRUCT_FLOAT.unpack(self.read(4)))[0])
 
     def read_double(self) -> float:
-        """Reads a value from the stream as a double.
+        """Read a value from the stream as a double.
 
         A double is written as 8 bytes.
         The double is converted into a 64-bit integer using a method equivalent to
@@ -104,7 +102,7 @@ class BinaryDecoder(ABC):
         return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
-        """Reads an utf-8 encoded string from the stream.
+        """Read an utf-8 encoded string from the stream.
 
         A string is encoded as a long followed by
         that many bytes of UTF-8 encoded character data.
@@ -138,10 +136,13 @@ class StreamingBinaryDecoder(BinaryDecoder):
     __slots__ = "_input_stream"
     _input_stream: InputStream
 
-    def __init__(self, input_stream: InputStream) -> None:
+    def __init__(self, input_stream: Union[bytes, InputStream]) -> None:
         """Reader is a Python object on which we can call read, seek, and tell."""
-        super().__init__(input_stream)
-        self._input_stream = input_stream
+        if isinstance(input_stream, bytes):
+            # In the case of bytes, we wrap it into a BytesIO to make it a stream
+            self._input_stream = io.BytesIO(input_stream)
+        else:
+            self._input_stream = input_stream
 
     def tell(self) -> int:
         """Return the current stream position."""
@@ -170,3 +171,16 @@ class StreamingBinaryDecoder(BinaryDecoder):
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
+
+
+def new_decoder(b: bytes) -> BinaryDecoder:
+    try:
+        from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
+
+        return CythonBinaryDecoder(b)
+    except ModuleNotFoundError:
+        import warnings
+
+        warnings.warn("Falling back to pure Python Avro decoder, missing Cython implementation")
+
+        return StreamingBinaryDecoder(b)

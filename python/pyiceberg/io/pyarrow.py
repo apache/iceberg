@@ -64,11 +64,6 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
-    GcsFileSystem,
-    HadoopFileSystem,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
 )
 from sortedcontainers import SortedList
 
@@ -200,7 +195,7 @@ class PyArrowFile(InputFile, OutputFile):
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
-        """Retrieves a pyarrow.fs.FileInfo object for the location.
+        """Retrieve a pyarrow.fs.FileInfo object for the location.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
@@ -218,12 +213,12 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes."""
+        """Return the total length of the file, in bytes."""
         file_info = self._file_info()
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the location exists."""
+        """Check whether the location exists."""
         try:
             self._file_info()  # raises FileNotFoundError if it does not exist
             return True
@@ -231,7 +226,7 @@ class PyArrowFile(InputFile, OutputFile):
             return False
 
     def open(self, seekable: bool = True) -> InputStream:
-        """Opens the location using a PyArrow FileSystem inferred from the location.
+        """Open the location using a PyArrow FileSystem inferred from the location.
 
         Args:
             seekable: If the stream should support seek, or if it is consumed sequential.
@@ -262,7 +257,7 @@ class PyArrowFile(InputFile, OutputFile):
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
+        """Create a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
 
         Args:
             overwrite (bool): Whether to overwrite the file if it already exists.
@@ -293,7 +288,7 @@ class PyArrowFile(InputFile, OutputFile):
         return output_file
 
     def to_input_file(self) -> PyArrowFile:
-        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance.
+        """Return a new PyArrowFile for the location of an existing PyArrowFile instance.
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
         PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
@@ -309,12 +304,19 @@ class PyArrowFileIO(FileIO):
 
     @staticmethod
     def parse_location(location: str) -> Tuple[str, str]:
-        """Returns the path without the scheme."""
+        """Return the path without the scheme."""
         uri = urlparse(location)
-        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+        if not uri.scheme:
+            return "file", os.path.abspath(location)
+        elif uri.scheme == "hdfs":
+            return uri.scheme, location
+        else:
+            return uri.scheme, f"{uri.netloc}{uri.path}"
 
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
+            from pyarrow.fs import S3FileSystem
+
             client_kwargs = {
                 "endpoint_override": self.properties.get(S3_ENDPOINT),
                 "access_key": self.properties.get(S3_ACCESS_KEY_ID),
@@ -328,14 +330,23 @@ class PyArrowFileIO(FileIO):
 
             return S3FileSystem(**client_kwargs)
         elif scheme == "hdfs":
-            client_kwargs = {
-                "host": self.properties.get(HDFS_HOST),
-                "port": self.properties.get(HDFS_PORT),
-                "user": self.properties.get(HDFS_USER),
-                "kerb_ticket": self.properties.get(HDFS_KERB_TICKET),
-            }
-            return HadoopFileSystem(**client_kwargs)
+            from pyarrow.fs import HadoopFileSystem
+
+            hdfs_kwargs: Dict[str, Any] = {}
+            if host := self.properties.get(HDFS_HOST):
+                hdfs_kwargs["host"] = host
+            if port := self.properties.get(HDFS_PORT):
+                # port should be an integer type
+                hdfs_kwargs["port"] = int(port)
+            if user := self.properties.get(HDFS_USER):
+                hdfs_kwargs["user"] = user
+            if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
+                hdfs_kwargs["kerb_ticket"] = kerb_ticket
+
+            return HadoopFileSystem(**hdfs_kwargs)
         elif scheme in {"gs", "gcs"}:
+            from pyarrow.fs import GcsFileSystem
+
             gcs_kwargs: Dict[str, Any] = {}
             if access_token := self.properties.get(GCS_TOKEN):
                 gcs_kwargs["access_token"] = access_token
@@ -347,8 +358,11 @@ class PyArrowFileIO(FileIO):
                 url_parts = urlparse(endpoint)
                 gcs_kwargs["scheme"] = url_parts.scheme
                 gcs_kwargs["endpoint_override"] = url_parts.netloc
+
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
+            from pyarrow.fs import LocalFileSystem
+
             return LocalFileSystem()
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
@@ -596,7 +610,7 @@ def pyarrow_to_schema(schema: pa.Schema) -> Schema:
 
 @singledispatch
 def visit_pyarrow(obj: Union[pa.DataType, pa.Schema], visitor: PyArrowSchemaVisitor[T]) -> T:
-    """A generic function for applying a pyarrow schema visitor to any point within a schema.
+    """Apply a pyarrow schema visitor to any point within a schema.
 
     The function traverses the schema in post-order fashion.
 
@@ -883,7 +897,7 @@ def project_table(
     case_sensitive: bool = True,
     limit: Optional[int] = None,
 ) -> pa.Table:
-    """Resolves the right columns based on the identifier.
+    """Resolve the right columns based on the identifier.
 
     Args:
         tasks (Iterable[FileScanTask]): A URI or a path to a local file.
@@ -904,6 +918,8 @@ def project_table(
             from pyiceberg.io.fsspec import FsspecFileIO
 
             if isinstance(table.io, FsspecFileIO):
+                from pyarrow.fs import PyFileSystem
+
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")

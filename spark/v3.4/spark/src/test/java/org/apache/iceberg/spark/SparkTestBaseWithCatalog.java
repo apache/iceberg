@@ -23,11 +23,15 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -55,6 +59,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   protected final String catalogName;
+  protected final Map<String, String> catalogConfig;
   protected final Catalog validationCatalog;
   protected final SupportsNamespaces validationNamespaceCatalog;
   protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
@@ -71,6 +76,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   public SparkTestBaseWithCatalog(
       String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
+    this.catalogConfig = config;
     this.validationCatalog =
         catalogName.equals("testhadoop")
             ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
@@ -101,5 +107,24 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
 
   protected String selectTarget() {
     return tableName;
+  }
+
+  protected boolean cachingCatalogEnabled() {
+    return PropertyUtil.propertyAsBoolean(
+        catalogConfig, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
+  }
+
+  protected void configurePlanningMode(PlanningMode planningMode) {
+    configurePlanningMode(tableName, planningMode);
+  }
+
+  protected void configurePlanningMode(String table, PlanningMode planningMode) {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s', '%s' '%s')",
+        table,
+        TableProperties.DATA_PLANNING_MODE,
+        planningMode.modeName(),
+        TableProperties.DELETE_PLANNING_MODE,
+        planningMode.modeName());
   }
 }

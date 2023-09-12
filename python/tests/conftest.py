@@ -32,6 +32,7 @@ from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -50,10 +51,8 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
-import pyarrow as pa
 import pytest
 from moto import mock_dynamodb, mock_glue, mock_s3
-from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
@@ -69,7 +68,6 @@ from pyiceberg.io import (
     load_file_io,
 )
 from pyiceberg.io.fsspec import FsspecFileIO
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
@@ -90,6 +88,9 @@ from pyiceberg.types import (
     StructType,
 )
 from pyiceberg.utils.datetime import datetime_to_millis
+
+if TYPE_CHECKING:
+    from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -192,14 +193,14 @@ def table_schema_nested() -> Schema:
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
 
 
 @pytest.fixture(scope="session")
 def table_schema_nested_with_struct_key_map() -> Schema:
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
@@ -227,13 +228,13 @@ def table_schema_nested_with_struct_key_map() -> Schema:
                 key_id=18,
                 value_id=19,
                 key_type=StructType(
-                    NestedField(field_id=21, name="address", field_type=StringType(), required=False),
-                    NestedField(field_id=22, name="city", field_type=StringType(), required=False),
-                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=False),
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=True),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=True),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=True),
                 ),
                 value_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=True),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=True),
                 ),
                 value_required=True,
             ),
@@ -248,6 +249,21 @@ def table_schema_nested_with_struct_key_map() -> Schema:
             ),
             required=False,
         ),
+        NestedField(
+            field_id=24,
+            name="points",
+            field_type=ListType(
+                element_id=25,
+                element_type=StructType(
+                    NestedField(field_id=26, name="x", field_type=LongType(), required=True),
+                    NestedField(field_id=27, name="y", field_type=LongType(), required=True),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+        NestedField(field_id=28, name="float", field_type=FloatType(), required=True),
+        NestedField(field_id=29, name="double", field_type=DoubleType(), required=True),
         schema_id=1,
         identifier_field_ids=[1],
     )
@@ -406,6 +422,8 @@ def example_table_metadata_v2() -> Dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
     metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
@@ -414,6 +432,8 @@ def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 @pytest.fixture(scope="session")
 def metadata_location_gz(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.gz.metadata.json")
     metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
@@ -1125,13 +1145,15 @@ class LocalOutputFile(OutputFile):
         self._path = parsed_location.path
 
     def __len__(self) -> int:
-        """Returns the length of an instance of the LocalOutputFile class."""
+        """Return the length of an instance of the LocalOutputFile class."""
         return os.path.getsize(self._path)
 
     def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self) -> PyArrowFile:
+    def to_input_file(self) -> "PyArrowFile":
+        from pyiceberg.io.pyarrow import PyArrowFileIO
+
         return PyArrowFileIO().new_input(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -1384,7 +1406,9 @@ def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
 
 
 @pytest.fixture
-def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> "PyArrowFileIO":
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     properties = {
         GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
         GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
@@ -1473,7 +1497,7 @@ def aws_credentials() -> None:
 
 @pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials() -> Generator[None, None, None]:
-    """Mocked AWS Credentials for moto."""
+    """Yield a mocked AWS Credentials for moto."""
     yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
@@ -1484,21 +1508,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client."""
+    """Yield a mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client."""
+    """Yield a mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client."""
+    """Yield a mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
@@ -1605,6 +1629,9 @@ def clean_up(test_catalog: Catalog) -> None:
 
 @pytest.fixture
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
+    import pyarrow as pa
+    from pyarrow import parquet as pq
+
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
         metadata={"iceberg.schema": table_schema_simple.model_dump_json()},

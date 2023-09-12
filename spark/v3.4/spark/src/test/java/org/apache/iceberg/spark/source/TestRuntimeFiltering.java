@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -41,8 +44,22 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
+
+  @Parameterized.Parameters(name = "planningMode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {LOCAL, DISTRIBUTED};
+  }
+
+  private final PlanningMode planningMode;
+
+  public TestRuntimeFiltering(PlanningMode planningMode) {
+    this.planningMode = planningMode;
+  }
 
   @After
   public void removeTables() {
@@ -57,6 +74,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (date)",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -95,6 +113,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (bucket(8, id))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -133,6 +152,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (bucket(8, id))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -173,6 +193,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (data, bucket(8, id))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -215,6 +236,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (data, bucket(8, id))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -256,6 +278,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df1 =
         spark
@@ -309,6 +332,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (bucket(8, `i.d`))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -352,6 +376,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             + "USING iceberg "
             + "PARTITIONED BY (bucket(8, `i``d`))",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark
@@ -390,6 +415,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg",
         tableName);
+    configurePlanningMode(planningMode);
 
     Dataset<Row> df =
         spark

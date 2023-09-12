@@ -1086,7 +1086,12 @@ public class TestTableMetadata {
     String location = "file://tmp/db/table";
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            ImmutableMap.of(),
+            1);
 
     Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
         .isInstanceOf(ValidationException.class)

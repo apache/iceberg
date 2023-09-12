@@ -30,15 +30,19 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
-public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, CombinedScanTask> {
-  public TestDataTableScan(int formatVersion) {
+public abstract class DataTableScanTestBase<
+        ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
+    extends ScanTestBase<ScanT, T, G> {
+
+  public DataTableScanTestBase(int formatVersion) {
     super(formatVersion);
   }
 
-  @Override
-  protected TableScan newScan() {
-    return table.newScan();
-  }
+  protected abstract ScanT useRef(ScanT scan, String ref);
+
+  protected abstract ScanT useSnapshot(ScanT scan, long snapshotId);
+
+  protected abstract ScanT asOfTime(ScanT scan, long timestampMillis);
 
   @Test
   public void testTaskRowCounts() {
@@ -56,17 +60,17 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     DeleteFile deleteFile2 = newDeleteFile("data_bucket=1");
     table.newRowDelta().addDeletes(deleteFile2).commit();
 
-    TableScan scan = table.newScan().option(TableProperties.SPLIT_SIZE, "50");
+    ScanT scan = newScan().option(TableProperties.SPLIT_SIZE, "50");
 
-    List<FileScanTask> fileScanTasks = Lists.newArrayList(scan.planFiles());
+    List<T> fileScanTasks = Lists.newArrayList(scan.planFiles());
     Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
-    for (FileScanTask task : fileScanTasks) {
+    for (T task : fileScanTasks) {
       Assert.assertEquals("Rows count must match", 10, task.estimatedRowsCount());
     }
 
-    List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(scan.planTasks());
+    List<G> combinedScanTasks = Lists.newArrayList(scan.planTasks());
     Assert.assertEquals("Must have 4 CombinedScanTask", 4, combinedScanTasks.size());
-    for (CombinedScanTask task : combinedScanTasks) {
+    for (G task : combinedScanTasks) {
       Assert.assertEquals("Rows count must match", 5, task.estimatedRowsCount());
     }
   }
@@ -100,11 +104,11 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     // Add D to main
     table.newFastAppend().appendFile(FILE_D).commit();
 
-    TableScan testBranchScan = table.newScan().useRef("testBranch");
+    ScanT testBranchScan = useRef(newScan(), "testBranch");
     validateExpectedFileScanTasks(
         testBranchScan, ImmutableList.of(FILE_A.path(), FILE_B.path(), FILE_C.path()));
 
-    TableScan mainScan = table.newScan();
+    ScanT mainScan = newScan();
     validateExpectedFileScanTasks(mainScan, ImmutableList.of(FILE_A.path(), FILE_D.path()));
   }
 
@@ -113,9 +117,9 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
     table.newFastAppend().appendFile(FILE_C).commit();
-    TableScan tagScan = table.newScan().useRef("tagB");
+    ScanT tagScan = useRef(newScan(), "tagB");
     validateExpectedFileScanTasks(tagScan, ImmutableList.of(FILE_A.path(), FILE_B.path()));
-    TableScan mainScan = table.newScan();
+    ScanT mainScan = newScan();
     validateExpectedFileScanTasks(
         mainScan, ImmutableList.of(FILE_A.path(), FILE_B.path(), FILE_C.path()));
   }
@@ -126,7 +130,7 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
     Assertions.assertThatThrownBy(
-            () -> table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).useRef("tagB"))
+            () -> useRef(useSnapshot(newScan(), table.currentSnapshot().snapshotId()), "tagB"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override ref, already set snapshot id=1");
   }
@@ -139,7 +143,7 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
     Assertions.assertThatThrownBy(
-            () -> table.newScan().useRef("tagB").useSnapshot(snapshotA.snapshotId()))
+            () -> useSnapshot(useRef(newScan(), "tagB"), snapshotA.snapshotId()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override snapshot, already set snapshot id=2");
   }
@@ -153,7 +157,7 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
         .commit();
 
     Assertions.assertThatThrownBy(
-            () -> table.newScan().useRef("testBranch").asOfTime(System.currentTimeMillis()))
+            () -> asOfTime(useRef(newScan(), "testBranch"), System.currentTimeMillis()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override snapshot, already set snapshot id=1");
   }
@@ -165,24 +169,26 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> table.newScan().useRef("tagB").useRef("tagA"))
+    Assertions.assertThatThrownBy(() -> useRef(useRef(newScan(), "tagB"), "tagA"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override ref, already set snapshot id=2");
   }
 
   @Test
   public void testSettingInvalidRefFails() {
-    Assertions.assertThatThrownBy(() -> table.newScan().useRef("nonexisting"))
+    Assertions.assertThatThrownBy(() -> useRef(newScan(), "nonexisting"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find ref nonexisting");
   }
 
-  private void validateExpectedFileScanTasks(
-      TableScan scan, List<CharSequence> expectedFileScanPaths) throws IOException {
-    try (CloseableIterable<FileScanTask> scanTasks = scan.planFiles()) {
+  private void validateExpectedFileScanTasks(ScanT scan, List<CharSequence> expectedFileScanPaths)
+      throws IOException {
+    try (CloseableIterable<T> scanTasks = scan.planFiles()) {
       Assert.assertEquals(expectedFileScanPaths.size(), Iterables.size(scanTasks));
       List<CharSequence> actualFiles = Lists.newArrayList();
-      scanTasks.forEach(task -> actualFiles.add(task.file().path()));
+      for (T task : scanTasks) {
+        actualFiles.add(((FileScanTask) task).file().path());
+      }
       Assert.assertTrue(actualFiles.containsAll(expectedFileScanPaths));
     }
   }
@@ -203,12 +209,13 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     DeleteFile deleteFile2 = newDeleteFile("data_bucket=1");
     table.newRowDelta().addDeletes(deleteFile2).commit();
 
-    TableScan scan = table.newScan();
+    ScanT scan = newScan();
 
-    List<FileScanTask> fileScanTasks = Lists.newArrayList(scan.planFiles());
+    List<T> fileScanTasks = Lists.newArrayList(scan.planFiles());
     Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
-    for (FileScanTask task : fileScanTasks) {
-      DataFile file = task.file();
+    for (T task : fileScanTasks) {
+      FileScanTask fileScanTask = (FileScanTask) task;
+      DataFile file = fileScanTask.file();
       long expectedDataSequenceNumber = 0L;
       long expectedDeleteSequenceNumber = 0L;
       if (file.path().equals(dataFile1.path())) {
@@ -230,7 +237,7 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
           expectedDataSequenceNumber,
           file.fileSequenceNumber().longValue());
 
-      List<DeleteFile> deleteFiles = task.deletes();
+      List<DeleteFile> deleteFiles = fileScanTask.deletes();
       Assert.assertEquals("Must have 1 delete file", 1, Iterables.size(deleteFiles));
       DeleteFile deleteFile = Iterables.getOnlyElement(deleteFiles);
       Assert.assertEquals(

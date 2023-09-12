@@ -19,14 +19,15 @@ from cython.cimports.cpython import array
 from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from libc.string cimport memcpy
+from libc.stdint cimport uint64_t, int64_t
 
 import array
 
 cdef extern from "decoder_basic.c":
-  void decode_longs(const unsigned char **buffer, unsigned int count, unsigned long *result);
-  void skip_int(const unsigned char **buffer);
+  void decode_zigzag_ints(const unsigned char **buffer, const uint64_t count, uint64_t *result);
+  void skip_zigzag_int(const unsigned char **buffer);
 
-unsigned_long_array_template = cython.declare(array.array, array.array('L', []))
+unsigned_long_long_array_template = cython.declare(array.array, array.array('Q', []))
 
 @cython.final
 cdef class CythonBinaryDecoder:
@@ -44,7 +45,7 @@ cdef class CythonBinaryDecoder:
     cdef const unsigned char *_end
 
     # This is the size of the buffer of the data being parsed.
-    cdef unsigned int _size
+    cdef uint64_t _size
 
     def __cinit__(self, input_contents: bytes) -> None:
         self._size = len(input_contents)
@@ -82,33 +83,33 @@ cdef class CythonBinaryDecoder:
         self._current += 1;
         return self._current[-1] != 0
 
-    cpdef inline long read_int(self):
+    cpdef inline int64_t read_int(self):
         """Reads a value from the stream as an integer.
 
         int/long values are written using variable-length, zigzag coding.
         """
-        cdef unsigned long result;
+        cdef uint64_t result;
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_longs(&self._current, 1, <unsigned long *>&result)
+        decode_zigzag_ints(&self._current, 1, &result)
         return result
 
-    def read_ints(self, count: int) -> Tuple[int, ...]:
+    def read_ints(self, count: int) -> array.array[int]:
         """Reads a list of integers."""
-        newarray = array.clone(unsigned_long_array_template, count, zero=False)
+        newarray = array.clone(unsigned_long_long_array_template, count, zero=False)
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
-        decode_longs(&self._current, count, newarray.data.as_ulongs)
+        decode_zigzag_ints(&self._current, count, <uint64_t *>newarray.data.as_ulonglongs)
         return newarray
 
     cpdef void read_int_bytes_dict(self, count: int, dest: Dict[int, bytes]):
         """Reads a dictionary of integers for keys and bytes for values into a destination dict."""
-        cdef unsigned long result[2];
+        cdef uint64_t result[2];
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
 
         for _ in range(count):
-          decode_longs(&self._current, 2, <unsigned long *>&result)
+          decode_zigzag_ints(&self._current, 2, <uint64_t *>&result)
           if result[1] <= 0:
               dest[result[0]] = b""
           else:
@@ -117,11 +118,11 @@ cdef class CythonBinaryDecoder:
 
     cpdef inline bytes read_bytes(self):
         """Bytes are encoded as a long followed by that many bytes of data."""
-        cdef unsigned long length;
+        cdef uint64_t length;
         if self._current >= self._end:
           raise EOFError(f"EOF: read 1 bytes")
 
-        decode_longs(&self._current, 1, <unsigned long *>&length)
+        decode_zigzag_ints(&self._current, 1, &length)
 
         if length <= 0:
             return b""
@@ -156,7 +157,7 @@ cdef class CythonBinaryDecoder:
         return self.read_bytes().decode("utf-8")
 
     def skip_int(self) -> None:
-        skip_int(&self._current)
+        skip_zigzag_int(&self._current)
         return
 
     def skip(self, n: int) -> None:
@@ -172,8 +173,8 @@ cdef class CythonBinaryDecoder:
         self._current += 8
 
     def skip_bytes(self) -> None:
-        cdef long result;
-        decode_longs(&self._current, 1, <unsigned long *>&result)
+        cdef uint64_t result;
+        decode_zigzag_ints(&self._current, 1, &result)
         self._current += result
 
     def skip_utf8(self) -> None:

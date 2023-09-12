@@ -32,7 +32,7 @@ import org.apache.iceberg.Schema;
  * <p>For example, this is thrown when attempting to create a table with a {@link PartitionSpec}
  * that is not compatible with the table {@link Schema}
  */
-public class ValidationException extends RuntimeException {
+public class ValidationException extends RuntimeException implements CleanableFailure {
   @FormatMethod
   public ValidationException(String message, Object... args) {
     super(String.format(message, args));
