@@ -348,13 +348,15 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaAfter2.asStruct());
 
-    // Adding a required field should fail
+    // Adding a required field should fail due to Iceberg's validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
-        .isInstanceOf(TableException.class);
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
 
-    // Adding an existing field should fail
+    // Adding an existing field should fail due to Flink's internal validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Try to add a column `id` which already exists in the table.");
   }
 
   @Test
@@ -387,13 +389,15 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         schemaAfter2.asStruct());
 
-    // Dropping an non-existing field should fail
+    // Dropping an non-existing field should fail due to Flink's internal validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (foo)"))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("The column `foo` does not exist in the base table.");
 
-    // Dropping an already-deleted field should fail
+    // Dropping an already-deleted field should fail due to Flink's internal validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (dt)"))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("The column `dt` does not exist in the base table.");
   }
 
   @Test
@@ -438,9 +442,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaAfter.asStruct());
 
-    // Type change that doesn't follow the type-promotion rule should fail
+    // Type change that doesn't follow the type-promotion rule should fail due to Iceberg's
+    // validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
-        .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot change column type: dt: string -> int");
   }
 
   @Test
@@ -454,9 +461,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaBefore.asStruct());
 
-    // Cannot change nullability from optional to required
+    // Changing nullability from optional to required should fail due to Iceberg's validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
-        .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot change column nullability: dt: optional -> required");
 
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
@@ -497,6 +506,19 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
                 Types.NestedField.optional(2, "dt", Types.StringType.get()))
             .asStruct(),
         schemaAfterAfter.asStruct());
+
+    // Modifying the position of a non-existing column should fail due to Flink's internal
+    // validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (non_existing STRING FIRST)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Try to modify a column `non_existing` which does not exist in the table.");
+
+    // Moving a column after a non-existing column should fail due to Flink's internal validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING AFTER non_existing)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Referenced column `non_existing` by 'AFTER' does not exist in the table.");
   }
 
   @Test
@@ -510,12 +532,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaBefore.asStruct());
 
-    sql("ALTER TABLE tl MODIFY (dt STRING COMMENT 'some data')");
+    sql("ALTER TABLE tl MODIFY (dt STRING COMMENT 'comment for dt field')");
     Schema schemaAfter = table("tl").schema();
     Assert.assertEquals(
         new Schema(
                 Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get(), "some data"))
+                Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt field"))
             .asStruct(),
         schemaAfter.asStruct());
   }
@@ -560,19 +582,25 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         schemaAfterComposite.asStruct());
     Assert.assertEquals(ImmutableSet.of("id", "dt"), schemaAfterComposite.identifierFieldNames());
 
-    // Setting an optional field as primary key should fail
+    // Setting an optional field as primary key should fail due to Iceberg's validation.
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
-        .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
-    // Setting a composite key containing an optional field should fail
+    // Setting a composite key containing an optional field should fail due to Iceberg's validation.
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
-        .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
     // Dropping constraints is not supported yet
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
-        .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(UnsupportedOperationException.class)
+        .hasRootCauseMessage("Dropping constraints is not supported yet. ");
   }
 
   @Test
