@@ -55,6 +55,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
    */
   public static final String NESSIE_COMMIT_ID_PROPERTY = "nessie.commit.id";
 
+  public static final String NESSIE_GC_NO_WARNING_PROPERTY = "nessie.gc.no-warning";
+
   private final NessieIcebergClient client;
   private final ContentKey key;
   private IcebergTable table;
