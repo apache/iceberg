@@ -1289,7 +1289,7 @@ def compute_statistics_plan(
     table_metadata: TableMetadata,
 ) -> Dict[int, StatisticsCollector]:
     """
-    Computes the statistics plan for all columns.
+    Compute the statistics plan for all columns.
 
     The resulting list is assumed to have the same lenght and same order as the columns in the pyarrow table.
     This allows the list to map from the column index to the Iceberg column ID.
@@ -1368,7 +1368,7 @@ def parquet_path_to_id_mapping(
     table_metadata: TableMetadata,
 ) -> Dict[str, int]:
     """
-    Computes the mapping of parquet column path to Iceberg ID.
+    Compute the mapping of parquet column path to Iceberg ID.
 
     For each column, the parquet file metadata has a path_in_schema attribute that follows
     a specific naming scheme for nested columnds. This function computes a mapping of
@@ -1393,7 +1393,7 @@ def fill_parquet_file_metadata(
     parquet_column_mapping: Dict[str, int],
 ) -> None:
     """
-    Computes and fills the following fields of the DataFile object.
+    Compute and fill the following fields of the DataFile object.
 
     - file_format
     - record_count
