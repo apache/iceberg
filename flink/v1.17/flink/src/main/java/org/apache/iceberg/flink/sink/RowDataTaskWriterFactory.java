@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -38,13 +39,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private final Table table;
+  private final Supplier<Table> tableSupplier;
+  private final Table initTable;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
-  private final FileIO io;
   private final long targetFileSizeBytes;
   private final FileFormat format;
   private final List<Integer> equalityFieldIds;
@@ -53,6 +55,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private transient OutputFileFactory outputFileFactory;
 
+  /** @deprecated Use constructor with table supplier instead. */
+  @Deprecated
   public RowDataTaskWriterFactory(
       Table table,
       RowType flinkSchema,
@@ -61,11 +65,29 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
       boolean upsert) {
-    this.table = table;
-    this.schema = table.schema();
+    this(
+        () -> table,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert);
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
+    this.tableSupplier = tableSupplier;
+    this.initTable = tableSupplier.get();
+    this.schema = initTable.schema();
     this.flinkSchema = flinkSchema;
-    this.spec = table.spec();
-    this.io = table.io();
+    this.spec = initTable.spec();
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
@@ -74,7 +96,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory =
           new FlinkAppenderFactory(
-              table, schema, flinkSchema, writeProperties, spec, null, null, null);
+              initTable, schema, flinkSchema, writeProperties, spec, null, null, null);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of
       // the inserted row
@@ -83,7 +105,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
       this.appenderFactory =
           new FlinkAppenderFactory(
-              table,
+              initTable,
               schema,
               flinkSchema,
               writeProperties,
@@ -94,7 +116,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     } else {
       this.appenderFactory =
           new FlinkAppenderFactory(
-              table,
+              initTable,
               schema,
               flinkSchema,
               writeProperties,
@@ -108,7 +130,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   @Override
   public void initialize(int taskId, int attemptId) {
     this.outputFileFactory =
-        OutputFileFactory.builderFor(table, taskId, attemptId).format(format).build();
+        OutputFileFactory.builderFor(initTable, taskId, attemptId)
+            .format(format)
+            .ioSupplier(() -> tableSupplier.get().io())
+            .build();
   }
 
   @Override
@@ -116,6 +141,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     Preconditions.checkNotNull(
         outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
+
+    FileIO io = tableSupplier.get().io();
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       // Initialize a task writer to write INSERT only.

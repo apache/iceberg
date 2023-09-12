@@ -170,9 +170,10 @@ public class TestProjectMetaColumn {
 
   private TaskWriter<RowData> createTaskWriter(
       Table table, List<Integer> equalityFieldIds, boolean upsert) {
+    Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
-            SerializableTable.copyOf(table),
+            () -> serializableTable,
             SimpleDataUtil.ROW_TYPE,
             TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
             format,

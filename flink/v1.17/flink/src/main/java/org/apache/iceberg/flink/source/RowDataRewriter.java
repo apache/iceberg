@@ -76,9 +76,10 @@ public class RowDataRewriter {
             TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     FileFormat format = FileFormat.fromString(formatString);
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
+    Table serializableTable = SerializableTable.copyOf(table);
     this.taskWriterFactory =
         new RowDataTaskWriterFactory(
-            SerializableTable.copyOf(table),
+            () -> serializableTable,
             flinkSchema,
             Long.MAX_VALUE,
             format,

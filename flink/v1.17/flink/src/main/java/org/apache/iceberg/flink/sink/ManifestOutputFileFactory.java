@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
@@ -31,9 +32,7 @@ class ManifestOutputFileFactory {
   // properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
-  private final TableOperations ops;
-  private final FileIO io;
-  private final Map<String, String> props;
+  private final Supplier<Table> tableSupplier;
   private final String flinkJobId;
   private final String operatorUniqueId;
   private final int subTaskId;
@@ -41,16 +40,12 @@ class ManifestOutputFileFactory {
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(
-      TableOperations ops,
-      FileIO io,
-      Map<String, String> props,
+      Supplier<Table> tableSupplier,
       String flinkJobId,
       String operatorUniqueId,
       int subTaskId,
       long attemptNumber) {
-    this.ops = ops;
-    this.io = io;
-    this.props = props;
+    this.tableSupplier = tableSupplier;
     this.flinkJobId = flinkJobId;
     this.operatorUniqueId = operatorUniqueId;
     this.subTaskId = subTaskId;
@@ -70,7 +65,10 @@ class ManifestOutputFileFactory {
   }
 
   OutputFile create(long checkpointId) {
-    String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
+    Table table = tableSupplier.get();
+    TableOperations ops = ((HasTableOperations) table).operations();
+
+    String flinkManifestDir = table.properties().get(FLINK_MANIFEST_LOCATION);
 
     String newManifestFullPath;
     if (Strings.isNullOrEmpty(flinkManifestDir)) {
@@ -81,7 +79,7 @@ class ManifestOutputFileFactory {
           String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
     }
 
-    return io.newOutputFile(newManifestFullPath);
+    return table.io().newOutputFile(newManifestFullPath);
   }
 
   private static String stripTrailingSlash(String path) {
