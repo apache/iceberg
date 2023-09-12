@@ -27,6 +27,7 @@ import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -48,6 +49,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -102,7 +104,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient String operatorUniqueId;
-  private transient Table table;
+  private transient Supplier<Table> tableSupplier;
   private transient IcebergFilesCommitterMetrics committerMetrics;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
@@ -123,6 +125,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private final Integer workerPoolSize;
   private final PartitionSpec spec;
+  private final long reloadIntervalMs;
   private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(
@@ -131,13 +134,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
-      PartitionSpec spec) {
+      PartitionSpec spec,
+      long reloadIntervalMs) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
     this.spec = spec;
+    this.reloadIntervalMs = reloadIntervalMs;
   }
 
   @Override
@@ -148,11 +153,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Open the table loader and load the table.
     this.tableLoader.open();
-    this.table = tableLoader.loadTable();
-    this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
+    Table initTable = tableLoader.loadTable();
+    if (reloadIntervalMs > 0) {
+      this.tableSupplier = new ReloadingTableSupplier(initTable, tableLoader, reloadIntervalMs);
+    } else {
+      this.tableSupplier = () -> initTable;
+    }
+    this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, initTable.name());
 
     maxContinuousEmptyCommits =
-        PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
+        PropertyUtil.propertyAsInt(initTable.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
@@ -160,7 +170,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
-            table, flinkJobId, operatorUniqueId, subTaskId, attemptId);
+            tableSupplier, flinkJobId, operatorUniqueId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
@@ -187,7 +197,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       // it's safe to assign the max committed checkpoint id from restored flink job to the current
       // flink job.
       this.maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(table, restoredFlinkJobId, operatorUniqueId, branch);
+          getMaxCommittedCheckpointId(initTable, restoredFlinkJobId, operatorUniqueId, branch);
 
       NavigableMap<Long, byte[]> uncommittedDataFiles =
           Maps.newTreeMap(checkpointsState.get().iterator().next())
@@ -207,7 +217,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     long checkpointId = context.getCheckpointId();
     LOG.info(
         "Start to flush snapshot state to state backend, table: {}, checkpointId: {}",
-        table,
+        tableSupplier.get(),
         checkpointId);
 
     // Update the checkpoint state.
@@ -267,6 +277,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       DeltaManifests deltaManifests =
           SimpleVersionedSerialization.readVersionAndDeSerialize(
               DeltaManifestsSerializer.INSTANCE, e.getValue());
+      Table table = tableSupplier.get();
       pendingResults.put(
           e.getKey(),
           FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
@@ -302,9 +313,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private void deleteCommittedManifests(
       List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
+    FileIO fileIO = tableSupplier.get().io();
     for (ManifestFile manifest : manifests) {
       try {
-        table.io().deleteFile(manifest.path());
+        fileIO.deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
@@ -330,7 +342,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+    ReplacePartitions dynamicOverwrite =
+        tableSupplier.get().newReplacePartitions().scanManifestsWith(workerPool);
     for (WriteResult result : pendingResults.values()) {
       Preconditions.checkState(
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
@@ -354,7 +367,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId) {
     if (summary.deleteFilesCount() == 0) {
       // To be compatible with iceberg format V1.
-      AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
+      AppendFiles appendFiles = tableSupplier.get().newAppend().scanManifestsWith(workerPool);
       for (WriteResult result : pendingResults.values()) {
         Preconditions.checkState(
             result.referencedDataFiles().length == 0,
@@ -378,7 +391,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // being added in this commit. There is no way for data files added along with the delete
         // files to be concurrently removed, so there is no need to validate the files referenced by
         // the position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        RowDelta rowDelta = tableSupplier.get().newRowDelta().scanManifestsWith(workerPool);
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
@@ -398,7 +411,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         "Committing {} for checkpoint {} to table {} branch {} with summary: {}",
         description,
         checkpointId,
-        table.name(),
+        tableSupplier.get().name(),
         branch,
         summary);
     snapshotProperties.forEach(operation::set);
@@ -415,7 +428,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
         description,
-        table.name(),
+        tableSupplier.get().name(),
         branch,
         checkpointId,
         durationMs);

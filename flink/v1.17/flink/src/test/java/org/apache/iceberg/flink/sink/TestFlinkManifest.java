@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +36,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
@@ -94,7 +95,7 @@ public class TestFlinkManifest {
     String operatorId = newOperatorUniqueId();
     for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
       ManifestOutputFileFactory factory =
-          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId, 1, 1);
+          FlinkManifestUtil.createOutputFileFactory(() -> table, flinkJobId, operatorId, 1, 1);
       final long curCkpId = checkpointId;
 
       List<DataFile> dataFiles = generateDataFiles(10);
@@ -134,15 +135,10 @@ public class TestFlinkManifest {
     File userProvidedFolder = tempFolder.newFolder();
     Map<String, String> props =
         ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
+    Table tableSpy = spy(table);
+    when(tableSpy.properties()).thenReturn(props);
     ManifestOutputFileFactory factory =
-        new ManifestOutputFileFactory(
-            ((HasTableOperations) table).operations(),
-            table.io(),
-            props,
-            flinkJobId,
-            operatorId,
-            1,
-            1);
+        new ManifestOutputFileFactory(() -> tableSpy, flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests =
@@ -177,7 +173,7 @@ public class TestFlinkManifest {
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
     ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId, 1, 1);
+        FlinkManifestUtil.createOutputFileFactory(() -> table, flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(10);
@@ -214,7 +210,7 @@ public class TestFlinkManifest {
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
     ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId, 1, 1);
+        FlinkManifestUtil.createOutputFileFactory(() -> table, flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest =

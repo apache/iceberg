@@ -230,7 +230,7 @@ public class TestTaskWriters {
   private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
-            SerializableTable.copyOf(table),
+            () -> SerializableTable.copyOf(table),
             (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
             targetFileSize,
             format,
