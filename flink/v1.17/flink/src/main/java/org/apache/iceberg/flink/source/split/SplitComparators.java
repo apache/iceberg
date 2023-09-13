@@ -62,10 +62,10 @@ public class SplitComparators {
   public static SerializableComparator<IcebergSourceSplit> watermarkComparator(
       IcebergEventTimeExtractor<?> eventTimeExtractor) {
     return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
-      long seq1 = eventTimeExtractor.extractWatermark(o1);
-      long seq2 = eventTimeExtractor.extractWatermark(o2);
+      long watermark1 = eventTimeExtractor.extractWatermark(o1);
+      long watermark2 = eventTimeExtractor.extractWatermark(o2);
 
-      int temp = Long.compare(seq1, seq2);
+      int temp = Long.compare(watermark1, watermark2);
       if (temp != 0) {
         return temp;
       } else {

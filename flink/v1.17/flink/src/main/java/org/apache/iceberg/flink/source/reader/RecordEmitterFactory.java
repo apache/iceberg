@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.io.Serializable;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
@@ -25,6 +26,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
  * Factory defining which {@link org.apache.flink.connector.base.source.reader.RecordEmitter}
  * implementation to use.
  */
-public interface RecordEmitterFactory<T> {
+public interface RecordEmitterFactory<T> extends Serializable {
   RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit> emitter();
 }

@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.flink.source.eventtimeextractor;
 
+import java.io.Serializable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 /** The interface used to extract watermarks and event timestamps from splits and records. */
-public interface IcebergEventTimeExtractor<T> {
+public interface IcebergEventTimeExtractor<T> extends Serializable {
   /** Get the watermark for a split. */
   long extractWatermark(IcebergSourceSplit split);
 

@@ -36,7 +36,7 @@ import org.apache.iceberg.types.Types;
 public class IcebergTimestampEventTimeExtractor
     implements IcebergEventTimeExtractor<RowData>, Serializable {
   private final int tsFieldId;
-  private final int tsFiledPos;
+  private final int tsFieldPos;
 
   /**
    * Creates the extractor.
@@ -49,7 +49,7 @@ public class IcebergTimestampEventTimeExtractor
     Preconditions.checkArgument(
         field.type().typeId().equals(Type.TypeID.TIMESTAMP), "Type should be timestamp");
     this.tsFieldId = field.fieldId();
-    this.tsFiledPos = FlinkSchemaUtil.convert(schema).getFieldIndex(tsFieldName);
+    this.tsFieldPos = FlinkSchemaUtil.convert(schema).getFieldIndex(tsFieldName);
   }
 
   @Override
@@ -67,6 +67,6 @@ public class IcebergTimestampEventTimeExtractor
 
   @Override
   public long extractEventTime(RowData rowData) {
-    return rowData.getTimestamp(tsFiledPos, 0).getMillisecond();
+    return rowData.getTimestamp(tsFieldPos, 0).getMillisecond();
   }
 }

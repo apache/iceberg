@@ -225,7 +225,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
-    private IcebergEventTimeExtractor timeExtractor;
+    private IcebergEventTimeExtractor<T> eventTimeExtractor;
     private RecordEmitterFactory<T> emitterFactory;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
@@ -249,7 +249,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> assignerFactory(SplitAssignerFactory assignerFactory) {
       Preconditions.checkArgument(
-          timeExtractor == null,
+          eventTimeExtractor == null,
           "TimestampAssigner and SplitAssigner should not be set in the same source");
       this.splitAssignerFactory = assignerFactory;
       return this;
@@ -449,11 +449,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
      * IcebergEventTimeExtractor#extractWatermark(IcebergSourceSplit)} is also used for ordering the
      * splits for read.
      */
-    public Builder<T> eventTimeExtractor(IcebergEventTimeExtractor newTimeExtractor) {
+    public Builder<T> eventTimeExtractor(IcebergEventTimeExtractor<T> newEventTimeExtractor) {
       Preconditions.checkArgument(
           splitAssignerFactory == null,
           "TimestampAssigner and SplitAssigner should not be set in the same source");
-      this.timeExtractor = newTimeExtractor;
+      this.eventTimeExtractor = newEventTimeExtractor;
       return this;
     }
 
@@ -511,17 +511,18 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
-      if (timeExtractor == null) {
+      if (eventTimeExtractor == null) {
         emitterFactory = new IcebergSourceRecordEmitterFactory<>();
       } else {
-        emitterFactory = new EventTimeExtractorRecordEmitterFactory<>(timeExtractor);
+        emitterFactory = new EventTimeExtractorRecordEmitterFactory<>(eventTimeExtractor);
         splitAssignerFactory =
-            new OrderedSplitAssignerFactory(SplitComparators.watermarkComparator(timeExtractor));
+            new OrderedSplitAssignerFactory(
+                SplitComparators.watermarkComparator(eventTimeExtractor));
       }
 
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
-      return new IcebergSource<T>(
+      return new IcebergSource<>(
           tableLoader,
           context,
           readerFunction,

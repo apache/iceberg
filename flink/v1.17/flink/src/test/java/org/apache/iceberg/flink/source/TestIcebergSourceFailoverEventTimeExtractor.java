@@ -39,7 +39,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 
 public class TestIcebergSourceFailoverEventTimeExtractor extends TestIcebergSourceFailover {
-  // increment ts by 60 minutes for each generateRecords batch
+  // Increment ts by 60 minutes for each generateRecords batch
   private static final long RECORD_BATCH_TS_INCREMENT_MILLI = TimeUnit.MINUTES.toMillis(15);
   // Within a batch, increment ts by 1 minute
   private static final long RECORD_TS_INCREMENT_MILLI = TimeUnit.SECONDS.toMillis(1);
