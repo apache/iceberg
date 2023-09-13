@@ -63,6 +63,10 @@ public class NessieCatalog extends BaseMetastoreCatalog
   private static final Map<String, String> DEFAULT_CATALOG_OPTIONS =
       ImmutableMap.<String, String>builder()
           .put(CatalogProperties.TABLE_DEFAULT_PREFIX + TableProperties.GC_ENABLED, "false")
+          .put(
+              CatalogProperties.TABLE_DEFAULT_PREFIX
+                  + TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+              "false") // just in case METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT changes
           .build();
 
   private NessieIcebergClient client;
