@@ -24,9 +24,13 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Experimental
 public class ReloadingTableSupplier implements SerializableSupplier<Table> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ReloadingTableSupplier.class);
 
   static final double JITTER_PCT = 0.01;
 
@@ -63,6 +67,7 @@ public class ReloadingTableSupplier implements SerializableSupplier<Table> {
     if (System.currentTimeMillis() > nextReloadTimeMs) {
       table = tableLoader.loadTable();
       nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
+      LOG.info("Table {} reloaded, next load time is at {}", table.name(), nextReloadTimeMs);
     }
 
     return table;
