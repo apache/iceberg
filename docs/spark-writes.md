@@ -328,7 +328,7 @@ ALTER TABLE prod.db.sample SET TBLPROPERTIES (
   'write.spark.accept-any-schema'='true'
 )
 ```
-The writer must enable the `schema-merge` option.
+The writer must enable the `mergeSchema` option.
 
 ```scala
 data.writeTo("prod.db.sample").option("mergeSchema","true").append()
