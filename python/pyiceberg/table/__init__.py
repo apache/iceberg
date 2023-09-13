@@ -541,6 +541,9 @@ class Table:
             else False
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__} \n Identifier: {self.identifier} \n IO: {self.io} \n Catalog: {self.catalog.__class__}"
+
 
 class StaticTable(Table):
     """Load a table directly from a metadata file (i.e., without using a catalog)."""
