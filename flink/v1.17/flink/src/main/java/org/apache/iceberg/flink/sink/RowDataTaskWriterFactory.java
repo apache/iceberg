@@ -55,7 +55,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private transient OutputFileFactory outputFileFactory;
 
-  /** @deprecated Use constructor with table supplier instead. */
+  /**
+   * @deprecated since 1.4.0, will be removed in 1.5.0. Use the constructor that accepts a table
+   *     supplier instead.
+   */
   @Deprecated
   public RowDataTaskWriterFactory(
       Table table,

@@ -44,11 +44,14 @@ public class TestReloadingTableSupplier {
     new ReloadingTableSupplier(initialTable, tableLoader, 100);
 
     assertThatThrownBy(() -> new ReloadingTableSupplier(initialTable, tableLoader, 0))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("reloadIntervalMs must be > 0");
     assertThatThrownBy(() -> new ReloadingTableSupplier(null, tableLoader, 100))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("initialTable cannot be null");
     assertThatThrownBy(() -> new ReloadingTableSupplier(initialTable, null, 100))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("tableLoader cannot be null");
   }
 
   @Test

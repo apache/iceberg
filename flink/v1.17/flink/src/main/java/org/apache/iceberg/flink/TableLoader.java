@@ -138,6 +138,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
       if (catalog instanceof Closeable) {
         ((Closeable) catalog).close();
       }
+
       catalog = null;
     }
 

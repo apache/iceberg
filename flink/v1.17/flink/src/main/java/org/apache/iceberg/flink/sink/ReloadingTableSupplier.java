@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import org.apache.calcite.linq4j.function.Experimental;
+import org.apache.flink.annotation.Experimental;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +71,10 @@ public class ReloadingTableSupplier implements SerializableSupplier<Table> {
       }
       table = tableLoader.loadTable();
       nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
-      LOG.info("Table {} reloaded, next load time is at {}", table.name(), nextReloadTimeMs);
+      LOG.info(
+          "Table {} reloaded, next load time is at {}",
+          table.name(),
+          DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
     }
 
     return table;
