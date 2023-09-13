@@ -578,9 +578,8 @@ public class TestNessieTable extends BaseTestIceberg {
   public void testGCDisabled() {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    Assertions.assertThat(icebergTable.properties().get(TableProperties.GC_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "false");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -594,8 +593,8 @@ public class TestNessieTable extends BaseTestIceberg {
   public void testGCEnabled() {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     icebergTable.updateProperties().set(TableProperties.GC_ENABLED, "true").commit();
-    Assertions.assertThat(icebergTable.properties().get(TableProperties.GC_ENABLED))
-        .isEqualTo("true");
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "true");
 
     Assertions.assertThatCode(
             () ->
