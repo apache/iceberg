@@ -65,6 +65,9 @@ public class ReloadingTableSupplier implements SerializableSupplier<Table> {
     }
 
     if (System.currentTimeMillis() > nextReloadTimeMs) {
+      if (!tableLoader.isOpen()) {
+        tableLoader.open();
+      }
       table = tableLoader.loadTable();
       nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
       LOG.info("Table {} reloaded, next load time is at {}", table.name(), nextReloadTimeMs);
