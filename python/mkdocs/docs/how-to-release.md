@@ -94,10 +94,14 @@ Final step is to generate the email to the dev mail list:
 ```bash
 cat << EOF > release-announcement-email.txt
 To: dev@iceberg.apache.org
-Subject: [VOTE] Release Apache PyIceberg $VERSION_WITHOUT_RC
+Subject: [VOTE] Release Apache PyIceberg $VERSION
 Hi Everyone,
 
 I propose that we release the following RC as the official PyIceberg $VERSION_WITHOUT_RC release.
+
+A summary of the high level features:
+
+* <Add summary by hand>
 
 The commit ID is $LAST_COMMIT_ID
 
