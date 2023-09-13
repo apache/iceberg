@@ -717,6 +717,7 @@ it must be registered in the table metadata file to be considered as a valid sta
 |----|----|------------|------|-------------|
 | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
 | _required_ | _required_ | **`statistics-file-path`** | `string` | Path of the partition statistics file. See [Partition Statistics file](#partition-statistics-file). |
+| _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
 
 #### Partition Statistics file
 
@@ -741,8 +742,18 @@ The schema of the partition statistics file is as follows:
 | _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
 Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
-The unified partition type is a struct containing all fields that have ever been a part of any spec in the table. 
-In other words, the struct fields represent a union of all known partition fields.
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
+and sorted by the field ids in ascending order.  
+In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+
+For Example,
+1) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
+The unified partition type looks like Struct<field#1, field#2, field#3>
+
+2) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has just one field {field#2}.
+The unified partition type looks like Struct<field#1, field#2>
 
 #### Commit Conflict Resolution and Retry
 
