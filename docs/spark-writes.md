@@ -315,7 +315,7 @@ data.writeTo("prod.db.table")
 
 ### Schema Merge
 
-While inserting or updating Iceberg is capable of resolving schema mismatch at runtime. If configured accordingly Iceberg will perform an automatic schema evolution as following:
+While inserting or updating Iceberg is capable of resolving schema mismatch at runtime. If configured Iceberg will perform an automatic schema evolution as follows:
 
 * A new column is present in the source but not in the target table. The new column is added to the target table. Column values are set to `NULL` in all the 
 rows already present in the table
