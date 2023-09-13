@@ -321,7 +321,7 @@ While inserting or updating Iceberg is capable of resolving schema mismatch at r
 rows already present in the table
 * A column is present in the target but not in the source. The target column value is set to `NULL` when inserting or left unchanged when updating the row.
 
-The target table must be configured to accept-any-schema
+The target table must be configured to accept any schema change by setting the property `write.spark.accept-any-schema` to `true`.
 
 ```sql
 ALTER TABLE prod.db.sample SET TBLPROPERTIES (
