@@ -604,7 +604,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testGCEnabledViaCatalogProperties() {
+  public void testGCEnabledViaTableDefaultCatalogProperty() {
     catalog.dropTable(TABLE_IDENTIFIER, false); // pre-created in @BeforeEach
 
     catalog =
