@@ -310,7 +310,8 @@ class PartitionFieldStats:
     _max: Optional[Any]
 
     def __init__(self, iceberg_type: IcebergType) -> None:
-        assert isinstance(iceberg_type, PrimitiveType), f"Expected a primitive type for the partition field, got {iceberg_type}"
+        if not isinstance(iceberg_type, PrimitiveType):
+            raise ValueError(f"Expected a primitive type for the partition field, got {iceberg_type}")
         self._type = iceberg_type
         self._contains_null = False
         self._contains_nan = False
@@ -325,7 +326,7 @@ class PartitionFieldStats:
             upper_bound=to_bytes(self._type, self._max) if self._max is not None else None,
         )
 
-    def update(self, value: Any) -> PartitionFieldStats:
+    def update(self, value: Any):
         if value is None:
             self._contains_null = True
         elif math.isnan(value):
@@ -334,30 +335,28 @@ class PartitionFieldStats:
             if self._min is None:
                 self._min = value
                 self._max = value
-            # TODO: may need to implement a custom comparator for incompatible types
-            elif value < self._min:
-                self._min = value
-            elif value > self._max:
-                self._max = value
-        return self
+            else:
+                self._max = max(self._max, value)
+                self._min = min(self._min, value)
 
 
 class PartitionSummary:
-    _fields: List[PartitionFieldStats]
+    _field_stats: List[PartitionFieldStats]
     _types: List[IcebergType]
 
     def __init__(self, spec: PartitionSpec, schema: Schema):
         self._types = [field.field_type for field in spec.partition_type(schema).fields]
-        self._fields = [PartitionFieldStats(field_type) for field_type in self._types]
+        self._field_stats = [PartitionFieldStats(field_type) for field_type in self._types]
 
     def summaries(self) -> List[PartitionFieldSummary]:
-        return [field.to_summary() for field in self._fields]
+        return [field.to_summary() for field in self._field_stats]
 
     def update(self, partition_keys: Record) -> PartitionSummary:
         for i, field_type in enumerate(self._types):
-            assert isinstance(field_type, PrimitiveType), f"Expected a primitive type for the partition field, got {field_type}"
+            if not isinstance(field_type, PrimitiveType):
+                raise ValueError(f"Expected a primitive type for the partition field, got {field_type}")
             partition_key = partition_keys[i]
-            self._fields[i].update(conversions.partition_to_py(field_type, partition_key))
+            self._field_stats[i].update(conversions.partition_to_py(field_type, partition_key))
         return self
 
 
