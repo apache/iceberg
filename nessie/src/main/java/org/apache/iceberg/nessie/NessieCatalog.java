@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import javax.annotation.Nonnull;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -71,7 +70,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
   private Object config;
   private String name;
   private FileIO fileIO;
-  @Nonnull private Map<String, String> catalogOptions = DEFAULT_CATALOG_OPTIONS;
+  private Map<String, String> catalogOptions = DEFAULT_CATALOG_OPTIONS;
   private CloseableGroup closeableGroup;
 
   public NessieCatalog() {}
