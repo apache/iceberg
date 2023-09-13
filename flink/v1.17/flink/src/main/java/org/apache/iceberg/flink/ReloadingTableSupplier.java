@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.flink;
 
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableSupplier;

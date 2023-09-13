@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,9 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TableLoader;
 import org.awaitility.Awaitility;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestReloadingTableSupplier {
 

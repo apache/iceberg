@@ -48,6 +48,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
