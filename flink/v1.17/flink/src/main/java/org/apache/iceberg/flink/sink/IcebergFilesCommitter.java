@@ -260,7 +260,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             maxCommittedCheckpointId);
       }
     } finally {
-      // reload the table in case a new configuration needed
+      // reload the table in case new configuration is needed
       this.table = tableSupplier.get();
     }
   }
