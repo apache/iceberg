@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
+import org.assertj.core.api.Assertions;
 
 public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
@@ -186,7 +187,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should start unpartitioned")
+        .isTrue();
 
     sql("ALTER TABLE %s ADD PARTITION FIELD year(ts)", tableName);
 
@@ -195,7 +198,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).year("ts").build();
 
-    Assert.assertEquals("Should have new spec field", expected, table.spec());
+    Assertions.assertThat(table.spec())
+        .as("Should have new spec field")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -205,7 +210,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should start unpartitioned")
+        .isTrue();
 
     sql("ALTER TABLE %s ADD PARTITION FIELD month(ts)", tableName);
 
@@ -214,7 +221,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).month("ts").build();
 
-    Assert.assertEquals("Should have new spec field", expected, table.spec());
+    Assertions.assertThat(table.spec())
+        .as("Should have new spec field")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -224,7 +233,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should start unpartitioned")
+        .isTrue();
 
     sql("ALTER TABLE %s ADD PARTITION FIELD day(ts)", tableName);
 
@@ -233,7 +244,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).day("ts").build();
 
-    Assert.assertEquals("Should have new spec field", expected, table.spec());
+    Assertions.assertThat(table.spec())
+        .as("Should have new spec field")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -243,7 +256,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+    Assertions.assertThat(table.spec().isUnpartitioned())
+        .as("Table should start unpartitioned")
+        .isTrue();
 
     sql("ALTER TABLE %s ADD PARTITION FIELD hour(ts)", tableName);
 
@@ -252,7 +267,9 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).hour("ts").build();
 
-    Assert.assertEquals("Should have new spec field", expected, table.spec());
+    Assertions.assertThat(table.spec())
+        .as("Should have new spec field")
+        .isEqualTo(expected);
   }
 
   @Test
