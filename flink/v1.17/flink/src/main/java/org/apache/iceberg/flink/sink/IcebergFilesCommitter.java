@@ -171,7 +171,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
-            flinkJobId, operatorUniqueId, subTaskId, attemptId);
+            table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);

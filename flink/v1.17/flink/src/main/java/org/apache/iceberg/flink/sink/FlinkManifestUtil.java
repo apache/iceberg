@@ -61,8 +61,13 @@ class FlinkManifestUtil {
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(
-      String flinkJobId, String operatorUniqueId, int subTaskId, long attemptNumber) {
-    return new ManifestOutputFileFactory(flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
+      Map<String, String> tableProps,
+      String flinkJobId,
+      String operatorUniqueId,
+      int subTaskId,
+      long attemptNumber) {
+    return new ManifestOutputFileFactory(
+        tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
   }
 
   /**
