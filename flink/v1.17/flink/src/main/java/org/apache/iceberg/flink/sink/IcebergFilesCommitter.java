@@ -161,6 +161,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     } else {
       this.tableSupplier = () -> table;
     }
+
     this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
 
     maxContinuousEmptyCommits =
