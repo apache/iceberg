@@ -42,7 +42,7 @@ public class TestReloadingTableSupplier {
 
     assertThatThrownBy(() -> new ReloadingTableSupplier(initialTable, tableLoader, 0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("reloadIntervalMs must be > 0");
+        .hasMessage("minReloadIntervalMs must be > 0");
     assertThatThrownBy(() -> new ReloadingTableSupplier(null, tableLoader, 100))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("initialTable cannot be null");
