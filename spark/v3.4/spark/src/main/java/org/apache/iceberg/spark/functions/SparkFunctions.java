@@ -39,6 +39,15 @@ public class SparkFunctions {
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
+  private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
+      ImmutableMap.of(
+          YearsFunction.class, new YearsFunction(),
+          MonthsFunction.class, new MonthsFunction(),
+          DaysFunction.class, new DaysFunction(),
+          HoursFunction.class, new HoursFunction(),
+          BucketFunction.class, new BucketFunction(),
+          TruncateFunction.class, new TruncateFunction());
+
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 
   // Functions that are added to all Iceberg catalogs should be accessed with the `system`
@@ -53,5 +62,14 @@ public class SparkFunctions {
   public static UnboundFunction load(String name) {
     // function resolution is case-insensitive to match the existing Spark behavior for functions
     return FUNCTIONS.get(name.toLowerCase(Locale.ROOT));
+  }
+
+  public static UnboundFunction loadFunctionByClass(Class<?> functionClass) {
+    Class<?> declaringClass = functionClass.getDeclaringClass();
+    if (declaringClass == null) {
+      return null;
+    }
+
+    return CLASS_TO_FUNCTIONS.get(declaringClass);
   }
 }

@@ -57,14 +57,19 @@ public class VectorHolder {
     this.icebergField = icebergField;
   }
 
-  // Only used for returning dummy holder
+  /** A constructor used for dummy holders. */
   private VectorHolder() {
+    this(null);
+  }
+
+  /** A constructor used for typed constant holders. */
+  private VectorHolder(Types.NestedField field) {
     columnDescriptor = null;
     vector = null;
     isDictionaryEncoded = false;
     dictionary = null;
     nullabilityHolder = null;
-    icebergField = null;
+    icebergField = field;
   }
 
   private VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
@@ -97,7 +102,7 @@ public class VectorHolder {
   }
 
   public Type icebergType() {
-    return icebergField.type();
+    return icebergField != null ? icebergField.type() : null;
   }
 
   public Types.NestedField icebergField() {
@@ -108,8 +113,15 @@ public class VectorHolder {
     return vector.getValueCount();
   }
 
+  public static <T> VectorHolder constantHolder(
+      Types.NestedField icebergField, int numRows, T constantValue) {
+    return new ConstantVectorHolder<>(icebergField, numRows, constantValue);
+  }
+
+  /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant holders instead. */
+  @Deprecated
   public static <T> VectorHolder constantHolder(int numRows, T constantValue) {
-    return new ConstantVectorHolder(numRows, constantValue);
+    return new ConstantVectorHolder<>(numRows, constantValue);
   }
 
   public static VectorHolder deletedVectorHolder(int numRows) {
@@ -117,7 +129,7 @@ public class VectorHolder {
   }
 
   public static VectorHolder dummyHolder(int numRows) {
-    return new ConstantVectorHolder(numRows);
+    return new ConstantVectorHolder<>(numRows);
   }
 
   public boolean isDummy() {
@@ -137,7 +149,15 @@ public class VectorHolder {
       this.constantValue = null;
     }
 
+    /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant holders instead. */
+    @Deprecated
     public ConstantVectorHolder(int numRows, T constantValue) {
+      this.numRows = numRows;
+      this.constantValue = constantValue;
+    }
+
+    public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {
+      super(icebergField);
       this.numRows = numRows;
       this.constantValue = constantValue;
     }

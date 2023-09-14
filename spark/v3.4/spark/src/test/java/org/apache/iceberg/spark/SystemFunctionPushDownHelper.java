@@ -18,10 +18,17 @@
  */
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
 
 public class SystemFunctionPushDownHelper {
+  public static final Types.StructType STRUCT =
+      Types.StructType.of(
+          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
+          Types.NestedField.optional(3, "data", Types.StringType.get()));
+
   private SystemFunctionPushDownHelper() {}
 
   public static void createUnpartitionedTable(SparkSession spark, String tableName) {
@@ -98,19 +105,19 @@ public class SystemFunctionPushDownHelper {
         "(9, CAST('2018-12-21T15:02:15.230570+00:00' AS TIMESTAMP), 'material-9')");
   }
 
-  public static int years(String date) {
-    return DateTimeUtil.daysToYears(DateTimeUtil.isoDateToDays(date));
+  public static int timestampStrToYearOrdinal(String timestamp) {
+    return DateTimeUtil.microsToYears(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 
-  public static int months(String date) {
-    return DateTimeUtil.daysToMonths(DateTimeUtil.isoDateToDays(date));
+  public static int timestampStrToMonthOrdinal(String timestamp) {
+    return DateTimeUtil.microsToMonths(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 
-  public static int days(String date) {
-    return DateTimeUtil.isoDateToDays(date);
+  public static int timestampStrToDayOrdinal(String timestamp) {
+    return DateTimeUtil.microsToDays(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 
-  public static int hours(String timestamp) {
+  public static int timestampStrToHourOrdinal(String timestamp) {
     return DateTimeUtil.microsToHours(DateTimeUtil.isoTimestamptzToMicros(timestamp));
   }
 

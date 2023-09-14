@@ -20,17 +20,23 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.DataOperations.OVERWRITE;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
+import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
+import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -42,7 +48,10 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -59,6 +68,7 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.SparkPlan;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -74,6 +84,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final String distributionMode;
   protected final boolean fanoutEnabled;
   protected final String branch;
+  protected final PlanningMode planningMode;
 
   public SparkRowLevelOperationsTestBase(
       String catalogName,
@@ -83,19 +94,22 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
     this.distributionMode = distributionMode;
     this.fanoutEnabled = fanoutEnabled;
     this.branch = branch;
+    this.planningMode = planningMode;
   }
 
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
-              + " format = {3}, vectorized = {4}, distributionMode = {5}, fanout = {6}, branch = {7}")
+              + " format = {3}, vectorized = {4}, distributionMode = {5},"
+              + " fanout = {6}, branch = {7}, planningMode = {8}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -108,7 +122,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         true,
-        SnapshotRef.MAIN_BRANCH
+        SnapshotRef.MAIN_BRANCH,
+        LOCAL
       },
       {
         "testhive",
@@ -121,6 +136,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_NONE,
         false,
         null,
+        DISTRIBUTED
       },
       {
         "testhadoop",
@@ -130,7 +146,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         RANDOM.nextBoolean(),
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
-        null
+        null,
+        LOCAL
       },
       {
         "spark_catalog",
@@ -147,7 +164,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         false,
         WRITE_DISTRIBUTION_MODE_RANGE,
         false,
-        "test"
+        "test",
+        DISTRIBUTED
       }
     };
   }
@@ -156,14 +174,18 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
   protected void initTable() {
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s', '%s' '%s', '%s' '%s')",
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s')",
         tableName,
         DEFAULT_FILE_FORMAT,
         fileFormat,
         WRITE_DISTRIBUTION_MODE,
         distributionMode,
         SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
-        String.valueOf(fanoutEnabled));
+        String.valueOf(fanoutEnabled),
+        DATA_PLANNING_MODE,
+        planningMode.modeName(),
+        DELETE_PLANNING_MODE,
+        planningMode.modeName());
 
     switch (fileFormat) {
       case "parquet":
@@ -172,7 +194,9 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
         break;
       case "orc":
-        Assert.assertTrue(vectorized);
+        sql(
+            "ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')",
+            tableName, ORC_VECTORIZATION_ENABLED, vectorized);
         break;
       case "avro":
         Assert.assertFalse(vectorized);
@@ -352,5 +376,23 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
       sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch);
     }
+  }
+
+  // ORC currently does not support vectorized reads with deletes
+  protected boolean supportsVectorization() {
+    return vectorized && (isParquet() || isCopyOnWrite());
+  }
+
+  private boolean isParquet() {
+    return fileFormat.equalsIgnoreCase(FileFormat.PARQUET.name());
+  }
+
+  private boolean isCopyOnWrite() {
+    return extraTableProperties().containsValue(RowLevelOperationMode.COPY_ON_WRITE.modeName());
+  }
+
+  protected void assertAllBatchScansVectorized(SparkPlan plan) {
+    List<SparkPlan> batchScans = SparkPlanUtil.collectBatchScans(plan);
+    assertThat(batchScans).hasSizeGreaterThan(0).allMatch(SparkPlan::supportsColumnar);
   }
 }

@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -51,23 +55,29 @@ public class TestIdentityPartitionData extends SparkTestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true},
+      {"parquet", false, LOCAL},
+      {"parquet", true, DISTRIBUTED},
+      {"avro", false, LOCAL},
+      {"orc", false, DISTRIBUTED},
+      {"orc", true, LOCAL},
     };
   }
 
   private final String format;
   private final boolean vectorized;
+  private final Map<String, String> properties;
 
-  public TestIdentityPartitionData(String format, boolean vectorized) {
+  public TestIdentityPartitionData(String format, boolean vectorized, PlanningMode planningMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, format,
+            TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
   }
 
   private static final Schema LOG_SCHEMA =
@@ -108,7 +118,6 @@ public class TestIdentityPartitionData extends SparkTestBase {
     String hiveTable = "hivetable";
     Assert.assertTrue("Temp folder should exist", location.exists());
 
-    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
     this.logs =
         spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
     spark.sql(String.format("DROP TABLE IF EXISTS %s", hiveTable));
@@ -138,7 +147,6 @@ public class TestIdentityPartitionData extends SparkTestBase {
       File location = temp.newFolder("logs");
       Assert.assertTrue("Temp folder should exist", location.exists());
 
-      Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
       this.table = TABLES.create(LOG_SCHEMA, spec, properties, location.toString());
       this.logs =
           spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
