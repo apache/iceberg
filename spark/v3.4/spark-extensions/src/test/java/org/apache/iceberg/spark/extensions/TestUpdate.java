@@ -31,6 +31,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.List;
@@ -112,6 +113,25 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS updated_id");
     sql("DROP TABLE IF EXISTS updated_dep");
     sql("DROP TABLE IF EXISTS deleted_employee");
+  }
+
+  @Test
+  public void testUpdateWithVectorizedReads() {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitTable(
+        "id INT, value INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"value\": 100, \"dep\": \"hr\" }");
+
+    SparkPlan plan = executeAndKeepPlan("UPDATE %s SET value = -1 WHERE id = 1", commitTarget());
+
+    assertAllBatchScansVectorized(plan);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, -1, "hr")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -114,13 +115,11 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - at least one column is projected
-  // - only primitives are projected
+  // - only primitives or metadata columns are projected
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
-        && expectedSchema.columns().size() > 0
-        && expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType())
+        && expectedSchema.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
 
@@ -136,6 +135,10 @@ class SparkBatch implements Batch {
     } else {
       return false;
     }
+  }
+
+  private boolean supportsParquetBatchReads(Types.NestedField field) {
+    return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
   // conditions for using ORC batch reads:

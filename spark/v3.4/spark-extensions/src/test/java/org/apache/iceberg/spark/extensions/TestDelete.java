@@ -121,6 +121,36 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteWithVectorizedReads() throws NoSuchTableException {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    SparkPlan plan = executeAndKeepPlan("DELETE FROM %s WHERE id = 2", commitTarget());
+    assertAllBatchScansVectorized(plan);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+    }
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(3, "hardware"), row(4, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
+  }
+
+  @Test
   public void testCoalesceDelete() throws Exception {
     createAndInitUnpartitionedTable();
 
