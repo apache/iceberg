@@ -57,21 +57,28 @@ public class ReloadingTableSupplier implements TableSupplier {
     if (table == null) {
       this.table = initialTable;
     }
+
     return table;
   }
 
   @Override
   public void refreshTable() {
     if (System.currentTimeMillis() > nextReloadTimeMs) {
-      if (!tableLoader.isOpen()) {
-        tableLoader.open();
+      try {
+        if (!tableLoader.isOpen()) {
+          tableLoader.open();
+        }
+
+        this.table = tableLoader.loadTable();
+        nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
+
+        LOG.info(
+            "Table {} reloaded, next min load time threshold is {}",
+            table.name(),
+            DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
+      } catch (Exception e) {
+        LOG.warn("An error occurred reloading table {}, table was not reloaded", table.name(), e);
       }
-      this.table = tableLoader.loadTable();
-      nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
-      LOG.info(
-          "Table {} reloaded, next min load time threshold is {}",
-          table.name(),
-          DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
     }
   }
 }
