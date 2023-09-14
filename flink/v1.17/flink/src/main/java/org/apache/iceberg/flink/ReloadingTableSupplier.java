@@ -69,7 +69,7 @@ public class ReloadingTableSupplier implements TableSupplier {
       this.table = tableLoader.loadTable();
       nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
       LOG.info(
-          "Table {} reloaded, next load time is at {}",
+          "Table {} reloaded, next min load time threshold is {}",
           table.name(),
           DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
     }
