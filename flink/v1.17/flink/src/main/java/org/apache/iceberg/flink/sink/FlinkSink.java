@@ -272,10 +272,10 @@ public class FlinkSink {
 
     /**
      * Sets the minimum interval for reloading of the Iceberg {@link Table} instance in the
-     * subtasks. When set to a value > 0, the table will be periodically reloaded using the {@link
-     * TableLoader} specified for the builder. Actual reloads occur at checkpoints, so setting this
-     * value less than the checkpoint interval will result in the table being reloaded each
-     * checkpoint. The default is 0 (table reload disabled).
+     * subtasks. When set to a value greater than 0, the table will be periodically reloaded using
+     * the {@link TableLoader} specified for the builder. Actual reloads occur at checkpoints, so
+     * setting this value less than the checkpoint interval will result in the table being reloaded
+     * each checkpoint. The default is 0 (table reload disabled).
      *
      * @param intervalMs the minimum interval for periodically reloading the table.
      * @return {@link Builder} to connect the iceberg table.
