@@ -125,7 +125,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private final Integer workerPoolSize;
   private final PartitionSpec spec;
-  private final long reloadIntervalMs;
+  private final long minReloadIntervalMs;
   private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(
@@ -135,14 +135,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       Integer workerPoolSize,
       String branch,
       PartitionSpec spec,
-      long reloadIntervalMs) {
+      long minReloadIntervalMs) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
     this.spec = spec;
-    this.reloadIntervalMs = reloadIntervalMs;
+    this.minReloadIntervalMs = minReloadIntervalMs;
   }
 
   @Override
@@ -154,8 +154,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     this.tableLoader.open();
     Table initTable = tableLoader.loadTable();
-    if (reloadIntervalMs > 0) {
-      this.tableSupplier = new ReloadingTableSupplier(initTable, tableLoader, reloadIntervalMs);
+    if (minReloadIntervalMs > 0) {
+      this.tableSupplier = new ReloadingTableSupplier(initTable, tableLoader, minReloadIntervalMs);
     } else {
       this.tableSupplier = () -> initTable;
     }

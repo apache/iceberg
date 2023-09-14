@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,30 +30,26 @@ public class ReloadingTableSupplier implements TableSupplier {
 
   private static final Logger LOG = LoggerFactory.getLogger(ReloadingTableSupplier.class);
 
-  static final double JITTER_PCT = 0.01;
-
   private final Table initialTable;
   private final TableLoader tableLoader;
-  private final long reloadIntervalMs;
+  private final long minReloadIntervalMs;
   private long nextReloadTimeMs;
   private transient Table table;
 
   public ReloadingTableSupplier(
-      Table initialTable, TableLoader tableLoader, long reloadIntervalMs) {
+      Table initialTable, TableLoader tableLoader, long minReloadIntervalMs) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
-    Preconditions.checkArgument(reloadIntervalMs > 0, "reloadIntervalMs must be > 0");
+    Preconditions.checkArgument(minReloadIntervalMs > 0, "minReloadIntervalMs must be > 0");
     this.initialTable = initialTable;
     this.table = initialTable;
     this.tableLoader = tableLoader;
-    this.reloadIntervalMs = reloadIntervalMs;
+    this.minReloadIntervalMs = minReloadIntervalMs;
     this.nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
   }
 
-  @VisibleForTesting
-  long calcNextReloadTimeMs(long now) {
-    long jitter = Math.round(Math.random() * JITTER_PCT * reloadIntervalMs);
-    return now + reloadIntervalMs + jitter;
+  private long calcNextReloadTimeMs(long now) {
+    return now + minReloadIntervalMs;
   }
 
   @Override

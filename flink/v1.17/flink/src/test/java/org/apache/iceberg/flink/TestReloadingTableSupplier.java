@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -62,37 +61,17 @@ public class TestReloadingTableSupplier {
 
     ReloadingTableSupplier supplier = new ReloadingTableSupplier(initialTable, tableLoader, 100);
 
-    // initial refresh shouldn't do anything as the reload interval hasn't passed
+    // initial refresh shouldn't do anything as the min reload interval hasn't passed
     supplier.refreshTable();
     assertThat(supplier.get()).isEqualTo(initialTable);
 
-    // refresh after waiting past the reload interval
+    // refresh after waiting past the min reload interval
     Awaitility.await()
         .atLeast(100, TimeUnit.MILLISECONDS)
         .untilAsserted(
             () -> {
               supplier.refreshTable();
               assertThat(supplier.get()).isEqualTo(loadedTable);
-            });
-  }
-
-  @Test
-  public void testCalcNextReloadTimeMs() {
-    Table initialTable = mock(Table.class);
-
-    Table loadedTable = mock(Table.class);
-    TableLoader tableLoader = mock(TableLoader.class);
-    when(tableLoader.loadTable()).thenReturn(loadedTable);
-
-    long intervalMs = 1000;
-    long maxJitter = Math.round(intervalMs * ReloadingTableSupplier.JITTER_PCT);
-    ReloadingTableSupplier supplier =
-        new ReloadingTableSupplier(initialTable, tableLoader, intervalMs);
-    IntStream.range(0, 100)
-        .forEach(
-            i -> {
-              long result = supplier.calcNextReloadTimeMs(0);
-              assertThat(result).isBetween(intervalMs, intervalMs + maxJitter);
             });
   }
 }

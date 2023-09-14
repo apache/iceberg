@@ -381,7 +381,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
-        .reloadIntervalMs(1000)
+        .minReloadIntervalMs(1000)
         .append();
 
     // Execute the program.
