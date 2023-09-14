@@ -133,9 +133,7 @@ public class ParquetUtil {
         increment(valueCounts, fieldId, column.getValueCount());
 
         Statistics stats = column.getStatistics();
-        if (stats == null) {
-          missingStats.add(fieldId);
-        } else if (!stats.isEmpty()) {
+        if (stats != null && !stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
           // when there are metrics gathered by Iceberg for a column, we should use those instead
@@ -153,6 +151,8 @@ public class ParquetUtil {
               updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
             }
           }
+        } else {
+          missingStats.add(fieldId);
         }
       }
     }
