@@ -490,3 +490,13 @@ This binary artifact contains Apache HttpComponents Client.
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache HttpComponents Client.
+
+* retry and error handling logic in ExponentialHttpRequestRetryStrategy.java
+
+Copyright: 1999-2022 The Apache Software Foundation.
+Home page: https://hc.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
