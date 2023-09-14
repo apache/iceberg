@@ -23,12 +23,11 @@ import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Experimental
-public class ReloadingTableSupplier implements SerializableSupplier<Table> {
+public class ReloadingTableSupplier implements TableSupplier {
 
   private static final Logger LOG = LoggerFactory.getLogger(ReloadingTableSupplier.class);
 
@@ -61,21 +60,23 @@ public class ReloadingTableSupplier implements SerializableSupplier<Table> {
   @Override
   public Table get() {
     if (table == null) {
-      table = initialTable;
+      this.table = initialTable;
     }
+    return table;
+  }
 
+  @Override
+  public void refreshTable() {
     if (System.currentTimeMillis() > nextReloadTimeMs) {
       if (!tableLoader.isOpen()) {
         tableLoader.open();
       }
-      table = tableLoader.loadTable();
+      this.table = tableLoader.loadTable();
       nextReloadTimeMs = calcNextReloadTimeMs(System.currentTimeMillis());
       LOG.info(
           "Table {} reloaded, next load time is at {}",
           table.name(),
           DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
     }
-
-    return table;
   }
 }

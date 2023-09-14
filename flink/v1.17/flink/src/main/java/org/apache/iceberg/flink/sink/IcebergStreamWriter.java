@@ -64,6 +64,11 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     flush();
+
+    if (taskWriterFactory instanceof RowDataTaskWriterFactory) {
+      ((RowDataTaskWriterFactory) taskWriterFactory).refreshTable();
+    }
+
     this.writer = taskWriterFactory.create();
   }
 

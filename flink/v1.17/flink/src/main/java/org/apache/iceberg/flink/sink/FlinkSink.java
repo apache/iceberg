@@ -61,6 +61,7 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TableSupplier;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -69,7 +70,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -609,7 +609,7 @@ public class FlinkSink {
     Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
 
     Table serializableTable = SerializableTable.copyOf(table);
-    SerializableSupplier<Table> tableSupplier;
+    TableSupplier tableSupplier;
     if (reloadIntervalMs > 0) {
       tableSupplier = new ReloadingTableSupplier(serializableTable, tableLoader, reloadIntervalMs);
     } else {

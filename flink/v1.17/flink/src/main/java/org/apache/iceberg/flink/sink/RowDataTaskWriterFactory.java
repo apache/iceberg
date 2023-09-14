@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -29,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.TableSupplier;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -39,10 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.SerializableSupplier;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private final Supplier<Table> tableSupplier;
+  private final TableSupplier tableSupplier;
   private final Table initTable;
   private final Schema schema;
   private final RowType flinkSchema;
@@ -79,7 +78,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   }
 
   public RowDataTaskWriterFactory(
-      SerializableSupplier<Table> tableSupplier,
+      TableSupplier tableSupplier,
       RowType flinkSchema,
       long targetFileSizeBytes,
       FileFormat format,
@@ -87,6 +86,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       List<Integer> equalityFieldIds,
       boolean upsert) {
     this.tableSupplier = tableSupplier;
+    // rely on the initial table metadata for schema, etc., until schema evolution is supported
     this.initTable = tableSupplier.get();
     this.schema = initTable.schema();
     this.flinkSchema = flinkSchema;
@@ -128,6 +128,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               schema,
               null);
     }
+  }
+
+  public void refreshTable() {
+    tableSupplier.refreshTable();
   }
 
   @Override
