@@ -225,24 +225,23 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackWithFilterOnBucketExpression() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("c3", 2).build();
-    Table table = TABLES.create(SCHEMA, spec, Maps.newHashMap(), tableLocation);
+    Table table = createTablePartitioned(4, 2);
 
-    insertData(10, 2);
-
-    shouldHaveFiles(table, 4);
+    shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
     long dataSizeBefore = testDataSize(table);
 
-    Expression expression = Expressions.equal(Expressions.bucket("c3", 2), 0);
-
-    Result result = basicRewrite(table).filter(expression).execute();
+    Result result =
+        basicRewrite(table)
+            .filter(Expressions.equal("c1", 1))
+            .filter(Expressions.equal(Expressions.bucket("c2", 2), 0))
+            .execute();
 
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
-    shouldHaveFiles(table, 3);
+    shouldHaveFiles(table, 7);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -1629,20 +1628,6 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .save(tableLocation);
 
     return table;
-  }
-
-  private void insertData(int recordCount, int numDataFiles) {
-    for (int i = 0; i < numDataFiles; i++) {
-      spark
-          .range(recordCount)
-          .withColumnRenamed("id", "c1")
-          .withColumn("c2", expr("CAST(c1 AS STRING)"))
-          .withColumn("c3", expr("CAST(c1 AS STRING)"))
-          .write()
-          .format("iceberg")
-          .mode("append")
-          .save(tableLocation);
-    }
   }
 
   protected int averageFileSize(Table table) {

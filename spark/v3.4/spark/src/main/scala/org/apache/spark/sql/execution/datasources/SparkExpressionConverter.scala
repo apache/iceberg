@@ -33,8 +33,8 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Strategy
 object SparkExpressionConverter {
 
   def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
-    // Currently, it is a double conversion as we are converting Spark expression to Spark filter
-    // and then converting Spark filter to Iceberg expression.
+    // Currently, it is a double conversion as we are converting Spark expression to Spark predicate
+    // and then converting Spark predicate to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
     SparkV2Filters.convert(DataSourceV2Strategy.translateFilterV2(sparkExpression).get)
   }
