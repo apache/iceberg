@@ -493,6 +493,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private NullabilityHolder nulls;
 
     PositionVectorReader(boolean setArrowValidityVector) {
+      super(MetadataColumns.ROW_POSITION);
       this.setArrowValidityVector = setArrowValidityVector;
     }
 
@@ -605,7 +606,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
    * Holder which indicates whether a given row is deleted.
    */
   public static class DeletedVectorReader extends VectorizedArrowReader {
-    public DeletedVectorReader() {}
+    public DeletedVectorReader() {
+      super(MetadataColumns.IS_DELETED);
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {

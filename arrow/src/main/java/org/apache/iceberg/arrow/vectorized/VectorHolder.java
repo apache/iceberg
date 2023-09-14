@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -183,6 +184,7 @@ public class VectorHolder {
     private final int numRows;
 
     public DeletedVectorHolder(int numRows) {
+      super(MetadataColumns.IS_DELETED);
       this.numRows = numRows;
     }
 
