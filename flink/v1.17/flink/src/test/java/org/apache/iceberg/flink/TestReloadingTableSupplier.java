@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.awaitility.Awaitility;
@@ -61,11 +60,20 @@ public class TestReloadingTableSupplier {
     TableLoader tableLoader = mock(TableLoader.class);
     when(tableLoader.loadTable()).thenReturn(loadedTable);
 
-    Supplier<Table> supplier = new ReloadingTableSupplier(initialTable, tableLoader, 100);
+    ReloadingTableSupplier supplier = new ReloadingTableSupplier(initialTable, tableLoader, 100);
+
+    // initial refresh shouldn't do anything as the reload interval hasn't passed
+    supplier.refreshTable();
     assertThat(supplier.get()).isEqualTo(initialTable);
+
+    // refresh after waiting past the reload interval
     Awaitility.await()
         .atLeast(100, TimeUnit.MILLISECONDS)
-        .untilAsserted(() -> assertThat(supplier.get()).isEqualTo(loadedTable));
+        .untilAsserted(
+            () -> {
+              supplier.refreshTable();
+              assertThat(supplier.get()).isEqualTo(loadedTable);
+            });
   }
 
   @Test
