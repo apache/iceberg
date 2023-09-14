@@ -94,7 +94,7 @@ public class TestFlinkManifest {
     for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
       ManifestOutputFileFactory factory =
           FlinkManifestUtil.createOutputFileFactory(
-              table.properties(), flinkJobId, operatorId, 1, 1);
+              () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
       final long curCkpId = checkpointId;
 
       List<DataFile> dataFiles = generateDataFiles(10);
@@ -107,7 +107,7 @@ public class TestFlinkManifest {
                   .addDeleteFiles(eqDeleteFiles)
                   .addDeleteFiles(posDeleteFiles)
                   .build(),
-              () -> factory.create(curCkpId, table),
+              () -> factory.create(curCkpId),
               table.spec());
 
       WriteResult result =
@@ -135,13 +135,13 @@ public class TestFlinkManifest {
     Map<String, String> props =
         ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory =
-        new ManifestOutputFileFactory(props, flinkJobId, operatorId, 1, 1);
+        new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             WriteResult.builder().addDataFiles(dataFiles).build(),
-            () -> factory.create(checkpointId, table),
+            () -> factory.create(checkpointId),
             table.spec());
 
     Assert.assertNotNull("Data manifest shouldn't be null", deltaManifests.dataManifest());
@@ -170,7 +170,8 @@ public class TestFlinkManifest {
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
     ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(table.properties(), flinkJobId, operatorId, 1, 1);
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(10);
@@ -182,7 +183,7 @@ public class TestFlinkManifest {
                 .addDeleteFiles(eqDeleteFiles)
                 .addDeleteFiles(posDeleteFiles)
                 .build(),
-            () -> factory.create(checkpointId, table),
+            () -> factory.create(checkpointId),
             table.spec());
 
     byte[] versionedSerializeData =
@@ -207,12 +208,12 @@ public class TestFlinkManifest {
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
     ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(table.properties(), flinkJobId, operatorId, 1, 1);
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest =
-        FlinkManifestUtil.writeDataFiles(
-            factory.create(checkpointId, table), table.spec(), dataFiles);
+        FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
     byte[] dataV1 =
         SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
 

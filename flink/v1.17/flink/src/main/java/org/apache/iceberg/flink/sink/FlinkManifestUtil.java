@@ -28,6 +28,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -61,13 +62,14 @@ class FlinkManifestUtil {
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(
+      Supplier<Table> tableSupplier,
       Map<String, String> tableProps,
       String flinkJobId,
       String operatorUniqueId,
       int subTaskId,
       long attemptNumber) {
     return new ManifestOutputFileFactory(
-        tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
   }
 
   /**

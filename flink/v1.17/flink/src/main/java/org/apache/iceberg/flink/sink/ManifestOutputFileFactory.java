@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
@@ -32,6 +33,7 @@ class ManifestOutputFileFactory {
   // properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
+  private final Supplier<Table> tableSupplier;
   private final Map<String, String> props;
   private final String flinkJobId;
   private final String operatorUniqueId;
@@ -40,11 +42,13 @@ class ManifestOutputFileFactory {
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(
+      Supplier<Table> tableSupplier,
       Map<String, String> props,
       String flinkJobId,
       String operatorUniqueId,
       int subTaskId,
       long attemptNumber) {
+    this.tableSupplier = tableSupplier;
     this.props = props;
     this.flinkJobId = flinkJobId;
     this.operatorUniqueId = operatorUniqueId;
@@ -64,9 +68,9 @@ class ManifestOutputFileFactory {
             fileCount.incrementAndGet()));
   }
 
-  OutputFile create(long checkpointId, Table table) {
+  OutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
-    TableOperations ops = ((HasTableOperations) table).operations();
+    TableOperations ops = ((HasTableOperations) tableSupplier.get()).operations();
 
     String newManifestFullPath;
     if (Strings.isNullOrEmpty(flinkManifestDir)) {
@@ -77,7 +81,7 @@ class ManifestOutputFileFactory {
           String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
     }
 
-    return table.io().newOutputFile(newManifestFullPath);
+    return tableSupplier.get().io().newOutputFile(newManifestFullPath);
   }
 
   private static String stripTrailingSlash(String path) {

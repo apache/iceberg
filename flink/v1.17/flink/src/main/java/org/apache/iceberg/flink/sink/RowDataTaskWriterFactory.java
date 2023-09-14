@@ -149,20 +149,23 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
-    FileIO io = tableSupplier.get().io();
-
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       // Initialize a task writer to write INSERT only.
       if (spec.isUnpartitioned()) {
         return new UnpartitionedWriter<>(
-            spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes);
+            spec,
+            format,
+            appenderFactory,
+            outputFileFactory,
+            tableSupplier.get().io(),
+            targetFileSizeBytes);
       } else {
         return new RowDataPartitionedFanoutWriter(
             spec,
             format,
             appenderFactory,
             outputFileFactory,
-            io,
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema);
@@ -175,7 +178,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             format,
             appenderFactory,
             outputFileFactory,
-            io,
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,
@@ -187,7 +190,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             format,
             appenderFactory,
             outputFileFactory,
-            io,
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,

@@ -50,7 +50,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TableSupplier;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -172,7 +171,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
-            initTable.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);
+            tableSupplier,
+            initTable.properties(),
+            flinkJobId,
+            operatorUniqueId,
+            subTaskId,
+            attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
@@ -320,10 +324,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private void deleteCommittedManifests(
       List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    FileIO fileIO = tableSupplier.get().io();
     for (ManifestFile manifest : manifests) {
       try {
-        fileIO.deleteFile(manifest.path());
+        tableSupplier.get().io().deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
@@ -469,9 +472,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result,
-            () -> manifestOutputFileFactory.create(checkpointId, tableSupplier.get()),
-            spec);
+            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
