@@ -500,7 +500,7 @@ AS OF VERSION 1234
 -- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots. 
 ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
 AS OF VERSION 1234 RETAIN 30 DAYS 
-WITH RETENTION 3 SNAPSHOTS 2 DAYS
+WITH SNAPSHOT RETENTION 3 SNAPSHOTS 2 DAYS
 ```
 
 #### `ALTER TABLE ... CREATE TAG`
