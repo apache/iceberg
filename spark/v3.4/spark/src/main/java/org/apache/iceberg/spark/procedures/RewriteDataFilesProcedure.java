@@ -24,20 +24,17 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
-import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -103,8 +100,6 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          String quotedFullIdentifier =
-              Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
           RewriteDataFiles action = actions().rewriteDataFiles(table);
 
           String strategy = args.isNullAt(1) ? null : args.getString(1);
@@ -120,7 +115,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           String where = args.isNullAt(4) ? null : args.getString(4);
 
-          action = checkAndApplyFilter(action, where, quotedFullIdentifier);
+          action = checkAndApplyFilter(action, where, tableIdent);
 
           RewriteDataFiles.Result result = action.execute();
 
@@ -129,15 +124,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   }
 
   private RewriteDataFiles checkAndApplyFilter(
-      RewriteDataFiles action, String where, String tableName) {
+      RewriteDataFiles action, String where, Identifier ident) {
     if (where != null) {
-      try {
-        Expression expression =
-            SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
-        return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
-      } catch (AnalysisException e) {
-        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
-      }
+      Expression expression = filterExpression(ident, where);
+      return action.filter(expression);
     }
     return action;
   }

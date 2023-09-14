@@ -224,6 +224,31 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackWithFilterOnBucketExpression() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("c3", 2).build();
+    Table table = TABLES.create(SCHEMA, spec, Maps.newHashMap(), tableLocation);
+
+    insertData(10, 2);
+
+    shouldHaveFiles(table, 4);
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    Expression expression = Expressions.equal(Expressions.bucket("c3", 2), 0);
+
+    Result result = basicRewrite(table).filter(expression).execute();
+
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
+    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+
+    shouldHaveFiles(table, 3);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
@@ -260,7 +285,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithDeletes() throws Exception {
+  public void testBinPackWithDeletes() {
     Table table = createTablePartitioned(4, 2);
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);
@@ -1604,6 +1629,20 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .save(tableLocation);
 
     return table;
+  }
+
+  private void insertData(int recordCount, int numDataFiles) {
+    for (int i = 0; i < numDataFiles; i++) {
+      spark
+          .range(recordCount)
+          .withColumnRenamed("id", "c1")
+          .withColumn("c2", expr("CAST(c1 AS STRING)"))
+          .withColumn("c3", expr("CAST(c1 AS STRING)"))
+          .write()
+          .format("iceberg")
+          .mode("append")
+          .save(tableLocation);
+    }
   }
 
   protected int averageFileSize(Table table) {
