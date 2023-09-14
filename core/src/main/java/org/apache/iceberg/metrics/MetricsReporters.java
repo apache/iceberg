@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.SerializableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,14 +52,14 @@ public class MetricsReporters {
       reporters.add(second);
     }
 
-    return new CompositeMetricsReporter(reporters);
+    return new CompositeMetricsReporter(SerializableSet.copyOf(reporters));
   }
 
   @VisibleForTesting
   static class CompositeMetricsReporter implements MetricsReporter {
-    private final Set<MetricsReporter> reporters;
+    private final SerializableSet<MetricsReporter> reporters;
 
-    private CompositeMetricsReporter(Set<MetricsReporter> reporters) {
+    private CompositeMetricsReporter(SerializableSet<MetricsReporter> reporters) {
       this.reporters = reporters;
     }
 
@@ -79,7 +79,7 @@ public class MetricsReporters {
     }
 
     Set<MetricsReporter> reporters() {
-      return Collections.unmodifiableSet(reporters);
+      return reporters.immutableSet();
     }
   }
 }

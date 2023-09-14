@@ -19,10 +19,10 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,10 +31,12 @@ class RESTMetricsReporter implements MetricsReporter {
 
   private final RESTClient client;
   private final String metricsEndpoint;
-  private final Supplier<Map<String, String>> headers;
+  private final SerializableSupplier<Map<String, String>> headers;
 
   RESTMetricsReporter(
-      RESTClient client, String metricsEndpoint, Supplier<Map<String, String>> headers) {
+      RESTClient client,
+      String metricsEndpoint,
+      SerializableSupplier<Map<String, String>> headers) {
     this.client = client;
     this.metricsEndpoint = metricsEndpoint;
     this.headers = headers;
@@ -57,5 +59,12 @@ class RESTMetricsReporter implements MetricsReporter {
     } catch (Exception e) {
       LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
     }
+  }
+
+  Object writeReplace() {
+    // fetch the latest headers from the AuthSession and carry them over in a separate supplier so
+    // that AuthSession doesn't have to be Serializable for standard Java ser/de
+    Map<String, String> authHeaders = headers.get();
+    return new RESTMetricsReporter(client, metricsEndpoint, () -> authHeaders);
   }
 }

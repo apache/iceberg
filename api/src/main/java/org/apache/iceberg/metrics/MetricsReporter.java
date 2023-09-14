@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.io.Serializable;
 import java.util.Map;
 
 /** This interface defines the basic API for reporting metrics for operations to a Table. */
 @FunctionalInterface
-public interface MetricsReporter {
+public interface MetricsReporter extends Serializable {
 
   /**
    * A custom MetricsReporter implementation must have a no-arg constructor, which will be called

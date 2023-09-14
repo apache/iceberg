@@ -48,6 +48,7 @@ import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -354,7 +355,7 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
-    private volatile Map<String, String> headers;
+    private volatile SerializableMap<String, String> headers;
     private volatile String token;
     private volatile String tokenType;
     private volatile Long expiresAtMillis;
@@ -368,7 +369,7 @@ public class OAuth2Util {
         String tokenType,
         String credential,
         String scope) {
-      this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
+      this.headers = SerializableMap.copyOf(RESTUtil.merge(baseHeaders, authHeaders(token)));
       this.token = token;
       this.tokenType = tokenType;
       this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
@@ -377,7 +378,7 @@ public class OAuth2Util {
     }
 
     public Map<String, String> headers() {
-      return headers;
+      return headers.immutableMap();
     }
 
     public String token() {
@@ -454,7 +455,7 @@ public class OAuth2Util {
         this.token = response.token();
         this.tokenType = response.issuedTokenType();
         this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
-        this.headers = RESTUtil.merge(headers, authHeaders(token));
+        this.headers = SerializableMap.copyOf(RESTUtil.merge(headers, authHeaders(token)));
 
         if (response.expiresInSeconds() != null) {
           return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);

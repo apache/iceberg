@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import java.io.Serializable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.PartitionSpecParser;
@@ -107,7 +108,8 @@ public class RESTSerializers {
 
   /** @deprecated will be removed in 1.5.0, use {@link UpdateReqDeserializer} instead. */
   @Deprecated
-  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement>
+      implements Serializable {
     @Override
     public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
         throws IOException {
@@ -118,7 +120,8 @@ public class RESTSerializers {
 
   /** @deprecated will be removed in 1.5.0, use {@link UpdateReqSerializer} instead. */
   @Deprecated
-  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
+  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement>
+      implements Serializable {
     @Override
     public void serialize(
         UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
@@ -127,8 +130,8 @@ public class RESTSerializers {
     }
   }
 
-  static class UpdateReqDeserializer
-      extends JsonDeserializer<org.apache.iceberg.UpdateRequirement> {
+  static class UpdateReqDeserializer extends JsonDeserializer<org.apache.iceberg.UpdateRequirement>
+      implements Serializable {
     @Override
     public org.apache.iceberg.UpdateRequirement deserialize(
         JsonParser p, DeserializationContext ctxt) throws IOException {
@@ -137,7 +140,8 @@ public class RESTSerializers {
     }
   }
 
-  static class UpdateReqSerializer extends JsonSerializer<org.apache.iceberg.UpdateRequirement> {
+  static class UpdateReqSerializer extends JsonSerializer<org.apache.iceberg.UpdateRequirement>
+      implements Serializable {
     @Override
     public void serialize(
         org.apache.iceberg.UpdateRequirement value,
@@ -148,7 +152,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata> {
+  public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata>
+      implements Serializable {
     @Override
     public TableMetadata deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -157,7 +162,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableMetadataSerializer extends JsonSerializer<TableMetadata> {
+  public static class TableMetadataSerializer extends JsonSerializer<TableMetadata>
+      implements Serializable {
     @Override
     public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -165,7 +171,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {
+  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate>
+      implements Serializable {
     @Override
     public MetadataUpdate deserialize(JsonParser p, DeserializationContext ctxt)
         throws IOException {
@@ -174,7 +181,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class MetadataUpdateSerializer extends JsonSerializer<MetadataUpdate> {
+  public static class MetadataUpdateSerializer extends JsonSerializer<MetadataUpdate>
+      implements Serializable {
     @Override
     public void serialize(MetadataUpdate value, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -182,7 +190,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
+  public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse>
+      implements Serializable {
     @Override
     public ErrorResponse deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -191,7 +200,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class ErrorResponseSerializer extends JsonSerializer<ErrorResponse> {
+  public static class ErrorResponseSerializer extends JsonSerializer<ErrorResponse>
+      implements Serializable {
     @Override
     public void serialize(
         ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
@@ -200,7 +210,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
+  public static class NamespaceDeserializer extends JsonDeserializer<Namespace>
+      implements Serializable {
     @Override
     public Namespace deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
       String[] levels = JsonUtil.getStringArray(p.getCodec().readTree(p));
@@ -208,7 +219,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class NamespaceSerializer extends JsonSerializer<Namespace> {
+  public static class NamespaceSerializer extends JsonSerializer<Namespace>
+      implements Serializable {
     @Override
     public void serialize(Namespace namespace, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -217,7 +229,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableIdentifierDeserializer extends JsonDeserializer<TableIdentifier> {
+  public static class TableIdentifierDeserializer extends JsonDeserializer<TableIdentifier>
+      implements Serializable {
     @Override
     public TableIdentifier deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -226,7 +239,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableIdentifierSerializer extends JsonSerializer<TableIdentifier> {
+  public static class TableIdentifierSerializer extends JsonSerializer<TableIdentifier>
+      implements Serializable {
     @Override
     public void serialize(
         TableIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
@@ -235,7 +249,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class SchemaDeserializer extends JsonDeserializer<Schema> {
+  public static class SchemaDeserializer extends JsonDeserializer<Schema> implements Serializable {
     @Override
     public Schema deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
@@ -243,7 +257,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class SchemaSerializer extends JsonSerializer<Schema> {
+  public static class SchemaSerializer extends JsonSerializer<Schema> implements Serializable {
     @Override
     public void serialize(Schema schema, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -251,7 +265,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UnboundPartitionSpecSerializer extends JsonSerializer<UnboundPartitionSpec> {
+  public static class UnboundPartitionSpecSerializer extends JsonSerializer<UnboundPartitionSpec>
+      implements Serializable {
     @Override
     public void serialize(
         UnboundPartitionSpec spec, JsonGenerator gen, SerializerProvider serializers)
@@ -261,7 +276,7 @@ public class RESTSerializers {
   }
 
   public static class UnboundPartitionSpecDeserializer
-      extends JsonDeserializer<UnboundPartitionSpec> {
+      extends JsonDeserializer<UnboundPartitionSpec> implements Serializable {
     @Override
     public UnboundPartitionSpec deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -270,7 +285,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UnboundSortOrderSerializer extends JsonSerializer<UnboundSortOrder> {
+  public static class UnboundSortOrderSerializer extends JsonSerializer<UnboundSortOrder>
+      implements Serializable {
     @Override
     public void serialize(
         UnboundSortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
@@ -279,7 +295,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder> {
+  public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder>
+      implements Serializable {
     @Override
     public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -288,7 +305,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class OAuthTokenResponseSerializer extends JsonSerializer<OAuthTokenResponse> {
+  public static class OAuthTokenResponseSerializer extends JsonSerializer<OAuthTokenResponse>
+      implements Serializable {
     @Override
     public void serialize(
         OAuthTokenResponse tokenResponse, JsonGenerator gen, SerializerProvider serializers)
@@ -297,7 +315,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class OAuthTokenResponseDeserializer extends JsonDeserializer<OAuthTokenResponse> {
+  public static class OAuthTokenResponseDeserializer extends JsonDeserializer<OAuthTokenResponse>
+      implements Serializable {
     @Override
     public OAuthTokenResponse deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -307,7 +326,7 @@ public class RESTSerializers {
   }
 
   public static class ReportMetricsRequestSerializer<T extends ReportMetricsRequest>
-      extends JsonSerializer<T> {
+      extends JsonSerializer<T> implements Serializable {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -316,7 +335,7 @@ public class RESTSerializers {
   }
 
   public static class ReportMetricsRequestDeserializer<T extends ReportMetricsRequest>
-      extends JsonDeserializer<T> {
+      extends JsonDeserializer<T> implements Serializable {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
@@ -325,7 +344,7 @@ public class RESTSerializers {
   }
 
   public static class CommitTransactionRequestSerializer
-      extends JsonSerializer<CommitTransactionRequest> {
+      extends JsonSerializer<CommitTransactionRequest> implements Serializable {
     @Override
     public void serialize(
         CommitTransactionRequest request, JsonGenerator gen, SerializerProvider serializers)
@@ -335,7 +354,7 @@ public class RESTSerializers {
   }
 
   public static class CommitTransactionRequestDeserializer
-      extends JsonDeserializer<CommitTransactionRequest> {
+      extends JsonDeserializer<CommitTransactionRequest> implements Serializable {
     @Override
     public CommitTransactionRequest deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -344,7 +363,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UpdateTableRequestSerializer extends JsonSerializer<UpdateTableRequest> {
+  public static class UpdateTableRequestSerializer extends JsonSerializer<UpdateTableRequest>
+      implements Serializable {
     @Override
     public void serialize(
         UpdateTableRequest request, JsonGenerator gen, SerializerProvider serializers)
@@ -353,7 +373,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UpdateTableRequestDeserializer extends JsonDeserializer<UpdateTableRequest> {
+  public static class UpdateTableRequestDeserializer extends JsonDeserializer<UpdateTableRequest>
+      implements Serializable {
     @Override
     public UpdateTableRequest deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -363,7 +384,7 @@ public class RESTSerializers {
   }
 
   public static class RegisterTableRequestSerializer<T extends RegisterTableRequest>
-      extends JsonSerializer<T> {
+      extends JsonSerializer<T> implements Serializable {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -372,7 +393,7 @@ public class RESTSerializers {
   }
 
   public static class RegisterTableRequestDeserializer<T extends RegisterTableRequest>
-      extends JsonDeserializer<T> {
+      extends JsonDeserializer<T> implements Serializable {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);

@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -56,11 +57,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** An HttpClient for usage with the REST catalog. */
-public class HTTPClient implements RESTClient {
+public class HTTPClient implements RESTClient, Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HTTPClient.class);
   private static final String SIGV4_ENABLED = "rest.sigv4-enabled";
@@ -72,31 +74,46 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private final String uri;
-  private final CloseableHttpClient httpClient;
+  private final SerializableMap<String, String> baseHeaders;
+  private final SerializableMap<String, String> properties;
+  private transient volatile CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
 
   private HTTPClient(
       String uri,
-      Map<String, String> baseHeaders,
-      ObjectMapper objectMapper,
-      HttpRequestInterceptor requestInterceptor) {
+      SerializableMap<String, String> baseHeaders,
+      SerializableMap<String, String> properties,
+      ObjectMapper mapper) {
     this.uri = uri;
-    this.mapper = objectMapper;
+    this.baseHeaders = baseHeaders;
+    this.properties = properties;
+    this.mapper = mapper;
+  }
 
-    HttpClientBuilder clientBuilder = HttpClients.custom();
+  private CloseableHttpClient httpClient() {
+    if (null == httpClient) {
+      synchronized (this) {
+        if (null == httpClient) {
+          HttpClientBuilder clientBuilder = HttpClients.custom();
 
-    if (baseHeaders != null) {
-      clientBuilder.setDefaultHeaders(
-          baseHeaders.entrySet().stream()
-              .map(e -> new BasicHeader(e.getKey(), e.getValue()))
-              .collect(Collectors.toList()));
+          if (baseHeaders != null) {
+            clientBuilder.setDefaultHeaders(
+                baseHeaders.entrySet().stream()
+                    .map(e -> new BasicHeader(e.getKey(), e.getValue()))
+                    .collect(Collectors.toList()));
+          }
+
+          if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
+            clientBuilder.addRequestInterceptorLast(
+                loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties));
+          }
+
+          httpClient = clientBuilder.build();
+        }
+      }
     }
 
-    if (requestInterceptor != null) {
-      clientBuilder.addRequestInterceptorLast(requestInterceptor);
-    }
-
-    this.httpClient = clientBuilder.build();
+    return httpClient;
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
@@ -265,7 +282,7 @@ public class HTTPClient implements RESTClient {
       addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
     }
 
-    try (CloseableHttpResponse response = httpClient.execute(request)) {
+    try (CloseableHttpResponse response = httpClient().execute(request)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
         respHeaders.put(header.getName(), header.getValue());
@@ -383,7 +400,7 @@ public class HTTPClient implements RESTClient {
 
   @Override
   public void close() throws IOException {
-    httpClient.close(CloseMode.GRACEFUL);
+    httpClient().close(CloseMode.GRACEFUL);
   }
 
   @VisibleForTesting
@@ -459,14 +476,8 @@ public class HTTPClient implements RESTClient {
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
-
-      HttpRequestInterceptor interceptor = null;
-
-      if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
-        interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
-      }
-
-      return new HTTPClient(uri, baseHeaders, mapper, interceptor);
+      return new HTTPClient(
+          uri, SerializableMap.copyOf(baseHeaders), SerializableMap.copyOf(properties), mapper);
     }
   }
 
