@@ -79,7 +79,7 @@ ALTER TABLE prod.db.table CREATE TAG `EOY-2023` AS OF VERSION 365
 4. Create a temporary "test-branch" which is retained for 7 days and the latest 2 snapshots on the branch are retained.
 ```sql
 -- Create a branch "test-branch" which will be retained for 7 days along with the  latest 2 snapshots
-ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH SNAPSHOT RETENTION 2
+ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH SNAPSHOT RETENTION 2 SNAPSHOTS
 ```
 
 ### Audit Branch
