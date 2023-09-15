@@ -57,7 +57,7 @@ jobs:
       # the repository, otherwise the tests will fail
       - name: Compile source distribution
         run: python3 -m poetry build --format=sdist
-        if: "${{ matrix.os == 'ubuntu-20.04' }}"
+        if: startsWith(matrix.os, 'ubuntu')
         working-directory: ./python
 
       - name: Build wheels
@@ -80,7 +80,7 @@ jobs:
           CIBW_TEST_SKIP: "pp* *macosx*"
 
       - name: Add source distribution
-        if: "${{ matrix.os == 'ubuntu-20.04' }}"
+        if: startsWith(matrix.os, 'ubuntu')
         run: ls -lah python/dist/* && cp python/dist/* wheelhouse/
 
       - uses: actions/upload-artifact@v3

@@ -26,6 +26,8 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -83,7 +85,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       int id = field.fieldId();
       VectorizedReader<?> reader = readersById.get(id);
       if (idToConstant.containsKey(id)) {
-        reorderedFields.add(new VectorizedArrowReader.ConstantVectorReader<>(idToConstant.get(id)));
+        reorderedFields.add(new ConstantVectorReader<>(field, idToConstant.get(id)));
       } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
         if (setArrowValidityVector) {
           reorderedFields.add(VectorizedArrowReader.positionsWithSetArrowValidityVector());
@@ -91,7 +93,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
           reorderedFields.add(VectorizedArrowReader.positions());
         }
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-        reorderedFields.add(new VectorizedArrowReader.DeletedVectorReader());
+        reorderedFields.add(new DeletedVectorReader());
       } else if (reader != null) {
         reorderedFields.add(reader);
       } else {

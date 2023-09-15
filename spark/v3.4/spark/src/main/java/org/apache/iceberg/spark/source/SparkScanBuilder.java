@@ -480,7 +480,8 @@ public class SparkScanBuilder
             .fromSnapshotExclusive(startSnapshotId)
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
@@ -559,7 +560,8 @@ public class SparkScanBuilder
             .newIncrementalChangelogScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     if (startSnapshotId != null) {
       scan = scan.fromSnapshotExclusive(startSnapshotId);
@@ -629,7 +631,8 @@ public class SparkScanBuilder
             .useSnapshot(snapshotId)
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     scan = configureSplitPlanning(scan);
 
@@ -665,7 +668,8 @@ public class SparkScanBuilder
             .ignoreResiduals()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     scan = configureSplitPlanning(scan);
 

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnVector;
 
@@ -38,8 +39,10 @@ class ColumnVectorBuilder {
       if (holder instanceof VectorHolder.DeletedVectorHolder) {
         return new DeletedColumnVector(Types.BooleanType.get(), isDeleted);
       } else if (holder instanceof ConstantVectorHolder) {
-        return new ConstantColumnVector(
-            Types.IntegerType.get(), numRows, ((ConstantVectorHolder<?>) holder).getConstant());
+        ConstantVectorHolder<?> constantHolder = (ConstantVectorHolder<?>) holder;
+        Type icebergType = constantHolder.icebergType();
+        Object value = constantHolder.getConstant();
+        return new ConstantColumnVector(icebergType, numRows, value);
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }

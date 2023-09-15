@@ -79,7 +79,7 @@ ALTER TABLE prod.db.table CREATE TAG `EOY-2023` AS OF VERSION 365
 4. Create a temporary "test-branch" which is retained for 7 days and the latest 2 snapshots on the branch are retained.
 ```sql
 -- Create a branch "test-branch" which will be retained for 7 days along with the  latest 2 snapshots
-ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH RETENTION 2 SNAPSHOTS
+ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH SNAPSHOT RETENTION 2 SNAPSHOTS
 ```
 
 ### Audit Branch
@@ -91,7 +91,7 @@ The above diagram shows an example of using an audit branch for validating a wri
 1. First ensure `write.wap.enabled` is set.
 ```sql
 ALTER TABLE db.table SET TBLPROPERTIES (
-    'write.wap.enabled''true'
+    'write.wap.enabled'='true'
 )
 ```
 2. Create `audit-branch` starting from snapshot 3, which will be written to and retained for 1 week.
