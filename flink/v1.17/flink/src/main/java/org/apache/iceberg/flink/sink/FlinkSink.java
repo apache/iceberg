@@ -278,7 +278,7 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     @Experimental
-    public Builder tableSupplier(TableSupplier supplier) {
+    public Builder refreshTableSupplier(TableSupplier supplier) {
       this.tableSupplier = supplier;
       return this;
     }
