@@ -313,6 +313,29 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a namespace exists
+      operationId: namespaceExists
+      description:
+        Check if a namespaces exists. This request does not return a response body.
+      responses:
+        204:
+          description: Success, no content
+        400:
+          description: Bad Request
+        401:
+          description: Unauthorized
+        404:
+          description: Not Found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
     delete:
       tags:
         - Catalog API
