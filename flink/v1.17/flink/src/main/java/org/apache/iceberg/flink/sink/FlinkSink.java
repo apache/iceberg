@@ -59,7 +59,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
-import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TableSupplier;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -134,6 +133,7 @@ public class FlinkSink {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
+    private TableSupplier tableSupplier;
     private TableSchema tableSchema;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
@@ -141,7 +141,6 @@ public class FlinkSink {
     private ReadableConfig readableConfig = new Configuration();
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private FlinkWriteConf flinkWriteConf = null;
-    private long minReloadIntervalMs;
 
     private Builder() {}
 
@@ -271,18 +270,16 @@ public class FlinkSink {
     }
 
     /**
-     * Sets the minimum interval for reloading of the Iceberg {@link Table} instance in the
-     * subtasks. When set to a value greater than 0, the table will be periodically reloaded using
-     * the {@link TableLoader} specified for the builder. Actual reloads occur at checkpoints, so
-     * setting this value less than the checkpoint interval will result in the table being reloaded
-     * each checkpoint. The default is 0 (table reload disabled).
+     * Sets the table supplier used to refresh the table instance in the writer subtasks. If not
+     * specified then the default behavior is to not refresh the table, and and the initial table
+     * instance provided is used for the lifetime of the job.
      *
-     * @param intervalMs the minimum interval for periodically reloading the table.
+     * @param supplier the table supplier to use to refresh the table in writer subtasks
      * @return {@link Builder} to connect the iceberg table.
      */
     @Experimental
-    public Builder minReloadIntervalMs(long intervalMs) {
-      this.minReloadIntervalMs = intervalMs;
+    public Builder tableSupplier(TableSupplier supplier) {
+      this.tableSupplier = supplier;
       return this;
     }
 
@@ -357,6 +354,11 @@ public class FlinkSink {
           throw new UncheckedIOException(
               "Failed to load iceberg table from table loader: " + tableLoader, e);
         }
+      }
+
+      if (tableSupplier == null) {
+        Table serializableTable = SerializableTable.copyOf(table);
+        this.tableSupplier = () -> serializableTable;
       }
 
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
@@ -449,8 +451,7 @@ public class FlinkSink {
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),
-              table.spec(),
-              minReloadIntervalMs);
+              table.spec());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
@@ -484,13 +485,7 @@ public class FlinkSink {
       }
 
       IcebergStreamWriter<RowData> streamWriter =
-          createStreamWriter(
-              table,
-              tableLoader,
-              flinkWriteConf,
-              flinkRowType,
-              equalityFieldIds,
-              minReloadIntervalMs);
+          createStreamWriter(table, tableSupplier, flinkWriteConf, flinkRowType, equalityFieldIds);
 
       int parallelism =
           flinkWriteConf.writeParallelism() == null
@@ -608,21 +603,11 @@ public class FlinkSink {
 
   static IcebergStreamWriter<RowData> createStreamWriter(
       Table table,
-      TableLoader tableLoader,
+      TableSupplier tableSupplier,
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
-      List<Integer> equalityFieldIds,
-      long minReloadIntervalMs) {
+      List<Integer> equalityFieldIds) {
     Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
-
-    Table serializableTable = SerializableTable.copyOf(table);
-    TableSupplier tableSupplier;
-    if (minReloadIntervalMs > 0) {
-      tableSupplier =
-          new ReloadingTableSupplier(serializableTable, tableLoader, minReloadIntervalMs);
-    } else {
-      tableSupplier = () -> serializableTable;
-    }
 
     FileFormat format = flinkWriteConf.dataFileFormat();
     TaskWriterFactory<RowData> taskWriterFactory =

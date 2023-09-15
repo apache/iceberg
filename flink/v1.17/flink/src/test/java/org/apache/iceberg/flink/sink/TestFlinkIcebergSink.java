@@ -37,6 +37,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
@@ -381,7 +382,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
-        .minReloadIntervalMs(1000)
+        .tableSupplier(new ReloadingTableSupplier(table, tableLoader, 1000))
         .append();
 
     // Execute the program.
