@@ -35,6 +35,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
@@ -66,6 +67,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
+
     Preconditions.checkState(
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
@@ -73,20 +75,37 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     List<String> equalityColumns =
         tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
 
-    return new DataStreamSinkProvider() {
-      @Override
-      public DataStreamSink<?> consumeDataStream(
-          ProviderContext providerContext, DataStream<RowData> dataStream) {
-        return FlinkSink.forRowData(dataStream)
-            .tableLoader(tableLoader)
-            .tableSchema(tableSchema)
-            .equalityFieldColumns(equalityColumns)
-            .overwrite(overwrite)
-            .setAll(writeProps)
-            .flinkConf(readableConfig)
-            .append();
-      }
-    };
+    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP143_SINK)) {
+      return new DataStreamSinkProvider() {
+        @Override
+        public DataStreamSink<?> consumeDataStream(
+            ProviderContext providerContext, DataStream<RowData> dataStream) {
+          return IcebergSink.forRowData(dataStream)
+              .tableLoader(tableLoader)
+              .tableSchema(tableSchema)
+              .equalityFieldColumns(equalityColumns)
+              .overwrite(overwrite)
+              .setAll(writeProps)
+              .flinkConf(readableConfig)
+              .append();
+        }
+      };
+    } else {
+      return new DataStreamSinkProvider() {
+        @Override
+        public DataStreamSink<?> consumeDataStream(
+            ProviderContext providerContext, DataStream<RowData> dataStream) {
+          return FlinkSink.forRowData(dataStream)
+              .tableLoader(tableLoader)
+              .tableSchema(tableSchema)
+              .equalityFieldColumns(equalityColumns)
+              .overwrite(overwrite)
+              .setAll(writeProps)
+              .flinkConf(readableConfig)
+              .append();
+        }
+      };
+    }
   }
 
   @Override

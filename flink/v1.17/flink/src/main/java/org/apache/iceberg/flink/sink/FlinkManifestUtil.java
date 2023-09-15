@@ -35,7 +35,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class FlinkManifestUtil {
+public class FlinkManifestUtil {
   private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
 
@@ -61,7 +61,7 @@ class FlinkManifestUtil {
     }
   }
 
-  static ManifestOutputFileFactory createOutputFileFactory(
+  public static ManifestOutputFileFactory createOutputFileFactory(
       Supplier<Table> tableSupplier,
       Map<String, String> tableProps,
       String flinkJobId,
@@ -78,7 +78,7 @@ class FlinkManifestUtil {
    * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
    *     partition spec
    */
-  static DeltaManifests writeCompletedFiles(
+  public static DeltaManifests writeCompletedFiles(
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
@@ -109,7 +109,7 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static WriteResult readCompletedFiles(
+  public static WriteResult readCompletedFiles(
       DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();

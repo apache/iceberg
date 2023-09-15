@@ -51,20 +51,26 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private final boolean isStreamingJob;
+  private final boolean useNewSink;
   private final Map<String, String> tableUpsertProps = Maps.newHashMap();
   private TableEnvironment tEnv;
 
   public TestFlinkUpsert(
-      String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
+      String catalogName,
+      Namespace baseNamespace,
+      FileFormat format,
+      Boolean isStreamingJob,
+      Boolean useNewSink) {
     super(catalogName, baseNamespace);
     this.isStreamingJob = isStreamingJob;
+    this.useNewSink = useNewSink;
     tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
     tableUpsertProps.put(TableProperties.UPSERT_ENABLED, "true");
     tableUpsertProps.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
   }
 
   @Parameterized.Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, useNewSink={4}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
@@ -75,7 +81,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
         // catalog.
         String catalogName = "testhadoop";
         Namespace baseNamespace = Namespace.of("default");
-        parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+        parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, true});
+        parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, false});
       }
     }
     return parameters;
@@ -99,6 +106,10 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           settingsBuilder.inBatchMode();
           tEnv = TableEnvironment.create(settingsBuilder.build());
         }
+
+        tEnv.getConfig()
+            .getConfiguration()
+            .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP143_SINK, useNewSink);
       }
     }
     return tEnv;
