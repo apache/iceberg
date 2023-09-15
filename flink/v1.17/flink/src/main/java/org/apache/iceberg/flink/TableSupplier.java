@@ -22,6 +22,11 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.util.SerializableSupplier;
 
+/**
+ * Serializable supplier used to return an Iceberg {@link Table}. This is used by sink writer
+ * subtasks to get the latest instance of a table. How the table is refreshed is up to the
+ * implementation.
+ */
 @Experimental
 public interface TableSupplier extends SerializableSupplier<Table> {
   default void refreshTable() {}

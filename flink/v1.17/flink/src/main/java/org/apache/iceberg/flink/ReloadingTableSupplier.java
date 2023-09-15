@@ -25,6 +25,11 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * WARNING: This supplier implementation should be used carefully. It will call the table loader to
+ * refresh a table instance from the writer tasks, which could result in heavy catalog load for jobs
+ * with many writers.
+ */
 @Experimental
 public class ReloadingTableSupplier implements TableSupplier {
 
