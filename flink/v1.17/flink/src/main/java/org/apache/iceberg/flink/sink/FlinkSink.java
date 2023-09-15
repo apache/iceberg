@@ -271,7 +271,7 @@ public class FlinkSink {
 
     /**
      * Sets the table supplier used to refresh the table instance in the writer subtasks. If not
-     * specified then the default behavior is to not refresh the table, and and the initial table
+     * specified then the default behavior is to not refresh the table, and the initial table
      * instance provided is used for the lifetime of the job.
      *
      * @param supplier the table supplier to use to refresh the table in writer subtasks
