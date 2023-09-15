@@ -27,10 +27,10 @@ import org.slf4j.LoggerFactory;
  * Provides implementations of {@link SerializableRecordEmitter} which could be used for emitting
  * records from an Iceberg split. These are used by the {@link IcebergSourceReader}
  */
-public class RecordEmmitters {
-  private static final Logger LOG = LoggerFactory.getLogger(RecordEmmitters.class);
+public class RecordEmitters {
+  private static final Logger LOG = LoggerFactory.getLogger(RecordEmitters.class);
 
-  private RecordEmmitters() {}
+  private RecordEmitters() {}
 
   public static <T> SerializableRecordEmitter<T> emitter() {
     return (element, output, split) -> {

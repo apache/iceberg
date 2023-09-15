@@ -168,7 +168,7 @@ public class TestIcebergSourceReader {
             new PlaintextEncryptionManager(),
             Collections.emptyList());
     return new IcebergSourceReader<>(
-        RecordEmmitters.emitter(), readerMetrics, readerFunction, splitComparator, readerContext);
+        RecordEmitters.emitter(), readerMetrics, readerFunction, splitComparator, readerContext);
   }
 
   private static class IdBasedComparator implements SerializableComparator<IcebergSourceSplit> {

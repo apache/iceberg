@@ -63,7 +63,7 @@ import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
-import org.apache.iceberg.flink.source.reader.RecordEmmitters;
+import org.apache.iceberg.flink.source.reader.RecordEmitters;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -511,9 +511,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       SerializableRecordEmitter<T> emitter;
       if (eventTimeExtractor == null) {
-        emitter = RecordEmmitters.emitter();
+        emitter = RecordEmitters.emitter();
       } else {
-        emitter = RecordEmmitters.emitter(eventTimeExtractor);
+        emitter = RecordEmitters.emitter(eventTimeExtractor);
         splitAssignerFactory =
             new OrderedSplitAssignerFactory(
                 SplitComparators.watermarkComparator(eventTimeExtractor));
