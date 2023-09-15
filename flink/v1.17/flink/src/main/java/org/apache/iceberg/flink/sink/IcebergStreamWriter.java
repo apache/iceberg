@@ -57,6 +57,11 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
 
+    // Refresh the table if needed.
+    if (this.taskWriterFactory instanceof RowDataTaskWriterFactory) {
+      ((RowDataTaskWriterFactory) this.taskWriterFactory).refreshTable();
+    }
+
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
   }
