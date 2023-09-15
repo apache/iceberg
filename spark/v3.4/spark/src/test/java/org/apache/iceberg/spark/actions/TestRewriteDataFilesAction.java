@@ -237,8 +237,10 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .filter(Expressions.equal(Expressions.bucket("c2", 2), 0))
             .execute();
 
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
+    assertThat(result)
+        .extracting(Result::rewrittenDataFilesCount, Result::addedDataFilesCount)
+        .as("Action should rewrite 2 data files into 1 data file")
+        .contains(2, 1);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     shouldHaveFiles(table, 7);
