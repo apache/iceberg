@@ -58,15 +58,14 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
-import org.apache.iceberg.flink.source.eventtimeextractor.EventTimeExtractorRecordEmitterFactory;
 import org.apache.iceberg.flink.source.eventtimeextractor.IcebergEventTimeExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
-import org.apache.iceberg.flink.source.reader.IcebergSourceRecordEmitterFactory;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
-import org.apache.iceberg.flink.source.reader.RecordEmitterFactory;
+import org.apache.iceberg.flink.source.reader.RecordEmmitters;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
+import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
@@ -85,7 +84,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
-  private final RecordEmitterFactory<T> emitterFactory;
+  private final SerializableRecordEmitter<T> emitter;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -98,14 +97,14 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
-      RecordEmitterFactory<T> emitterFactory) {
+      SerializableRecordEmitter<T> emitter) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
     this.splitComparator = splitComparator;
     this.table = table;
-    this.emitterFactory = emitterFactory;
+    this.emitter = emitter;
   }
 
   String name() {
@@ -161,7 +160,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     IcebergSourceReaderMetrics metrics =
         new IcebergSourceReaderMetrics(readerContext.metricGroup(), lazyTable().name());
     return new IcebergSourceReader<>(
-        emitterFactory, metrics, readerFunction, splitComparator, readerContext);
+        emitter, metrics, readerFunction, splitComparator, readerContext);
   }
 
   @Override
@@ -226,7 +225,6 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private IcebergEventTimeExtractor<T> eventTimeExtractor;
-    private RecordEmitterFactory<T> emitterFactory;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -511,10 +509,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
+      SerializableRecordEmitter<T> emitter;
       if (eventTimeExtractor == null) {
-        emitterFactory = new IcebergSourceRecordEmitterFactory<>();
+        emitter = RecordEmmitters.emitter();
       } else {
-        emitterFactory = new EventTimeExtractorRecordEmitterFactory<>(eventTimeExtractor);
+        emitter = RecordEmmitters.emitter(eventTimeExtractor);
         splitAssignerFactory =
             new OrderedSplitAssignerFactory(
                 SplitComparators.watermarkComparator(eventTimeExtractor));
@@ -529,13 +528,12 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitAssignerFactory,
           splitComparator,
           table,
-          emitterFactory);
+          emitter);
     }
 
     private void checkRequired() {
       Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
       Preconditions.checkNotNull(splitAssignerFactory, "assignerFactory is required.");
-      Preconditions.checkNotNull(emitterFactory, "emitterFactory is required.");
       Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     }
   }

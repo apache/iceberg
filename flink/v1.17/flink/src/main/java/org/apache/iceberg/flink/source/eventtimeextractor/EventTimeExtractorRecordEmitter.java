@@ -20,8 +20,8 @@ package org.apache.iceberg.flink.source.eventtimeextractor;
 
 import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.connector.source.SourceOutput;
-import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.reader.RecordAndPosition;
+import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,14 +32,13 @@ import org.slf4j.LoggerFactory;
  * <p>The Emitter also emits watermarks at the beginning of every split, and sets the event
  * timestamp based on the provided {@link IcebergEventTimeExtractor}.
  */
-final class EventTimeExtractorRecordEmitter<T>
-    implements RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit> {
+public final class EventTimeExtractorRecordEmitter<T> implements SerializableRecordEmitter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(EventTimeExtractorRecordEmitter.class);
   private final IcebergEventTimeExtractor timeExtractor;
   private String lastSplit = null;
   private long watermark;
 
-  EventTimeExtractorRecordEmitter(IcebergEventTimeExtractor timeExtractor) {
+  public EventTimeExtractorRecordEmitter(IcebergEventTimeExtractor timeExtractor) {
     this.timeExtractor = timeExtractor;
   }
 
