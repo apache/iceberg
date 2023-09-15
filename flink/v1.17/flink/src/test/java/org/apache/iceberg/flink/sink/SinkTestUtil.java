@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
@@ -32,8 +33,14 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.operators.sink.TestSink;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.FlinkWriteConf;
 
-class SinkTestUtil {
+public class SinkTestUtil {
 
   private SinkTestUtil() {}
 
@@ -67,7 +74,7 @@ class SinkTestUtil {
   }
 
   @SuppressWarnings("unchecked")
-  static List<StreamElement> fromOutput(Collection<Object> elements) {
+  public static List<StreamElement> fromOutput(Collection<Object> elements) {
     return elements.stream()
         .map(
             element -> {
@@ -103,5 +110,16 @@ class SinkTestUtil {
     final Object value = element.asRecord().getValue();
     assertThat(value).isInstanceOf(CommittableWithLineage.class);
     return (CommittableWithLineage<?>) value;
+  }
+
+  /** Just to make it accessible for the writer tests */
+  public static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
+    return SinkBase.toFlinkRowType(schema, requestedSchema);
+  }
+
+  /** Just to make it accessible for the writer tests */
+  public static Map<String, String> writeProperties(
+      Table table, FileFormat format, FlinkWriteConf conf) {
+    return SinkBase.writeProperties(table, format, conf);
   }
 }

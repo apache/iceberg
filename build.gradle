@@ -351,8 +351,12 @@ project(':iceberg-core') {
 
     testImplementation libs.jetty.servlet
     testImplementation libs.jetty.server
-    testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
+    testImplementation (libs.mockserver.netty) {
+      exclude group: 'org.slf4j'
+    }
+    testImplementation (libs.mockserver.client.java) {
+      exclude group: 'org.slf4j'
+    }
     testImplementation libs.sqlite.jdbc
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
@@ -377,6 +381,7 @@ project(':iceberg-data') {
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
+      exclude group: 'org.slf4j'
       // These artifacts are shaded and included in the orc-core fat jar
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
@@ -488,8 +493,12 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.httpcomponents.httpclient5
-    testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
+    testImplementation (libs.mockserver.netty) {
+      exclude group: 'org.slf4j'
+    }
+    testImplementation (libs.mockserver.client.java) {
+      exclude group: 'org.slf4j'
+    }
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
@@ -731,6 +740,7 @@ project(':iceberg-orc') {
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
+      exclude group: 'org.slf4j'
       // These artifacts are shaded and included in the orc-core fat jar
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'

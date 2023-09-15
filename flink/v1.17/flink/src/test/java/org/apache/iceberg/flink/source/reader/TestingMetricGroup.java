@@ -28,10 +28,11 @@ import org.apache.flink.metrics.groups.SourceReaderMetricGroup;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class TestingMetricGroup extends UnregisteredMetricsGroup implements SourceReaderMetricGroup {
+public class TestingMetricGroup extends UnregisteredMetricsGroup
+    implements SourceReaderMetricGroup {
   private final Map<String, Counter> counters;
 
-  TestingMetricGroup() {
+  public TestingMetricGroup() {
     this.counters = Maps.newHashMap();
   }
 

@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.time.Duration;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
@@ -33,7 +34,8 @@ import org.slf4j.LoggerFactory;
  * table loader should be used carefully when used with writer tasks. It could result in heavy load
  * on a catalog for jobs with many writers.
  */
-class CachingTableSupplier implements SerializableSupplier<Table> {
+@Internal
+public class CachingTableSupplier implements SerializableSupplier<Table> {
 
   private static final Logger LOG = LoggerFactory.getLogger(CachingTableSupplier.class);
 
@@ -64,11 +66,11 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
     return table;
   }
 
-  Table initialTable() {
+  public Table initialTable() {
     return initialTable;
   }
 
-  void refreshTable() {
+  public void refreshTable() {
     if (System.currentTimeMillis() > lastLoadTimeMillis + tableRefreshInterval.toMillis()) {
       try {
         if (!tableLoader.isOpen()) {

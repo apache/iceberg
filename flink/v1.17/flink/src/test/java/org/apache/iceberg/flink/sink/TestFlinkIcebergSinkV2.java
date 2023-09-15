@@ -21,6 +21,10 @@ package org.apache.iceberg.flink.sink;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.AtomicDataType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
@@ -40,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -62,26 +67,36 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
       new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @Parameterized.Parameters(
-      name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
+      name =
+          "FileFormat = {0}, Parallelism = {1}, Partitioned = {2}, WriteDistributionMode = {3}, NewSink = {4}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
+      new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true}
     };
   }
 
   public TestFlinkIcebergSinkV2(
-      String format, int parallelism, boolean partitioned, String writeDistributionMode) {
+      String format,
+      int parallelism,
+      boolean partitioned,
+      String writeDistributionMode,
+      boolean newSink) {
+    super(newSink);
     this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
@@ -122,7 +137,15 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @Test
-  public void testCheckAndGetEqualityFieldIds() {
+  public void testCheckAndGetEqualityFieldIdsForOldSink() {
+    TableSchema tableSchemaWithType =
+        TableSchema.builder()
+            .field("id", DataTypes.INT())
+            .field("data", DataTypes.STRING())
+            .field("type", new AtomicDataType(new VarCharType(false, VarCharType.MAX_LENGTH)))
+            .primaryKey("type")
+            .build();
+
     table
         .updateSchema()
         .allowIncompatibleChanges()
@@ -132,24 +155,29 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
 
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
+    SinkBuilder builder;
+    if (newSink) {
+      builder =
+          IcebergSink.forRow(dataStream, tableSchemaWithType).table(table).tableLoader(tableLoader);
+    } else {
+      builder =
+          FlinkSink.forRow(dataStream, tableSchemaWithType).table(table).tableLoader(tableLoader);
+    }
     // Use schema identifier field IDs as equality field id list by default
     Assert.assertEquals(
-        table.schema().identifierFieldIds(),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        table.schema().identifierFieldIds(), Sets.newHashSet(builder.build().equalityFieldIds()));
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("id").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(builder.build().equalityFieldIds()));
 
     builder.equalityFieldColumns(Lists.newArrayList("type"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("type").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(builder.build().equalityFieldIds()));
   }
 
   @Test
@@ -192,11 +220,41 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @Test
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheckOldSink() {
+    Assume.assumeTrue("Runs only for old sinks", !newSink);
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
+    SinkBuilder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .tableLoader(tableLoader)
+            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .writeParallelism(parallelism)
+            .upsert(true);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                builder
+                    .equalityFieldColumns(ImmutableList.of("id", "data"))
+                    .overwrite(true)
+                    .append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
+
+    Assertions.assertThatThrownBy(
+            () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+  }
+
+  @Test
+  public void testUpsertModeCheckNewSink() {
+    Assume.assumeTrue("Runs only for new sinks", newSink);
+    DataStream<Row> dataStream =
+        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
+    SinkBuilder builder =
+        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .tableLoader(tableLoader)
             .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)

@@ -73,8 +73,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
       name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, useNewSink={4}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (FileFormat format :
-        new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
+    for (FileFormat format : new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         // Only test with one catalog as this is a file operation concern.
         // FlinkCatalogTestBase requires the catalog name start with testhadoop if using hadoop

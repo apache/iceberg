@@ -54,12 +54,15 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
 
   private final String branch;
 
-  @Parameterized.Parameters(name = "branch = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"main", "testBranch"};
+  @Parameterized.Parameters(name = "branch = {0}, newSink = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"main", true}, {"main", false}, {"testBranch", true}, {"testBranch", false}
+    };
   }
 
-  public TestFlinkIcebergSinkV2Branch(String branch) {
+  public TestFlinkIcebergSinkV2Branch(String branch, boolean newSink) {
+    super(newSink);
     this.branch = branch;
   }
 

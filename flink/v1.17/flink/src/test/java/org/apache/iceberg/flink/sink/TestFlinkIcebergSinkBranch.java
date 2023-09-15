@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
@@ -29,6 +30,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
@@ -60,15 +62,19 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
       new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
   private final String branch;
+  private final boolean newSink;
   private TableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
-  public static Object[] parameters() {
-    return new Object[] {"main", "testBranch"};
+  @Parameterized.Parameters(name = "branch = {0}, newSink = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"main", false}, {"main", true}, {"testBranch", false}, {"testBranch", true}
+    };
   }
 
-  public TestFlinkIcebergSinkBranch(String branch) {
+  public TestFlinkIcebergSinkBranch(String branch, boolean newSink) {
     this.branch = branch;
+    this.newSink = newSink;
   }
 
   @Before
@@ -105,13 +111,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .toBranch(branch)
-        .distributionMode(distributionMode)
-        .append();
+    getSink(newSink, dataStream, table, tableLoader, tableSchema, branch, distributionMode);
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
@@ -133,5 +133,32 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     }
 
     Assert.assertTrue(table.snapshot(otherBranch) == null);
+  }
+
+  private static DataStreamSink<?> getSink(
+      boolean generateNewSink,
+      DataStream<Row> input,
+      Table toTable,
+      TableLoader loader,
+      TableSchema forBuilderSchema,
+      String toBranch,
+      DistributionMode distributionMode) {
+    if (generateNewSink) {
+      return IcebergSink.forRow(input, SimpleDataUtil.FLINK_SCHEMA)
+          .table(toTable)
+          .tableLoader(loader)
+          .tableSchema(forBuilderSchema)
+          .toBranch(toBranch)
+          .distributionMode(distributionMode)
+          .append();
+    } else {
+      return FlinkSink.forRow(input, SimpleDataUtil.FLINK_SCHEMA)
+          .table(toTable)
+          .tableLoader(loader)
+          .tableSchema(forBuilderSchema)
+          .toBranch(toBranch)
+          .distributionMode(distributionMode)
+          .append();
+    }
   }
 }
