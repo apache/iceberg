@@ -58,11 +58,11 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -235,7 +235,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     Dataset<Row> df =
         createDataset(records, schema)
             .repartition(numPartitions)
-            .mapPartitions(failOnFirstPartitionFunc, RowEncoder.apply(convert(schema)));
+            .mapPartitions(failOnFirstPartitionFunc, Encoders.row(convert(schema)));
     // This trick is needed because Spark 3 handles decimal overflow in RowEncoder which "changes"
     // nullability of the column to "true" regardless of original nullability.
     // Setting "check-nullability" option to "false" doesn't help as it fails at Spark analyzer.

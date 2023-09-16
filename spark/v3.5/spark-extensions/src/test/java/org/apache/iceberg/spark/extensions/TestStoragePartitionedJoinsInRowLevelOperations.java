@@ -134,11 +134,16 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           SparkPlan plan =
               executeAndKeepPlan(
                   "DELETE FROM %s t WHERE "
-                      + "EXISTS (SELECT 1 FROM %s s WHERE t.id = s.id AND t.dep = s.dep) AND "
-                      + "dep = 'hr'",
+                      + "EXISTS (SELECT 1 FROM %s s WHERE t.id = s.id AND t.dep = s.dep)",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          if (mode == COPY_ON_WRITE) {
+            int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
+            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
+            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+          } else {
+            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          }
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -197,11 +202,16 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           SparkPlan plan =
               executeAndKeepPlan(
                   "UPDATE %s t SET salary = -1 WHERE "
-                      + "EXISTS (SELECT 1 FROM %s s WHERE t.id = s.id AND t.dep = s.dep) AND "
-                      + "dep = 'hr'",
+                      + "EXISTS (SELECT 1 FROM %s s WHERE t.id = s.id AND t.dep = s.dep)",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          if (mode == COPY_ON_WRITE) {
+            int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
+            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
+            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+          } else {
+            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          }
         });
 
     ImmutableList<Object[]> expectedRows =

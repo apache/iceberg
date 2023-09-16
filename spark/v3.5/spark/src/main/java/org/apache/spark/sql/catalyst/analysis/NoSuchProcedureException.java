@@ -32,7 +32,6 @@ public class NoSuchProcedureException extends AnalysisException {
         Option.empty(),
         Option.empty(),
         Option.empty(),
-        Option.empty(),
         Map$.MODULE$.<String, String>empty(),
         new QueryContext[0]);
   }

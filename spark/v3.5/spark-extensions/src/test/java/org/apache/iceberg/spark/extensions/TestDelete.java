@@ -558,7 +558,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("nondeterministic expressions are only allowed");
+        .hasMessageContaining("The operator expects a deterministic expression");
   }
 
   @Test

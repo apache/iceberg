@@ -928,15 +928,14 @@ public class TestCreateActions extends SparkCatalogTestBase {
     File location = temp.newFolder();
     spark.sql(String.format(createStatement, tableName, location));
     CatalogTable table = loadSessionTable(tableName);
-    Seq<String> partitionColumns = table.partitionColumnNames();
     String format = table.provider().get();
     spark
         .table(baseTableName)
+        .selectExpr(table.schema().names())
         .write()
         .mode(SaveMode.Append)
         .format(format)
-        .partitionBy(partitionColumns.toSeq())
-        .saveAsTable(tableName);
+        .insertInto(tableName);
   }
 
   // Counts the number of files in the source table, makes sure the same files exist in the

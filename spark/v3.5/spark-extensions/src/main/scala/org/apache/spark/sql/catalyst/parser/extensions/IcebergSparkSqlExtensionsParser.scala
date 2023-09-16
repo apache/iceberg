@@ -41,15 +41,9 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.MergeIntoContext
-import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
-import org.apache.spark.sql.catalyst.plans.logical.UnresolvedMergeIntoIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.execution.command.ExplainCommand
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
@@ -128,30 +122,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      val parsedPlan = delegate.parsePlan(sqlText)
-      parsedPlan match {
-        case e: ExplainCommand =>
-          e.copy(logicalPlan = replaceRowLevelCommands(e.logicalPlan))
-        case p =>
-          replaceRowLevelCommands(p)
-      }
+      delegate.parsePlan(sqlText)
     }
-  }
-
-  private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
-    case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
-      UpdateIcebergTable(aliasedTable, assignments, condition)
-
-    case MergeIntoTable(UnresolvedIcebergTable(aliasedTable), source, cond, matchedActions, notMatchedActions, Nil) =>
-      // cannot construct MergeIntoIcebergTable right away as MERGE operations require special resolution
-      // that's why the condition and actions must be hidden from the regular resolution rules in Spark
-      // see ResolveMergeIntoTableReferences for details
-      val context = MergeIntoContext(cond, matchedActions, notMatchedActions)
-      UnresolvedMergeIntoIcebergTable(aliasedTable, source, context)
-
-    case MergeIntoTable(UnresolvedIcebergTable(_), _, _, _, _, notMatchedBySourceActions)
-        if notMatchedBySourceActions.nonEmpty =>
-      throw new AnalysisException("Iceberg does not support WHEN NOT MATCHED BY SOURCE clause")
   }
 
   object UnresolvedIcebergTable {

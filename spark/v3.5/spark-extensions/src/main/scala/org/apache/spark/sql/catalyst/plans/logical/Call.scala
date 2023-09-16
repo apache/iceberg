@@ -21,11 +21,12 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 
 case class Call(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
-  override lazy val output: Seq[Attribute] = procedure.outputType.toAttributes
+  override lazy val output: Seq[Attribute] = DataTypeUtils.toAttributes(procedure.outputType)
 
   override def simpleString(maxFields: Int): String = {
     s"Call${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"

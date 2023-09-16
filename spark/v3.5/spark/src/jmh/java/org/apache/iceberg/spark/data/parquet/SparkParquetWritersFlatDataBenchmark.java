@@ -51,8 +51,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * A benchmark that evaluates the performance of writing Parquet data with a flat schema using
  * Iceberg and Spark Parquet writers.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.5: <code>
+ *   ./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-flat-data-benchmark-result.txt
  * </code>
