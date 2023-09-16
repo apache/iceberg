@@ -290,7 +290,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     // check if namespace exists
     if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException(
-          "Cannot list tables of namespace %s because it does not exist", namespace);
+          "Cannot list tables for namespace. Namespace does not exist: %s", namespace);
     }
     // should be safe to list all before returning the list, instead of dynamically load the list.
     String nextToken = null;
