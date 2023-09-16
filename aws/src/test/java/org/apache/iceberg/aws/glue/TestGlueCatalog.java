@@ -277,7 +277,7 @@ public class TestGlueCatalog {
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     Assertions.assertThatThrownBy(() -> glueCatalog.listTables(Namespace.of("non_existent_db")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Cannot list tables of namespace non_existent_db because it does not exist");
+        .hasMessage("Cannot list tables for namespace. Namespace does not exist: non_existent_db");
   }
 
   @Test
