@@ -62,7 +62,7 @@ cd release-master/
 for name in $(ls pyiceberg-*.whl pyiceberg-*.tar.gz)
 do
     gpg --yes --armor --local-user fokko@apache.org --output "${name}.asc" --detach-sig "${name}"
-    shasum -a 512 "${name}.asc" > "${name}.asc.sha512"
+    shasum -a 512 "${name}" > "${name}.sha512"
 done
 ```
 
