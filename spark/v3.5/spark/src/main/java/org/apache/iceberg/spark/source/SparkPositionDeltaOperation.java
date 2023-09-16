@@ -107,4 +107,9 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
     NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
     return new NamedReference[] {file, pos};
   }
+
+  @Override
+  public boolean representUpdateAsDeleteAndInsert() {
+    return true;
+  }
 }

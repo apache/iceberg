@@ -46,7 +46,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %S", sourceName);
+    sql("DROP TABLE IF EXISTS %s PURGE", sourceName);
   }
 
   @Test

@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.types.StructType;
 import scala.collection.JavaConverters;
 
@@ -37,7 +38,7 @@ public class SparkBenchmarkUtil {
     StructType struct = SparkSchemaUtil.convert(actualSchema);
 
     List<AttributeReference> refs =
-        JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
+        JavaConverters.seqAsJavaListConverter(DataTypeUtils.toAttributes(struct)).asJava();
     List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
     List<Expression> exprs = Lists.newArrayListWithExpectedSize(struct.fields().length);
 

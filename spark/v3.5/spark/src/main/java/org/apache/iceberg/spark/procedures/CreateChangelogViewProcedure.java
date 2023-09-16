@@ -34,9 +34,9 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -255,7 +255,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             (MapPartitionsFunction<Row, Row>)
                 rowIterator ->
                     ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
-            RowEncoder.apply(schema));
+            Encoders.row(schema));
   }
 
   private Dataset<Row> applyCarryoverRemoveIterator(
@@ -271,7 +271,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
                     netChanges
                         ? ChangelogIterator.removeNetCarryovers(rowIterator, schema)
                         : ChangelogIterator.removeCarryovers(rowIterator, schema),
-            RowEncoder.apply(schema));
+            Encoders.row(schema));
   }
 
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {

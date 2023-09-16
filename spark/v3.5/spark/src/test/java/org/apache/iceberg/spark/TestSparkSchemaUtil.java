@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
+import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
@@ -68,7 +69,7 @@ public class TestSparkSchemaUtil {
   public void testSchemaConversionWithMetaDataColumnSchema() {
     StructType structType = SparkSchemaUtil.convert(TEST_SCHEMA_WITH_METADATA_COLS);
     List<AttributeReference> attrRefs =
-        scala.collection.JavaConverters.seqAsJavaList(structType.toAttributes());
+        scala.collection.JavaConverters.seqAsJavaList(DataTypeUtils.toAttributes(structType));
     for (AttributeReference attrRef : attrRefs) {
       if (MetadataColumns.isMetadataColumn(attrRef.name())) {
         Assert.assertTrue(

@@ -53,8 +53,8 @@ import org.openjdk.jmh.annotations.Warmup;
 /**
  * A benchmark that evaluates the performance of the cardinality check in MERGE operations.
  *
- * <p>To run this benchmark for spark-3.4: <code>
- *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-extensions-3.4_2.12:jmh
+ * <p>To run this benchmark for spark-3.5: <code>
+ *   ./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-extensions-3.5_2.12:jmh
  *       -PjmhIncludeRegex=MergeCardinalityCheckBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-merge-cardinality-check-benchmark.txt
  * </code>
@@ -161,6 +161,7 @@ public class MergeCardinalityCheckBenchmark {
             .config("spark.sql.catalog.spark_catalog.type", "hadoop")
             .config("spark.sql.catalog.spark_catalog.warehouse", newWarehouseDir())
             .config(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false")
+            .config(SQLConf.RUNTIME_ROW_LEVEL_OPERATION_GROUP_FILTER_ENABLED().key(), "false")
             .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false")
             .config(SQLConf.SHUFFLE_PARTITIONS().key(), "2")
             .master("local")

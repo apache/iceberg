@@ -77,7 +77,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   @After
   public void dropTables() {
-    sql("DROP TABLE IF EXISTS %s", sourceTableName);
+    sql("DROP TABLE IF EXISTS %s PURGE", sourceTableName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 

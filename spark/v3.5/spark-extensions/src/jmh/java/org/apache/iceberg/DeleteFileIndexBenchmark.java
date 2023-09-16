@@ -65,8 +65,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that evaluates the delete file index build and lookup performance.
  *
- * <p>To run this benchmark for spark-3.4: <code>
- *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-extensions-3.4_2.12:jmh
+ * <p>To run this benchmark for spark-3.5: <code>
+ *   ./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-extensions-3.5_2.12:jmh
  *       -PjmhIncludeRegex=DeleteFileIndexBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-delete-file-index-benchmark.txt
  * </code>

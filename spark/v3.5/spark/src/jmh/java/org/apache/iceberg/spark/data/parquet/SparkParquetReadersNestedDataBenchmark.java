@@ -58,8 +58,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and Spark
  * Parquet readers.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.5: <code>
+ *   ./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersNestedDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-nested-data-benchmark-result.txt
  * </code>

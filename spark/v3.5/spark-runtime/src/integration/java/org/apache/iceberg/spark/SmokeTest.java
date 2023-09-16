@@ -52,7 +52,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
     Assert.assertEquals(
         "Should have inserted 3 rows", 3L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
 
-    sql("DROP TABLE IF EXISTS source");
+    sql("DROP TABLE IF EXISTS source PURGE");
     sql(
         "CREATE TABLE source (id bigint, data string) USING parquet LOCATION '%s'",
         temp.newFolder());
@@ -62,7 +62,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
     Assert.assertEquals(
         "Table should now have 4 rows", 4L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
 
-    sql("DROP TABLE IF EXISTS updates");
+    sql("DROP TABLE IF EXISTS updates PURGE");
     sql(
         "CREATE TABLE updates (id bigint, data string) USING parquet LOCATION '%s'",
         temp.newFolder());

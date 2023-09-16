@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String sparkMajorVersion = '3.4'
+String sparkMajorVersion = '3.5'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 def sparkProjects = [
@@ -30,9 +30,9 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson214.get()}"
-        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson214.get()}"
-        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson214.get()}"
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson215.get()}"
+        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson215.get()}"
+        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson215.get()}"
       }
     }
   }
@@ -62,7 +62,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -145,7 +145,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -231,7 +231,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}"
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}"
     integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core

@@ -489,11 +489,9 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
 
     sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
 
-    // Spark should be able to avoid shuffles even without SPJ if each side has only one split
-
     assertPartitioningAwarePlan(
-        0, /* expected num of shuffles with SPJ */
-        0, /* expected num of shuffles without SPJ */
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
         "SELECT * "
             + "FROM %s t1 "
             + "INNER JOIN %s t2 "
