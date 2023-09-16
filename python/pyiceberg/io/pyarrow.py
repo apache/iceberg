@@ -116,7 +116,6 @@ from pyiceberg.schema import (
     visit,
     visit_with_partner,
 )
-from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.transforms import TruncateTransform
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
@@ -1296,25 +1295,24 @@ class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]
 
 
 def compute_statistics_plan(
-    table_metadata: TableMetadata,
+    schema: Schema,
+    table_properties: Dict[str, str],
 ) -> Dict[int, StatisticsCollector]:
     """
     Compute the statistics plan for all columns.
 
-    The resulting list is assumed to have the same lenght and same order as the columns in the pyarrow table.
+    The resulting list is assumed to have the same length and same order as the columns in the pyarrow table.
     This allows the list to map from the column index to the Iceberg column ID.
     For each element, the desired metrics collection that was provided by the user in the configuration
     is computed and then adjusted according to the data type of the column. For nested columns the minimum
     and maximum values are not computed. And truncation is only applied to text of binary strings.
 
     Args:
-        table_metadata (pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata. It is required to
-            compute the mapping of column position to iceberg schema type id. It's also used to set the mode
-            for column metrics collection
+        table_properties (from pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata properties.
+            They are required to compute the mapping of column position to iceberg schema type id. It's also
+            used to set the mode for column metrics collection
     """
-    schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
-
-    stats_cols = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_metadata.properties))
+    stats_cols = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_properties))
     result: Dict[int, StatisticsCollector] = {}
     for stats_col in stats_cols:
         result[stats_col.field_id] = stats_col
@@ -1375,7 +1373,7 @@ class ID2ParquetPathVisitor(PreOrderSchemaVisitor[List[ID2ParquetPath]]):
 
 
 def parquet_path_to_id_mapping(
-    table_metadata: TableMetadata,
+    schema: Schema,
 ) -> Dict[str, int]:
     """
     Compute the mapping of parquet column path to Iceberg ID.
@@ -1385,10 +1383,8 @@ def parquet_path_to_id_mapping(
     the full paths to the corresponding Iceberg IDs.
 
     Args:
-        table_metadata (pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata.
+        schema (pyiceberg.schema.Schema): The current table schema.
     """
-    schema = next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
-
     result: Dict[str, int] = {}
     for pair in pre_order_visit(schema, ID2ParquetPathVisitor()):
         result[pair.parquet_path] = pair.field_id

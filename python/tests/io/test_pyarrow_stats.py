@@ -59,7 +59,12 @@ from pyiceberg.io.pyarrow import (
 )
 from pyiceberg.manifest import DataFile
 from pyiceberg.schema import Schema, pre_order_visit
-from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV1, TableMetadataV2
+from pyiceberg.table.metadata import (
+    TableMetadata,
+    TableMetadataUtil,
+    TableMetadataV1,
+    TableMetadataV2,
+)
 from pyiceberg.types import (
     BooleanType,
     FloatType,
@@ -169,12 +174,23 @@ def construct_test_table() -> Tuple[Any, Any, Union[TableMetadataV1, TableMetada
         return f.getvalue(), metadata_collector[0], table_metadata
 
 
+def get_current_schema(
+    table_metadata: TableMetadata,
+) -> Schema:
+    return next(filter(lambda s: s.schema_id == table_metadata.current_schema_id, table_metadata.schemas))
+
+
 def test_record_count() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
     assert datafile.record_count == 4
 
@@ -182,9 +198,14 @@ def test_record_count() -> None:
 def test_file_size() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert datafile.file_size_in_bytes == len(file_bytes)
@@ -193,9 +214,14 @@ def test_file_size() -> None:
 def test_value_counts() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 7
@@ -211,9 +237,14 @@ def test_value_counts() -> None:
 def test_column_sizes() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.column_sizes) == 7
@@ -228,9 +259,14 @@ def test_column_sizes() -> None:
 def test_null_and_nan_counts() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.null_value_counts) == 7
@@ -252,9 +288,14 @@ def test_null_and_nan_counts() -> None:
 def test_bounds() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.lower_bounds) == 2
@@ -292,10 +333,15 @@ def test_metrics_mode_parsing() -> None:
 def test_metrics_mode_none() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "none"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 0
@@ -308,10 +354,15 @@ def test_metrics_mode_none() -> None:
 def test_metrics_mode_counts() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "counts"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 7
@@ -324,10 +375,15 @@ def test_metrics_mode_counts() -> None:
 def test_metrics_mode_full() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "full"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 7
@@ -346,10 +402,15 @@ def test_metrics_mode_full() -> None:
 def test_metrics_mode_non_default_trunc() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 7
@@ -368,11 +429,16 @@ def test_metrics_mode_non_default_trunc() -> None:
 def test_column_metrics_mode() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     table_metadata.properties["write.metadata.metrics.column.strings"] = "none"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 6
@@ -466,10 +532,15 @@ def construct_test_table_primitive_types() -> Tuple[Any, Any, Union[TableMetadat
 def test_metrics_primitive_types() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table_primitive_types()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 12
@@ -561,10 +632,15 @@ def construct_test_table_invalid_upper_bound() -> Tuple[Any, Any, Union[TableMet
 def test_metrics_invalid_upper_bound() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table_invalid_upper_bound()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     table_metadata.properties["write.metadata.metrics.default"] = "truncate(2)"
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert len(datafile.value_counts) == 4
@@ -585,9 +661,14 @@ def test_metrics_invalid_upper_bound() -> None:
 def test_offsets() -> None:
     (file_bytes, metadata, table_metadata) = construct_test_table()
 
+    schema = get_current_schema(table_metadata)
     datafile = DataFile()
     fill_parquet_file_metadata(
-        datafile, metadata, len(file_bytes), compute_statistics_plan(table_metadata), parquet_path_to_id_mapping(table_metadata)
+        datafile,
+        metadata,
+        len(file_bytes),
+        compute_statistics_plan(schema, table_metadata.properties),
+        parquet_path_to_id_mapping(schema),
     )
 
     assert datafile.split_offsets is not None
