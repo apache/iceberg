@@ -287,7 +287,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) throws NoSuchNamespaceException {
-    // check if namespace exists
     if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException(
           "Cannot list tables for namespace. Namespace does not exist: %s", namespace);
@@ -528,9 +527,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    // check if namespace exists
     if (!namespaceExists(namespace)) {
-      LOG.error("Cannot drop namespace {} because it does not exist.", namespace);
       return false;
     }
 
