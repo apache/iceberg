@@ -16,7 +16,13 @@
 # under the License.
 import json
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 from uuid import UUID
 
 from rich.console import Console
@@ -26,6 +32,7 @@ from rich.tree import Tree
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table.refs import SnapshotRefType
 from pyiceberg.typedef import IcebergBaseModel, Identifier, Properties
 
 
@@ -70,6 +77,10 @@ class Output(ABC):
 
     @abstractmethod
     def version(self, version: str) -> None:
+        ...
+
+    @abstractmethod
+    def describe_refs(self, refs: List[Tuple[str, SnapshotRefType, Dict[str, str]]]) -> None:
         ...
 
 
@@ -126,6 +137,20 @@ class ConsoleOutput(Output):
         output_table.add_row("Snapshots", snapshot_tree)
         output_table.add_row("Properties", table_properties)
         Console().print(output_table)
+
+    def describe_refs(self, ref_details: List[Tuple[str, SnapshotRefType, Dict[str, str]]]) -> None:
+        refs_table = RichTable(title="Snapshot Refs")
+        refs_table.add_column("Ref")
+        refs_table.add_column("Type")
+        refs_table.add_column("Max ref age ms")
+        refs_table.add_column("Min snapshots to keep")
+        refs_table.add_column("Max snapshot age ms")
+        for name, type, ref_detail in ref_details:
+            refs_table.add_row(
+                name, type, ref_detail["max_ref_age_ms"], ref_detail["min_snapshots_to_keep"], ref_detail["max_snapshot_age_ms"]
+            )
+
+        Console().print(refs_table)
 
     def files(self, table: Table, history: bool) -> None:
         if history:
@@ -226,3 +251,12 @@ class JsonOutput(Output):
 
     def version(self, version: str) -> None:
         self._out({"version": version})
+
+    def describe_refs(self, refs: List[Tuple[str, SnapshotRefType, Dict[str, str]]]) -> None:
+        self._out(
+            [
+                {"name": name, "type": type, detail_key: detail_val}
+                for name, type, detail in refs
+                for detail_key, detail_val in detail.items()
+            ]
+        )

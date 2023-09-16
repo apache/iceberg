@@ -19,6 +19,7 @@ from functools import wraps
 from typing import (
     Any,
     Callable,
+    Dict,
     Literal,
     Optional,
     Tuple,
@@ -31,6 +32,10 @@ from pyiceberg import __version__
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
+from pyiceberg.table.refs import SnapshotRef
+
+DEFAULT_MIN_SNAPSHOTS_TO_KEEP = 1
+DEFAULT_MAX_SNAPSHOT_AGE_MS = 432000000
 
 
 def catch_exception() -> Callable:  # type: ignore
@@ -241,6 +246,53 @@ def rename(ctx: Context, from_identifier: str, to_identifier: str) -> None:
 
     catalog.rename_table(from_identifier, to_identifier)
     output.text(f"Renamed table from {from_identifier} to {to_identifier}")
+
+
+@run.command()
+@click.argument("identifier")
+@click.option("--type", required=False)
+@click.option("--verbose", type=click.BOOL)
+@click.pass_context
+@catch_exception()
+def list_refs(ctx: Context, identifier: str, type: str, verbose: bool) -> None:
+    """List all the refs in the provided table."""
+    catalog, output = _catalog_and_output(ctx)
+    table = catalog.load_table(identifier)
+    refs = table.refs()
+    if type:
+        type = type.lower()
+        if type not in {"branch", "tag"}:
+            raise ValueError("Type must be either branch or tag")
+
+    relevant_refs = [
+        (ref_name, ref.snapshot_ref_type, _retention_properties(ref, table.properties))
+        for (ref_name, ref) in refs.items()
+        if not type or ref.snapshot_ref_type == type
+    ]
+
+    output.describe_refs(relevant_refs)
+
+
+def _retention_properties(ref: SnapshotRef, table_properties: Dict[str, str]) -> Dict[str, str]:
+    retentition_properties = {}
+    if ref.snapshot_ref_type == "branch":
+        default_min_snapshots_to_keep = table_properties.get(
+            "history.expire.min-snapshots-to-keep", DEFAULT_MIN_SNAPSHOTS_TO_KEEP
+        )
+        retentition_properties["min_snapshots_to_keep"] = (
+            str(ref.min_snapshots_to_keep) if ref.min_snapshots_to_keep else str(default_min_snapshots_to_keep)
+        )
+        default_max_snapshot_age_ms = table_properties.get("history.expire.max-snapshot-age-ms", DEFAULT_MAX_SNAPSHOT_AGE_MS)
+        retentition_properties["max_snapshot_age_ms"] = (
+            str(ref.max_snapshot_age_ms) if ref.max_snapshot_age_ms else str(default_max_snapshot_age_ms)
+        )
+    else:
+        retentition_properties["min_snapshots_to_keep"] = "N/A"
+        retentition_properties["max_snapshot_age_ms"] = "N/A"
+
+    retentition_properties["max_ref_age_ms"] = str(ref.max_ref_age_ms) if ref.max_ref_age_ms else "forever"
+
+    return retentition_properties
 
 
 @run.group()

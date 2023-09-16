@@ -69,6 +69,7 @@ from pyiceberg.schema import (
     visit,
 )
 from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadata
+from pyiceberg.table.refs import SnapshotRef
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import (
@@ -516,6 +517,10 @@ class Table:
         if ref := self.metadata.refs.get(name):
             return self.snapshot_by_id(ref.snapshot_id)
         return None
+
+    def refs(self) -> Dict[str, SnapshotRef]:
+        """Return the snapshot references in the table."""
+        return self.metadata.refs
 
     def history(self) -> List[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
