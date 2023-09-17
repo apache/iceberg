@@ -16,7 +16,7 @@
 # under the License.
 
 mkdocs==1.5.2
-griffe==0.36.1
+griffe==0.36.2
 jinja2==3.1.2
 mkdocstrings==0.23.0
 mkdocstrings-python==1.7.0
