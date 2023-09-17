@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -36,15 +37,18 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
+  private final TableLoader tableLoader;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
   private transient IcebergStreamWriterMetrics writerMetrics;
 
-  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
+  IcebergStreamWriter(
+      String fullTableName, TaskWriterFactory<T> taskWriterFactory, TableLoader tableLoader) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
+    this.tableLoader = tableLoader;
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -58,8 +62,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     this.taskWriterFactory.initialize(subTaskId, attemptId);
 
     // Refresh the table if needed.
+    this.tableLoader.open();
     if (this.taskWriterFactory instanceof RowDataTaskWriterFactory) {
-      ((RowDataTaskWriterFactory) this.taskWriterFactory).refreshTable();
+      ((RowDataTaskWriterFactory) this.taskWriterFactory).setTable(tableLoader.loadTable());
     }
 
     // Initialize the task writer.
@@ -71,7 +76,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     flush();
 
     if (taskWriterFactory instanceof RowDataTaskWriterFactory) {
-      ((RowDataTaskWriterFactory) taskWriterFactory).refreshTable();
+      ((RowDataTaskWriterFactory) taskWriterFactory).setTable(tableLoader.loadTable());
     }
 
     this.writer = taskWriterFactory.create();

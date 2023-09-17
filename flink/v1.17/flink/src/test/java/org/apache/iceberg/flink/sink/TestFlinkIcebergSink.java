@@ -34,10 +34,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.CachingTableLoader;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
-import org.apache.iceberg.flink.ReloadingTableSupplier;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
@@ -372,7 +372,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  public void testWriteRowReloadEnabled() throws Exception {
+  public void testWriteRowWithWriteTableLoader() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
@@ -381,8 +381,8 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
+        .writeTableLoader(new CachingTableLoader(table, tableLoader, 1000))
         .writeParallelism(parallelism)
-        .refreshTableSupplier(new ReloadingTableSupplier(table, tableLoader, 1000))
         .append();
 
     // Execute the program.
