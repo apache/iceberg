@@ -115,6 +115,9 @@ public class ParquetValueReaders {
     }
 
     @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
     public void setPageSource(
         PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
   }
@@ -179,6 +182,9 @@ public class ParquetValueReaders {
     }
 
     @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
     public void setPageSource(
         PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
   }
@@ -201,6 +207,11 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return NullReader.COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
     }
 
     @Override
@@ -240,6 +251,11 @@ public class ParquetValueReaders {
       this.desc = desc;
       this.column = ColumnIterator.newIterator(desc, "");
       this.children = ImmutableList.of(column);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
     }
 
     @Override
@@ -428,6 +444,11 @@ public class ParquetValueReaders {
     }
 
     @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
+    }
+
+    @Override
     public void setPageSource(
         PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       reader.setPageSource(pageStore, rowPosition, rowRanges);
@@ -471,6 +492,11 @@ public class ParquetValueReaders {
       this.reader = reader;
       this.column = reader.column();
       this.children = reader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
     }
 
     @Override
@@ -591,6 +617,11 @@ public class ParquetValueReaders {
               .addAll(keyReader.columns())
               .addAll(valueReader.columns())
               .build();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
     }
 
     @Override
@@ -756,6 +787,11 @@ public class ParquetValueReaders {
 
     public final void topLevel() {
       this.topLevel = true;
+    }
+
+    @Override
+    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.setPageSource(pageStore, rowPosition, Optional.empty());
     }
 
     @Override

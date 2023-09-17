@@ -47,6 +47,11 @@ public abstract class BaseColumnIterator {
     this.definitionLevel = desc.getMaxDefinitionLevel() - 1;
   }
 
+  @Deprecated
+  public void setPageSource(PageReader source) {
+    setPageSource(source, Optional.empty());
+  }
+
   public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
     this.pageSource = source;
     this.triplesCount = source.getTotalValueCount();

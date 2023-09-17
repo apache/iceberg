@@ -168,6 +168,11 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   }
 
   @Override
+  public void setPageSource(PageReader source) {
+    setPageSource(source, Optional.empty());
+  }
+
+  @Override
   public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
     super.setPageSource(source, rowRanges);
     if (rowRanges.isPresent()) {

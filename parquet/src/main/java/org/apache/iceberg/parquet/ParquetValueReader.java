@@ -30,5 +30,11 @@ public interface ParquetValueReader<T> {
 
   List<TripleIterator<?>> columns();
 
-  void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges);
+  void setPageSource(PageReadStore pageStore, long rowPosition);
+
+  default void setPageSource(
+      PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement setPageSource");
+  }
 }

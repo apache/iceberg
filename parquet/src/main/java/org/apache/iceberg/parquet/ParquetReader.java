@@ -55,6 +55,27 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
+      boolean caseSensitive) {
+    this(
+        input,
+        expectedSchema,
+        options,
+        readerFunc,
+        nameMapping,
+        filter,
+        reuseContainers,
+        caseSensitive,
+        false);
+  }
+
+  public ParquetReader(
+      InputFile input,
+      Schema expectedSchema,
+      ParquetReadOptions options,
+      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      NameMapping nameMapping,
+      Expression filter,
+      boolean reuseContainers,
       boolean caseSensitive,
       boolean useColumnIndexFilter) {
     this.input = input;
