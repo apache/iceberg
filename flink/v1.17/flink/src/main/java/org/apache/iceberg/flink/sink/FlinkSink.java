@@ -346,7 +346,10 @@ public class FlinkSink {
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
-        commitTableLoader.open();
+        if (!commitTableLoader.isOpen()) {
+          commitTableLoader.open();
+        }
+
         try (TableLoader loader = commitTableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
