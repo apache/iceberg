@@ -46,6 +46,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
+import org.apache.parquet.internal.column.columnindex.IndexIterator;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.filter2.columnindex.ColumnIndexStore;
 import org.apache.parquet.internal.filter2.columnindex.RowRanges;
@@ -82,13 +83,13 @@ public class ParquetColumnIndexFilter {
       return new ColumnIndexEvalVisitor(fileSchema, columnIndexStore, rowCount).eval();
     } catch (ColumnIndexStore.MissingOffsetIndexException e) {
       LOG.info("Cannot get required offset index; Unable to filter on this row group", e);
-      return PageSkippingHelpers.allRows(rowCount);
+      return RowRanges.createSingle(rowCount);
     }
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
-  private static final RowRanges NO_ROWS = PageSkippingHelpers.empty();
+  private static final RowRanges NO_ROWS = RowRanges.EMPTY;
 
   private class ColumnIndexEvalVisitor
       extends ExpressionVisitors.BoundExpressionVisitor<RowRanges> {
@@ -105,7 +106,7 @@ public class ParquetColumnIndexFilter {
 
     private ColumnIndexEvalVisitor(
         MessageType fileSchema, ColumnIndexStore columnIndexStore, long rowCount) {
-      this.allRows = PageSkippingHelpers.allRows(rowCount);
+      this.allRows = RowRanges.createSingle(rowCount);
       this.columnIndexStore = columnIndexStore;
       this.rowCount = rowCount;
 
@@ -148,12 +149,12 @@ public class ParquetColumnIndexFilter {
 
     @Override
     public RowRanges and(RowRanges left, RowRanges right) {
-      return PageSkippingHelpers.intersection(left, right);
+      return RowRanges.intersection(left, right);
     }
 
     @Override
     public RowRanges or(RowRanges left, RowRanges right) {
-      return PageSkippingHelpers.union(left, right);
+      return RowRanges.union(left, right);
     }
 
     @Override
@@ -163,12 +164,11 @@ public class ParquetColumnIndexFilter {
       Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
           columnIndex -> {
             if (columnIndex.hasNullCounts()) {
-              return PageSkippingHelpers.filterPageIndexes(
-                  columnIndex.pageCount(), columnIndex::containsNull);
+              return IndexIterator.filter(columnIndex.pageCount(), columnIndex::containsNull);
             } else {
               // Searching for nulls so if we don't have null related statistics we have to return
               // all pages
-              return PageSkippingHelpers.allPageIndexes(columnIndex.pageCount());
+              return IndexIterator.all(columnIndex.pageCount());
             }
           };
 
@@ -187,9 +187,7 @@ public class ParquetColumnIndexFilter {
       }
 
       Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
-          columnIndex ->
-              PageSkippingHelpers.filterPageIndexes(
-                  columnIndex.pageCount(), columnIndex::isNonNullPage);
+          columnIndex -> IndexIterator.filter(columnIndex.pageCount(), columnIndex::isNonNullPage);
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -199,9 +197,7 @@ public class ParquetColumnIndexFilter {
       int id = ref.fieldId();
 
       Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
-          columnIndex ->
-              PageSkippingHelpers.filterPageIndexes(
-                  columnIndex.pageCount(), columnIndex::isNonNullPage);
+          columnIndex -> IndexIterator.filter(columnIndex.pageCount(), columnIndex::isNonNullPage);
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -233,7 +229,7 @@ public class ParquetColumnIndexFilter {
                   return ROWS_MIGHT_MATCH;
                 };
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -259,7 +255,7 @@ public class ParquetColumnIndexFilter {
                   return ROWS_MIGHT_MATCH;
                 };
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -284,7 +280,8 @@ public class ParquetColumnIndexFilter {
 
                   return ROWS_MIGHT_MATCH;
                 };
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -309,7 +306,8 @@ public class ParquetColumnIndexFilter {
 
                   return ROWS_MIGHT_MATCH;
                 };
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -340,7 +338,7 @@ public class ParquetColumnIndexFilter {
                   return ROWS_MIGHT_MATCH;
                 };
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -377,7 +375,7 @@ public class ParquetColumnIndexFilter {
                   return ROWS_MIGHT_MATCH;
                 };
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -449,7 +447,7 @@ public class ParquetColumnIndexFilter {
                   return ROWS_MIGHT_MATCH;
                 };
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
@@ -513,7 +511,7 @@ public class ParquetColumnIndexFilter {
               filter = pageIndex -> ROWS_MIGHT_MATCH;
             }
 
-            return PageSkippingHelpers.filterPageIndexes(columnIndex.pageCount(), filter);
+            return IndexIterator.filter(columnIndex.pageCount(), filter);
           };
 
       return applyPredicate(id, func, ROWS_MIGHT_MATCH);
@@ -540,7 +538,7 @@ public class ParquetColumnIndexFilter {
         return allRows;
       }
 
-      return PageSkippingHelpers.createRowRanges(rowCount, func.apply(columnIndex), offsetIndex);
+      return RowRanges.create(rowCount, func.apply(columnIndex), offsetIndex);
     }
 
     // Assumes that the column corresponding to the id exists in the file.

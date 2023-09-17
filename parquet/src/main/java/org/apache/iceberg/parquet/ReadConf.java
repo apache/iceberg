@@ -132,7 +132,7 @@ class ReadConf<T> {
                       typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
 
       if (useColumnIndexFilter && filter != null && shouldRead) {
-        ColumnIndexStore columnIndexStore = PageSkippingHelpers.getColumnIndexStore(reader, i);
+        ColumnIndexStore columnIndexStore = reader.getColumnIndexStore(i);
         RowRanges rowRanges =
             columnIndexFilter.calculateRowRanges(
                 typeWithIds, columnIndexStore, rowGroup.getRowCount());

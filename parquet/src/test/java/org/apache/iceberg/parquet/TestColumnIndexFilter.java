@@ -409,9 +409,9 @@ public class TestColumnIndexFilter {
    * 29.  26             Alfa           null                          null           null
    * </pre>
    */
-  private static final RowRanges ALL_ROWS = PageSkippingHelpers.allRows(TOTAL_ROW_COUNT);
+  private static final RowRanges ALL_ROWS = RowRanges.createSingle(TOTAL_ROW_COUNT);
 
-  private static final RowRanges NO_ROWS = PageSkippingHelpers.empty();
+  private static final RowRanges NO_ROWS = RowRanges.EMPTY;
 
   private static RowRanges selectRowRanges(String path, int... pageIndexes) {
     return selectRowRanges(path, STORE, TOTAL_ROW_COUNT, pageIndexes);
@@ -419,7 +419,7 @@ public class TestColumnIndexFilter {
 
   private static RowRanges selectRowRanges(
       String path, ColumnIndexStore store, long rowCount, int... pageIndexes) {
-    return PageSkippingHelpers.createRowRanges(
+    return RowRanges.create(
         rowCount,
         new PrimitiveIterator.OfInt() {
           int index = -1;
@@ -603,8 +603,7 @@ public class TestColumnIndexFilter {
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = and(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected =
-        PageSkippingHelpers.intersection(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
+    expected = RowRanges.intersection(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -617,12 +616,12 @@ public class TestColumnIndexFilter {
     expr = or(equal(INT_COL, 1), equal(INT_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
-    expected = PageSkippingHelpers.union(selectRowRanges(INT_COL, 0), selectRowRanges(STR_COL, 7));
+    expected = RowRanges.union(selectRowRanges(INT_COL, 0), selectRowRanges(STR_COL, 7));
     expr = or(equal(INT_COL, 1), equal(STR_COL, "Alfa"));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = or(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected = PageSkippingHelpers.union(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
+    expected = RowRanges.union(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
