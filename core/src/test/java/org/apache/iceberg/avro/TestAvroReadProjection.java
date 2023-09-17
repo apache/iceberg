@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.avro;
 
-import static org.apache.iceberg.avro.AvroWritingTestUtils.createAvroTempFile;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +38,7 @@ public class TestAvroReadProjection extends TestReadProjection {
   protected GenericData.Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
-    File file = createAvroTempFile(temp);
+    File file = temp.resolve(desc + ".avro").toFile();
 
     try (FileAppender<GenericData.Record> appender =
         Avro.write(Files.localOutput(file)).schema(writeSchema).build()) {
