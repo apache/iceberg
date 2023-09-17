@@ -29,7 +29,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -363,7 +362,7 @@ public abstract class TestReadProjection {
     Assertions.assertThat(locations).as("Should project locations map").isNotNull();
     Assertions.assertThat(locations.keySet())
         .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+        .containsExactly("L1", "L2");
     Record projectedL1 = (Record) locations.get("L1");
     Assertions.assertThat(projectedL1).as("L1 should not be null").isNotNull();
     Assertions.assertThat((float) projectedL1.get("lat"))
@@ -384,7 +383,7 @@ public abstract class TestReadProjection {
     Assertions.assertThat(locations).as("Should project locations map").isNotNull();
     Assertions.assertThat(locations.keySet())
         .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+        .containsExactly("L1", "L2");
     projectedL1 = (Record) locations.get("L1");
     Assertions.assertThat(projectedL1).as("L1 should not be null").isNotNull();
     assertEmptyAvroField(projectedL1, "lat");
@@ -414,7 +413,9 @@ public abstract class TestReadProjection {
     assertEmptyAvroField(projected, "id");
     locations = toStringMap((Map) projected.get("locations"));
     Assertions.assertThat(locations).as("Should project locations map").isNotNull();
-    Assertions.assertThat(locations.keySet()).as("Should contain L1 and L2").contains("L1", "L2");
+    Assertions.assertThat(locations.keySet())
+        .as("Should contain L1 and L2")
+        .containsExactly("L1", "L2");
     projectedL1 = (Record) locations.get("L1");
     Assertions.assertThat(projectedL1).as("L1 should not be null").isNotNull();
     Assertions.assertThat((float) projectedL1.get("latitude"))
