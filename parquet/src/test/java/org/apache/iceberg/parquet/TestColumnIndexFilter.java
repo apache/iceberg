@@ -592,9 +592,6 @@ public class TestColumnIndexFilter {
     RowRanges expected;
     Expression expr;
 
-    List<ColumnDescriptor> columns = FILE_SCHEMA.getColumns();
-    columns.forEach(System.out::println);
-
     expected = NO_ROWS;
     expr = and(equal(INT_COL, 1), equal(INT_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
