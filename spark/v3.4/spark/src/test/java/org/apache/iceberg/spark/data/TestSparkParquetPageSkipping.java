@@ -46,6 +46,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetAvroWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -323,12 +324,14 @@ public class TestSparkParquetPageSkipping {
       CloseableIterable<ColumnarBatch> batches =
           builder
               .createBatchedReaderFunc(
-                  type -> VectorizedSparkParquetReaders.buildReader(projected, type, true))
+                  type ->
+                      VectorizedSparkParquetReaders.buildReader(
+                          projected, type, ImmutableMap.of(), null))
               .build();
 
       Iterator<GenericData.Record> expectedIterator = expected.iterator();
       for (ColumnarBatch batch : batches) {
-        TestHelpers.assertEqualsBatch(struct, expectedIterator, batch, true);
+        TestHelpers.assertEqualsBatch(struct, expectedIterator, batch);
       }
 
       Assert.assertFalse(
