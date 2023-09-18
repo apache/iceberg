@@ -27,8 +27,8 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -39,7 +39,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.runtime.BoxedUnit;
 
 /**
  * A procedure that rewrites datafiles in a table.
@@ -48,13 +47,20 @@ import scala.runtime.BoxedUnit;
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter STRATEGY_PARAM =
+      ProcedureParameter.optional("strategy", DataTypes.StringType);
+  private static final ProcedureParameter SORT_ORDER_PARAM =
+      ProcedureParameter.optional("sort_order", DataTypes.StringType);
+  private static final ProcedureParameter OPTIONS_PARAM =
+      ProcedureParameter.optional("options", STRING_MAP);
+  private static final ProcedureParameter WHERE_PARAM =
+      ProcedureParameter.optional("where", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("strategy", DataTypes.StringType),
-        ProcedureParameter.optional("sort_order", DataTypes.StringType),
-        ProcedureParameter.optional("options", STRING_MAP),
-        ProcedureParameter.optional("where", DataTypes.StringType)
+        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM
       };
 
   // counts are not nullable since the action result is never null
@@ -95,25 +101,21 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    String strategy = input.asString(STRATEGY_PARAM, null);
+    String sortOrderString = input.asString(SORT_ORDER_PARAM, null);
+    Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
+    String where = input.asString(WHERE_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          RewriteDataFiles action = actions().rewriteDataFiles(table);
-
-          String strategy = args.isNullAt(1) ? null : args.getString(1);
-          String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
+          RewriteDataFiles action = actions().rewriteDataFiles(table).options(options);
 
           if (strategy != null || sortOrderString != null) {
             action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
-
-          if (!args.isNullAt(3)) {
-            action = checkAndApplyOptions(args, action);
-          }
-
-          String where = args.isNullAt(4) ? null : args.getString(4);
 
           action = checkAndApplyFilter(action, where, tableIdent);
 
@@ -130,19 +132,6 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       return action.filter(expression);
     }
     return action;
-  }
-
-  private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
-    Map<String, String> options = Maps.newHashMap();
-    args.getMap(3)
-        .foreach(
-            DataTypes.StringType,
-            DataTypes.StringType,
-            (k, v) -> {
-              options.put(k.toString(), v.toString());
-              return BoxedUnit.UNIT;
-            });
-    return action.options(options);
   }
 
   private RewriteDataFiles checkAndApplyStrategy(
