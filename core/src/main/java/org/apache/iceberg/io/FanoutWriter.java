@@ -36,7 +36,7 @@ import org.apache.iceberg.util.StructLikeMap;
  * writer may potentially consume substantially more memory compared to {@link ClusteredWriter}. Use
  * this writer only when clustering by spec/partition is not possible (e.g. streaming).
  */
-abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
+public abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
 
   private final Map<Integer, StructLikeMap<FileWriter<T, R>>> writers = Maps.newHashMap();
   private boolean closed = false;
