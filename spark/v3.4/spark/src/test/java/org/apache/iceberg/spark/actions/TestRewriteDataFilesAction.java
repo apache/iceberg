@@ -224,6 +224,32 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackWithFilterOnBucketExpression() {
+    Table table = createTablePartitioned(4, 2);
+
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    Result result =
+        basicRewrite(table)
+            .filter(Expressions.equal("c1", 1))
+            .filter(Expressions.equal(Expressions.bucket("c2", 2), 0))
+            .execute();
+
+    assertThat(result)
+        .extracting(Result::rewrittenDataFilesCount, Result::addedDataFilesCount)
+        .as("Action should rewrite 2 data files into 1 data file")
+        .contains(2, 1);
+    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+
+    shouldHaveFiles(table, 7);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
@@ -260,7 +286,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithDeletes() throws Exception {
+  public void testBinPackWithDeletes() {
     Table table = createTablePartitioned(4, 2);
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);

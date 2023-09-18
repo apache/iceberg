@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
+import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -396,6 +397,38 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
+    // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
+    // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
+    Assume.assumeFalse(catalogName.equals(SparkCatalogConfig.SPARK.catalogName()));
+    createBucketPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    // select only 5 files for compaction (files in the partition c2 = 'bar')
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s',"
+                + " where => '%s.system.bucket(2, c2) = 0')",
+            catalogName, tableIdent, catalogName);
+
+    assertEquals(
+        "Action should rewrite 5 data files from single matching partition"
+            + "(containing bucket(c2) = 0) and add 1 data files",
+        row(5, 1),
+        row(output.get(0)[0], output.get(0)[1]));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testRewriteDataFilesWithInFilterOnPartitionTable() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -480,7 +513,6 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     sql(
         "CALL %s.system.rewrite_data_files(table => '%s'," + " where => 'c2 like \"%s\"')",
         catalogName, tableIdent, "car%");
-
     // TODO: Enable when org.apache.iceberg.spark.SparkFilters have implementations for
     // StringEndsWith & StringContains
     // StringEndsWith
@@ -489,6 +521,39 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     // StringContains
     // sql("CALL %s.system.rewrite_data_files(table => '%s'," +
     //     " where => 'c2 like \"%s\"')", catalogName, tableIdent, "%car%");
+  }
+
+  @Test
+  public void testRewriteDataFilesWithPossibleV2Filters() {
+    // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
+    // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
+    Assume.assumeFalse(catalogName.equals(SparkCatalogConfig.SPARK.catalogName()));
+
+    SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.bucket(2, data) >= 0')",
+        catalogName, tableIdent, catalogName);
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.truncate(4, id) >= 1')",
+        catalogName, tableIdent, catalogName);
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.years(ts) >= 1')",
+        catalogName, tableIdent, catalogName);
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.months(ts) >= 1')",
+        catalogName, tableIdent, catalogName);
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.days(ts) >= date(\"2023-01-01\")')",
+        catalogName, tableIdent, catalogName);
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s',"
+            + " where => '%s.system.hours(ts) >= 1')",
+        catalogName, tableIdent, catalogName);
   }
 
   @Test
@@ -772,6 +837,17 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
             + "PARTITIONED BY (c2) "
+            + "TBLPROPERTIES ('%s' '%s')",
+        tableName,
+        TableProperties.WRITE_DISTRIBUTION_MODE,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+  }
+
+  private void createBucketPartitionTable() {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(2, c2)) "
             + "TBLPROPERTIES ('%s' '%s')",
         tableName,
         TableProperties.WRITE_DISTRIBUTION_MODE,

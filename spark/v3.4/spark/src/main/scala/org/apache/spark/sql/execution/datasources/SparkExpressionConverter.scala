@@ -19,7 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import org.apache.iceberg.spark.SparkFilters
+import org.apache.iceberg.spark.SparkV2Filters
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -28,14 +28,15 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Strategy
 
 object SparkExpressionConverter {
 
   def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
-    // Currently, it is a double conversion as we are converting Spark expression to Spark filter
-    // and then converting Spark filter to Iceberg expression.
+    // Currently, it is a double conversion as we are converting Spark expression to Spark predicate
+    // and then converting Spark predicate to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+    SparkV2Filters.convert(DataSourceV2Strategy.translateFilterV2(sparkExpression).get)
   }
 
   @throws[AnalysisException]
