@@ -42,8 +42,7 @@ class CachingTableLoader implements TableLoader {
   private long nextReloadTimeMs;
   private transient Table table;
 
-  public CachingTableLoader(
-      Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
+  CachingTableLoader(Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
     Preconditions.checkArgument(
