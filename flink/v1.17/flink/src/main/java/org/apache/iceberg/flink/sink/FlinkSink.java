@@ -278,7 +278,7 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     @Experimental
-    public Builder tableRefreshInternal(Duration refreshInterval) {
+    public Builder tableRefreshInterval(Duration refreshInterval) {
       this.tableRefreshInterval = refreshInterval;
       return this;
     }

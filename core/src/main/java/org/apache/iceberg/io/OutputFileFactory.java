@@ -162,8 +162,8 @@ public class OutputFileFactory {
     }
 
     /**
-     * Configures a {@link FileIO} supplier, which is used to dynamically refresh the file IO
-     * instance when a table is refreshed.
+     * Configures a {@link FileIO} supplier, which can potentially be used to dynamically refresh
+     * the file IO instance when a table is refreshed.
      *
      * @param newIoSupplier The file IO supplier
      * @return this builder instance

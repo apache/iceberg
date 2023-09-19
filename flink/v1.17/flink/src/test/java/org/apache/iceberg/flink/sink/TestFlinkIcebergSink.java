@@ -381,7 +381,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
-        .tableRefreshInternal(Duration.ofMillis(100))
+        .tableRefreshInterval(Duration.ofMillis(100))
         .writeParallelism(parallelism)
         .append();
 
