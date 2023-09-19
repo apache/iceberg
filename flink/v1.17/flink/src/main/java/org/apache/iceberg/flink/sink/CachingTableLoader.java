@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
-import org.apache.flink.annotation.Experimental;
+import java.time.Duration;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,26 +32,27 @@ import org.slf4j.LoggerFactory;
  * table loader should be used carefully when used with writer tasks. It could result in heavy load
  * on a catalog for jobs with many writers.
  */
-@Experimental
-public class CachingTableLoader implements TableLoader {
+class CachingTableLoader implements TableLoader {
 
   private static final Logger LOG = LoggerFactory.getLogger(CachingTableLoader.class);
 
   private final Table initialTable;
   private final TableLoader tableLoader;
-  private final long minReloadIntervalMs;
+  private final Duration tableRefreshInterval;
   private long nextReloadTimeMs;
   private transient Table table;
 
-  public CachingTableLoader(Table initialTable, TableLoader tableLoader, long minReloadIntervalMs) {
+  public CachingTableLoader(
+      Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
-    Preconditions.checkArgument(minReloadIntervalMs > 0, "minReloadIntervalMs must be > 0");
+    Preconditions.checkArgument(
+        tableRefreshInterval != null, "tableRefreshInterval cannot be null");
     this.initialTable = initialTable;
     this.table = initialTable;
     this.tableLoader = tableLoader;
-    this.minReloadIntervalMs = minReloadIntervalMs;
-    this.nextReloadTimeMs = System.currentTimeMillis() + minReloadIntervalMs;
+    this.tableRefreshInterval = tableRefreshInterval;
+    this.nextReloadTimeMs = System.currentTimeMillis() + tableRefreshInterval.toMillis();
   }
 
   @Override
@@ -74,7 +76,7 @@ public class CachingTableLoader implements TableLoader {
     if (System.currentTimeMillis() > nextReloadTimeMs) {
       try {
         this.table = tableLoader.loadTable();
-        nextReloadTimeMs = System.currentTimeMillis() + minReloadIntervalMs;
+        nextReloadTimeMs = System.currentTimeMillis() + tableRefreshInterval.toMillis();
 
         LOG.info(
             "Table {} reloaded, next min load time threshold is {}",
@@ -91,7 +93,7 @@ public class CachingTableLoader implements TableLoader {
   @Override
   @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
   public TableLoader clone() {
-    return new CachingTableLoader(initialTable, tableLoader, minReloadIntervalMs);
+    return new CachingTableLoader(initialTable, tableLoader, tableRefreshInterval);
   }
 
   @Override

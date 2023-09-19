@@ -58,8 +58,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     return new HadoopTableLoader(location, hadoopConf);
   }
 
-  static TableLoader noopFromTable(Table table) {
-    return new NoOpTableLoader(table);
+  static TableLoader immutableFromTable(Table table) {
+    return new ImmutableTableLoader(table);
   }
 
   class HadoopTableLoader implements TableLoader {
@@ -161,11 +161,11 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
   }
 
-  class NoOpTableLoader implements TableLoader {
+  class ImmutableTableLoader implements TableLoader {
 
     private final Table table;
 
-    private NoOpTableLoader(Table table) {
+    private ImmutableTableLoader(Table table) {
       this.table = table;
     }
 
@@ -185,7 +185,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public TableLoader clone() {
-      return new NoOpTableLoader(table);
+      return new ImmutableTableLoader(table);
     }
 
     @Override

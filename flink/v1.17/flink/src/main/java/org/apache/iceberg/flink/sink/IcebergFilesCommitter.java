@@ -237,21 +237,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // For step#4, we don't need to commit iceberg table again because in step#3 we've committed all
     // the files,
     // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
-    try {
-      if (checkpointId > maxCommittedCheckpointId) {
-        LOG.info("Checkpoint {} completed. Attempting commit.", checkpointId);
-        commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, checkpointId);
-        this.maxCommittedCheckpointId = checkpointId;
-      } else {
-        LOG.info(
-            "Skipping committing checkpoint {}. {} is already committed.",
-            checkpointId,
-            maxCommittedCheckpointId);
-      }
-    } finally {
-      // reload the table in case new configuration is needed
-      this.table = tableLoader.loadTable();
+    if (checkpointId > maxCommittedCheckpointId) {
+      LOG.info("Checkpoint {} completed. Attempting commit.", checkpointId);
+      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, checkpointId);
+      this.maxCommittedCheckpointId = checkpointId;
+    } else {
+      LOG.info(
+          "Skipping committing checkpoint {}. {} is already committed.",
+          checkpointId,
+          maxCommittedCheckpointId);
     }
+
+    // reload the table in case new configuration is needed
+    this.table = tableLoader.loadTable();
   }
 
   private void commitUpToCheckpoint(

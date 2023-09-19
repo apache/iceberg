@@ -161,6 +161,13 @@ public class OutputFileFactory {
       return this;
     }
 
+    /**
+     * Configures a {@link FileIO} supplier, which is used to dynamically refresh the file IO
+     * instance when a table is refreshed.
+     *
+     * @param newIoSupplier The file IO supplier
+     * @return this builder instance
+     */
     public Builder ioSupplier(Supplier<FileIO> newIoSupplier) {
       this.ioSupplier = newIoSupplier;
       return this;

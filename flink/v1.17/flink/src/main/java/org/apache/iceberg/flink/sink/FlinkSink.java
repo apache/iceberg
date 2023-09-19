@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,8 +131,8 @@ public class FlinkSink {
 
   public static class Builder {
     private Function<String, DataStream<RowData>> inputCreator = null;
-    private TableLoader commitTableLoader;
-    private TableLoader writeTableLoader;
+    private TableLoader tableLoader;
+    private Duration tableRefreshInterval;
     private Table table;
     private TableSchema tableSchema;
     private List<String> equalityFieldColumns = null;
@@ -184,11 +185,11 @@ public class FlinkSink {
      * this loader because {@link Table} is not serializable and could not just use the loaded table
      * from Builder#table in the remote task manager.
      *
-     * @param newTableLoader to load iceberg table inside commit task.
+     * @param newTableLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder tableLoader(TableLoader newTableLoader) {
-      this.commitTableLoader = newTableLoader;
+      this.tableLoader = newTableLoader;
       return this;
     }
 
@@ -269,16 +270,16 @@ public class FlinkSink {
     }
 
     /**
-     * Sets the table loader used to refresh the table instance in {@link IcebergStreamWriter}. If
-     * not specified then the default behavior is to not refresh the table, and the initial table
+     * Sets the interval for refreshing the table instance in {@link IcebergStreamWriter}. If not
+     * specified then the default behavior is to not refresh the table, and the initial table
      * instance initialized is used for the lifetime of the job.
      *
-     * @param newTableLoader the table loader to use to refresh the table in writer subtasks
+     * @param refreshInterval the interval for refreshing the table in writer subtasks
      * @return {@link Builder} to connect the iceberg table.
      */
     @Experimental
-    public Builder writeTableLoader(TableLoader newTableLoader) {
-      this.writeTableLoader = newTableLoader;
+    public Builder tableRefreshInternal(Duration refreshInterval) {
+      this.tableRefreshInterval = refreshInterval;
       return this;
     }
 
@@ -341,20 +342,20 @@ public class FlinkSink {
       Preconditions.checkArgument(
           inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
-      Preconditions.checkNotNull(commitTableLoader, "Table loader shouldn't be null");
+      Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
 
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
-        if (!commitTableLoader.isOpen()) {
-          commitTableLoader.open();
+        if (!tableLoader.isOpen()) {
+          tableLoader.open();
         }
 
-        try (TableLoader loader = commitTableLoader) {
+        try (TableLoader loader = tableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
           throw new UncheckedIOException(
-              "Failed to load iceberg table from table loader: " + commitTableLoader, e);
+              "Failed to load iceberg table from table loader: " + tableLoader, e);
         }
       }
 
@@ -443,7 +444,7 @@ public class FlinkSink {
         SingleOutputStreamOperator<WriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter =
           new IcebergFilesCommitter(
-              commitTableLoader,
+              tableLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
@@ -481,9 +482,16 @@ public class FlinkSink {
         }
       }
 
+      TableLoader tableRefreshLoader;
+      if (tableRefreshInterval != null) {
+        tableRefreshLoader = new CachingTableLoader(table, tableLoader, tableRefreshInterval);
+      } else {
+        tableRefreshLoader = null;
+      }
+
       IcebergStreamWriter<RowData> streamWriter =
           createStreamWriter(
-              table, writeTableLoader, flinkWriteConf, flinkRowType, equalityFieldIds);
+              table, tableRefreshLoader, flinkWriteConf, flinkRowType, equalityFieldIds);
 
       int parallelism =
           flinkWriteConf.writeParallelism() == null
@@ -609,7 +617,9 @@ public class FlinkSink {
 
     Table serializableTable = SerializableTable.copyOf(table);
     TableLoader tableLoader =
-        writeTableLoader != null ? writeTableLoader : TableLoader.noopFromTable(serializableTable);
+        writeTableLoader != null
+            ? writeTableLoader
+            : TableLoader.immutableFromTable(serializableTable);
     FileFormat format = flinkWriteConf.dataFileFormat();
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(

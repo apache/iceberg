@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.flink.CachingTableLoader;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
@@ -381,7 +381,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
-        .writeTableLoader(new CachingTableLoader(table, tableLoader, 1000))
+        .tableRefreshInternal(Duration.ofMillis(100))
         .writeParallelism(parallelism)
         .append();
 

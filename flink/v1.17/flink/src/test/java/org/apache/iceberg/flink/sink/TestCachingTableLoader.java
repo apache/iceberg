@@ -16,15 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
@@ -38,15 +40,15 @@ public class TestCachingTableLoader {
     TableLoader tableLoader = mock(TableLoader.class);
     when(tableLoader.loadTable()).thenReturn(loadedTable);
 
-    new CachingTableLoader(initialTable, tableLoader, 100);
+    new CachingTableLoader(initialTable, tableLoader, Duration.ofMillis(100));
 
-    assertThatThrownBy(() -> new CachingTableLoader(initialTable, tableLoader, 0))
+    assertThatThrownBy(() -> new CachingTableLoader(initialTable, tableLoader, null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("minReloadIntervalMs must be > 0");
-    assertThatThrownBy(() -> new CachingTableLoader(null, tableLoader, 100))
+        .hasMessage("tableRefreshInterval cannot be null");
+    assertThatThrownBy(() -> new CachingTableLoader(null, tableLoader, Duration.ofMillis(100)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("initialTable cannot be null");
-    assertThatThrownBy(() -> new CachingTableLoader(initialTable, null, 100))
+    assertThatThrownBy(() -> new CachingTableLoader(initialTable, null, Duration.ofMillis(100)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("tableLoader cannot be null");
   }
@@ -59,7 +61,8 @@ public class TestCachingTableLoader {
     TableLoader tableLoader = mock(TableLoader.class);
     when(tableLoader.loadTable()).thenReturn(loadedTable);
 
-    CachingTableLoader cachingTableLoader = new CachingTableLoader(initialTable, tableLoader, 100);
+    CachingTableLoader cachingTableLoader =
+        new CachingTableLoader(initialTable, tableLoader, Duration.ofMillis(100));
 
     // load shouldn't do anything as the min reload interval hasn't passed
     assertThat(cachingTableLoader.loadTable()).isEqualTo(initialTable);
