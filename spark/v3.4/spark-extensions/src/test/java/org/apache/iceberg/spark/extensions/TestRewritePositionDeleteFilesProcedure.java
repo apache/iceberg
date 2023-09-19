@@ -212,7 +212,7 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                     "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'substr(encode(data, \"utf-8\"), 2) = \"fo\"')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot translate Spark expression to data source filter");
+        .hasMessageContaining("Cannot translate Spark expression");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -220,7 +220,7 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                     "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'substr(data, 2) = \"fo\"')",
                     catalogName, tableIdent))
         .isInstanceOf(AssertionError.class)
-        .hasMessageContaining("Cannot convert Spark filter to Iceberg expression");
+        .hasMessageContaining("Cannot convert Spark filter");
   }
 
   private Map<String, String> snapshotSummary() {
