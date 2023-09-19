@@ -374,10 +374,7 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -734,10 +731,7 @@ project(':iceberg-orc') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
