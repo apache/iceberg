@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name,arguments-renamed,fixme
+# pylint: disable=redefined-outer-name,arguments-renamed
 from __future__ import annotations
 
 import math
@@ -52,7 +52,6 @@ from pyiceberg.types import (
     StructType,
 )
 
-# TODO: Double-check what's its purpose in java
 UNASSIGNED_SEQ = -1
 
 
@@ -326,7 +325,7 @@ class PartitionFieldStats:
             upper_bound=to_bytes(self._type, self._max) if self._max is not None else None,
         )
 
-    def update(self, value: Any):
+    def update(self, value: Any) -> None:
         if value is None:
             self._contains_null = True
         elif math.isnan(value):
@@ -555,6 +554,10 @@ class ManifestWriter(ABC):
     def content(self) -> ManifestContent:
         ...
 
+    @abstractmethod
+    def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
+        ...
+
     def to_manifest_file(self) -> ManifestFile:
         """Return the manifest file."""
         # once the manifest file is generated, no more entries can be added
@@ -622,6 +625,9 @@ class ManifestWriterV1(ManifestWriter):
     def content(self) -> ManifestContent:
         return ManifestContent.DATA
 
+    def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
+        return entry
+
 
 class ManifestWriterV2(ManifestWriter):
     def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int):
@@ -642,6 +648,14 @@ class ManifestWriterV2(ManifestWriter):
     def content(self) -> ManifestContent:
         return ManifestContent.DATA
 
+    def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
+        if entry.data_sequence_number is None:
+            if entry.snapshot_id is not None and entry.snapshot_id != self._snapshot_id:
+                raise ValueError(f"Found unassigned sequence number for an entry from snapshot: {entry.snapshot_id}")
+            if entry.status != ManifestEntryStatus.ADDED:
+                raise ValueError("Only entries with status ADDED can have null sequence number")
+        return entry
+
 
 def write_manifest(
     format_version: int, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int
@@ -651,7 +665,6 @@ def write_manifest(
     elif format_version == 2:
         return ManifestWriterV2(spec, schema, output_file, snapshot_id)
     else:
-        # TODO: replace it with UnsupportedOperationException
         raise ValueError(f"Cannot write manifest for table version: {format_version}")
 
 
@@ -727,5 +740,4 @@ def write_manifest_list(
     elif format_version == 2:
         return ManifestListWriterV2(output_file, snapshot_id, parent_snapshot_id, sequence_number)
     else:
-        # TODO: replace it with UnsupportedOperationException
         raise ValueError(f"Cannot write manifest list for table version: {format_version}")
