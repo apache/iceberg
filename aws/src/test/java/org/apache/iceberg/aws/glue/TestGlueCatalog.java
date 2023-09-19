@@ -271,7 +271,7 @@ public class TestGlueCatalog {
   }
 
   @Test
-  public void testListTablesWithNamespaceDoesNotExists() {
+  public void testListTablesWithNonExistingNamespace() {
     Mockito.doThrow(EntityNotFoundException.class)
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
