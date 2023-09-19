@@ -43,7 +43,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -830,32 +829,23 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testRewriteDataFilesWithSystemFunctions() {
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
-
-    sql(
-        "CREATE TABLE %s (c1 INT, c2 STRING, c3 TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (days(c3)) "
-            + "TBLPROPERTIES ('%s' '%s')",
-        tableName,
-        TableProperties.WRITE_DISTRIBUTION_MODE,
-        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
-
-    sql(
-        "INSERT INTO TABLE %s VALUES (0, 'data-0', CAST('2017-11-22T09:20:44.294658+00:00' AS TIMESTAMP))",
-        tableName);
-    sql(
-        "INSERT INTO TABLE %s VALUES (1, 'data-1', CAST('2017-11-23T03:15:32.194356+00:00' AS TIMESTAMP))",
-        tableName);
-    // Test with invalid filter column col1
+  public void testRewriteWithUntranslatedOrUnconvertedFilter() {
+    createTable();
     Assertions.assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.rewrite_data_files(table => '%s', where => '%s.system.years(c3) = 2017')",
-                    catalogName, tableIdent, catalogName))
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(encode(c2, \"utf-8\"), 2) = \"fo\"')",
+                    catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot translate Spark expression to data source filter");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(c2, 2) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("Cannot convert Spark filter to Iceberg expression");
   }
 
   private void createTable() {
