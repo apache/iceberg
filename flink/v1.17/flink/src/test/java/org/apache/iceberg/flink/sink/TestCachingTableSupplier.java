@@ -70,6 +70,10 @@ public class TestCachingTableSupplier {
     // refresh after waiting past the min reload interval
     Awaitility.await()
         .atLeast(100, TimeUnit.MILLISECONDS)
-        .untilAsserted(() -> assertThat(cachingTableSupplier.get()).isEqualTo(loadedTable));
+        .untilAsserted(
+            () -> {
+              cachingTableSupplier.refresh();
+              assertThat(cachingTableSupplier.get()).isEqualTo(loadedTable);
+            });
   }
 }
