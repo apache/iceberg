@@ -22,8 +22,11 @@ import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
@@ -132,6 +135,9 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     tableProperties.put(PARQUET_COMPRESSION, "gzip");
     tableProperties.put(AVRO_COMPRESSION, "gzip");
     tableProperties.put(ORC_COMPRESSION, "zlib");
+    tableProperties.put(DELETE_PARQUET_COMPRESSION, "gzip");
+    tableProperties.put(DELETE_AVRO_COMPRESSION, "gzip");
+    tableProperties.put(DELETE_ORC_COMPRESSION, "zlib");
     tableProperties.put(DELETE_MODE, MERGE_ON_READ.modeName());
     tableProperties.put(FORMAT_VERSION, "2");
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, format);
@@ -182,20 +188,18 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
 
-    if (PARQUET.equals(format)) {
-      SparkActions.get(spark)
-          .rewritePositionDeletes(table)
-          .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-          .execute();
-      table.refresh();
-      deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
-      try (ManifestReader<DeleteFile> reader =
-          ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
-        DeleteFile file = reader.iterator().next();
-        InputFile inputFile = table.io().newInputFile(file.path().toString());
-        Assertions.assertThat(getCompressionType(inputFile))
-            .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
-      }
+    SparkActions.get(spark)
+        .rewritePositionDeletes(table)
+        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .execute();
+    table.refresh();
+    deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
+      DeleteFile file = reader.iterator().next();
+      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      Assertions.assertThat(getCompressionType(inputFile))
+          .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }
 

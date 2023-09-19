@@ -677,6 +677,142 @@ def test_create_table_409(rest_mock: Mocker, table_schema_simple: Schema) -> Non
     assert "Table already exists" in str(e.value)
 
 
+def test_register_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> None:
+    rest_mock.post(
+        f"{TEST_URI}v1/namespaces/default/register",
+        json={
+            "metadata-location": "s3://warehouse/database/table/metadata.json",
+            "metadata": {
+                "format-version": 1,
+                "table-uuid": "bf289591-dcc0-4234-ad4f-5c3eed811a29",
+                "location": "s3://warehouse/database/table",
+                "last-updated-ms": 1657810967051,
+                "last-column-id": 3,
+                "schema": {
+                    "type": "struct",
+                    "schema-id": 0,
+                    "identifier-field-ids": [2],
+                    "fields": [
+                        {"id": 1, "name": "foo", "required": False, "type": "string"},
+                        {"id": 2, "name": "bar", "required": True, "type": "int"},
+                        {"id": 3, "name": "baz", "required": False, "type": "boolean"},
+                    ],
+                },
+                "current-schema-id": 0,
+                "schemas": [
+                    {
+                        "type": "struct",
+                        "schema-id": 0,
+                        "identifier-field-ids": [2],
+                        "fields": [
+                            {"id": 1, "name": "foo", "required": False, "type": "string"},
+                            {"id": 2, "name": "bar", "required": True, "type": "int"},
+                            {"id": 3, "name": "baz", "required": False, "type": "boolean"},
+                        ],
+                    }
+                ],
+                "partition-spec": [],
+                "default-spec-id": 0,
+                "last-partition-id": 999,
+                "default-sort-order-id": 0,
+                "sort-orders": [{"order-id": 0, "fields": []}],
+                "properties": {
+                    "write.delete.parquet.compression-codec": "zstd",
+                    "write.metadata.compression-codec": "gzip",
+                    "write.summary.partition-limit": "100",
+                    "write.parquet.compression-codec": "zstd",
+                },
+                "current-snapshot-id": -1,
+                "refs": {},
+                "snapshots": [],
+                "snapshot-log": [],
+                "metadata-log": [],
+            },
+            "config": {
+                "client.factory": "io.tabular.iceberg.catalog.TabularAwsClientFactory",
+                "region": "us-west-2",
+            },
+        },
+        status_code=200,
+        request_headers=TEST_HEADERS,
+    )
+    catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
+    actual = catalog.register_table(
+        identifier=("default", "registered_table"), metadata_location="s3://warehouse/database/table/metadata.json"
+    )
+    expected = Table(
+        identifier=("rest", "default", "registered_table"),
+        metadata_location="s3://warehouse/database/table/metadata.json",
+        metadata=TableMetadataV1(
+            location="s3://warehouse/database/table",
+            table_uuid=UUID("bf289591-dcc0-4234-ad4f-5c3eed811a29"),
+            last_updated_ms=1657810967051,
+            last_column_id=3,
+            schemas=[
+                Schema(
+                    NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                    NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+                    schema_id=0,
+                    identifier_field_ids=[2],
+                )
+            ],
+            current_schema_id=0,
+            default_spec_id=0,
+            last_partition_id=999,
+            properties={
+                "write.delete.parquet.compression-codec": "zstd",
+                "write.metadata.compression-codec": "gzip",
+                "write.summary.partition-limit": "100",
+                "write.parquet.compression-codec": "zstd",
+            },
+            current_snapshot_id=None,
+            snapshots=[],
+            snapshot_log=[],
+            metadata_log=[],
+            sort_orders=[SortOrder(order_id=0)],
+            default_sort_order_id=0,
+            refs={},
+            format_version=1,
+            schema_=Schema(
+                NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+                schema_id=0,
+                identifier_field_ids=[2],
+            ),
+            partition_spec=[],
+        ),
+        io=load_file_io(),
+        catalog=catalog,
+    )
+    assert actual.metadata.model_dump() == expected.metadata.model_dump()
+    assert actual.metadata_location == expected.metadata_location
+    assert actual.identifier == expected.identifier
+
+
+def test_register_table_409(rest_mock: Mocker, table_schema_simple: Schema) -> None:
+    rest_mock.post(
+        f"{TEST_URI}v1/namespaces/default/register",
+        json={
+            "error": {
+                "message": "Table already exists: fokko.fokko2 in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
+                "type": "AlreadyExistsException",
+                "code": 409,
+            }
+        },
+        status_code=409,
+        request_headers=TEST_HEADERS,
+    )
+
+    catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
+    with pytest.raises(TableAlreadyExistsError) as e:
+        catalog.register_table(
+            identifier=("default", "registered_table"), metadata_location="s3://warehouse/database/table/metadata.json"
+        )
+    assert "Table already exists" in str(e.value)
+
+
 def test_delete_namespace_204(rest_mock: Mocker) -> None:
     namespace = "example"
     rest_mock.delete(

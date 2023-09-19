@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception raised when attempting to load a table that does not exist. */
-public class NoSuchTableException extends RuntimeException {
+public class NoSuchTableException extends RuntimeException implements CleanableFailure {
   @FormatMethod
   public NoSuchTableException(String message, Object... args) {
     super(String.format(message, args));

@@ -71,6 +71,8 @@ public class HTTPClient implements RESTClient {
   @VisibleForTesting
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
+  private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
@@ -79,7 +81,8 @@ public class HTTPClient implements RESTClient {
       String uri,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
-      HttpRequestInterceptor requestInterceptor) {
+      HttpRequestInterceptor requestInterceptor,
+      Map<String, String> properties) {
     this.uri = uri;
     this.mapper = objectMapper;
 
@@ -95,6 +98,9 @@ public class HTTPClient implements RESTClient {
     if (requestInterceptor != null) {
       clientBuilder.addRequestInterceptorLast(requestInterceptor);
     }
+
+    int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
+    clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
 
     this.httpClient = clientBuilder.build();
   }
@@ -466,7 +472,7 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      return new HTTPClient(uri, baseHeaders, mapper, interceptor);
+      return new HTTPClient(uri, baseHeaders, mapper, interceptor, properties);
     }
   }
 

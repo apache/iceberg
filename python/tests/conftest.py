@@ -32,6 +32,7 @@ from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -50,10 +51,8 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
-import pyarrow as pa
 import pytest
 from moto import mock_dynamodb, mock_glue, mock_s3
-from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
@@ -69,7 +68,6 @@ from pyiceberg.io import (
     load_file_io,
 )
 from pyiceberg.io.fsspec import FsspecFileIO
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
@@ -90,6 +88,9 @@ from pyiceberg.types import (
     StructType,
 )
 from pyiceberg.utils.datetime import datetime_to_millis
+
+if TYPE_CHECKING:
+    from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -421,6 +422,8 @@ def example_table_metadata_v2() -> Dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
     metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
@@ -429,6 +432,8 @@ def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 @pytest.fixture(scope="session")
 def metadata_location_gz(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.gz.metadata.json")
     metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
@@ -1146,7 +1151,9 @@ class LocalOutputFile(OutputFile):
     def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self) -> PyArrowFile:
+    def to_input_file(self) -> "PyArrowFile":
+        from pyiceberg.io.pyarrow import PyArrowFileIO
+
         return PyArrowFileIO().new_input(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -1399,7 +1406,9 @@ def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
 
 
 @pytest.fixture
-def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> PyArrowFileIO:
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> "PyArrowFileIO":
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     properties = {
         GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
         GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
@@ -1620,6 +1629,9 @@ def clean_up(test_catalog: Catalog) -> None:
 
 @pytest.fixture
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
+    import pyarrow as pa
+    from pyarrow import parquet as pq
+
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
         metadata={"iceberg.schema": table_schema_simple.model_dump_json()},

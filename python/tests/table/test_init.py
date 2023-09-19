@@ -396,23 +396,24 @@ def test_serialize_set_properties_updates() -> None:
     assert SetPropertiesUpdate(updates={"abc": "🤪"}).model_dump_json() == """{"action":"set-properties","updates":{"abc":"🤪"}}"""
 
 
-def test_add_column(table_schema_simple: Schema, table: Table) -> None:
-    update = UpdateSchema(table_schema_simple, table)
-    update.add_column(name="b", type_var=IntegerType())
+def test_add_column(table: Table) -> None:
+    update = UpdateSchema(table)
+    update.add_column(path="b", field_type=IntegerType())
     apply_schema: Schema = update._apply()  # pylint: disable=W0212
     assert len(apply_schema.fields) == 4
 
     assert apply_schema == Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
         NestedField(field_id=4, name="b", field_type=IntegerType(), required=False),
+        identifier_field_ids=[1, 2],
     )
-    assert apply_schema.schema_id == 0
+    assert apply_schema.schema_id == 2
     assert apply_schema.highest_field_id == 4
 
 
-def test_add_primitive_type_column(table_schema_simple: Schema, table: Table) -> None:
+def test_add_primitive_type_column(table: Table) -> None:
     primitive_type: Dict[str, PrimitiveType] = {
         "boolean": BooleanType(),
         "int": IntegerType(),
@@ -430,8 +431,8 @@ def test_add_primitive_type_column(table_schema_simple: Schema, table: Table) ->
 
     for name, type_ in primitive_type.items():
         field_name = f"new_column_{name}"
-        update = UpdateSchema(table_schema_simple, table)
-        update.add_column(parent=None, name=field_name, type_var=type_, doc=f"new_column_{name}")
+        update = UpdateSchema(table)
+        update.add_column(path=field_name, field_type=type_, doc=f"new_column_{name}")
         new_schema = update._apply()  # pylint: disable=W0212
 
         field: NestedField = new_schema.find_field(field_name)
@@ -439,15 +440,15 @@ def test_add_primitive_type_column(table_schema_simple: Schema, table: Table) ->
         assert field.doc == f"new_column_{name}"
 
 
-def test_add_nested_type_column(table_schema_simple: Schema, table: Table) -> None:
+def test_add_nested_type_column(table: Table) -> None:
     # add struct type column
     field_name = "new_column_struct"
-    update = UpdateSchema(table_schema_simple, table)
+    update = UpdateSchema(table)
     struct_ = StructType(
         NestedField(1, "lat", DoubleType()),
         NestedField(2, "long", DoubleType()),
     )
-    update.add_column(parent=None, name=field_name, type_var=struct_)
+    update.add_column(path=field_name, field_type=struct_)
     schema_ = update._apply()  # pylint: disable=W0212
     field: NestedField = schema_.find_field(field_name)
     assert field.field_type == StructType(
@@ -457,22 +458,22 @@ def test_add_nested_type_column(table_schema_simple: Schema, table: Table) -> No
     assert schema_.highest_field_id == 6
 
 
-def test_add_nested_map_type_column(table_schema_simple: Schema, table: Table) -> None:
+def test_add_nested_map_type_column(table: Table) -> None:
     # add map type column
     field_name = "new_column_map"
-    update = UpdateSchema(table_schema_simple, table)
+    update = UpdateSchema(table)
     map_ = MapType(1, StringType(), 2, IntegerType(), False)
-    update.add_column(parent=None, name=field_name, type_var=map_)
+    update.add_column(path=field_name, field_type=map_)
     new_schema = update._apply()  # pylint: disable=W0212
     field: NestedField = new_schema.find_field(field_name)
     assert field.field_type == MapType(5, StringType(), 6, IntegerType(), False)
     assert new_schema.highest_field_id == 6
 
 
-def test_add_nested_list_type_column(table_schema_simple: Schema, table: Table) -> None:
+def test_add_nested_list_type_column(table: Table) -> None:
     # add list type column
     field_name = "new_column_list"
-    update = UpdateSchema(table_schema_simple, table)
+    update = UpdateSchema(table)
     list_ = ListType(
         element_id=101,
         element_type=StructType(
@@ -481,7 +482,7 @@ def test_add_nested_list_type_column(table_schema_simple: Schema, table: Table) 
         ),
         element_required=False,
     )
-    update.add_column(parent=None, name=field_name, type_var=list_)
+    update.add_column(path=field_name, field_type=list_)
     new_schema = update._apply()  # pylint: disable=W0212
     field: NestedField = new_schema.find_field(field_name)
     assert field.field_type == ListType(
@@ -493,77 +494,3 @@ def test_add_nested_list_type_column(table_schema_simple: Schema, table: Table) 
         element_required=False,
     )
     assert new_schema.highest_field_id == 7
-
-
-def test_add_field_to_map_key(table_schema_nested_with_struct_key_map: Schema, table: Table) -> None:
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table_schema_nested_with_struct_key_map, table)
-        update.add_column(name="b", type_var=IntegerType(), parent="location.key")._apply()  # pylint: disable=W0212
-    assert "Cannot add fields to map keys" in str(exc_info.value)
-
-
-def test_add_already_exists(table_schema_nested: Schema, table: Table) -> None:
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table_schema_nested, table)
-        update.add_column("foo", IntegerType())
-    assert "already exists: foo" in str(exc_info.value)
-
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table_schema_nested, table)
-        update.add_column(name="latitude", type_var=IntegerType(), parent="location")
-    assert "already exists: location.lat" in str(exc_info.value)
-
-
-def test_add_to_non_struct_type(table_schema_simple: Schema, table: Table) -> None:
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(table_schema_simple, table)
-        update.add_column(name="lat", type_var=IntegerType(), parent="foo")
-    assert "Cannot add column to non-struct type" in str(exc_info.value)
-
-
-def test_add_required_column(table: Table) -> None:
-    schema_ = Schema(
-        NestedField(field_id=1, name="a", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
-    )
-
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(schema_, table)
-        update.add_column(name="data", type_var=IntegerType(), required=True)
-    assert "Incompatible change: cannot add required column: data" in str(exc_info.value)
-
-    new_schema = (
-        UpdateSchema(schema_, table)  # pylint: disable=W0212
-        .allow_incompatible_changes()
-        .add_column(name="data", type_var=IntegerType(), required=True)
-        ._apply()
-    )
-    assert new_schema == Schema(
-        NestedField(field_id=1, name="a", field_type=BooleanType(), required=False),
-        NestedField(field_id=2, name="data", field_type=IntegerType(), required=True),
-        schema_id=0,
-        identifier_field_ids=[],
-    )
-
-
-def test_add_required_column_case_insensitive(table: Table) -> None:
-    schema_ = Schema(
-        NestedField(field_id=1, name="id", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
-    )
-
-    with pytest.raises(ValueError) as exc_info:
-        update = UpdateSchema(schema_, table)
-        update.allow_incompatible_changes().case_sensitive(False).add_column(name="ID", type_var=IntegerType(), required=True)
-    assert "already exists: ID" in str(exc_info.value)
-
-    new_schema = (
-        UpdateSchema(schema_, table)  # pylint: disable=W0212
-        .allow_incompatible_changes()
-        .add_column(name="ID", type_var=IntegerType(), required=True)
-        ._apply()
-    )
-    assert new_schema == Schema(
-        NestedField(field_id=1, name="id", field_type=BooleanType(), required=False),
-        NestedField(field_id=2, name="ID", field_type=IntegerType(), required=True),
-        schema_id=0,
-        identifier_field_ids=[],
-    )

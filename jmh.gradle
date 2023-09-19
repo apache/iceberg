@@ -43,6 +43,11 @@ if (sparkVersions.contains("3.4")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.4_${scalaVersion}"))
 }
 
+if (sparkVersions.contains("3.5")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.5_${scalaVersion}"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
+}
+
 jmhProjects.add(project(":iceberg-data"))
 
 configure(jmhProjects) {

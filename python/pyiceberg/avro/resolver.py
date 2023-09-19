@@ -25,6 +25,7 @@ from typing import (
     Union,
 )
 
+from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.reader import (
     BinaryReader,
     BooleanReader,
@@ -39,7 +40,6 @@ from pyiceberg.avro.reader import (
     MapReader,
     NoneReader,
     OptionReader,
-    ReadableDecoder,
     Reader,
     StringReader,
     StructReader,
@@ -226,10 +226,10 @@ class EnumReader(Reader):
         self.enum = enum
         self.reader = reader
 
-    def read(self, decoder: ReadableDecoder) -> Enum:
+    def read(self, decoder: BinaryDecoder) -> Enum:
         return self.enum(self.reader.read(decoder))
 
-    def skip(self, decoder: ReadableDecoder) -> None:
+    def skip(self, decoder: BinaryDecoder) -> None:
         pass
 
 

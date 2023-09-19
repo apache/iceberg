@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -35,6 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.view.ImmutableViewVersion;
+import org.apache.iceberg.view.ViewVersion;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -822,6 +825,65 @@ public class TestMetadataUpdateParser {
         MetadataUpdateParser.toJson(expected));
   }
 
+  /** AddViewVersion */
+  @Test
+  public void testAddViewVersionFromJson() {
+    String action = MetadataUpdateParser.ADD_VIEW_VERSION;
+    long timestamp = 123456789;
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(23)
+            .timestampMillis(timestamp)
+            .schemaId(4)
+            .putSummary("operation", "replace")
+            .defaultNamespace(Namespace.of("ns"))
+            .build();
+    String json =
+        String.format(
+            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"operation\":\"replace\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
+            action);
+    MetadataUpdate expected = new MetadataUpdate.AddViewVersion(viewVersion);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testAddViewVersionToJson() {
+    String action = MetadataUpdateParser.ADD_VIEW_VERSION;
+    long timestamp = 123456789;
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(23)
+            .timestampMillis(timestamp)
+            .schemaId(4)
+            .putSummary("operation", "replace")
+            .defaultNamespace(Namespace.of("ns"))
+            .build();
+    String expected =
+        String.format(
+            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"operation\":\"replace\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
+            action);
+
+    MetadataUpdate update = new MetadataUpdate.AddViewVersion(viewVersion);
+    Assertions.assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
+  }
+
+  /** SetCurrentViewVersion */
+  @Test
+  public void testSetCurrentViewVersionFromJson() {
+    String action = MetadataUpdateParser.SET_CURRENT_VIEW_VERSION;
+    String json = String.format("{\"action\":\"%s\",\"view-version-id\":23}", action);
+    MetadataUpdate expected = new MetadataUpdate.SetCurrentViewVersion(23);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testSetCurrentViewVersionToJson() {
+    String action = MetadataUpdateParser.SET_CURRENT_VIEW_VERSION;
+    String expected = String.format("{\"action\":\"%s\",\"view-version-id\":23}", action);
+    MetadataUpdate update = new MetadataUpdate.SetCurrentViewVersion(23);
+    Assertions.assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -905,6 +967,16 @@ public class TestMetadataUpdateParser {
       case MetadataUpdateParser.SET_LOCATION:
         assertEqualsSetLocation(
             (MetadataUpdate.SetLocation) expectedUpdate, (MetadataUpdate.SetLocation) actualUpdate);
+        break;
+      case MetadataUpdateParser.ADD_VIEW_VERSION:
+        assertEqualsAddViewVersion(
+            (MetadataUpdate.AddViewVersion) expectedUpdate,
+            (MetadataUpdate.AddViewVersion) actualUpdate);
+        break;
+      case MetadataUpdateParser.SET_CURRENT_VIEW_VERSION:
+        assertEqualsSetCurrentViewVersion(
+            (MetadataUpdate.SetCurrentViewVersion) expectedUpdate,
+            (MetadataUpdate.SetCurrentViewVersion) actualUpdate);
         break;
       default:
         Assert.fail("Unrecognized metadata update action: " + action);
@@ -1145,6 +1217,16 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsSetLocation(
       MetadataUpdate.SetLocation expected, MetadataUpdate.SetLocation actual) {
     Assert.assertEquals("Location should be the same", expected.location(), actual.location());
+  }
+
+  private static void assertEqualsAddViewVersion(
+      MetadataUpdate.AddViewVersion expected, MetadataUpdate.AddViewVersion actual) {
+    Assertions.assertThat(actual.viewVersion()).isEqualTo(expected.viewVersion());
+  }
+
+  private static void assertEqualsSetCurrentViewVersion(
+      MetadataUpdate.SetCurrentViewVersion expected, MetadataUpdate.SetCurrentViewVersion actual) {
+    Assertions.assertThat(actual.versionId()).isEqualTo(expected.versionId());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)

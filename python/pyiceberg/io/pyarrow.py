@@ -58,11 +58,6 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
-    GcsFileSystem,
-    HadoopFileSystem,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
 )
 from sortedcontainers import SortedList
 
@@ -289,18 +284,27 @@ class PyArrowFile(InputFile, OutputFile):
 
 
 class PyArrowFileIO(FileIO):
+    fs_by_scheme: Callable[[str], FileSystem]
+
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
+        self.fs_by_scheme: Callable[[str], FileSystem] = lru_cache(self._initialize_fs)
         super().__init__(properties=properties)
 
     @staticmethod
     def parse_location(location: str) -> Tuple[str, str]:
         """Return the path without the scheme."""
         uri = urlparse(location)
-        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+        if not uri.scheme:
+            return "file", os.path.abspath(location)
+        elif uri.scheme == "hdfs":
+            return uri.scheme, location
+        else:
+            return uri.scheme, f"{uri.netloc}{uri.path}"
 
-    def _get_fs(self, scheme: str) -> FileSystem:
+    def _initialize_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
+            from pyarrow.fs import S3FileSystem
+
             client_kwargs = {
                 "endpoint_override": self.properties.get(S3_ENDPOINT),
                 "access_key": self.properties.get(S3_ACCESS_KEY_ID),
@@ -314,14 +318,23 @@ class PyArrowFileIO(FileIO):
 
             return S3FileSystem(**client_kwargs)
         elif scheme == "hdfs":
-            client_kwargs = {
-                "host": self.properties.get(HDFS_HOST),
-                "port": self.properties.get(HDFS_PORT),
-                "user": self.properties.get(HDFS_USER),
-                "kerb_ticket": self.properties.get(HDFS_KERB_TICKET),
-            }
-            return HadoopFileSystem(**client_kwargs)
+            from pyarrow.fs import HadoopFileSystem
+
+            hdfs_kwargs: Dict[str, Any] = {}
+            if host := self.properties.get(HDFS_HOST):
+                hdfs_kwargs["host"] = host
+            if port := self.properties.get(HDFS_PORT):
+                # port should be an integer type
+                hdfs_kwargs["port"] = int(port)
+            if user := self.properties.get(HDFS_USER):
+                hdfs_kwargs["user"] = user
+            if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
+                hdfs_kwargs["kerb_ticket"] = kerb_ticket
+
+            return HadoopFileSystem(**hdfs_kwargs)
         elif scheme in {"gs", "gcs"}:
+            from pyarrow.fs import GcsFileSystem
+
             gcs_kwargs: Dict[str, Any] = {}
             if access_token := self.properties.get(GCS_TOKEN):
                 gcs_kwargs["access_token"] = access_token
@@ -333,8 +346,11 @@ class PyArrowFileIO(FileIO):
                 url_parts = urlparse(endpoint)
                 gcs_kwargs["scheme"] = url_parts.scheme
                 gcs_kwargs["endpoint_override"] = url_parts.netloc
+
             return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
+            from pyarrow.fs import LocalFileSystem
+
             return LocalFileSystem()
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
@@ -349,8 +365,12 @@ class PyArrowFileIO(FileIO):
             PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location.
@@ -362,8 +382,12 @@ class PyArrowFileIO(FileIO):
             PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location.
@@ -379,7 +403,7 @@ class PyArrowFileIO(FileIO):
         """
         str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         scheme, path = self.parse_location(str_location)
-        fs = self._get_fs(scheme)
+        fs = self.fs_by_scheme(scheme)
 
         try:
             fs.delete_file(path)
@@ -884,12 +908,14 @@ def project_table(
     """
     scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        fs = table.io.get_fs(scheme)
+        fs = table.io.fs_by_scheme(scheme)
     else:
         try:
             from pyiceberg.io.fsspec import FsspecFileIO
 
             if isinstance(table.io, FsspecFileIO):
+                from pyarrow.fs import PyFileSystem
+
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
