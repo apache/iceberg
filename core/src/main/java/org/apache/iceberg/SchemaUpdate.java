@@ -535,7 +535,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // apply schema changes
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(schema, deletes, updates, adds, moves))
+        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, adds, moves))
             .asNestedType()
             .asStructType();
 
