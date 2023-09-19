@@ -38,6 +38,7 @@ import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -53,6 +54,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -573,12 +575,11 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testGCEnabled() {
+  public void testGCDisabled() {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    Assertions.assertThat(icebergTable.properties().get(TableProperties.GC_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "false");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -589,18 +590,43 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
+  public void testGCEnabled() {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+    icebergTable.updateProperties().set(TableProperties.GC_ENABLED, "true").commit();
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "true");
+
+    Assertions.assertThatCode(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testGCEnabledViaTableDefaultCatalogProperty() {
+    catalog.dropTable(TABLE_IDENTIFIER, false); // pre-created in @BeforeEach
+
+    catalog =
+        initCatalog(
+            branch,
+            null,
+            ImmutableMap.<String, String>builder()
+                .put(CatalogProperties.TABLE_DEFAULT_PREFIX + TableProperties.GC_ENABLED, "true")
+                .build());
+
+    // Create the table again using updated config defaults.
+    tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    // Forceful setting of property also should get override with false
-    icebergTable
-        .updateProperties()
-        .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
-        .commit();
-    Assertions.assertThat(
-            icebergTable.properties().get(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
+    Assertions.assertThatCode(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     icebergTable
         .updateProperties()
