@@ -559,7 +559,7 @@ public class TestGlueCatalog {
   }
 
   @Test
-  public void testDropNamespaceThatDoesNotExists() {
+  public void testDropNonExistingNamespace() {
     Mockito.doThrow(EntityNotFoundException.class)
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
