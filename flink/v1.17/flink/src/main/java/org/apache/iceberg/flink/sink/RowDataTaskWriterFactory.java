@@ -104,7 +104,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  public void setTable(Table table) {
+  void setTable(Table table) {
     this.table = table;
   }
 
