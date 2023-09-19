@@ -162,9 +162,9 @@ def test_register_table(test_catalog: SqlCatalog, random_identifier: Identifier,
 def test_register_existing_table(test_catalog: SqlCatalog, random_identifier: Identifier, metadata_location: str) -> None:
     database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)
-    table = test_catalog.register_table(random_identifier, metadata_location)
+    test_catalog.register_table(random_identifier, metadata_location)
     with pytest.raises(TableAlreadyExistsError):
-        table = test_catalog.register_table(random_identifier, metadata_location)
+        test_catalog.register_table(random_identifier, metadata_location)
 
 
 def test_register_table_with_non_existing_namespace(test_catalog: SqlCatalog, metadata_location: str, table_name: str) -> None:
