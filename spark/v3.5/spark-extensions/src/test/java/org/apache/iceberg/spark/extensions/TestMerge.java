@@ -146,7 +146,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(
             row(1, "emp-id-1"), // updated (matched)
+            // row(2, "emp-id-two) // deleted (matched)
             row(3, "invalid"), // updated (not matched by source)
+            // row(4, "emp-id-4) // deleted (not matched by source)
             row(5, "emp-id-5")), // new
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
@@ -160,7 +162,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 3, \"dep\": \"emp-id-3\" }\n"
             + "{ \"id\": 4, \"dep\": \"emp-id-4\" }");
 
-    createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
+    createOrReplaceView("source", ImmutableList.of(1, 4), Encoders.INT());
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
@@ -171,7 +173,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     assertEquals(
         "Should have expected rows",
-        ImmutableList.of(row(1, "emp-id-1")), // existing
+        ImmutableList.of(
+            row(1, "emp-id-1"), // existing
+            // row(2, "emp-id-2) // deleted (not matched by source)
+            // row(3, "emp-id-3") // deleted (not matched by source)
+            row(4, "emp-id-4")), // existing
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
