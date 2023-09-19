@@ -23,7 +23,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -388,11 +387,17 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Integer findForMove(String name) {
+    Integer addedId = addedNameToId.get(name);
+    if (addedId != null) {
+      return addedId;
+    }
+
     Types.NestedField field = findField(name);
     if (field != null) {
       return field.fieldId();
     }
-    return addedNameToId.get(name);
+
+    return null;
   }
 
   private void internalMove(String name, Move move) {
@@ -559,7 +564,6 @@ class SchemaUpdate implements UpdateSchema {
     private final Multimap<Integer, Move> moves;
 
     private ApplyChanges(
-        Schema oldSchema,
         List<Integer> deletes,
         Map<Integer, Types.NestedField> updates,
         Multimap<Integer, Types.NestedField> adds,
@@ -567,47 +571,7 @@ class SchemaUpdate implements UpdateSchema {
       this.deletes = deletes;
       this.updates = updates;
       this.adds = adds;
-      this.moves = reconstructMoveOps(oldSchema, deletes, adds, moves);
-    }
-
-    private static Multimap<Integer, Move> reconstructMoveOps(
-        Schema oldSchema,
-        List<Integer> deletes,
-        Multimap<Integer, Types.NestedField> adds,
-        Multimap<Integer, Move> moves) {
-      Multimap<Integer, Move> reconstructedMap =
-          Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
-      Collection<Types.NestedField> addedFields = adds.values();
-      for (Integer k : moves.keys()) {
-        Collection<Move> moveOps = moves.get(k);
-        for (Move move : moveOps) {
-          if (deletes.contains(move.fieldId)) {
-            String deletedFieldName = oldSchema.findField(move.fieldId).name();
-            Optional<Types.NestedField> addedBackField =
-                findFieldWithName(addedFields, deletedFieldName);
-            if (addedBackField.isPresent()) {
-              Move newMoveOp = null;
-              if (move.type == Move.MoveType.FIRST) {
-                newMoveOp = Move.first(addedBackField.get().fieldId());
-              } else if (move.type == Move.MoveType.AFTER) {
-                newMoveOp = Move.after(addedBackField.get().fieldId(), move.referenceFieldId);
-              } else if (move.type == Move.MoveType.BEFORE) {
-                newMoveOp = Move.before(addedBackField.get().fieldId(), move.referenceFieldId);
-              }
-              reconstructedMap.put(k, newMoveOp);
-            } else {
-              throw new IllegalArgumentException(
-                  "cannot move the field "
-                      + deletedFieldName
-                      + " which was deleted"
-                      + " without adding it back");
-            }
-          } else {
-            reconstructedMap.put(k, move);
-          }
-        }
-      }
-      return reconstructedMap;
+      this.moves = moves;
     }
 
     @Override
@@ -786,14 +750,6 @@ class SchemaUpdate implements UpdateSchema {
     return newFields;
   }
 
-  private static Optional<Types.NestedField> findFieldWithName(
-      Collection<Types.NestedField> addedFields, String fieldName) {
-    return addedFields.stream()
-        .filter(nestedField -> nestedField.name().equals(fieldName))
-        .findFirst();
-  }
-
-  @SuppressWarnings({"checkstyle:IllegalType", "JdkObsolete"})
   private static List<Types.NestedField> moveFields(
       List<Types.NestedField> fields, Collection<Move> moves) {
     LinkedList<Types.NestedField> reordered = Lists.newLinkedList(fields);
