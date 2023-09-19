@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -38,9 +39,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private Table table;
+  private final Supplier<Table> tableSupplier;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -60,8 +62,27 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
       boolean upsert) {
+    this(
+        () -> table,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert);
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
+    this.tableSupplier = tableSupplier;
     // rely on the initial table metadata for schema, etc., until schema evolution is supported
-    this.table = table;
+    Table table = tableSupplier.get();
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
     this.spec = table.spec();
@@ -104,16 +125,12 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  void setTable(Table table) {
-    this.table = table;
-  }
-
   @Override
   public void initialize(int taskId, int attemptId) {
     this.outputFileFactory =
-        OutputFileFactory.builderFor(table, taskId, attemptId)
+        OutputFileFactory.builderFor(tableSupplier.get(), taskId, attemptId)
             .format(format)
-            .ioSupplier(() -> table.io())
+            .ioSupplier(() -> tableSupplier.get().io())
             .build();
   }
 
@@ -127,14 +144,19 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // Initialize a task writer to write INSERT only.
       if (spec.isUnpartitioned()) {
         return new UnpartitionedWriter<>(
-            spec, format, appenderFactory, outputFileFactory, table.io(), targetFileSizeBytes);
+            spec,
+            format,
+            appenderFactory,
+            outputFileFactory,
+            tableSupplier.get().io(),
+            targetFileSizeBytes);
       } else {
         return new RowDataPartitionedFanoutWriter(
             spec,
             format,
             appenderFactory,
             outputFileFactory,
-            table.io(),
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema);
@@ -147,7 +169,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             format,
             appenderFactory,
             outputFileFactory,
-            table.io(),
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,
@@ -159,7 +181,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             format,
             appenderFactory,
             outputFileFactory,
-            table.io(),
+            tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,

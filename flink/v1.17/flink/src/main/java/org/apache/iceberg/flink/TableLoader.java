@@ -58,10 +58,6 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     return new HadoopTableLoader(location, hadoopConf);
   }
 
-  static TableLoader immutableFromTable(Table table) {
-    return new ImmutableTableLoader(table);
-  }
-
   class HadoopTableLoader implements TableLoader {
 
     private static final long serialVersionUID = 1L;
@@ -159,36 +155,5 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
           .add("catalogLoader", catalogLoader)
           .toString();
     }
-  }
-
-  class ImmutableTableLoader implements TableLoader {
-
-    private final Table table;
-
-    private ImmutableTableLoader(Table table) {
-      this.table = table;
-    }
-
-    @Override
-    public void open() {}
-
-    @Override
-    public boolean isOpen() {
-      return true;
-    }
-
-    @Override
-    public Table loadTable() {
-      return table;
-    }
-
-    @Override
-    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-    public TableLoader clone() {
-      return new ImmutableTableLoader(table);
-    }
-
-    @Override
-    public void close() throws IOException {}
   }
 }

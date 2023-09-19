@@ -30,7 +30,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
-public class TestCachingTableLoader {
+public class TestCachingTableSupplier {
 
   @Test
   public void testCheckArguments() {
@@ -40,15 +40,15 @@ public class TestCachingTableLoader {
     TableLoader tableLoader = mock(TableLoader.class);
     when(tableLoader.loadTable()).thenReturn(loadedTable);
 
-    new CachingTableLoader(initialTable, tableLoader, Duration.ofMillis(100));
+    new CachingTableSupplier(initialTable, tableLoader, Duration.ofMillis(100));
 
-    assertThatThrownBy(() -> new CachingTableLoader(initialTable, tableLoader, null))
+    assertThatThrownBy(() -> new CachingTableSupplier(initialTable, tableLoader, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("tableRefreshInterval cannot be null");
-    assertThatThrownBy(() -> new CachingTableLoader(null, tableLoader, Duration.ofMillis(100)))
+    assertThatThrownBy(() -> new CachingTableSupplier(null, tableLoader, Duration.ofMillis(100)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("initialTable cannot be null");
-    assertThatThrownBy(() -> new CachingTableLoader(initialTable, null, Duration.ofMillis(100)))
+    assertThatThrownBy(() -> new CachingTableSupplier(initialTable, null, Duration.ofMillis(100)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("tableLoader cannot be null");
   }
@@ -61,15 +61,15 @@ public class TestCachingTableLoader {
     TableLoader tableLoader = mock(TableLoader.class);
     when(tableLoader.loadTable()).thenReturn(loadedTable);
 
-    CachingTableLoader cachingTableLoader =
-        new CachingTableLoader(initialTable, tableLoader, Duration.ofMillis(100));
+    CachingTableSupplier cachingTableSupplier =
+        new CachingTableSupplier(initialTable, tableLoader, Duration.ofMillis(100));
 
     // load shouldn't do anything as the min reload interval hasn't passed
-    assertThat(cachingTableLoader.loadTable()).isEqualTo(initialTable);
+    assertThat(cachingTableSupplier.get()).isEqualTo(initialTable);
 
     // refresh after waiting past the min reload interval
     Awaitility.await()
         .atLeast(100, TimeUnit.MILLISECONDS)
-        .untilAsserted(() -> assertThat(cachingTableLoader.loadTable()).isEqualTo(loadedTable));
+        .untilAsserted(() -> assertThat(cachingTableSupplier.get()).isEqualTo(loadedTable));
   }
 }

@@ -20,12 +20,13 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -37,7 +38,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
-  private final TableLoader tableLoader;
+  private final Supplier<Table> tableSupplier;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
@@ -45,10 +46,10 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient IcebergStreamWriterMetrics writerMetrics;
 
   IcebergStreamWriter(
-      String fullTableName, TaskWriterFactory<T> taskWriterFactory, TableLoader tableLoader) {
+      String fullTableName, TaskWriterFactory<T> taskWriterFactory, Supplier<Table> tableSupplier) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
-    this.tableLoader = tableLoader;
+    this.tableSupplier = tableSupplier;
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -58,13 +59,13 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     this.attemptId = getRuntimeContext().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
 
-    // Initialize the task writer factory.
+    // Initialize the task writer factory before refreshing the table so that the initial
+    // schema and partition spec are used.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
 
     // Refresh the table if needed.
-    this.tableLoader.open();
-    if (this.taskWriterFactory instanceof RowDataTaskWriterFactory) {
-      ((RowDataTaskWriterFactory) this.taskWriterFactory).setTable(tableLoader.loadTable());
+    if (tableSupplier instanceof CachingTableSupplier) {
+      ((CachingTableSupplier) tableSupplier).refresh();
     }
 
     // Initialize the task writer.
@@ -75,8 +76,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     flush();
 
-    if (taskWriterFactory instanceof RowDataTaskWriterFactory) {
-      ((RowDataTaskWriterFactory) taskWriterFactory).setTable(tableLoader.loadTable());
+    // Refresh the table if needed.
+    if (tableSupplier instanceof CachingTableSupplier) {
+      ((CachingTableSupplier) tableSupplier).refresh();
     }
 
     this.writer = taskWriterFactory.create();

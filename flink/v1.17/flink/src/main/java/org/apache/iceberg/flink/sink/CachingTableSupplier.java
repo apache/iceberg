@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.io.IOException;
 import java.time.Duration;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,9 +32,9 @@ import org.slf4j.LoggerFactory;
  * table loader should be used carefully when used with writer tasks. It could result in heavy load
  * on a catalog for jobs with many writers.
  */
-class CachingTableLoader implements TableLoader {
+class CachingTableSupplier implements SerializableSupplier<Table> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CachingTableLoader.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CachingTableSupplier.class);
 
   private final Table initialTable;
   private final TableLoader tableLoader;
@@ -42,7 +42,7 @@ class CachingTableLoader implements TableLoader {
   private long nextReloadTimeMs;
   private transient Table table;
 
-  CachingTableLoader(Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
+  CachingTableSupplier(Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
     Preconditions.checkArgument(
@@ -55,25 +55,20 @@ class CachingTableLoader implements TableLoader {
   }
 
   @Override
-  public void open() {
-    if (!tableLoader.isOpen()) {
-      tableLoader.open();
-    }
-  }
-
-  @Override
-  public boolean isOpen() {
-    return tableLoader.isOpen();
-  }
-
-  @Override
-  public Table loadTable() {
+  public Table get() {
     if (table == null) {
       this.table = initialTable;
     }
+    return table;
+  }
 
+  public void refresh() {
     if (System.currentTimeMillis() > nextReloadTimeMs) {
       try {
+        if (!tableLoader.isOpen()) {
+          tableLoader.open();
+        }
+
         this.table = tableLoader.loadTable();
         nextReloadTimeMs = System.currentTimeMillis() + tableRefreshInterval.toMillis();
 
@@ -85,18 +80,5 @@ class CachingTableLoader implements TableLoader {
         LOG.warn("An error occurred reloading table {}, table was not reloaded", table.name(), e);
       }
     }
-
-    return table;
-  }
-
-  @Override
-  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-  public TableLoader clone() {
-    return new CachingTableLoader(initialTable, tableLoader, tableRefreshInterval);
-  }
-
-  @Override
-  public void close() throws IOException {
-    tableLoader.close();
   }
 }
