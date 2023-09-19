@@ -89,6 +89,7 @@ public class TestViewMetadataParser {
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
         ViewMetadata.builder()
+            .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
             .addSchema(TEST_SCHEMA)
             .addVersion(version1)
             .addVersion(version2)

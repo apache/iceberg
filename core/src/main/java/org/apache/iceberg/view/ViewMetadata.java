@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataUpdate;
@@ -45,6 +46,8 @@ public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
   int DEFAULT_VIEW_FORMAT_VERSION = 1;
+
+  String uuid();
 
   int formatVersion();
 
@@ -141,6 +144,7 @@ public interface ViewMetadata extends Serializable {
     private int formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
     private int currentVersionId;
     private String location;
+    private String uuid;
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
@@ -157,6 +161,7 @@ public interface ViewMetadata extends Serializable {
       this.history = Lists.newArrayList();
       this.properties = Maps.newHashMap();
       this.changes = Lists.newArrayList();
+      this.uuid = null;
     }
 
     private Builder(ViewMetadata base) {
@@ -170,6 +175,7 @@ public interface ViewMetadata extends Serializable {
       this.formatVersion = base.formatVersion();
       this.currentVersionId = base.currentVersionId();
       this.location = base.location();
+      this.uuid = base.uuid();
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
@@ -353,6 +359,18 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
+    public ViewMetadata.Builder assignUUID(String newUUID) {
+      Preconditions.checkArgument(newUUID != null, "Cannot set uuid to null");
+      Preconditions.checkArgument(uuid == null || newUUID.equals(uuid), "Cannot reassign uuid");
+
+      if (!newUUID.equals(uuid)) {
+        this.uuid = newUUID;
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
@@ -386,6 +404,7 @@ public interface ViewMetadata extends Serializable {
       }
 
       return ImmutableViewMetadata.of(
+          null == uuid ? UUID.randomUUID().toString() : uuid,
           formatVersion,
           location,
           schemas,
