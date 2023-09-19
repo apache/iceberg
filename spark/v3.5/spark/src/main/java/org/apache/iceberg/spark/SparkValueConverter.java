@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -74,17 +73,7 @@ public class SparkValueConverter {
         // for Spark SQL DATE type otherwise java.sql.Date is returned.
         return DateTimeUtils.anyToDays(object);
       case TIMESTAMP:
-        Types.TimestampType ts = (Types.TimestampType) type.asPrimitiveType();
-
-        // This if/else can be removed once https://github.com/apache/spark/pull/41238 is in
-        if (ts.shouldAdjustToUTC()) {
-          // if spark.sql.datetime.java8API.enabled is set to true, java.time.Instant
-          // for Spark SQL TIMESTAMP type is returned otherwise java.sql.Timestamp is returned.
-          return DateTimeUtils.anyToMicros(object);
-        } else {
-          LocalDateTime ldt = (LocalDateTime) object;
-          return DateTimeUtils.localDateTimeToMicros(ldt);
-        }
+        return DateTimeUtils.anyToMicros(object);
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:
