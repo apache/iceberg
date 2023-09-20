@@ -368,14 +368,18 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.ref(colName);
         case "bucket":
           return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+        case "year":
         case "years":
           return org.apache.iceberg.expressions.Expressions.year(colName);
+        case "month":
         case "months":
           return org.apache.iceberg.expressions.Expressions.month(colName);
         case "date":
+        case "day":
         case "days":
           return org.apache.iceberg.expressions.Expressions.day(colName);
         case "date_hour":
+        case "hour":
         case "hours":
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
