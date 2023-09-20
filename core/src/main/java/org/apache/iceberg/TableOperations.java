@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -114,5 +115,15 @@ public interface TableOperations {
    */
   default long newSnapshotId() {
     return SnapshotIdGeneratorUtil.generateSnapshotID();
+  }
+
+  /**
+   * Whether to clean up uncommitted metadata files only when a commit fails with a {@link
+   * CleanableFailure} exception.
+   *
+   * <p>This defaults to false: any unexpected exception will cause metadata files to be cleaned up.
+   */
+  default boolean requireStrictCleanup() {
+    return false;
   }
 }
