@@ -40,7 +40,7 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
   private final Table initialTable;
   private final TableLoader tableLoader;
   private final Duration tableRefreshInterval;
-  private long nextReloadTimeMs;
+  private long lastLoadTimeMillis;
   private transient Table table;
 
   CachingTableSupplier(
@@ -53,7 +53,7 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
     this.table = initialTable;
     this.tableLoader = tableLoader;
     this.tableRefreshInterval = tableRefreshInterval;
-    this.nextReloadTimeMs = System.currentTimeMillis() + tableRefreshInterval.toMillis();
+    this.lastLoadTimeMillis = System.currentTimeMillis();
   }
 
   @Override
@@ -65,19 +65,20 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
   }
 
   public void refresh() {
-    if (System.currentTimeMillis() > nextReloadTimeMs) {
+    if (System.currentTimeMillis() > lastLoadTimeMillis + tableRefreshInterval.toMillis()) {
       try {
         if (!tableLoader.isOpen()) {
           tableLoader.open();
         }
 
         this.table = tableLoader.loadTable();
-        nextReloadTimeMs = System.currentTimeMillis() + tableRefreshInterval.toMillis();
+        this.lastLoadTimeMillis = System.currentTimeMillis();
 
         LOG.info(
             "Table {} reloaded, next min load time threshold is {}",
             table.name(),
-            DateTimeUtil.formatTimestampMillis(nextReloadTimeMs));
+            DateTimeUtil.formatTimestampMillis(
+                lastLoadTimeMillis + tableRefreshInterval.toMillis()));
       } catch (Exception e) {
         LOG.warn("An error occurred reloading table {}, table was not reloaded", table.name(), e);
       }
