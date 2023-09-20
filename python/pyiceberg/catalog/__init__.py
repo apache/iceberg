@@ -603,4 +603,4 @@ class Catalog(ABC):
 
     def __repr__(self) -> str:
         """Returns the string representation of the Catalog class."""
-        return f"{self.__class__} with name: {self.name} and properties: {self.properties}"
+        return f"{self.__class__} with name: {self.name}"
