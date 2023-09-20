@@ -35,8 +35,10 @@ public class StandardEncryptionManagerFactory implements Closeable {
     String kmsType = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_TYPE);
 
     if (kmsType == null) {
-      kmsClient = null;
-    } else if (kmsType.equals(CatalogProperties.ENCRYPTION_KMS_CUSTOM_TYPE)) {
+      throw new IllegalStateException("Cannot create StandardEncryptionManagerFactory without KMS type");
+    }
+
+    if (kmsType.equals(CatalogProperties.ENCRYPTION_KMS_CUSTOM_TYPE)) {
       String kmsClientImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_CLIENT_IMPL);
       if (kmsClientImpl == null) {
         throw new IllegalStateException("Custom KMS client class is not defined");
