@@ -14,10 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import struct
+from pyiceberg.utils.truncate import truncate_upper_bound_binary_string, truncate_upper_bound_text_string
 
-STRUCT_BOOL = struct.Struct("?")
-STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
-STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double
-STRUCT_INT32 = struct.Struct("<i")
-STRUCT_INT64 = struct.Struct("<q")
+
+def test_upper_bound_string_truncation() -> None:
+    assert truncate_upper_bound_text_string("aaaa", 2) == "ab"
+    assert truncate_upper_bound_text_string("".join([chr(0x10FFFF), chr(0x10FFFF), chr(0x0)]), 2) is None
+
+
+def test_upper_bound_binary_truncation() -> None:
+    assert truncate_upper_bound_binary_string(b"\x01\x02\x03", 2) == b"\x01\x03"
+    assert truncate_upper_bound_binary_string(b"\xff\xff\x00", 2) is None
