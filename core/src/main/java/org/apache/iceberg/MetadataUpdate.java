@@ -53,6 +53,11 @@ public interface MetadataUpdate extends Serializable {
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.assignUUID(uuid);
     }
+
+    @Override
+    public void applyTo(ViewMetadata.Builder metadataBuilder) {
+      metadataBuilder.assignUUID(uuid);
+    }
   }
 
   class UpgradeFormatVersion implements MetadataUpdate {

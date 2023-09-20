@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -43,6 +44,8 @@ public class TestViewMetadata {
         .defaultCatalog("prod")
         .defaultNamespace(Namespace.of("default"))
         .summary(ImmutableMap.of("operation", "create"))
+        .addRepresentations(
+            ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build())
         .schemaId(1)
         .build();
   }
@@ -101,6 +104,10 @@ public class TestViewMetadata {
             () -> ViewMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set current version to unknown version: 1");
+
+    assertThatThrownBy(() -> ViewMetadata.builder().assignUUID(null).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set uuid to null");
   }
 
   @Test
@@ -380,8 +387,10 @@ public class TestViewMetadata {
             .defaultNamespace(Namespace.of("ns"))
             .build();
 
+    String uuid = "fa6506c3-7681-40c8-86dc-e36561f83385";
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
+            .assignUUID(uuid)
             .setLocation("custom-location")
             .setProperties(properties)
             .addSchema(schemaOne)
@@ -406,28 +415,27 @@ public class TestViewMetadata {
     assertThat(viewMetadata.properties()).isEqualTo(properties);
 
     List<MetadataUpdate> changes = viewMetadata.changes();
-    assertThat(changes).hasSize(8);
+    assertThat(changes).hasSize(9);
     assertThat(changes)
         .element(0)
+        .isInstanceOf(MetadataUpdate.AssignUUID.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AssignUUID.class))
+        .extracting(MetadataUpdate.AssignUUID::uuid)
+        .isEqualTo(uuid);
+
+    assertThat(changes)
+        .element(1)
         .isInstanceOf(MetadataUpdate.SetLocation.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetLocation.class))
         .extracting(MetadataUpdate.SetLocation::location)
         .isEqualTo("custom-location");
 
     assertThat(changes)
-        .element(1)
+        .element(2)
         .isInstanceOf(MetadataUpdate.SetProperties.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetProperties.class))
         .extracting(MetadataUpdate.SetProperties::updated)
         .isEqualTo(properties);
-
-    assertThat(changes)
-        .element(2)
-        .isInstanceOf(MetadataUpdate.AddSchema.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
-        .extracting(MetadataUpdate.AddSchema::schema)
-        .extracting(Schema::schemaId)
-        .isEqualTo(1);
 
     assertThat(changes)
         .element(3)
@@ -435,34 +443,83 @@ public class TestViewMetadata {
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
-        .isEqualTo(2);
+        .isEqualTo(1);
 
     assertThat(changes)
         .element(4)
-        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
-        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionOne);
+        .isInstanceOf(MetadataUpdate.AddSchema.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
+        .extracting(MetadataUpdate.AddSchema::schema)
+        .extracting(Schema::schemaId)
+        .isEqualTo(2);
 
     assertThat(changes)
         .element(5)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionTwo);
+        .isEqualTo(viewVersionOne);
 
     assertThat(changes)
         .element(6)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
+        .isEqualTo(viewVersionTwo);
 
     assertThat(changes)
         .element(7)
+        .isInstanceOf(MetadataUpdate.AddViewVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
+        .extracting(MetadataUpdate.AddViewVersion::viewVersion)
+        .isEqualTo(viewVersionThree);
+
+    assertThat(changes)
+        .element(8)
         .isInstanceOf(MetadataUpdate.SetCurrentViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.SetCurrentViewVersion.class))
         .extracting(MetadataUpdate.SetCurrentViewVersion::versionId)
         .isEqualTo(-1);
+  }
+
+  @Test
+  public void uuidAssignment() {
+    String uuid = "fa6506c3-7681-40c8-86dc-e36561f83385";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("custom-location")
+            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(1)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .putSummary("operation", "create")
+                    .defaultNamespace(Namespace.of("ns"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    assertThat(viewMetadata.uuid()).isEqualTo(uuid);
+
+    // uuid should be carried over
+    ViewMetadata updated = ViewMetadata.buildFrom(viewMetadata).build();
+    assertThat(updated.uuid()).isEqualTo(uuid);
+    assertThat(updated.changes()).isEmpty();
+
+    // assigning the same uuid shouldn't fail and shouldn't cause any changes
+    updated = ViewMetadata.buildFrom(viewMetadata).assignUUID(uuid).build();
+    assertThat(updated.uuid()).isEqualTo(uuid);
+    assertThat(updated.changes()).isEmpty();
+
+    // can't reassign view uuid
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.buildFrom(viewMetadata)
+                    .assignUUID(UUID.randomUUID().toString())
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot reassign uuid");
   }
 }
