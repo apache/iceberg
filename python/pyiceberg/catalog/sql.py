@@ -193,8 +193,28 @@ class SqlCatalog(Catalog):
 
         Raises:
             TableAlreadyExistsError: If the table already exists
+            NoSuchNamespaceError: If namespace does not exist
         """
-        raise NotImplementedError
+        database_name, table_name = self.identifier_to_database_and_table(identifier)
+        if not self._namespace_exists(database_name):
+            raise NoSuchNamespaceError(f"Namespace does not exist: {database_name}")
+
+        with Session(self.engine) as session:
+            try:
+                session.add(
+                    IcebergTables(
+                        catalog_name=self.name,
+                        table_namespace=database_name,
+                        table_name=table_name,
+                        metadata_location=metadata_location,
+                        previous_metadata_location=None,
+                    )
+                )
+                session.commit()
+            except IntegrityError as e:
+                raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
+
+        return self.load_table(identifier=identifier)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Load the table's metadata and return the table instance.

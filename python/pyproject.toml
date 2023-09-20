@@ -77,7 +77,7 @@ pre-commit = "3.4.0"
 fastavro = "1.8.3"
 coverage = { version = "^7.3.1", extras = ["toml"] }
 requests-mock = "1.11.0"
-moto = "^4.2.0"
+moto = "^4.2.3"
 typing-extensions = "4.7.1"
 pytest-mock = "3.11.1"
 cython = "3.0.2"

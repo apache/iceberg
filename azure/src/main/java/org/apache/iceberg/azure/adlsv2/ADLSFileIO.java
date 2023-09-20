@@ -31,12 +31,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
-import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.SerializableMap;
@@ -46,7 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations {
+public class ADLSFileIO implements DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =

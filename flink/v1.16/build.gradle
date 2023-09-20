@@ -36,11 +36,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     // for dropwizard histogram metrics implementation
     compileOnly libs.flink116.metrics.dropwizard
     compileOnly libs.flink116.streaming.java
-    compileOnly(libs.flink116.streaming.java) {
-      artifact {
-        classifier = 'tests'
-      }
-    }
+    compileOnly "${libs.flink116.streaming.java.get().module}:${libs.flink116.streaming.java.get().getVersion()}:tests"
     compileOnly libs.flink116.table.api.java.bridge
     compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink116.get()}"
     compileOnly libs.flink116.connector.base
@@ -61,10 +57,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     compileOnly libs.avro.avro
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -92,10 +85,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation(libs.hive2.exec) {
-      artifact {
-        classifier = 'core'
-      }
+    testImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -209,10 +199,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
-    integrationImplementation(libs.hive2.exec) {
-      artifact {
-        classifier = 'core'
-      }
+    integrationImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency

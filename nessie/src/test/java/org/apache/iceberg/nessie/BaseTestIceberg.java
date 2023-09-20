@@ -23,7 +23,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -136,10 +138,15 @@ public abstract class BaseTestIceberg {
   }
 
   NessieCatalog initCatalog(String ref, String hash) {
+    return initCatalog(ref, hash, Collections.emptyMap());
+  }
+
+  NessieCatalog initCatalog(String ref, String hash, Map<String, String> extraOptions) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
     ImmutableMap.Builder<String, String> options =
         ImmutableMap.<String, String>builder()
+            .putAll(extraOptions)
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")

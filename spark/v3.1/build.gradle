@@ -58,7 +58,10 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     implementation project(':iceberg-data')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
-    implementation project(':iceberg-arrow')
+    implementation(project(':iceberg-arrow')) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
@@ -66,7 +69,6 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
-      // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
@@ -75,10 +77,7 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -92,9 +91,11 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
+    // use netty-buffer compatible with Spark 3.1
+    runtimeOnly libs.netty.buffer.compat
+
     testImplementation(libs.hadoop2.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
-      // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
     }
@@ -151,7 +152,6 @@ project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
-      // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'

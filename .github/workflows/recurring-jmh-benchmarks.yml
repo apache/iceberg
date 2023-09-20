@@ -41,7 +41,7 @@ jobs:
                     "IcebergSourceNestedParquetDataReadBenchmark", "IcebergSourceNestedParquetDataWriteBenchmark",
                     "IcebergSourceParquetEqDeleteBenchmark", "IcebergSourceParquetMultiDeleteFileBenchmark",
                     "IcebergSourceParquetPosDeleteBenchmark", "IcebergSourceParquetWithUnrelatedDeleteBenchmark"]
-        spark_version: ['iceberg-spark-3.4']
+        spark_version: ['iceberg-spark-3.5']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
