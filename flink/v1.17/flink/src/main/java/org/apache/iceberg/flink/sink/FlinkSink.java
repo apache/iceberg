@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -133,7 +132,6 @@ public class FlinkSink {
   public static class Builder {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
-    private Duration tableRefreshInterval;
     private Table table;
     private TableSchema tableSchema;
     private List<String> equalityFieldColumns = null;
@@ -267,20 +265,6 @@ public class FlinkSink {
      */
     public Builder upsert(boolean enabled) {
       writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
-      return this;
-    }
-
-    /**
-     * Sets the interval for refreshing the table instance in {@link IcebergStreamWriter}. If not
-     * specified then the default behavior is to not refresh the table, and the initial table
-     * instance initialized is used for the lifetime of the job.
-     *
-     * @param refreshInterval the interval for refreshing the table in writer subtasks
-     * @return {@link Builder} to connect the iceberg table.
-     */
-    @Experimental
-    public Builder tableRefreshInterval(Duration refreshInterval) {
-      this.tableRefreshInterval = refreshInterval;
       return this;
     }
 
@@ -484,6 +468,8 @@ public class FlinkSink {
       }
 
       SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+      Duration tableRefreshInterval = flinkWriteConf.tableRefreshInterval();
+
       SerializableSupplier<Table> tableSupplier;
       if (tableRefreshInterval != null) {
         tableSupplier =

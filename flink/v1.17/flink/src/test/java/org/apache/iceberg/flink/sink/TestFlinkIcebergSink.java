@@ -19,10 +19,10 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -378,10 +378,13 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
+    Configuration flinkConf = new Configuration();
+    flinkConf.setLong(FlinkWriteOptions.TABLE_REFRSH_MS.key(), 100L);
+
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
-        .tableRefreshInterval(Duration.ofMillis(100))
+        .flinkConf(flinkConf)
         .writeParallelism(parallelism)
         .append();
 
