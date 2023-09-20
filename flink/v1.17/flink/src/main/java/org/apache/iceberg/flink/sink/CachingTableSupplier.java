@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.time.Duration;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -42,7 +43,8 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
   private long nextReloadTimeMs;
   private transient Table table;
 
-  CachingTableSupplier(Table initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
+  CachingTableSupplier(
+      SerializableTable initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
     Preconditions.checkArgument(

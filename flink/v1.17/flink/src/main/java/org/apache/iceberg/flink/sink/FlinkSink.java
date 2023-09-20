@@ -483,7 +483,7 @@ public class FlinkSink {
         }
       }
 
-      Table serializableTable = SerializableTable.copyOf(table);
+      SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
       SerializableSupplier<Table> tableSupplier;
       if (tableRefreshInterval != null) {
         tableSupplier =

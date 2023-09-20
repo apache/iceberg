@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.awaitility.Awaitility;
@@ -34,7 +35,7 @@ public class TestCachingTableSupplier {
 
   @Test
   public void testCheckArguments() {
-    Table initialTable = mock(Table.class);
+    SerializableTable initialTable = mock(SerializableTable.class);
 
     Table loadedTable = mock(Table.class);
     TableLoader tableLoader = mock(TableLoader.class);
@@ -55,7 +56,7 @@ public class TestCachingTableSupplier {
 
   @Test
   public void testTableReload() {
-    Table initialTable = mock(Table.class);
+    SerializableTable initialTable = mock(SerializableTable.class);
 
     Table loadedTable = mock(Table.class);
     TableLoader tableLoader = mock(TableLoader.class);
