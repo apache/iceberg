@@ -67,6 +67,6 @@ public class FlinkWriteOptions {
       ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 
   @Experimental
-  public static final ConfigOption<Long> TABLE_REFRSH_MS =
-      ConfigOptions.key("table-refresh-ms").longType().noDefaultValue();
+  public static final ConfigOption<String> TABLE_REFRSH_INTERVAL =
+      ConfigOptions.key("table-refresh-interval").stringType().noDefaultValue();
 }
