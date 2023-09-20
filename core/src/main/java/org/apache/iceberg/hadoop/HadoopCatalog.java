@@ -118,7 +118,13 @@ public class HadoopCatalog extends BaseMetastoreCatalog
         fileIOImpl == null
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
-    this.encryptionManagerFactory = new StandardEncryptionManagerFactory(properties);
+
+   if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)) {
+      this.encryptionManagerFactory = new StandardEncryptionManagerFactory(properties);
+    } else {
+      this.encryptionManagerFactory = null;
+    }
+
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();

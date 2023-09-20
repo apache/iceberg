@@ -193,7 +193,15 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public EncryptionManager encryption() {
-    if (encryptionManagerFactory == null || current() == null || current().formatVersion() < 2) {
+    if (encryptionManagerFactory == null) {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    if (current() == null) {
+      throw new IllegalStateException("No table metadata");
+    }
+
+    if (current().formatVersion() < 2) {
       return PlaintextEncryptionManager.instance();
     }
 

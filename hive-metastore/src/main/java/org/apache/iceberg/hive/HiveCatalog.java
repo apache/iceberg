@@ -112,7 +112,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-    this.encryptionManagerFactory = new StandardEncryptionManagerFactory(properties);
+    if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)) {
+      this.encryptionManagerFactory = new StandardEncryptionManagerFactory(properties);
+    }
+
     this.clients = new CachedClientPool(conf, properties);
   }
 
