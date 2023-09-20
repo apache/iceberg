@@ -121,9 +121,10 @@ public interface TableOperations {
    * Whether to clean up uncommitted metadata files only when a commit fails with a {@link
    * CleanableFailure} exception.
    *
-   * <p>This defaults to false: any unexpected exception will cause metadata files to be cleaned up.
+   * <p>This defaults to true: cleanup will only occur for exceptions marked as {@link
+   * CleanableFailure}
    */
   default boolean requireStrictCleanup() {
-    return false;
+    return true;
   }
 }
