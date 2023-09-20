@@ -372,7 +372,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  public void testWriteRowWithWriteTableLoader() throws Exception {
+  public void testWriteRowWithTableRefreshInterval() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
