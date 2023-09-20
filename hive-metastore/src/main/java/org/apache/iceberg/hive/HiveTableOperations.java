@@ -46,7 +46,8 @@ import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -108,7 +109,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final long maxHiveTablePropertySize;
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
-  private final EncryptionManagerFactory encryptionManagerFactory;
+  private final StandardEncryptionManagerFactory encryptionManagerFactory;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
 
   /** Tests only */
@@ -119,21 +120,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       String catalogName,
       String database,
       String table) {
-    this(
-        conf,
-        metaClients,
-        fileIO,
-        EncryptionManagerFactory.NO_ENCRYPTION,
-        catalogName,
-        database,
-        table);
+    this(conf, metaClients, fileIO, null, catalogName, database, table);
   }
 
   protected HiveTableOperations(
       Configuration conf,
       ClientPool metaClients,
       FileIO fileIO,
-      EncryptionManagerFactory encryptionManagerFactory,
+      StandardEncryptionManagerFactory encryptionManagerFactory,
       String catalogName,
       String database,
       String table) {
@@ -165,7 +159,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public EncryptionManager encryption() {
-    return encryptionManagerFactory.create(current());
+    if (encryptionManagerFactory == null || current() == null || current().formatVersion() < 2) {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    return encryptionManagerFactory.create(current().properties());
   }
 
   @Override

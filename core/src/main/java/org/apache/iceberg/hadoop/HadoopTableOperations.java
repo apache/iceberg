@@ -38,7 +38,8 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -68,22 +69,21 @@ public class HadoopTableOperations implements TableOperations {
   private final Path location;
   private final FileIO fileIO;
   private final LockManager lockManager;
-  private final EncryptionManagerFactory encryptionManagerFactory;
+  private final StandardEncryptionManagerFactory encryptionManagerFactory;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  // Not used. TODO deprecate / handle in revapi
   protected HadoopTableOperations(
       Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
-    this(location, fileIO, EncryptionManagerFactory.NO_ENCRYPTION, conf, lockManager);
+    this(location, fileIO, null, conf, lockManager);
   }
 
   protected HadoopTableOperations(
       Path location,
       FileIO fileIO,
-      EncryptionManagerFactory encryptionManagerFactory,
+      StandardEncryptionManagerFactory encryptionManagerFactory,
       Configuration conf,
       LockManager lockManager) {
     this.conf = conf;
@@ -193,7 +193,11 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public EncryptionManager encryption() {
-    return encryptionManagerFactory.create(current());
+    if (encryptionManagerFactory == null || current() == null || current().formatVersion() < 2) {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    return encryptionManagerFactory.create(current().properties());
   }
 
   @Override
