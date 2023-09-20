@@ -76,6 +76,20 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
     return aadPrefix;
   }
 
+  static KeyMetadata castOrParse(EncryptionKeyMetadata keyMetadata) {
+    if (keyMetadata instanceof KeyMetadata) {
+      return (KeyMetadata) keyMetadata;
+    }
+
+    ByteBuffer kmBuffer = keyMetadata.buffer();
+
+    if (kmBuffer == null) {
+      throw new IllegalStateException("Null key metadata buffer");
+    }
+
+    return parse(kmBuffer);
+  }
+
   static KeyMetadata parse(ByteBuffer buffer) {
     try {
       return KEY_METADATA_DECODER.decode(buffer);

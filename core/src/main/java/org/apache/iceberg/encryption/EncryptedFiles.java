@@ -46,6 +46,13 @@ public class EncryptedFiles {
   }
 
   public static EncryptedOutputFile encryptedOutput(
+      OutputFile encryptingOutputFile,
+      EncryptionKeyMetadata keyMetadata,
+      OutputFile rawOutputFile) {
+    return new BaseEncryptedOutputFile(encryptingOutputFile, keyMetadata, rawOutputFile);
+  }
+
+  public static EncryptedOutputFile encryptedOutput(
       OutputFile encryptingOutputFile, ByteBuffer keyMetadata) {
     return encryptedOutput(
         encryptingOutputFile, BaseEncryptionKeyMetadata.fromKeyMetadata(keyMetadata));
@@ -55,6 +62,10 @@ public class EncryptedFiles {
       OutputFile encryptedOutputFile, byte[] keyMetadata) {
     return encryptedOutput(
         encryptedOutputFile, BaseEncryptionKeyMetadata.fromByteArray(keyMetadata));
+  }
+
+  public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
+    return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 
   private EncryptedFiles() {}

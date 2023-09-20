@@ -21,90 +21,68 @@ package org.apache.iceberg.encryption;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class StandardEncryptionManagerFactory implements EncryptionManagerFactory {
-  private KeyManagementClient kmsClient;
-  private Map<String, String> catalogPropertyMap;
+public class StandardEncryptionManagerFactory implements Closeable {
+  private final KeyManagementClient kmsClient;
 
-  @Override
-  public void initialize(Map<String, String> catalogProperties) {
-    this.catalogPropertyMap = catalogProperties;
+  public StandardEncryptionManagerFactory(Map<String, String> catalogProperties) {
+    String kmsType = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_TYPE);
+
+    if (kmsType == null) {
+      kmsClient = null;
+    } else if (kmsType.equals(CatalogProperties.ENCRYPTION_KMS_CUSTOM_TYPE)) {
+      String kmsClientImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_CLIENT_IMPL);
+      if (kmsClientImpl == null) {
+        throw new IllegalStateException("Custom KMS client class is not defined");
+      }
+      kmsClient = EncryptionUtil.createKmsClient(kmsClientImpl);
+      kmsClient.initialize(catalogProperties);
+    } else {
+      // Currently support only custom types
+      throw new UnsupportedOperationException("Undefined KMS type " + kmsType);
+    }
   }
 
-  @Override
-  public EncryptionManager create(TableMetadata tableMetadata) {
-    if (tableMetadata == null) {
-      return PlaintextEncryptionManager.instance();
-    }
-
-    Map<String, String> tableProperties = tableMetadata.properties();
-
-    final Map<String, String> encryptionProperties = Maps.newHashMap();
-    encryptionProperties.putAll(tableProperties);
-
-    // Important: put catalog properties after table properties. Former overrides the latter.
-    encryptionProperties.putAll(catalogPropertyMap);
-
-    String tableKeyId = encryptionProperties.get(EncryptionProperties.ENCRYPTION_TABLE_KEY);
+  public EncryptionManager create(Map<String, String> tableProperties) {
+    String tableKeyId = tableProperties.get(EncryptionProperties.ENCRYPTION_TABLE_KEY);
 
     if (null == tableKeyId) {
       // Unencrypted table
       return PlaintextEncryptionManager.instance();
-    } else {
-      String fileFormat =
-          PropertyUtil.propertyAsString(
-              tableProperties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-
-      if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
-        throw new UnsupportedOperationException(
-            "Iceberg encryption currently supports only parquet format for data files");
-      }
-
-      if (tableMetadata.formatVersion() < 2) {
-        throw new UnsupportedOperationException(
-            "Iceberg encryption works only with table format 2 or higher");
-      }
-
-      int dataKeyLength =
-          PropertyUtil.propertyAsInt(
-              encryptionProperties,
-              EncryptionProperties.ENCRYPTION_DEK_LENGTH,
-              EncryptionProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
-
-      return new StandardEncryptionManager(
-          tableKeyId, dataKeyLength, kmsClient(encryptionProperties), encryptionProperties);
     }
-  }
 
-  private synchronized KeyManagementClient kmsClient(Map<String, String> encryptionProperties) {
     if (kmsClient == null) {
-      String kmsImpl = encryptionProperties.get(EncryptionProperties.ENCRYPTION_KMS_CLIENT_IMPL);
-
-      Preconditions.checkArgument(
-          null != kmsImpl,
-          "KMS Client implementation class is not set (via "
-              + EncryptionProperties.ENCRYPTION_KMS_CLIENT_IMPL
-              + " catalog property or table property)");
-
-      kmsClient = EncryptionUtil.createKmsClient(kmsImpl);
-      kmsClient.initialize(encryptionProperties);
+      throw new IllegalStateException("Encrypted table. No KMS client is configured in catalog");
     }
 
-    return kmsClient;
+    String fileFormat =
+        PropertyUtil.propertyAsString(
+            tableProperties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+
+    if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
+      throw new UnsupportedOperationException(
+          "Iceberg encryption currently supports only parquet format for data files");
+    }
+
+    int dataKeyLength =
+        PropertyUtil.propertyAsInt(
+            tableProperties,
+            EncryptionProperties.ENCRYPTION_DEK_LENGTH,
+            EncryptionProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
   }
 
   @Override
   public synchronized void close() throws IOException {
     if (kmsClient != null) {
       kmsClient.close();
-      kmsClient = null;
     }
   }
 }

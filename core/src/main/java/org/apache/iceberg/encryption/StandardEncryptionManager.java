@@ -20,50 +20,44 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.Map;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class StandardEncryptionManager implements EncryptionManager {
-  private final KeyManagementClient kmsClient;
-  private String tableKeyId;
-  private int dataKeyLength;
+  private final transient KeyManagementClient kmsClient;
+  private final String tableKeyId;
+  private final int dataKeyLength;
 
-  private transient volatile SecureRandom workerRNG = null;
+  private transient volatile SecureRandom lazyRNG = null;
 
   /**
    * @param tableKeyId table encryption key id
+   * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
-   * @param encryptionProperties encryption properties
    */
   public StandardEncryptionManager(
-      String tableKeyId,
-      int dataKeyLength,
-      KeyManagementClient kmsClient,
-      Map<String, String> encryptionProperties) {
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
-    Preconditions.checkNotNull(encryptionProperties, "Invalid encryption properties: null");
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
-
     this.dataKeyLength = dataKeyLength;
   }
 
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
-    lazyCreateRNG();
-
     ByteBuffer fileDek = ByteBuffer.allocate(dataKeyLength);
-    workerRNG.nextBytes(fileDek.array());
+    workerRNG().nextBytes(fileDek.array());
 
     ByteBuffer aadPrefix = ByteBuffer.allocate(EncryptionProperties.ENCRYPTION_AAD_LENGTH_DEFAULT);
-    workerRNG.nextBytes(aadPrefix.array());
+    workerRNG().nextBytes(aadPrefix.array());
 
     KeyMetadata encryptionMetadata = new KeyMetadata(fileDek, aadPrefix);
 
-    return new BaseEncryptedOutputFile(
+    return EncryptedFiles.encryptedOutput(
         new AesGcmOutputFile(rawOutput, fileDek.array(), aadPrefix.array()),
         encryptionMetadata,
         rawOutput);
@@ -71,27 +65,45 @@ public class StandardEncryptionManager implements EncryptionManager {
 
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
-    Preconditions.checkNotNull(encrypted.keyMetadata().buffer(), "Invalid key metadata: null");
+    KeyMetadata keyMetadata = KeyMetadata.castOrParse(encrypted.keyMetadata());
 
-    KeyMetadata keyMetadata = KeyMetadata.parse(encrypted.keyMetadata().buffer());
-
-    byte[] fileDek = keyMetadata.encryptionKey().array();
-    byte[] aadPrefix = keyMetadata.aadPrefix().array();
+    byte[] fileDek = ByteBuffers.toByteArray(keyMetadata.encryptionKey());
+    byte[] aadPrefix = ByteBuffers.toByteArray(keyMetadata.aadPrefix());
 
     return new AesGcmInputFile(encrypted.encryptedInputFile(), fileDek, aadPrefix);
   }
 
-  private void lazyCreateRNG() {
-    if (this.workerRNG == null) {
-      this.workerRNG = new SecureRandom();
+  @Override
+  public Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
+    // Bulk decrypt is only applied to data files. Returning source input files for parquet.
+    return Iterables.transform(encrypted, this::getSourceFile);
+  }
+
+  private InputFile getSourceFile(EncryptedInputFile encryptedFile) {
+    return encryptedFile.encryptedInputFile();
+  }
+
+  private SecureRandom workerRNG() {
+    if (this.lazyRNG == null) {
+      this.lazyRNG = new SecureRandom();
     }
+
+    return lazyRNG;
   }
 
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
+    if (kmsClient == null) {
+      throw new IllegalStateException("Null KmsClient. WrapKey can't be called from workers");
+    }
+
     return kmsClient.wrapKey(secretKey, tableKeyId);
   }
 
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
+    if (kmsClient == null) {
+      throw new IllegalStateException("Null KmsClient. UnwrapKey can't be called from workers");
+    }
+
     return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 }

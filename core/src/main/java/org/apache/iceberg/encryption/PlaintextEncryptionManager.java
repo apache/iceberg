@@ -27,6 +27,9 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   private static final EncryptionManager INSTANCE = new PlaintextEncryptionManager();
   private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
 
+  @Deprecated
+  public PlaintextEncryptionManager() {}
+
   public static EncryptionManager instance() {
     return INSTANCE;
   }
@@ -34,8 +37,7 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
     if (encrypted.keyMetadata().buffer() != null) {
-      LOG.warn(
-          "File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
+      LOG.warn("File encryption key metadata is present, but no encryption has been configured.");
     }
     return encrypted.encryptedInputFile();
   }
