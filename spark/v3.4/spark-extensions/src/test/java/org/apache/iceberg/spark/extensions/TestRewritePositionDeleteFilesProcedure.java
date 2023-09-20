@@ -219,7 +219,7 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                 sql(
                     "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'substr(data, 2) = \"fo\"')",
                     catalogName, tableIdent))
-        .isInstanceOf(AssertionError.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
   }
 

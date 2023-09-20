@@ -39,7 +39,10 @@ object SparkExpressionConverter {
     DataSourceV2Strategy.translateFilterV2(sparkExpression) match {
       case Some(filter) =>
         val converted = SparkV2Filters.convert(filter)
-        assert(converted != null, s"Cannot convert Spark filter: $filter to Iceberg expression")
+        if (converted == null) {
+          throw new IllegalArgumentException(s"Cannot convert Spark filter: $filter to Iceberg expression")
+        }
+
         converted
       case _ =>
         throw new IllegalArgumentException(s"Cannot translate Spark expression: $sparkExpression to data source filter")

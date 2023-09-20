@@ -844,7 +844,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(c2, 2) = \"fo\"')",
                     catalogName, tableIdent))
-        .isInstanceOf(AssertionError.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
   }
 
