@@ -182,9 +182,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
   @Test
   public void testAddYearPartition() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
-        tableName);
+    createTable("id bigint NOT NULL, category string, ts timestamp, data string");
     Table table = validationCatalog.loadTable(tableIdent);
 
     Assertions.assertThat(table.spec().isUnpartitioned())
@@ -205,9 +203,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
   @Test
   public void testAddMonthPartition() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
-        tableName);
+    createTable("id bigint NOT NULL, category string, ts timestamp, data string");
     Table table = validationCatalog.loadTable(tableIdent);
 
     Assertions.assertThat(table.spec().isUnpartitioned())
@@ -228,9 +224,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
   @Test
   public void testAddDayPartition() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
-        tableName);
+    createTable("id bigint NOT NULL, category string, ts timestamp, data string");
     Table table = validationCatalog.loadTable(tableIdent);
 
     Assertions.assertThat(table.spec().isUnpartitioned())
@@ -251,9 +245,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
   @Test
   public void testAddHourPartition() {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
-        tableName);
+    createTable("id bigint NOT NULL, category string, ts timestamp, data string");
     Table table = validationCatalog.loadTable(tableIdent);
 
     Assertions.assertThat(table.spec().isUnpartitioned())
