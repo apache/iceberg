@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.util.Map;
 import org.apache.calcite.linq4j.function.Experimental;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -197,17 +196,10 @@ public class FlinkWriteConf {
    */
   @Experimental
   public Duration tableRefreshInterval() {
-    String duration =
-        confParser
-            .stringConf()
-            .option(FlinkWriteOptions.TABLE_REFRSH_INTERVAL.key())
-            .flinkConfig(FlinkWriteOptions.TABLE_REFRSH_INTERVAL)
-            .parseOptional();
-
-    if (duration == null) {
-      return null;
-    }
-
-    return TimeUtils.parseDuration(duration);
+    return confParser
+        .durationConf()
+        .option(FlinkWriteOptions.TABLE_REFRSH_INTERVAL.key())
+        .flinkConfig(FlinkWriteOptions.TABLE_REFRSH_INTERVAL)
+        .parseOptional();
   }
 }

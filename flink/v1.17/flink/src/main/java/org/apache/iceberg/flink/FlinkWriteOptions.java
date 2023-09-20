@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import org.apache.calcite.linq4j.function.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -67,6 +68,6 @@ public class FlinkWriteOptions {
       ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 
   @Experimental
-  public static final ConfigOption<String> TABLE_REFRSH_INTERVAL =
-      ConfigOptions.key("table-refresh-interval").stringType().noDefaultValue();
+  public static final ConfigOption<Duration> TABLE_REFRSH_INTERVAL =
+      ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();
 }
