@@ -189,10 +189,10 @@ public class FlinkWriteConf {
 
   /**
    * NOTE: This may be removed or changed in a future release. This value specifies the interval for
-   * refreshing the table instance in {@link IcebergStreamWriter}. If not specified then the default
+   * refreshing the table instances in sink writer subtasks. If not specified then the default
    * behavior is to not refresh the table.
    *
-   * @return the interval for refreshing the table in writer subtasks
+   * @return the interval for refreshing the table in sink writer subtasks
    */
   @Experimental
   public Duration tableRefreshInterval() {
