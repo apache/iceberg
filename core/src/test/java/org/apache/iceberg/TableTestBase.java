@@ -31,8 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.apache.avro.file.DataFileConstants;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
@@ -176,9 +174,9 @@ public class TableTestBase {
   // the Avro metadata and checking for the Avro name in avro.codec.
   static final Map<String, String> AVRO_CODEC_NAME_MAPPING =
       ImmutableMap.<String, String>builder()
-          .put(Avro.Codec.UNCOMPRESSED.name(), DataFileConstants.NULL_CODEC)
-          .put(Avro.Codec.ZSTD.name(), DataFileConstants.ZSTANDARD_CODEC)
-          .put(Avro.Codec.GZIP.name(), DataFileConstants.DEFLATE_CODEC)
+          .put("uncompressed", "null")
+          .put("zstd", "zstandard")
+          .put("gzip", "deflate")
           .build();
 
   static final long EXAMPLE_SNAPSHOT_ID = 987134631982734L;

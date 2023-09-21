@@ -69,7 +69,7 @@ import org.apache.iceberg.util.ArrayUtil;
 public class Avro {
   private Avro() {}
 
-  public enum Codec {
+  private enum Codec {
     UNCOMPRESSED,
     SNAPPY,
     GZIP,

@@ -32,7 +32,6 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -107,7 +106,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testWriteManifestWithSequenceNumber() throws IOException {
-    Assume.assumeTrue("sequence number is only valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
     File manifestFile = temp.newFile("manifest.avro");
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
@@ -132,7 +131,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testCommitManifestWithExplicitDataSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -177,7 +176,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testCommitManifestWithExistingEntriesWithoutFileSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -393,7 +392,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testWriteDeleteManifestWithCompression() throws IOException {
-    Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
     validateManifestCompressionCodec(true);
   }
 
