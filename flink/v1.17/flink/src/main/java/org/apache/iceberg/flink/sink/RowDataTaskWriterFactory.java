@@ -142,6 +142,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       table = tableSupplier.get();
     }
 
+    refreshTable();
+
     this.outputFileFactory =
         OutputFileFactory.builderFor(table, taskId, attemptId)
             .format(format)
@@ -154,6 +156,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     Preconditions.checkNotNull(
         outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
+
+    refreshTable();
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       // Initialize a task writer to write INSERT only.
@@ -203,6 +207,12 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             equalityFieldIds,
             upsert);
       }
+    }
+  }
+
+  void refreshTable() {
+    if (tableSupplier instanceof CachingTableSupplier) {
+      ((CachingTableSupplier) tableSupplier).refreshTable();
     }
   }
 

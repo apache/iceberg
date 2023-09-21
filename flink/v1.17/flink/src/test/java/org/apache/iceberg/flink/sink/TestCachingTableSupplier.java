@@ -66,6 +66,7 @@ public class TestCachingTableSupplier {
         new CachingTableSupplier(initialTable, tableLoader, Duration.ofMillis(100));
 
     // refresh shouldn't do anything as the min reload interval hasn't passed
+    cachingTableSupplier.refreshTable();
     assertThat(cachingTableSupplier.get()).isEqualTo(initialTable);
 
     // refresh after waiting past the min reload interval
@@ -73,6 +74,7 @@ public class TestCachingTableSupplier {
         .atLeast(100, TimeUnit.MILLISECONDS)
         .untilAsserted(
             () -> {
+              cachingTableSupplier.refreshTable();
               assertThat(cachingTableSupplier.get()).isEqualTo(loadedTable);
             });
   }
