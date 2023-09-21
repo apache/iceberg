@@ -434,7 +434,8 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ |            | ~~**`107  sort_columns`**~~       | `list<112: int>`             | **Deprecated. Do not write.** |
 | _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`   | Map from column id to the total size on disk of all regions that store the column. Does not include bytes necessary to read other columns, like footers. Leave null for row-oriented formats (Avro) |
 | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`   | Map from column id to number of values in the column (including null and NaN values) |
-| _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column |
+| _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column. If the 
+null value cannot be correctly determined for a column, the field can remain unpopulated. |
 | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`   | Map from column id to number of NaN values in the column |
 | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`   | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
 | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
