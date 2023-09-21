@@ -34,6 +34,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -410,6 +411,26 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.rewrite_data_files('')", catalogName));
+  }
+
+  @Test
+  public void testRewriteWithUntranslatedOrUnconvertedFilter() {
+    createTable();
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'lower(c2) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot translate Spark expression");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'c2 like \"%%fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot convert Spark filter");
   }
 
   private void createTable() {
