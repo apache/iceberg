@@ -450,6 +450,48 @@ Notes:
 2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
 4. The following field ids are reserved on `data_file`: 141.
+5. For nested structures, the null counts are as following:
+   ##### Struct
+   ```
+   schema {
+     1: nested_struct<2: int, 3: boolean>
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0, 3: 0}
+   struct<1, True>    null_value_counts={1: 0, 2: 1, 3: 0}
+   struct<1, null>    null_value_counts={1: 0, 2: 1, 3: 1}
+   ```
+   ##### List
+   ```
+   schema {
+     1: list[2: int]
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0}
+   [1, 2, 3]          null_value_counts={1: 0, 2: 0}
+   [1, null, 3]       null_value_counts={1: 0, 2: 1}
+   [null, null, 3]    null_value_counts={1: 0, 2: 2}
+   ```
+   ##### Maps
+   ```
+   schema {
+     1: map<2: int, 3: bytes>
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0, 3: 0}
+   {1: b'', 2: b''}   null_value_counts={1: 0, 2: 0, 3: 0}
+   {1: b'', 2: null}  null_value_counts={1: 0, 2: 0, 3: 1}
+   {1: null, 2: null} null_value_counts={1: 0, 2: 0, 3: 2}
+   ```
+   Map keys can't be null.
+
+
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
