@@ -54,8 +54,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     this.attemptId = getRuntimeContext().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
 
-    // Initialize the task writer factory before refreshing the table so that the initial
-    // schema and partition spec are used.
+    // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
 
     // Initialize the task writer.
