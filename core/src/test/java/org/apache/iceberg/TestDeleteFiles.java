@@ -412,6 +412,37 @@ public class TestDeleteFiles extends TableTestBase {
         afterDeletePartitions);
   }
 
+  @Test
+  public void testDeleteValidateFileExistence() {
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot delete =
+        commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch);
+    validateManifestEntries(
+        Iterables.getOnlyElement(delete.allManifests(FILE_IO)),
+        ids(delete.snapshotId()),
+        files(FILE_B),
+        statuses(Status.DELETED));
+
+    Assertions.assertThatThrownBy(
+            () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
+        .isInstanceOf(ValidationException.class);
+  }
+
+  @Test
+  public void testDeleteFilesNoValidation() {
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot delete1 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    validateManifestEntries(
+        Iterables.getOnlyElement(delete1.allManifests(FILE_IO)),
+        ids(delete1.snapshotId()),
+        files(FILE_B),
+        statuses(Status.DELETED));
+
+    Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    Assertions.assertThat(delete2.allManifests(FILE_IO).isEmpty()).isTrue();
+    Assertions.assertThat(delete2.removedDataFiles(FILE_IO).iterator().hasNext()).isFalse();
+  }
+
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
