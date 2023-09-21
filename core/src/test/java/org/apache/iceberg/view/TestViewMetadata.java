@@ -522,4 +522,42 @@ public class TestViewMetadata {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot reassign uuid");
   }
+
+  @Test
+  public void viewMetadataWithMetadataLocation() {
+    Schema schema = new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .schemaId(schema.schemaId())
+            .versionId(1)
+            .timestampMillis(23L)
+            .putSummary("operation", "a")
+            .defaultNamespace(Namespace.of("ns"))
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .setMetadataLocation("metadata-location")
+                    .addSchema(schema)
+                    .addVersion(viewVersion)
+                    .setCurrentVersionId(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create view metadata with a metadata location and changes");
+
+    // setting metadata location without changes is ok
+    ViewMetadata viewMetadata =
+        ViewMetadata.buildFrom(
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .addSchema(schema)
+                    .addVersion(viewVersion)
+                    .setCurrentVersionId(1)
+                    .build())
+            .setMetadataLocation("metadata-location")
+            .build();
+    assertThat(viewMetadata.metadataFileLocation()).isEqualTo("metadata-location");
+  }
 }
