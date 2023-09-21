@@ -452,6 +452,7 @@ Notes:
 4. The following field ids are reserved on `data_file`: 141.
 5. For nested structures, the null counts are as following:
    ##### Struct
+   Counts are only for explicit nulls in a field. A nested field which is not counted as null if the parent is null.
    ```
    schema {
      1: nested_struct<2: int, 3: boolean>
@@ -460,10 +461,11 @@ Notes:
    The following holds true:
    ```
    null               null_value_counts={1: 1, 2: 0, 3: 0}
-   struct<1, True>    null_value_counts={1: 0, 2: 1, 3: 0}
-   struct<1, null>    null_value_counts={1: 0, 2: 1, 3: 1}
+   struct<1, True>    null_value_counts={1: 0, 2: 0, 3: 0}
+   struct<1, null>    null_value_counts={1: 0, 2: 0, 3: 1}
    ```
    ##### List
+   For list types, the number of null elements in the list is counted. If the elements are not counted if the parent is null.
    ```
    schema {
      1: list[2: int]
@@ -477,6 +479,7 @@ Notes:
    [null, null, 3]    null_value_counts={1: 0, 2: 2}
    ```
    ##### Maps
+   For map-elements the number of null values is counted within the map. The values are not counted if the parent is null. Keep in mind that map keys can't be null, so the field will be zero.
    ```
    schema {
      1: map<2: int, 3: bytes>
@@ -489,9 +492,6 @@ Notes:
    {1: b'', 2: null}  null_value_counts={1: 0, 2: 0, 3: 1}
    {1: null, 2: null} null_value_counts={1: 0, 2: 0, 3: 2}
    ```
-   Map keys can't be null.
-
-
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
