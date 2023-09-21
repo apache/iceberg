@@ -24,7 +24,7 @@ import org.apache.avro.file.DataFileConstants;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.InputFile;
 import org.assertj.core.api.Assertions;
-import org.junit.Assume;
+import org.assertj.core.api.Assumptions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -48,7 +48,7 @@ public class TestManifestListWriter extends TableTestBase {
 
   @Test
   public void testWriteDeleteManifestListWithCompression() throws IOException {
-    Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
     validateManifestListCompressionCodec(true);
   }
 
