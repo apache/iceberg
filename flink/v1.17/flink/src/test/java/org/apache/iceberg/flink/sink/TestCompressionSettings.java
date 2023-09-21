@@ -215,7 +215,7 @@ public class TestCompressionSettings {
             icebergTable, override, new org.apache.flink.configuration.Configuration());
 
     IcebergStreamWriter<RowData> streamWriter =
-        FlinkSink.createStreamWriter(icebergTable, flinkWriteConfig, flinkRowType, null);
+        FlinkSink.createStreamWriter(() -> icebergTable, flinkWriteConfig, flinkRowType, null);
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 
