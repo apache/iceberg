@@ -134,8 +134,16 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public void initialize(int taskId, int attemptId) {
+    Table table;
+    if (tableSupplier instanceof CachingTableSupplier) {
+      // rely on the initial table metadata for schema, etc., until schema evolution is supported
+      table = ((CachingTableSupplier) tableSupplier).initialTable();
+    } else {
+      table = tableSupplier.get();
+    }
+
     this.outputFileFactory =
-        OutputFileFactory.builderFor(tableSupplier.get(), taskId, attemptId)
+        OutputFileFactory.builderFor(table, taskId, attemptId)
             .format(format)
             .ioSupplier(() -> tableSupplier.get().io())
             .build();
