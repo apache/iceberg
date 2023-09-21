@@ -198,8 +198,8 @@ public class FlinkWriteConf {
   public Duration tableRefreshInterval() {
     return confParser
         .durationConf()
-        .option(FlinkWriteOptions.TABLE_REFRSH_INTERVAL.key())
-        .flinkConfig(FlinkWriteOptions.TABLE_REFRSH_INTERVAL)
+        .option(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key())
+        .flinkConfig(FlinkWriteOptions.TABLE_REFRESH_INTERVAL)
         .parseOptional();
   }
 }
