@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import java.util.Map;
+import org.apache.calcite.linq4j.function.Experimental;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -183,5 +185,21 @@ public class FlinkWriteConf {
 
   public Integer writeParallelism() {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
+  }
+
+  /**
+   * NOTE: This may be removed or changed in a future release. This value specifies the interval for
+   * refreshing the table instances in sink writer subtasks. If not specified then the default
+   * behavior is to not refresh the table.
+   *
+   * @return the interval for refreshing the table in sink writer subtasks
+   */
+  @Experimental
+  public Duration tableRefreshInterval() {
+    return confParser
+        .durationConf()
+        .option(FlinkWriteOptions.TABLE_REFRSH_INTERVAL.key())
+        .flinkConfig(FlinkWriteOptions.TABLE_REFRSH_INTERVAL)
+        .parseOptional();
   }
 }
