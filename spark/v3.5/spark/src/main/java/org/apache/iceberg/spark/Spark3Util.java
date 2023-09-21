@@ -429,17 +429,21 @@ public class Spark3Util {
         case "bucket":
           builder.bucket(colName, findWidth(transform));
           break;
+        case "year":
         case "years":
           builder.year(colName);
           break;
+        case "month":
         case "months":
           builder.month(colName);
           break;
         case "date":
+        case "day":
         case "days":
           builder.day(colName);
           break;
         case "date_hour":
+        case "hour":
         case "hours":
           builder.hour(colName);
           break;
