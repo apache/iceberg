@@ -20,13 +20,11 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -38,18 +36,15 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
-  private final Supplier<Table> tableSupplier;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
   private transient IcebergStreamWriterMetrics writerMetrics;
 
-  IcebergStreamWriter(
-      String fullTableName, TaskWriterFactory<T> taskWriterFactory, Supplier<Table> tableSupplier) {
+  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
-    this.tableSupplier = tableSupplier;
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -63,11 +58,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // schema and partition spec are used.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
 
-    // Refresh the table if needed.
-    if (tableSupplier instanceof CachingTableSupplier) {
-      ((CachingTableSupplier) tableSupplier).refresh();
-    }
-
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
   }
@@ -75,12 +65,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     flush();
-
-    // Refresh the table if needed.
-    if (tableSupplier instanceof CachingTableSupplier) {
-      ((CachingTableSupplier) tableSupplier).refresh();
-    }
-
     this.writer = taskWriterFactory.create();
   }
 

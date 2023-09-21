@@ -56,15 +56,16 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
     this.lastLoadTimeMillis = System.currentTimeMillis();
   }
 
+  public Table initialTable() {
+    return initialTable;
+  }
+
   @Override
   public Table get() {
     if (table == null) {
       this.table = initialTable;
     }
-    return table;
-  }
 
-  public void refresh() {
     if (System.currentTimeMillis() > lastLoadTimeMillis + tableRefreshInterval.toMillis()) {
       try {
         if (!tableLoader.isOpen()) {
@@ -83,5 +84,7 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
         LOG.warn("An error occurred reloading table {}, table was not reloaded", table.name(), e);
       }
     }
+
+    return table;
   }
 }

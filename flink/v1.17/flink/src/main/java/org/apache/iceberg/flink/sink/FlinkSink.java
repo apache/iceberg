@@ -614,7 +614,7 @@ public class FlinkSink {
             equalityFieldIds,
             flinkWriteConf.upsertMode());
 
-    return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory, tableSupplier);
+    return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
   }
 
   /**

@@ -81,8 +81,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       List<Integer> equalityFieldIds,
       boolean upsert) {
     this.tableSupplier = tableSupplier;
-    // rely on the initial table metadata for schema, etc., until schema evolution is supported
-    Table table = tableSupplier.get();
+
+    Table table;
+    if (tableSupplier instanceof CachingTableSupplier) {
+      // rely on the initial table metadata for schema, etc., until schema evolution is supported
+      table = ((CachingTableSupplier) tableSupplier).initialTable();
+    } else {
+      table = tableSupplier.get();
+    }
+
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
     this.spec = table.spec();
