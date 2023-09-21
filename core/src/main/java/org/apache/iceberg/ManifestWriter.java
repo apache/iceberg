@@ -76,13 +76,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
 
-  protected FileAppender<ManifestEntry<F>> newAppender(
-      PartitionSpec spec,
-      OutputFile outputFile,
-      String compressionCodec,
-      Integer compressionLevel) {
-    return newAppender(spec, outputFile);
-  }
+  protected abstract FileAppender<ManifestEntry<F>> newAppender(
+      PartitionSpec spec, OutputFile outputFile, String compressionCodec, Integer compressionLevel);
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
