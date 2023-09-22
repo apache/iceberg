@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -58,7 +59,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "upper_bounds",
           "column_sizes");
 
-  private static final List<String> SCAN_WITH_STATS_COLUMNS =
+  protected static final List<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
   protected static final List<String> DELETE_SCAN_COLUMNS =
@@ -73,12 +74,13 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "record_count",
           "partition",
           "key_metadata",
-          "split_offsets");
+          "split_offsets",
+          "equality_ids");
 
   protected static final List<String> DELETE_SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(DELETE_SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
-  private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
+  protected static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemConfigs.SCAN_THREAD_POOL_ENABLED.value();
 
   private final Table table;
@@ -93,6 +95,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   public Table table() {
     return table;
+  }
+
+  protected FileIO io() {
+    return table.io();
   }
 
   protected Schema tableSchema() {
@@ -111,8 +117,16 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context.returnColumnStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS;
   }
 
+  protected boolean shouldReturnColumnStats() {
+    return context().returnColumnStats();
+  }
+
   protected boolean shouldIgnoreResiduals() {
     return context().ignoreResiduals();
+  }
+
+  protected Expression residualFilter() {
+    return shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
   }
 
   protected boolean shouldPlanWithExecutor() {

@@ -42,7 +42,7 @@ jobs:
         python: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install poetry
       working-directory: ./python
       run: make install-poetry

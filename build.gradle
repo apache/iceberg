@@ -374,10 +374,7 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -681,10 +678,7 @@ project(':iceberg-hive-metastore') {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation(libs.hive2.exec) {
-      artifact {
-        classifier = 'core'
-      }
+    testImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -734,10 +728,7 @@ project(':iceberg-orc') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar

@@ -18,7 +18,7 @@
 name = "pyiceberg"
 version = "0.5.0"
 readme = "README.md"
-homepage = "https://iceberg.apache.org/"
+homepage = "https://py.iceberg.apache.org/"
 repository = "https://github.com/apache/iceberg/"
 description = "Apache Iceberg is an open table format for huge analytic datasets"
 authors = ["Apache Software Foundation <dev@iceberg.apache.org>"]
@@ -41,7 +41,8 @@ packages = [
 ]
 include = [
   { path = "dev", format = "sdist" },
-  { path = "pyiceberg/**/*.so", format = "wheel" }
+  { path = "pyiceberg/**/*.so", format = "wheel" },
+  { path = "pyiceberg/**/*.pyd", format = "wheel" },
 ]
 
 [tool.poetry.dependencies]
@@ -74,10 +75,10 @@ sqlalchemy = { version = "^2.0.18", optional = true }
 pytest = "7.4.1"
 pytest-checkdocs = "2.10.1"
 pre-commit = "3.4.0"
-fastavro = "1.8.2"
-coverage = { version = "^7.3.0", extras = ["toml"] }
+fastavro = "1.8.3"
+coverage = { version = "^7.3.1", extras = ["toml"] }
 requests-mock = "1.11.0"
-moto = "^4.2.0"
+moto = "^4.2.3"
 typing-extensions = "4.7.1"
 pytest-mock = "3.11.1"
 cython = "3.0.2"
@@ -114,6 +115,7 @@ gcsfs = ["gcsfs"]
 
 [tool.pytest.ini_options]
 markers = [
+  "unmarked: marks a test as a unittest",
   "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint args)",
   "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)",
   "integration: marks integration tests against Apache Spark",

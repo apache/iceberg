@@ -30,12 +30,12 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.awaitility.Awaitility;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestDecoderResolver {
 
-  @Before
+  @BeforeEach
   public void before() {
     DecoderResolver.DECODER_CACHES.get().clear();
   }
@@ -47,8 +47,8 @@ public class TestDecoderResolver {
     ResolvingDecoder resolvingDecoder =
         DecoderResolver.resolve(dummyDecoder, fileSchema, fileSchema);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema)).hasSize(1);
     checkCached(fileSchema, fileSchema);
 
     // Equal but new one
@@ -58,8 +58,8 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, fileSchema1, fileSchema1);
     assertThat(resolvingDecoder1).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema1).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(2);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema1)).hasSize(1);
     checkCached(fileSchema1, fileSchema1);
 
     // New one
@@ -68,8 +68,8 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, fileSchema2, fileSchema2);
     assertThat(resolvingDecoder2).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(3);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema2).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(3);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema2)).hasSize(1);
     checkCached(fileSchema2, fileSchema2);
 
     checkCachedSize(3);
@@ -92,8 +92,8 @@ public class TestDecoderResolver {
     ResolvingDecoder resolvingDecoder =
         DecoderResolver.resolve(dummyDecoder, readSchema, fileSchema);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema)).hasSize(1);
     checkCached(readSchema, fileSchema);
 
     // Equal but new one
@@ -105,8 +105,8 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, readSchema1, fileSchema1);
     assertThat(resolvingDecoder1).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema1).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(2);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema1)).hasSize(1);
     checkCached(readSchema1, fileSchema1);
 
     // New read schema
@@ -115,8 +115,8 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, readSchema2, fileSchema);
     assertThat(resolvingDecoder2).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(3);
-    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema2).size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get()).hasSize(3);
+    assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema2)).hasSize(1);
     checkCached(readSchema2, fileSchema);
 
     checkCachedSize(3);
