@@ -167,6 +167,7 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
                 inputDF
                     .writeTo(tableName)
                     .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                    .option(SparkWriteOptions.FANOUT_ENABLED, "false")
                     .append())
         .cause()
         .isInstanceOf(IllegalStateException.class)

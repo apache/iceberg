@@ -406,11 +406,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         Table table, SparkFileWriterFactory writers, OutputFileFactory files, Context context) {
 
       FileIO io = table.io();
-      boolean fanoutEnabled = context.fanoutWriterEnabled();
-      boolean inputOrdered = context.inputOrdered();
+      boolean useFanoutWriter = context.useFanoutWriter();
       long targetFileSize = context.targetDataFileSize();
 
-      if (table.spec().isPartitioned() && fanoutEnabled && !inputOrdered) {
+      if (table.spec().isPartitioned() && useFanoutWriter) {
         return new FanoutDataWriter<>(writers, files, io, targetFileSize);
       } else {
         return new ClusteredDataWriter<>(writers, files, io, targetFileSize);
@@ -670,7 +669,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final FileFormat deleteFileFormat;
     private final long targetDeleteFileSize;
     private final String queryId;
-    private final boolean fanoutWriterEnabled;
+    private final boolean useFanoutWriter;
     private final boolean inputOrdered;
 
     Context(
@@ -687,7 +686,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.targetDeleteFileSize = writeConf.targetDeleteFileSize();
       this.metadataSparkType = info.metadataSchema().get();
       this.queryId = info.queryId();
-      this.fanoutWriterEnabled = writeConf.fanoutWriterEnabled();
+      this.useFanoutWriter = writeConf.useFanoutWriter(writeRequirements);
       this.inputOrdered = writeRequirements.hasOrdering();
     }
 
@@ -723,8 +722,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return queryId;
     }
 
-    boolean fanoutWriterEnabled() {
-      return fanoutWriterEnabled;
+    boolean useFanoutWriter() {
+      return useFanoutWriter;
     }
 
     boolean inputOrdered() {
