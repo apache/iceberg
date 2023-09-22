@@ -130,6 +130,7 @@ target-version = ['py38']
 all = true
 
 [tool.mypy]
+mypy_path = "python"
 no_implicit_optional = true
 namespace_packages = false
 warn_redundant_casts = true
@@ -341,5 +342,5 @@ keep-runtime-typing = true
 [tool.ruff.isort]
 detect-same-package = true
 lines-between-types = 0
-known-first-party = ["pyiceberg"]
+known-first-party = ["pyiceberg", "tests"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]

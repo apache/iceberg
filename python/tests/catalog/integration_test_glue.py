@@ -20,7 +20,6 @@ from typing import Generator, List
 import boto3
 import pytest
 from botocore.exceptions import ClientError
-from tests.conftest import clean_up, get_bucket_name, get_s3_path
 
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.glue import GlueCatalog
@@ -32,6 +31,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
+from tests.conftest import clean_up, get_bucket_name, get_s3_path
 
 # The number of tables/databases used in list_table/namespace test
 LIST_TEST_NUMBER = 2

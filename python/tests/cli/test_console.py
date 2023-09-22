@@ -19,7 +19,6 @@ import os
 import pytest
 from click.testing import CliRunner
 from pytest_mock import MockFixture
-from tests.catalog.test_base import InMemoryCatalog
 
 from pyiceberg.cli.console import run
 from pyiceberg.partitioning import PartitionField, PartitionSpec
@@ -28,6 +27,7 @@ from pyiceberg.transforms import IdentityTransform
 from pyiceberg.typedef import Properties
 from pyiceberg.types import LongType, NestedField
 from pyiceberg.utils.config import Config
+from tests.catalog.test_base import InMemoryCatalog
 
 
 def test_missing_uri(mocker: MockFixture, empty_home_dir_path: str) -> None:
