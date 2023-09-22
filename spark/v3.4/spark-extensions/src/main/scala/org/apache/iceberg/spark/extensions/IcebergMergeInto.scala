@@ -38,8 +38,8 @@ import org.apache.spark.sql.catalyst.plans.logical.UpdateStarAction
 import org.apache.spark.sql.functions.expr
 import scala.collection.JavaConverters
 
-
 object IcebergMergeInto {
+
   /**
    * Initialize an [[IcebergMergeIntoBuilder]]. A Builder to specify an IcebergMergeInto action.
    * It could be possible to provide any number of `whenMatched` and `whenNotMatched` actions.
@@ -90,11 +90,11 @@ object IcebergMergeInto {
    * @param whenNotMatchedActions : A list of  [[MergeAction]] applied when a certain condition is not matched
    */
   class IcebergMergeIntoBuilder(
-                                 private val targetTable: String,
-                                 private val source: Option[Dataset[Row]],
-                                 private val onCondition: Option[Expression],
-                                 private val whenMatchedActions: Seq[MergeAction],
-                                 private val whenNotMatchedActions: Seq[MergeAction]) {
+      private val targetTable: String,
+      private val source: Option[Dataset[Row]],
+      private val onCondition: Option[Expression],
+      private val whenMatchedActions: Seq[MergeAction],
+      private val whenNotMatchedActions: Seq[MergeAction]) {
 
     /**
      * Set the source dataset used during merge actions.
@@ -108,8 +108,7 @@ object IcebergMergeInto {
         Some(source),
         onCondition,
         whenMatchedActions,
-        whenNotMatchedActions
-      )
+        whenNotMatchedActions)
 
     /**
      * Set the `on` condition of the merge action from a [[Column]]
@@ -118,7 +117,12 @@ object IcebergMergeInto {
      * @return [[IcebergMergeIntoBuilder]]
      */
     def on(condition: Column): IcebergMergeIntoBuilder =
-      new IcebergMergeIntoBuilder(targetTable, source, Some(condition.expr), whenMatchedActions, whenNotMatchedActions)
+      new IcebergMergeIntoBuilder(
+        targetTable,
+        source,
+        Some(condition.expr),
+        whenMatchedActions,
+        whenNotMatchedActions)
 
     /**
      * Set the `on` condition of the merge action from a [[String]] expression.
@@ -192,8 +196,7 @@ object IcebergMergeInto {
         this.source,
         this.onCondition,
         this.whenMatchedActions,
-        this.whenNotMatchedActions :+ mergeAction
-      )
+        this.whenNotMatchedActions :+ mergeAction)
 
     /**
      * Internal method to append a MatchedExpressions
@@ -206,8 +209,7 @@ object IcebergMergeInto {
         this.source,
         this.onCondition,
         this.whenMatchedActions :+ mergeAction,
-        this.whenNotMatchedActions
-      )
+        this.whenNotMatchedActions)
 
     /**
      * Execute the merge action
@@ -221,10 +223,10 @@ object IcebergMergeInto {
 
       val sparkSession = mergeSourceDs.sparkSession
       val mergePlan = UnresolvedMergeIntoIcebergTable(
-        UnresolvedRelation(sparkSession.sessionState.sqlParser.parseMultipartIdentifier(targetTable)),
+        UnresolvedRelation(
+          sparkSession.sessionState.sqlParser.parseMultipartIdentifier(targetTable)),
         sparkSession.sessionState.analyzer.ResolveRelations(mergeSourceDs.queryExecution.logical),
-        MergeIntoContext(mergeWhenCondition, whenMatchedActions, whenNotMatchedActions)
-      )
+        MergeIntoContext(mergeWhenCondition, whenMatchedActions, whenNotMatchedActions))
       runCommand(sparkSession, mergePlan)
     }
 
@@ -236,11 +238,10 @@ object IcebergMergeInto {
 
   /**
    * Builder to specify IcebergMergeWhenMatched actions
-   *
    */
   class IcebergMergeWhenMatchedBuilder(
-                                        private val icebergMergeIntoBuilder: IcebergMergeIntoBuilder,
-                                        private val condition: Option[Expression]) {
+      private val icebergMergeIntoBuilder: IcebergMergeIntoBuilder,
+      private val condition: Option[Expression]) {
 
     /**
      * Set an updateAll action.
@@ -249,9 +250,7 @@ object IcebergMergeInto {
      * @return [[IcebergMergeIntoBuilder]]
      */
     def updateAll(): IcebergMergeIntoBuilder = {
-      icebergMergeIntoBuilder.withMatchedAction(
-        UpdateStarAction(condition)
-      )
+      icebergMergeIntoBuilder.withMatchedAction(UpdateStarAction(condition))
     }
 
     /**
@@ -309,16 +308,12 @@ object IcebergMergeInto {
      * @return [[IcebergMergeIntoBuilder]]
      */
     def delete(): IcebergMergeIntoBuilder = {
-      icebergMergeIntoBuilder.withMatchedAction(
-        DeleteAction(condition)
-      )
+      icebergMergeIntoBuilder.withMatchedAction(DeleteAction(condition))
     }
 
     private def updateAction(set: Map[String, Column]): IcebergMergeIntoBuilder = {
       icebergMergeIntoBuilder.withMatchedAction(
-        UpdateAction(
-          condition,
-          set.map(x => Assignment(expr(x._1).expr, x._2.expr)).toSeq))
+        UpdateAction(condition, set.map(x => Assignment(expr(x._1).expr, x._2.expr)).toSeq))
     }
   }
 
@@ -326,9 +321,8 @@ object IcebergMergeInto {
    * Builder to specify IcebergMergeWhenNotMatched actions
    */
   class IcebergMergeWhenNotMatchedBuilder(
-                                           private val icebergMergeIntoBuilder: IcebergMergeIntoBuilder,
-                                           private val condition: Option[Expression]
-                                         ) {
+      private val icebergMergeIntoBuilder: IcebergMergeIntoBuilder,
+      private val condition: Option[Expression]) {
 
     /**
      * Set an insert action.
@@ -336,9 +330,7 @@ object IcebergMergeInto {
      * @return [[IcebergMergeIntoBuilder]]
      */
     def insertAll(): IcebergMergeIntoBuilder = {
-      icebergMergeIntoBuilder.withNotMatchedAction(
-        InsertStarAction(condition)
-      )
+      icebergMergeIntoBuilder.withNotMatchedAction(InsertStarAction(condition))
     }
 
     /**
@@ -391,9 +383,7 @@ object IcebergMergeInto {
 
     private def insertAction(set: Map[String, Column]): IcebergMergeIntoBuilder = {
       icebergMergeIntoBuilder.withNotMatchedAction(
-        InsertAction(
-          condition,
-          set.map(x => Assignment(expr(x._1).expr, x._2.expr)).toSeq))
+        InsertAction(condition, set.map(x => Assignment(expr(x._1).expr, x._2.expr)).toSeq))
     }
 
   }

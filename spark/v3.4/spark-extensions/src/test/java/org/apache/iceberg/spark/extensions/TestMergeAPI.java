@@ -193,7 +193,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"finance\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
 
@@ -247,7 +247,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
@@ -278,7 +278,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
@@ -309,7 +309,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-six\" }");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -342,7 +342,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 6, \"dep\": \"emp-id-six\" }");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -373,7 +373,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -403,7 +403,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -438,7 +438,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> sourceDataset =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -713,7 +713,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -751,7 +751,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -784,7 +784,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -828,7 +828,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       createBranchIfNeeded();
 
       Dataset<Row> source =
-          createDataset(
+          toDS(
               "id INT, dep STRING",
               "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                   + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -876,7 +876,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       createBranchIfNeeded();
 
       Dataset<Row> source =
-          createDataset(
+          toDS(
               "id INT, ts TIMESTAMP",
               "{ \"id\": 2, \"ts\": \"2001-01-02 00:00:00\" }\n"
                   + "{ \"id\": 1, \"ts\": \"2001-01-01 00:00:00\" }\n"
@@ -922,7 +922,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       createBranchIfNeeded();
 
       Dataset<Row> source =
-          createDataset(
+          toDS(
               "id INT, dep STRING",
               "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                   + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -968,7 +968,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       createBranchIfNeeded();
 
       Dataset<Row> source =
-          createDataset(
+          toDS(
               "id INT, dep STRING",
               "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                   + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -1015,7 +1015,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       createBranchIfNeeded();
 
       Dataset<Row> source =
-          createDataset(
+          toDS(
               "id INT, dep STRING",
               "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                   + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -1243,7 +1243,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, extra_col STRING, v STRING",
             "{ \"id\": 1, \"extra_col\": -1, \"v\": \"v1_1\" }\n"
                 + "{ \"id\": 3, \"extra_col\": -1, \"v\": \"v3\" }\n"
@@ -1286,7 +1286,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, v STRING",
             "{ \"id\": null, \"v\": \"v1_1\" }\n" + "{ \"id\": 4, \"v\": \"v4\" }");
 
@@ -1327,7 +1327,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, v STRING",
             "{ \"id\": null, \"v\": \"v1_1\" }\n" + "{ \"id\": 4, \"v\": \"v4\" }");
 
@@ -1367,7 +1367,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, v STRING",
             "{ \"id\": null, \"v\": \"v1_1\" }\n" + "{ \"id\": 2, \"v\": \"v2_2\" }");
 
@@ -1408,7 +1408,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, v STRING",
             "{ \"id\": 1, \"v\": \"v1_1\" }\n"
                 + "{ \"id\": 2, \"v\": \"v2_2\" }\n"
@@ -1482,7 +1482,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, v STRING",
             "{ \"id\": 1, \"v\": \"v1_1\" }\n" + "{ \"id\": 2, \"v\": \"v2_2\" }");
 
@@ -1570,7 +1570,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "id STRING, v STRING",
         "{ \"id\": \"a\", \"v\": \"v1\" }\n" + "{ \"id\": \"b\", \"v\": \"v2\" }");
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id STRING, v STRING",
             "{ \"id\": \"a\", \"v\": \"v1_1\" }\n"
                 + "{ \"id\": \"a\", \"v\": \"v1_2\" }\n"
@@ -1601,7 +1601,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   public void testMergeInsertOnlyWithCondition() {
     createAndInitTable("id INTEGER, v INTEGER", "{ \"id\": 1, \"v\": 1 }");
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INTEGER, v INTEGER,is_new BOOLEAN",
             "{ \"id\": 1, \"v\": 11, \"is_new\": true }\n"
                 + "{ \"id\": 2, \"v\": 21, \"is_new\": true }\n"
@@ -1633,7 +1633,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   public void testMergeAlignsUpdateAndInsertActions() {
     createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, c1 INT, c2 STRING",
             "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n"
                 + "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
@@ -1671,7 +1671,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   public void testMergeMixedCaseAlignsUpdateAndInsertActions() {
     createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, c1 INT, c2 STRING",
             "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n"
                 + "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
@@ -1719,7 +1719,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
         "{ \"id\": 1, \"s\": { \"c1\": 2, \"c2\": { \"a\": [1,2], \"m\": { \"a\": \"b\"} } } } }");
-    Dataset<Row> source = createDataset("id INT, c1 INT", "{ \"id\": 1, \"c1\": -2 }");
+    Dataset<Row> source = toDS("id INT, c1 INT", "{ \"id\": 1, \"c1\": -2 }");
 
     IcebergMergeInto.table(commitTarget())
         .using(source.as("source"))
@@ -1784,7 +1784,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeWithInferredCasts() {
     createAndInitTable("id INT, s STRING", "{ \"id\": 1, \"s\": \"value\" }");
-    Dataset<Row> source = createDataset("id INT, c1 INT", "{ \"id\": 1, \"c1\": -2}");
+    Dataset<Row> source = toDS("id INT, c1 INT", "{ \"id\": 1, \"c1\": -2}");
 
     IcebergMergeInto.table(commitTarget())
         .using(source.as("source"))
@@ -1807,7 +1807,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeModifiesNullStruct() {
     createAndInitTable("id INT, s STRUCT<n1:INT,n2:INT>", "{ \"id\": 1, \"s\": null }");
-    Dataset<Row> source = createDataset("id INT, n1 INT", "{ \"id\": 1, \"n1\": -10 }");
+    Dataset<Row> source = toDS("id INT, n1 INT", "{ \"id\": 1, \"n1\": -10 }");
 
     IcebergMergeInto.table(commitTarget())
         .using(source.as("source"))
@@ -1830,7 +1830,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeRefreshesRelationCache() {
     createAndInitTable("id INT, name STRING", "{ \"id\": 1, \"name\": \"n1\" }");
-    Dataset<Row> source = createDataset("id INT, name STRING", "{ \"id\": 1, \"name\": \"n2\" }");
+    Dataset<Row> source = toDS("id INT, name STRING", "{ \"id\": 1, \"name\": \"n2\" }");
 
     Dataset<Row> query = spark.sql("SELECT name FROM " + commitTarget());
     query.createOrReplaceTempView("tmp");
@@ -1863,7 +1863,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
@@ -1902,7 +1902,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
@@ -1943,7 +1943,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 6, \"badge\": 6000, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "badge INT, id INT, dep STRING",
             "{ \"badge\": 1001, \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"badge\": 6006, \"id\": 6, \"dep\": \"emp-id-6\" }\n"
@@ -1977,7 +1977,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT, dep STRING",
             "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
                 + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
@@ -2013,7 +2013,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Dataset<Row> source =
-        createDataset(
+        toDS(
             "id INT NOT NULL, dep STRING",
             "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
                 + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
@@ -2045,7 +2045,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
-    Dataset<Row> source = createDataset("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
+    Dataset<Row> source = toDS("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -2109,7 +2109,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
-    Dataset<Row> source = createDataset("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
+    Dataset<Row> source = toDS("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -2157,7 +2157,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
         "{ \"id\": 1, \"a\": [ { \"c1\": 2, \"c2\": 3 } ], \"m\": { \"k\": \"v\"} }");
-    Dataset<Row> source = createDataset("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
+    Dataset<Row> source = toDS("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -2195,7 +2195,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeWithTargetColumnsInInsertConditions() {
     createAndInitTable("id INT, c2 INT", "{ \"id\": 1, \"c2\": 2 }");
-    Dataset<Row> source = createDataset("id INT, value INT", "{ \"id\": 1, \"value\": 11 }");
+    Dataset<Row> source = toDS("id INT, value INT", "{ \"id\": 1, \"value\": 11 }");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -2218,7 +2218,7 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   @Test
   public void testMergeWithNonIcebergTargetTableNotSupported() {
     createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
-    Dataset<Row> source = createDataset("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
+    Dataset<Row> source = toDS("c1 INT, c2 INT", "{ \"c1\": -100, \"c2\": -200 }");
 
     Assertions.assertThatThrownBy(
             () ->
