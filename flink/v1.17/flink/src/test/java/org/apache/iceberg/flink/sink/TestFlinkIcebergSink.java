@@ -379,7 +379,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
     Configuration flinkConf = new Configuration();
-    flinkConf.setString(FlinkWriteOptions.TABLE_REFRSH_INTERVAL.key(), "100ms");
+    flinkConf.setString(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key(), "100ms");
 
     FlinkSink.forRowData(dataStream)
         .table(table)
