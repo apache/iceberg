@@ -541,6 +541,16 @@ class Table:
             else False
         )
 
+    def __repr__(self) -> str:
+        """Return the string representation of the Table class."""
+        table_name = self.catalog.table_name_from(self.identifier)
+        schema_str = ",\n  ".join(str(column) for column in self.schema().columns if self.schema())
+        partition_str = f"partition by: [{', '.join(field.name for field in self.spec().fields if self.spec())}]"
+        sort_order_str = f"sort order: [{', '.join(str(field) for field in self.sort_order().fields if self.sort_order())}]"
+        snapshot_str = f"snapshot: {str(self.current_snapshot()) if self.current_snapshot() else 'null'}"
+        result_str = f"{table_name}(\n  {schema_str}\n),\n{partition_str},\n{sort_order_str},\n{snapshot_str}"
+        return result_str
+
 
 class StaticTable(Table):
     """Load a table directly from a metadata file (i.e., without using a catalog)."""

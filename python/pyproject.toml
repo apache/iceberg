@@ -63,6 +63,7 @@ duckdb = { version = ">=0.5.0,<1.0.0", optional = true }
 ray = { version = ">=2.0.0,<3.0.0", optional = true }
 python-snappy = { version = ">=0.6.0,<1.0.0", optional = true }
 thrift = { version = ">=0.13.0,<1.0.0", optional = true }
+mypy-boto3-glue = { version = ">=1.28.18", optional = true }
 boto3 = { version = ">=1.24.59", optional = true }
 s3fs = { version = ">=2023.1.0,<2024.1.0", optional = true }
 adlfs = { version = ">=2023.1.0,<2024.1.0", optional = true }
@@ -105,7 +106,7 @@ ray = ["ray", "pyarrow", "pandas"]
 snappy = ["python-snappy"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
-glue = ["boto3"]
+glue = ["boto3", "mypy-boto3-glue"]
 adlfs = ["adlfs"]
 dynamodb = ["boto3"]
 zstandard = ["zstandard"]
@@ -234,6 +235,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "botocore.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy_boto3_glue.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

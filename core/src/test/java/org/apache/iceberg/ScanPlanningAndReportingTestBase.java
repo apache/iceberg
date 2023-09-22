@@ -36,13 +36,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.Test;
 
-public class TestScanPlanningAndReporting extends TableTestBase {
+public abstract class ScanPlanningAndReportingTestBase<
+        ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
+    extends TableTestBase {
 
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
-  public TestScanPlanningAndReporting() {
+  public ScanPlanningAndReportingTestBase() {
     super(2);
   }
+
+  protected abstract ScanT newScan(Table table);
 
   @Test
   public void noDuplicatesInScanContext() {
@@ -82,12 +86,11 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     table.refresh();
 
     AtomicInteger reportedCount = new AtomicInteger();
-    TableScan tableScan =
-        table
-            .newScan()
+    ScanT tableScan =
+        newScan(table)
             .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement())
             .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement());
-    try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
+    try (CloseableIterable<T> fileScanTasks = tableScan.planFiles()) {
       fileScanTasks.forEach(task -> {});
     }
 
@@ -113,10 +116,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.newAppend().appendFile(FILE_D).commit();
     table.refresh();
-    TableScan tableScan = table.newScan();
+    ScanT tableScan = newScan(table);
 
     // should be 3 files
-    try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
+    try (CloseableIterable<T> fileScanTasks = tableScan.planFiles()) {
       fileScanTasks.forEach(task -> {});
     }
 
@@ -180,9 +183,9 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
-    TableScan tableScan = table.newScan();
+    ScanT tableScan = newScan(table);
 
-    try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
+    try (CloseableIterable<T> fileScanTasks = tableScan.planFiles()) {
       fileScanTasks.forEach(task -> {});
     }
 
@@ -218,12 +221,12 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_D).commit();
     table.newOverwrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
     table.newAppend().appendFile(FILE_C).commit();
-    TableScan tableScan = table.newScan();
+    ScanT tableScan = newScan(table);
 
     List<FileScanTask> fileTasks = Lists.newArrayList();
-    try (CloseableIterable<FileScanTask> fileScanTasks =
+    try (CloseableIterable<T> scanTasks =
         tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
-      fileScanTasks.forEach(fileTasks::add);
+      scanTasks.forEach(task -> fileTasks.add((FileScanTask) task));
     }
     assertThat(fileTasks)
         .singleElement()
@@ -259,12 +262,12 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     table.newOverwrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_D2_DELETES).commit();
     table.newRowDelta().addDeletes(FILE_B_DELETES).addDeletes(FILE_C2_DELETES).commit();
-    TableScan tableScan = table.newScan();
+    ScanT tableScan = newScan(table);
 
     List<FileScanTask> fileTasks = Lists.newArrayList();
-    try (CloseableIterable<FileScanTask> fileScanTasks =
+    try (CloseableIterable<T> scanTasks =
         tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
-      fileScanTasks.forEach(fileTasks::add);
+      scanTasks.forEach(task -> fileTasks.add((FileScanTask) task));
     }
     assertThat(fileTasks)
         .singleElement()
@@ -302,9 +305,9 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     // FILE_A_DELETES = positionalDelete / FILE_A2_DELETES = equalityDelete
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
-    TableScan tableScan = table.newScan();
+    ScanT tableScan = newScan(table);
 
-    try (CloseableIterable<FileScanTask> fileScanTasks =
+    try (CloseableIterable<T> fileScanTasks =
         tableScan.filter(Expressions.equal("data", "6")).planFiles()) {
       fileScanTasks.forEach(task -> {});
     }

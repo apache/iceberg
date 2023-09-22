@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.PlanningMode.AUTO;
 import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
@@ -144,19 +145,18 @@ abstract class BaseDistributedDataScan
   protected CloseableIterable<ScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
 
-    List<ManifestFile> dataManifests = findMatchingDataManifests(snapshot);
-    boolean planDataLocally = shouldPlanLocally(dataPlanningMode(), dataManifests);
-
     List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);
-    boolean planDeletesLocally = shouldPlanLocally(deletePlanningMode(), deleteManifests);
+    boolean mayHaveEqualityDeletes = deleteManifests.size() > 0 && mayHaveEqualityDeletes(snapshot);
+    boolean planDeletesLocally = shouldPlanDeletesLocally(deleteManifests, mayHaveEqualityDeletes);
+
+    List<ManifestFile> dataManifests = findMatchingDataManifests(snapshot);
+    boolean loadColumnStats = mayHaveEqualityDeletes || shouldReturnColumnStats();
+    boolean planDataLocally = shouldPlanDataLocally(dataManifests, loadColumnStats);
+    boolean copyDataFiles = shouldCopyDataFiles(planDataLocally, loadColumnStats);
 
     if (planDataLocally && planDeletesLocally) {
       return planFileTasksLocally(dataManifests, deleteManifests);
     }
-
-    boolean mayHaveEqualityDeletes = deleteManifests.size() > 0 && mayHaveEqualityDeletes(snapshot);
-    boolean loadColumnStats = mayHaveEqualityDeletes || shouldReturnColumnStats();
-    boolean copyDataFiles = shouldCopyDataFiles(planDataLocally, loadColumnStats);
 
     ExecutorService monitorPool = newMonitorPool();
 
@@ -223,7 +223,18 @@ abstract class BaseDistributedDataScan
         .collect(Collectors.toList());
   }
 
-  protected boolean shouldPlanLocally(PlanningMode mode, List<ManifestFile> manifests) {
+  private boolean shouldPlanDeletesLocally(
+      List<ManifestFile> deleteManifests, boolean mayHaveEqualityDeletes) {
+    PlanningMode mode = deletePlanningMode();
+    return (mode == AUTO && mayHaveEqualityDeletes) || shouldPlanLocally(mode, deleteManifests);
+  }
+
+  private boolean shouldPlanDataLocally(List<ManifestFile> dataManifests, boolean loadColumnStats) {
+    PlanningMode mode = dataPlanningMode();
+    return (mode == AUTO && loadColumnStats) || shouldPlanLocally(mode, dataManifests);
+  }
+
+  private boolean shouldPlanLocally(PlanningMode mode, List<ManifestFile> manifests) {
     if (context().planWithCustomizedExecutor()) {
       return true;
     }

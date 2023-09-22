@@ -68,7 +68,7 @@ public class TableMetadata implements Serializable {
         PropertyUtil.propertyAsInt(
             properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(
-        schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+        schema, spec, sortOrder, location, persistedProperties(properties), formatVersion);
   }
 
   public static TableMetadata newTableMetadata(
@@ -78,13 +78,28 @@ public class TableMetadata implements Serializable {
         PropertyUtil.propertyAsInt(
             properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(
-        schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+        schema, spec, sortOrder, location, persistedProperties(properties), formatVersion);
   }
 
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
     return rawProperties.entrySet().stream()
         .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private static Map<String, String> persistedProperties(Map<String, String> rawProperties) {
+    Map<String, String> persistedProperties = Maps.newHashMap();
+
+    // explicitly set defaults that apply only to new tables
+    persistedProperties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+
+    rawProperties.entrySet().stream()
+        .filter(entry -> !TableProperties.RESERVED_PROPERTIES.contains(entry.getKey()))
+        .forEach(entry -> persistedProperties.put(entry.getKey(), entry.getValue()));
+
+    return persistedProperties;
   }
 
   static TableMetadata newTableMetadata(
@@ -685,7 +700,7 @@ public class TableMetadata implements Serializable {
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(newLocation)
-        .setProperties(unreservedProperties(updatedProperties))
+        .setProperties(persistedProperties(updatedProperties))
         .build();
   }
 
