@@ -42,10 +42,10 @@ class UrlConnectionHttpClientConfigurations {
   private void initialize(Map<String, String> httpClientProperties) {
     this.httpClientUrlConnectionConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
+            httpClientProperties, HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS);
     this.httpClientUrlConnectionSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
+            httpClientProperties, HttpClientProperties.URLCONNECTION_SOCKET_TIMEOUT_MS);
   }
 
   @VisibleForTesting
