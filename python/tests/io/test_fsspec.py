@@ -19,11 +19,12 @@ import uuid
 
 import pytest
 from botocore.awsrequest import AWSRequest
+from requests_mock import Mocker
+
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec
 from pyiceberg.io.fsspec import FsspecFileIO, s3v4_rest_signer
 from pyiceberg.io.pyarrow import PyArrowFileIO
-from requests_mock import Mocker
 
 
 @pytest.mark.s3

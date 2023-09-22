@@ -22,6 +22,8 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from typing_extensions import assert_type
+
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -76,7 +78,6 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.singleton import Singleton
-from typing_extensions import assert_type
 
 
 class ExpressionA(BooleanExpression, Singleton):

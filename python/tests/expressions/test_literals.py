@@ -27,6 +27,8 @@ from typing import (
 )
 
 import pytest
+from typing_extensions import assert_type
+
 from pyiceberg.expressions.literals import (
     BinaryLiteral,
     BooleanLiteral,
@@ -63,7 +65,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from typing_extensions import assert_type
 
 
 def test_literal_from_none_error() -> None:

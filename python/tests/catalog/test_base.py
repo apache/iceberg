@@ -25,6 +25,7 @@ from typing import (
 )
 
 import pytest
+
 from pyiceberg.catalog import (
     Catalog,
     Identifier,

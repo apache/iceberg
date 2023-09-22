@@ -18,6 +18,7 @@
 from typing import Any, Dict
 
 import pytest
+
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,

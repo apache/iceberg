@@ -31,6 +31,7 @@ from hive_metastore.ttypes import (
 )
 from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import Table as HiveTable
+
 from pyiceberg.catalog import PropertiesUpdateSummary
 from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (

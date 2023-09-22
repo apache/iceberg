@@ -19,6 +19,7 @@ import pickle
 from typing import Type
 
 import pytest
+
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.types import (
     BinaryType,

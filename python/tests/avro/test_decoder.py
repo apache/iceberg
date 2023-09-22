@@ -24,7 +24,8 @@ from typing import Callable, Optional, Type
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder, new_decoder  # type: ignore
+
+from pyiceberg.avro.decoder import BinaryDecoder, StreamingBinaryDecoder, new_decoder
 from pyiceberg.avro.decoder_fast import CythonBinaryDecoder
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream

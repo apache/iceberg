@@ -17,8 +17,10 @@
 # pylint: disable=redefined-outer-name,unused-argument
 from uuid import UUID
 
-import pyiceberg
 import pytest
+from requests_mock import Mocker
+
+import pyiceberg
 from pyiceberg.catalog import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (
@@ -42,7 +44,6 @@ from pyiceberg.types import (
     NestedField,
     StringType,
 )
-from requests_mock import Mocker
 
 TEST_URI = "https://iceberg-test-catalog/"
 TEST_CREDENTIALS = "client:secret"

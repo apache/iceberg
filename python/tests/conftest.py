@@ -53,6 +53,7 @@ import botocore.awsrequest
 import botocore.model
 import pytest
 from moto import mock_dynamodb, mock_glue, mock_s3
+
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.noop import NoopCatalog

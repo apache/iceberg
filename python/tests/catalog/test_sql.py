@@ -20,6 +20,9 @@ from pathlib import Path
 from typing import Generator, List
 
 import pytest
+from pytest import TempPathFactory
+from sqlalchemy.exc import ArgumentError, IntegrityError
+
 from pyiceberg.catalog import Identifier
 from pyiceberg.catalog.sql import SqlCatalog
 from pyiceberg.exceptions import (
@@ -38,8 +41,6 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import IdentityTransform
-from pytest import TempPathFactory
-from sqlalchemy.exc import ArgumentError, IntegrityError
 
 
 @pytest.fixture(name="warehouse", scope="session")

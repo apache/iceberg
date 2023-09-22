@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import S3FileSystem
+
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import (

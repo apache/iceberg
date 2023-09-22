@@ -82,8 +82,9 @@ from datetime import (
 from decimal import Decimal
 from typing import Any, Union
 
-import pyiceberg.utils.decimal as decimal_util
 import pytest
+
+import pyiceberg.utils.decimal as decimal_util
 from pyiceberg import conversions
 from pyiceberg.types import (
     BinaryType,

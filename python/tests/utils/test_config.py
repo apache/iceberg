@@ -18,8 +18,9 @@ import os
 from unittest import mock
 
 import pytest
-from pyiceberg.utils.config import Config, _lowercase_dictionary_keys
 from strictyaml import as_document
+
+from pyiceberg.utils.config import Config, _lowercase_dictionary_keys
 
 EXAMPLE_ENV = {"PYICEBERG_CATALOG__PRODUCTION__URI": "https://service.io/api"}
 

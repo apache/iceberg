@@ -20,6 +20,7 @@ from typing import Optional
 
 import pytest
 from pydantic import Field
+
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     DecimalReader,

@@ -15,6 +15,8 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import pytest
+from pyparsing import ParseException
+
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -37,7 +39,6 @@ from pyiceberg.expressions import (
     StartsWith,
     parser,
 )
-from pyparsing import ParseException
 
 
 def test_true() -> None:

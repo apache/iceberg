@@ -1161,12 +1161,12 @@ class StatsAggregator:
             return None
 
         if self.primitive_type == StringType():
-            if type(self.current_max) != str:
+            if not isinstance(self.current_max, str):
                 raise ValueError("Expected the current_max to be a string")
             s_result = truncate_upper_bound_text_string(self.current_max, self.trunc_length)
             return self.serialize(s_result) if s_result is not None else None
         elif self.primitive_type == BinaryType():
-            if type(self.current_max) != bytes:
+            if not isinstance(self.current_max, bytes):
                 raise ValueError("Expected the current_max to be bytes")
             b_result = truncate_upper_bound_binary_string(self.current_max, self.trunc_length)
             return self.serialize(b_result) if b_result is not None else None
