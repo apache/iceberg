@@ -38,7 +38,7 @@ import org.apache.iceberg.util.Tasks;
 
 class ViewVersionReplace implements ReplaceViewVersion {
   private final ViewOperations ops;
-  private final List<ViewRepresentation> viewRepresentationsToAdd = Lists.newArrayList();
+  private final List<ViewRepresentation> representations = Lists.newArrayList();
   private ViewMetadata base;
   private Namespace defaultNamespace;
   private String defaultCatalog;
@@ -51,28 +51,35 @@ class ViewVersionReplace implements ReplaceViewVersion {
 
   @Override
   public ViewVersion apply() {
-    Preconditions.checkState(
-        !viewRepresentationsToAdd.isEmpty(), "Cannot replace view without specifying a query");
-    Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
-
     this.base = ops.refresh();
 
-    ViewVersion viewVersion = base.currentVersion();
+    return internalApply(base).currentVersion();
+  }
+
+  private ViewMetadata internalApply(ViewMetadata metadata) {
+    Preconditions.checkState(
+        !representations.isEmpty(), "Cannot replace view without specifying a query");
+    Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+
+    ViewVersion viewVersion = metadata.currentVersion();
     int maxVersionId =
-        base.versions().stream()
+        metadata.versions().stream()
             .map(ViewVersion::versionId)
             .max(Integer::compareTo)
             .orElseGet(viewVersion::versionId);
 
-    return ImmutableViewVersion.builder()
-        .versionId(maxVersionId + 1)
-        .timestampMillis(System.currentTimeMillis())
-        .schemaId(schema.schemaId())
-        .defaultNamespace(defaultNamespace)
-        .defaultCatalog(defaultCatalog)
-        .putSummary("operation", "replace")
-        .addAllRepresentations(viewRepresentationsToAdd)
-        .build();
+    ViewVersion newVersion =
+        ImmutableViewVersion.builder()
+            .versionId(maxVersionId + 1)
+            .timestampMillis(System.currentTimeMillis())
+            .schemaId(schema.schemaId())
+            .defaultNamespace(defaultNamespace)
+            .defaultCatalog(defaultCatalog)
+            .putSummary("operation", "replace")
+            .addAllRepresentations(representations)
+            .build();
+
+    return ViewMetadata.buildFrom(metadata).setCurrentVersion(newVersion, schema).build();
   }
 
   @Override
@@ -90,25 +97,12 @@ class ViewVersionReplace implements ReplaceViewVersion {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              ViewVersion newVersion = apply();
-              // nothing to do if the version didn't change
-              if (this.base.currentVersion().equals(newVersion)) {
-                return;
-              }
-
-              ViewMetadata updated =
-                  ViewMetadata.buildFrom(this.base).setCurrentVersion(newVersion, schema).build();
-
-              taskOps.commit(base, updated);
-            });
+        .run(taskOps -> taskOps.commit(base, internalApply(base)));
   }
 
   @Override
   public ReplaceViewVersion withQuery(String dialect, String sql) {
-    viewRepresentationsToAdd.add(
-        ImmutableSQLViewRepresentation.builder().dialect(dialect).sql(sql).build());
+    representations.add(ImmutableSQLViewRepresentation.builder().dialect(dialect).sql(sql).build());
     return this;
   }
 

@@ -114,7 +114,25 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
 
     @Override
     public View create() {
+      return create(newViewOps(identifier));
+    }
+
+    @Override
+    public View replace() {
+      return replace(newViewOps(identifier));
+    }
+
+    @Override
+    public View createOrReplace() {
       ViewOperations ops = newViewOps(identifier);
+      if (null == ops.current()) {
+        return create(ops);
+      } else {
+        return replace(ops);
+      }
+    }
+
+    private View create(ViewOperations ops) {
       if (null != ops.current()) {
         throw new AlreadyExistsException("View already exists: %s", identifier);
       }
@@ -142,9 +160,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
 
-    @Override
-    public View replace() {
-      ViewOperations ops = newViewOps(identifier);
+    private View replace(ViewOperations ops) {
       if (null == ops.current()) {
         throw new NoSuchViewException("View does not exist: %s", identifier);
       }
@@ -176,15 +192,6 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       }
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
-    }
-
-    @Override
-    public View createOrReplace() {
-      if (null == newViewOps(identifier).current()) {
-        return create();
-      } else {
-        return replace();
-      }
     }
   }
 }

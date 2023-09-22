@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -33,7 +32,6 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -80,8 +78,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     // validate view settings
-    assertThat(view.name()).isEqualTo(catalog().name() + "." + identifier);
-    assertThat(view.properties()).isEmpty();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
     assertThat(view.history())
         .hasSize(1)
         .first()
@@ -135,8 +132,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     // validate view settings
-    assertThat(view.name()).isEqualTo(catalog().name() + "." + identifier);
-    assertThat(view.properties()).isEqualTo(ImmutableMap.of("prop1", "val1", "prop2", "val2"));
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
     assertThat(view.history())
         .hasSize(1)
         .first()
@@ -173,32 +170,32 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createViewThatAlreadyExists() {
-    TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
-      catalog().createNamespace(viewIdentifier.namespace());
+      catalog().createNamespace(identifier.namespace());
     }
 
-    assertThat(catalog().viewExists(viewIdentifier)).isFalse();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
     View view =
         catalog()
-            .buildView(viewIdentifier)
+            .buildView(identifier)
             .withSchema(SCHEMA)
-            .withDefaultNamespace(viewIdentifier.namespace())
+            .withDefaultNamespace(identifier.namespace())
             .withQuery("spark", "select * from ns.tbl")
             .create();
 
     assertThat(view).isNotNull();
-    assertThat(catalog().viewExists(viewIdentifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     assertThatThrownBy(
             () ->
                 catalog()
-                    .buildView(viewIdentifier)
+                    .buildView(identifier)
                     .withSchema(OTHER_SCHEMA)
                     .withQuery("spark", "select * from ns.tbl")
-                    .withDefaultNamespace(viewIdentifier.namespace())
+                    .withDefaultNamespace(identifier.namespace())
                     .create())
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("View already exists: ns.view");
@@ -211,40 +208,16 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isNotNull();
 
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
-    TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
-      catalog().createNamespace(viewIdentifier.namespace());
+      catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    assertThat(catalog().viewExists(viewIdentifier)).isFalse();
-
-    View view =
-        catalog()
-            .buildView(viewIdentifier)
-            .withSchema(SCHEMA)
-            .withDefaultNamespace(viewIdentifier.namespace())
-            .withQuery("spark", "select * from ns.tbl")
-            .create();
-
-    assertThat(view).isNotNull();
-    assertThat(catalog().viewExists(tableIdentifier)).isFalse();
-    assertThat(catalog().viewExists(viewIdentifier)).isTrue();
-
-    assertThatThrownBy(
-            () ->
-                catalog()
-                    .buildView(viewIdentifier)
-                    .withSchema(OTHER_SCHEMA)
-                    .withQuery("spark", "select * from ns.tbl")
-                    .withDefaultNamespace(viewIdentifier.namespace())
-                    .create())
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("View already exists: ns.view");
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should not exist").isFalse();
 
     tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
-    assertThat(tableCatalog().tableExists(tableIdentifier)).isTrue();
-    assertThat(catalog().viewExists(tableIdentifier)).isFalse();
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThatThrownBy(
             () ->
@@ -264,33 +237,26 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .as("Only valid for catalogs that support tables")
         .isNotNull();
 
-    TableIdentifier viewOne = TableIdentifier.of("ns", "viewOne");
-    TableIdentifier viewTwo = TableIdentifier.of("ns", "viewTwo");
+    TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
-      catalog().createNamespace(viewOne.namespace());
+      catalog().createNamespace(viewIdentifier.namespace());
     }
 
-    assertThat(catalog().viewExists(viewOne)).isFalse();
-    assertThat(tableCatalog().tableExists(viewTwo)).isFalse();
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should not exist").isFalse();
 
-    for (TableIdentifier identifier : Arrays.asList(viewTwo, viewOne)) {
-      assertThat(
-              catalog()
-                  .buildView(identifier)
-                  .withSchema(SCHEMA)
-                  .withDefaultNamespace(identifier.namespace())
-                  .withQuery("spark", "select * from ns.tbl")
-                  .create())
-          .isNotNull();
+    catalog()
+        .buildView(viewIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(viewIdentifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
 
-      assertThat(catalog().viewExists(identifier)).isTrue();
-      assertThat(tableCatalog().tableExists(identifier)).isFalse();
-    }
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should exist").isTrue();
 
-    assertThatThrownBy(() -> tableCatalog().buildTable(viewTwo, SCHEMA).create())
+    assertThatThrownBy(() -> tableCatalog().buildTable(viewIdentifier, SCHEMA).create())
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("View with same name already exists: ns.viewTwo");
+        .hasMessageStartingWith("View with same name already exists: ns.view");
   }
 
   @Test
@@ -302,6 +268,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       catalog().createNamespace(from.namespace());
     }
 
+    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
+
     catalog()
         .buildView(from)
         .withSchema(SCHEMA)
@@ -310,44 +278,20 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .create();
 
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
-    assertThat(catalog().listViews(from.namespace())).containsExactly(from);
 
     catalog().renameView(from, to);
 
-    assertThat(catalog().listViews(to.namespace())).containsExactly(to);
-    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
-    assertThat(catalog().viewExists(to)).as("View should exist").isTrue();
+    assertThat(catalog().viewExists(from)).as("View should not exist with old name").isFalse();
+    assertThat(catalog().viewExists(to)).as("View should exist with new name").isTrue();
 
-    View view = catalog().loadView(to);
-    assertThat(view).isNotNull();
-
-    // validate view settings
-    assertThat(view.name()).isEqualTo(catalog().name() + "." + to);
-    assertThat(view.properties()).isEmpty();
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
+    // ensure current view version id didn't change after renaming
+    assertThat(catalog().loadView(to))
+        .isNotNull()
+        .extracting(View::currentVersion)
+        .extracting(ViewVersion::versionId)
         .isEqualTo(1);
-    assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
-    assertThat(view.currentVersion())
-        .isEqualTo(
-            ImmutableViewVersion.builder()
-                .timestampMillis(view.currentVersion().timestampMillis())
-                .versionId(1)
-                .schemaId(SCHEMA.schemaId())
-                .putSummary("operation", "create")
-                .defaultNamespace(to.namespace())
-                .addRepresentations(
-                    ImmutableSQLViewRepresentation.builder()
-                        .sql("select * from ns.tbl")
-                        .dialect("spark")
-                        .build())
-                .build());
-
+    assertThat(catalog().dropView(from)).isFalse();
     assertThat(catalog().dropView(to)).isTrue();
     assertThat(catalog().viewExists(to)).as("View should not exist").isFalse();
   }
@@ -362,6 +306,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       catalog().createNamespace(to.namespace());
     }
 
+    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
+
     catalog()
         .buildView(from)
         .withSchema(SCHEMA)
@@ -369,44 +315,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .withQuery("spark", "select * from ns.tbl")
         .create();
 
-    assertThat(catalog().listViews(from.namespace())).containsExactly(from);
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
 
     catalog().renameView(from, to);
 
-    assertThat(catalog().listViews(to.namespace())).containsExactly(to);
-    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
-    assertThat(catalog().viewExists(to)).as("View should exist").isTrue();
-
-    View view = catalog().loadView(to);
-    assertThat(view).isNotNull();
-
-    // validate view settings
-    assertThat(view.name()).isEqualTo(catalog().name() + "." + to);
-    assertThat(view.properties()).isEmpty();
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(1);
-    assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
-
-    assertThat(view.currentVersion())
-        .isEqualTo(
-            ImmutableViewVersion.builder()
-                .timestampMillis(view.currentVersion().timestampMillis())
-                .versionId(1)
-                .schemaId(SCHEMA.schemaId())
-                .putSummary("operation", "create")
-                .defaultNamespace(from.namespace())
-                .addRepresentations(
-                    ImmutableSQLViewRepresentation.builder()
-                        .sql("select * from ns.tbl")
-                        .dialect("spark")
-                        .build())
-                .build());
+    assertThat(catalog().viewExists(from)).as("View should not exist with old name").isFalse();
+    assertThat(catalog().viewExists(to)).as("View should exist with new name").isTrue();
 
     assertThat(catalog().dropView(from)).isFalse();
     assertThat(catalog().dropView(to)).isTrue();
@@ -421,6 +335,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(from.namespace());
     }
+
+    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
 
     catalog()
         .buildView(from)
@@ -438,7 +354,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void renameViewSourceMissing() {
-    TableIdentifier from = TableIdentifier.of("ns", "view");
+    TableIdentifier from = TableIdentifier.of("ns", "non_existing");
     TableIdentifier to = TableIdentifier.of("ns", "renamedView");
 
     if (requiresNamespaceCreate()) {
@@ -450,40 +366,68 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThatThrownBy(() -> catalog().renameView(from, to))
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageContaining("View does not exist");
-
-    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
-    assertThat(catalog().viewExists(to)).as("View should not exist").isFalse();
   }
 
   @Test
-  public void renameViewTargetAlreadyExists() {
-    TableIdentifier from = TableIdentifier.of("ns", "view");
-    TableIdentifier to = TableIdentifier.of("ns", "renamedView");
+  public void renameViewTargetAlreadyExistsAsView() {
+    TableIdentifier viewOne = TableIdentifier.of("ns", "viewOne");
+    TableIdentifier viewTwo = TableIdentifier.of("ns", "viewTwo");
 
     if (requiresNamespaceCreate()) {
-      catalog().createNamespace(from.namespace());
+      catalog().createNamespace(viewOne.namespace());
     }
 
-    for (TableIdentifier viewIdentifier : ImmutableList.of(from, to)) {
+    for (TableIdentifier identifier : ImmutableList.of(viewOne, viewTwo)) {
+      assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
       catalog()
-          .buildView(viewIdentifier)
+          .buildView(identifier)
           .withSchema(SCHEMA)
-          .withDefaultNamespace(from.namespace())
+          .withDefaultNamespace(viewOne.namespace())
           .withQuery("spark", "select * from ns.tbl")
           .create();
+
+      assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
     }
 
-    assertThatThrownBy(() -> catalog().renameView(from, to))
+    assertThatThrownBy(() -> catalog().renameView(viewOne, viewTwo))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Cannot rename ns.view to ns.renamedView. View already exists");
+        .hasMessageContaining("Cannot rename ns.viewOne to ns.viewTwo. View already exists");
+  }
 
-    // rename view where a table with the same name already exists
-    TableIdentifier identifier = TableIdentifier.of("ns", "tbl");
-    tableCatalog().buildTable(identifier, SCHEMA).create();
+  @Test
+  public void renameViewTargetAlreadyExistsAsTable() {
+    Assumptions.assumeThat(tableCatalog())
+        .as("Only valid for catalogs that support tables")
+        .isNotNull();
 
-    assertThatThrownBy(() -> catalog().renameView(from, identifier))
+    TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should not exist").isFalse();
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(viewIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(viewIdentifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog().renameView(viewIdentifier, tableIdentifier))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Cannot rename ns.view to ns.tbl. Table already exists");
+        .hasMessageContaining("Cannot rename ns.view to ns.table. Table already exists");
   }
 
   @Test
@@ -491,7 +435,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     Namespace ns1 = Namespace.of("ns1");
     Namespace ns2 = Namespace.of("ns2");
 
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns1, "table");
     TableIdentifier view1 = TableIdentifier.of(ns1, "view1");
     TableIdentifier view2 = TableIdentifier.of(ns2, "view2");
     TableIdentifier view3 = TableIdentifier.of(ns2, "view3");
@@ -499,12 +442,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(ns1);
       catalog().createNamespace(ns2);
-    }
-
-    if (null != tableCatalog()) {
-      tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
-      assertThat(tableCatalog().listTables(ns1)).containsExactly(tableIdentifier);
-      assertThat(tableCatalog().listTables(ns2)).isEmpty();
     }
 
     assertThat(catalog().listViews(ns1)).isEmpty();
@@ -540,11 +477,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().listViews(ns1)).containsExactly(view1);
     assertThat(catalog().listViews(ns2)).containsExactlyInAnyOrder(view2, view3);
 
-    if (null != tableCatalog()) {
-      assertThat(tableCatalog().listTables(ns1)).containsExactly(tableIdentifier);
-      assertThat(tableCatalog().listTables(ns2)).isEmpty();
-    }
-
     assertThat(catalog().dropView(view2)).isTrue();
     assertThat(catalog().listViews(ns1)).containsExactly(view1);
     assertThat(catalog().listViews(ns2)).containsExactly(view3);
@@ -558,6 +490,47 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().listViews(ns2)).isEmpty();
   }
 
+  @Test
+  public void listViewsAndTables() {
+    Assumptions.assumeThat(tableCatalog())
+        .as("Only valid for catalogs that support tables")
+        .isNotNull();
+
+    Namespace ns = Namespace.of("ns");
+
+    TableIdentifier tableIdentifier = TableIdentifier.of(ns, "table");
+    TableIdentifier viewIdentifier = TableIdentifier.of(ns, "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(ns);
+    }
+
+    assertThat(catalog().listViews(ns)).isEmpty();
+    assertThat(tableCatalog().listTables(ns)).isEmpty();
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(catalog().listViews(ns)).isEmpty();
+    assertThat(tableCatalog().listTables(ns)).containsExactly(tableIdentifier);
+
+    catalog()
+        .buildView(viewIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(viewIdentifier.namespace())
+        .withQuery("spark", "select * from ns1.tbl")
+        .create();
+
+    assertThat(catalog().listViews(ns)).containsExactly(viewIdentifier);
+    assertThat(tableCatalog().listTables(ns)).containsExactly(tableIdentifier);
+
+    assertThat(tableCatalog().dropTable(tableIdentifier)).isTrue();
+    assertThat(catalog().listViews(ns)).containsExactly(viewIdentifier);
+    assertThat(tableCatalog().listTables(ns)).isEmpty();
+
+    assertThat(catalog().dropView(viewIdentifier)).isTrue();
+    assertThat(catalog().listViews(ns)).isEmpty();
+    assertThat(tableCatalog().listTables(ns)).isEmpty();
+  }
+
   @ParameterizedTest(name = ".createOrReplace() = {arguments}")
   @ValueSource(booleans = {false, true})
   public void createOrReplaceView(boolean useCreateOrReplace) {
@@ -566,6 +539,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(identifier.namespace());
     }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
     ViewBuilder viewBuilder =
         catalog()
@@ -580,8 +555,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     // validate view settings
-    assertThat(view.name()).isEqualTo(catalog().name() + "." + identifier);
-    assertThat(view.properties()).isEqualTo(ImmutableMap.of("prop1", "val1", "prop2", "val2"));
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
     assertThat(view.history())
         .hasSize(1)
         .first()
@@ -618,9 +593,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     View replacedView = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.replace();
 
     // validate replaced view settings
-    assertThat(replacedView.name()).isEqualTo(catalog().name() + "." + identifier);
+    assertThat(replacedView.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
     assertThat(replacedView.properties())
-        .hasSize(4)
         .containsEntry("prop1", "val1")
         .containsEntry("prop2", "val2")
         .containsEntry("replacedProp1", "val1")
@@ -681,13 +655,41 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withQuery("spark", "select * from ns.tbl")
             .create();
 
-    assertThat(view.properties()).isEmpty();
     ViewVersion viewVersion = view.currentVersion();
-    assertThat(viewVersion.operation()).isEqualTo("create");
-    assertThat(viewVersion.versionId()).isEqualTo(1);
-    assertThat(view.history()).hasSize(1);
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(view.versions()).hasSize(1).containsExactly(viewVersion);
+
+    view.updateProperties().set("key1", "val1").set("key2", "val2").remove("non-existing").commit();
+
+    View updatedView = catalog().loadView(identifier);
+    assertThat(updatedView.properties())
+        .containsEntry("key1", "val1")
+        .containsEntry("key2", "val2");
+
+    // history and view versions should stay the same after updating view properties
+    assertThat(updatedView.history()).hasSize(1).isEqualTo(view.history());
+    assertThat(updatedView.versions()).hasSize(1).containsExactly(viewVersion);
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void updateViewPropertiesErrorCases() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     assertThatThrownBy(
             () -> catalog().loadView(identifier).updateProperties().set(null, "new-val1").commit())
@@ -716,57 +718,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot remove and update the same key: key2");
-
-    view.updateProperties().set("key1", "val1").set("key2", "val2").remove("non-existing").commit();
-
-    View updatedView = catalog().loadView(identifier);
-    assertThat(updatedView.properties())
-        .hasSize(2)
-        .containsEntry("key1", "val1")
-        .containsEntry("key2", "val2");
-    assertThat(updatedView.history()).hasSize(1).isEqualTo(view.history());
-    assertThat(updatedView.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(updatedView.versions()).hasSize(1).containsExactly(viewVersion);
-
-    // updating properties doesn't change the view version
-    ViewVersion updatedViewVersion = updatedView.currentVersion();
-    assertThat(updatedViewVersion).isNotNull();
-    assertThat(updatedViewVersion.versionId()).isEqualTo(viewVersion.versionId());
-    assertThat(updatedViewVersion.summary()).isEqualTo(viewVersion.summary());
-    assertThat(updatedViewVersion.operation()).isEqualTo(viewVersion.operation());
-
-    assertThatThrownBy(
-            () ->
-                catalog()
-                    .loadView(identifier)
-                    .updateProperties()
-                    .set("key1", "new-val1")
-                    .set("key3", "val3")
-                    .remove("key2")
-                    .set("key2", "new-val2")
-                    .commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot remove and update the same key: key2");
-
-    view.updateProperties().set("key1", "new-val1").set("key3", "val3").remove("key2").commit();
-
-    View updatedView2 = catalog().loadView(identifier);
-    assertThat(updatedView2.properties())
-        .hasSize(2)
-        .containsEntry("key1", "new-val1")
-        .containsEntry("key3", "val3");
-    assertThat(updatedView2.history()).hasSize(1).isEqualTo(view.history());
-    assertThat(updatedView2.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(updatedView2.versions()).hasSize(1).containsExactly(viewVersion);
-
-    ViewVersion updatedViewVersion2 = updatedView2.currentVersion();
-    assertThat(updatedViewVersion2).isNotNull();
-    assertThat(updatedViewVersion2.versionId()).isEqualTo(viewVersion.versionId());
-    assertThat(updatedViewVersion2.summary()).isEqualTo(viewVersion.summary());
-    assertThat(updatedViewVersion2.operation()).isEqualTo(viewVersion.operation());
-
-    assertThat(catalog().dropView(identifier)).isTrue();
-    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
   }
 
   @Test
@@ -800,24 +751,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withQuery(spark.dialect(), spark.sql())
             .create();
 
-    ViewVersion viewVersion = view.currentVersion();
-    assertThat(view.properties()).isEmpty();
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(viewVersion.versionId());
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(view.currentVersion().versionId());
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(viewVersion.operation()).isEqualTo("create");
-    assertThat(viewVersion.versionId()).isEqualTo(1);
-    assertThat(viewVersion.representations()).hasSize(2).containsExactly(trino, spark);
-    assertThat(view.versions()).hasSize(1).containsExactly(viewVersion);
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
+    ViewVersion viewVersion = view.currentVersion();
+    assertThat(viewVersion.representations()).hasSize(2).containsExactly(trino, spark);
+
+    // uses a different schema and view representation
     view.replaceVersion()
         .withSchema(OTHER_SCHEMA)
         .withQuery(trino.dialect(), trino.sql())
@@ -825,15 +764,14 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .withDefaultNamespace(identifier.namespace())
         .commit();
 
+    // history and view versions should reflect the changes
     View updatedView = catalog().loadView(identifier);
-    assertThat(updatedView.properties()).isEmpty();
     assertThat(updatedView.history())
         .hasSize(2)
         .element(0)
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(viewVersion.versionId());
     assertThat(updatedView.history())
-        .hasSize(2)
         .element(1)
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(updatedView.currentVersion().versionId());
@@ -855,47 +793,71 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(updatedViewVersion.defaultCatalog()).isEqualTo("default");
     assertThat(updatedViewVersion.defaultNamespace()).isEqualTo(identifier.namespace());
 
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void replaceViewVersionByUpdatingSqlForDialect() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    SQLViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select * from ns.tbl")
+            .dialect("spark")
+            .build();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery(spark.dialect(), spark.sql())
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    ViewVersion viewVersion = view.currentVersion();
+    assertThat(viewVersion.representations()).hasSize(1).containsExactly(spark);
+
     SQLViewRepresentation updatedSpark =
         ImmutableSQLViewRepresentation.builder()
             .sql("select * from ns.updated_tbl")
             .dialect("spark")
             .build();
 
+    // only update the SQL for spark
     view.replaceVersion()
-        .withQuery(updatedSpark.dialect(), updatedSpark.sql())
+        .withSchema(SCHEMA)
         .withDefaultNamespace(identifier.namespace())
-        .withSchema(OTHER_SCHEMA)
+        .withQuery(updatedSpark.dialect(), updatedSpark.sql())
         .commit();
 
-    View updatedView2 = catalog().loadView(identifier);
-    assertThat(updatedView2.properties()).isEmpty();
-    assertThat(updatedView2.history())
-        .hasSize(3)
+    // history and view versions should reflect the changes
+    View updatedView = catalog().loadView(identifier);
+    assertThat(updatedView.history())
+        .hasSize(2)
         .element(0)
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(viewVersion.versionId());
-    assertThat(updatedView2.history())
+    assertThat(updatedView.history())
         .element(1)
         .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(updatedViewVersion.versionId());
-    assertThat(updatedView2.history())
-        .element(2)
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(updatedView2.currentVersion().versionId());
-    assertThat(updatedView.schemas())
+        .isEqualTo(updatedView.currentVersion().versionId());
+    assertThat(updatedView.versions())
         .hasSize(2)
-        .containsKey(SCHEMA.schemaId())
-        .containsKey(OTHER_SCHEMA.schemaId());
-    assertThat(updatedView2.versions())
-        .hasSize(3)
-        .containsExactly(viewVersion, updatedViewVersion, updatedView2.currentVersion());
+        .containsExactly(viewVersion, updatedView.currentVersion());
 
-    ViewVersion updatedViewVersion2 = updatedView2.currentVersion();
-    assertThat(updatedViewVersion2).isNotNull();
-    assertThat(updatedViewVersion2.versionId()).isEqualTo(updatedViewVersion.versionId() + 1);
-    assertThat(updatedViewVersion2.summary()).hasSize(1).containsEntry("operation", "replace");
-    assertThat(updatedViewVersion2.operation()).isEqualTo("replace");
-    assertThat(updatedViewVersion2.representations()).hasSize(1).containsExactly(updatedSpark);
+    // updated view should have the new SQL
+    assertThat(updatedView.currentVersion().representations())
+        .hasSize(1)
+        .containsExactly(updatedSpark);
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
@@ -924,6 +886,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withQuery(trino.dialect(), trino.sql())
             .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isTrue();
 
     // empty commits are not allowed
     assertThatThrownBy(() -> view.replaceVersion().commit())
