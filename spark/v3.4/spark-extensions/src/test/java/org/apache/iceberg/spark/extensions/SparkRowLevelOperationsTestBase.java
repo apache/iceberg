@@ -224,7 +224,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
     if (jsonData != null) {
       try {
-        Dataset<Row> ds = toDS(schema, jsonData);
+        Dataset<Row> ds = createDataset(schema, jsonData);
         ds.coalesce(1).writeTo(tableName).append();
         createBranchIfNeeded();
       } catch (NoSuchTableException e) {
@@ -239,7 +239,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
   protected void append(String table, String schema, String jsonData) {
     try {
-      Dataset<Row> ds = toDS(schema, jsonData);
+      Dataset<Row> ds = createDataset(schema, jsonData);
       ds.coalesce(1).writeTo(table).append();
     } catch (NoSuchTableException e) {
       throw new RuntimeException("Failed to write data", e);
@@ -251,7 +251,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createOrReplaceView(String name, String schema, String jsonData) {
-    Dataset<Row> ds = toDS(schema, jsonData);
+    Dataset<Row> ds = createDataset(schema, jsonData);
     ds.createOrReplaceTempView(name);
   }
 
@@ -259,7 +259,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     spark.createDataset(data, encoder).createOrReplaceTempView(name);
   }
 
-  private Dataset<Row> toDS(String schema, String jsonData) {
+  protected Dataset<Row> createDataset(String schema, String jsonData) {
     List<String> jsonRows =
         Arrays.stream(jsonData.split("\n"))
             .filter(str -> str.trim().length() > 0)
