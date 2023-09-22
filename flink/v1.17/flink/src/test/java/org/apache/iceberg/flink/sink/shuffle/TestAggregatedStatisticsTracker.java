@@ -74,7 +74,7 @@ public class TestAggregatedStatisticsTracker {
         aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
             0, checkpoint2Subtask0DataStatisticEvent));
 
-    // Checkpoint 2 is newer than checkpoint1, thus drop inProgressAggregator for checkpoint1
+    // Checkpoint 2 is newer than checkpoint1, thus dropping in progress statistics for checkpoint1
     Assert.assertEquals(2, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
   }
 
@@ -96,12 +96,11 @@ public class TestAggregatedStatisticsTracker {
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
+    // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker won't return
+    // completed statistics and in progress statistics won't be updated
     Assert.assertNull(
         aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
             1, checkpoint1Subtask1DataStatisticEvent));
-    // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker
-    // lastCompletedAggregator
-    // and inProgressAggregator won't be updated
     Assert.assertEquals(2, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
   }
 

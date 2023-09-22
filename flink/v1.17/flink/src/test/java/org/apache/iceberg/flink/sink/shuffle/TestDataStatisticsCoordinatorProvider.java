@@ -129,7 +129,7 @@ public class TestDataStatisticsCoordinatorProvider {
             (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
                 coordinator.getInternalCoordinator();
     Assert.assertNotEquals(
-        "The restored shuffle coordinator should be a different instance",
+        "The restored coordinator should be a different instance",
         restoredDataStatisticsCoordinator,
         dataStatisticsCoordinator);
     // Verify restored data statistics

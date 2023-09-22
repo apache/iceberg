@@ -185,7 +185,9 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
           return null;
         },
-        String.format("Failed to send global data statistics for checkpoint %d", checkpointId));
+        String.format(
+            "Failed to send operator %s coordinator global data statistics for checkpoint %d",
+            operatorName, checkpointId));
   }
 
   @Override
