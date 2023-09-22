@@ -102,7 +102,9 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
     for (PartitionSpec spec : specs()) {
       for (PartitionField field : spec.fields()) {
-        partitionFieldSourceIds.add(field.sourceId());
+        for (int sourceId : field.sourceIds()) {
+          partitionFieldSourceIds.add(sourceId);
+        }
       }
     }
 

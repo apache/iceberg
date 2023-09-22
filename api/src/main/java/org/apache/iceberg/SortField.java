@@ -19,7 +19,9 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 
 /** A field in a {@link SortOrder}. */
@@ -27,12 +29,25 @@ public class SortField implements Serializable {
 
   private final Transform<?, ?> transform;
   private final int sourceId;
+  private final int[] sourceIds;
   private final SortDirection direction;
   private final NullOrder nullOrder;
 
   SortField(Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
     this.transform = transform;
     this.sourceId = sourceId;
+    this.sourceIds = new int[] {sourceId};
+    this.direction = direction;
+    this.nullOrder = nullOrder;
+  }
+
+  SortField(
+      Transform<?, ?> transform, int[] sourceIds, SortDirection direction, NullOrder nullOrder) {
+    Preconditions.checkArgument(
+        sourceIds != null && sourceIds.length >= 1, "at least one source id should be provided");
+    this.transform = transform;
+    this.sourceId = sourceIds.length > 1 ? -1 : sourceIds[0];
+    this.sourceIds = sourceIds;
     this.direction = direction;
     this.nullOrder = nullOrder;
   }
@@ -52,6 +67,10 @@ public class SortField implements Serializable {
   /** Returns the field id of the source field in the {@link SortOrder sort order's} table schema */
   public int sourceId() {
     return sourceId;
+  }
+
+  public int[] sourceIds() {
+    return sourceIds;
   }
 
   /** Returns the sort direction */
@@ -74,6 +93,7 @@ public class SortField implements Serializable {
     if (Objects.equals(this, other)) {
       return true;
     } else if (sourceId != other.sourceId
+        || !Arrays.equals(sourceIds, other.sourceIds)
         || direction != other.direction
         || nullOrder != other.nullOrder) {
       return false;
@@ -84,7 +104,11 @@ public class SortField implements Serializable {
 
   @Override
   public String toString() {
-    return transform + "(" + sourceId + ") " + direction + " " + nullOrder;
+    if (sourceIds.length == 1) {
+      return transform + "(" + sourceId + ") " + direction + " " + nullOrder;
+    } else {
+      return transform + "(" + Arrays.toString(sourceIds) + ")" + direction + " " + nullOrder;
+    }
   }
 
   @Override
@@ -98,6 +122,7 @@ public class SortField implements Serializable {
     SortField that = (SortField) other;
     return transform.toString().equals(that.transform.toString())
         && sourceId == that.sourceId
+        && Arrays.equals(sourceIds, that.sourceIds)
         && direction == that.direction
         && nullOrder == that.nullOrder;
   }

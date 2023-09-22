@@ -96,6 +96,7 @@ public class Spark3Util {
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
+  private static final Set<String> MULTI_ARGS_TRANSFORMS = ImmutableSet.of("zorder", "bucket");
 
   private Spark3Util() {}
 
@@ -301,6 +302,15 @@ public class Spark3Util {
     }
 
     @Override
+    public Transform bucket(String[] sourceNames, int[] sourceIds, int numBuckets) {
+      String[] quotedNames = new String[sourceIds.length];
+      for (int i = 0; i < sourceIds.length; i++) {
+        quotedNames[i] = quotedName(sourceIds[i]);
+      }
+      return Expressions.bucket(numBuckets, quotedNames);
+    }
+
+    @Override
     public Transform truncate(String sourceName, int sourceId, int width) {
       NamedReference column = Expressions.column(quotedName(sourceId));
       return Expressions.apply("truncate", Expressions.literal(width), column);
@@ -350,7 +360,7 @@ public class Spark3Util {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
       Preconditions.checkArgument(
-          "zorder".equals(transform.name()) || transform.references().length == 1,
+          MULTI_ARGS_TRANSFORMS.contains(transform.name()) || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s",
           transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
@@ -358,7 +368,11 @@ public class Spark3Util {
         case "identity":
           return org.apache.iceberg.expressions.Expressions.ref(colName);
         case "bucket":
-          return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+          String[] cols =
+              Stream.of(transform.references())
+                  .map(ref -> DOT.join(ref.fieldNames()))
+                  .toArray(String[]::new);
+          return org.apache.iceberg.expressions.Expressions.bucket(findWidth(transform), cols);
         case "years":
           return org.apache.iceberg.expressions.Expressions.year(colName);
         case "months":
@@ -405,7 +419,7 @@ public class Spark3Util {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
     for (Transform transform : partitioning) {
       Preconditions.checkArgument(
-          transform.references().length == 1,
+          MULTI_ARGS_TRANSFORMS.contains(transform.name()) || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s",
           transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
@@ -414,7 +428,11 @@ public class Spark3Util {
           builder.identity(colName);
           break;
         case "bucket":
-          builder.bucket(colName, findWidth(transform));
+          String[] colNames =
+              Arrays.stream(transform.references())
+                  .map(ref -> DOT.join(ref.fieldNames()))
+                  .toArray(String[]::new);
+          builder.bucket(colNames, findWidth(transform));
           break;
         case "years":
           builder.year(colName);
@@ -959,6 +977,18 @@ public class Spark3Util {
         org.apache.iceberg.SortDirection direction,
         NullOrder nullOrder) {
       return String.format("bucket(%s, %s) %s %s", numBuckets, sourceName, direction, nullOrder);
+    }
+
+    @Override
+    public String bucket(
+        String[] sourceNames,
+        int[] sourceIds,
+        int numBuckets,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
+      String sourceNameList = String.join(", ", sourceNames);
+      return String.format(
+          "bucket(%s, %s) %s %s", numBuckets, sourceNameList, direction, nullOrder);
     }
 
     @Override

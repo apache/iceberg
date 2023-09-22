@@ -49,6 +49,17 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
   }
 
   @Override
+  public SortOrder bucket(
+      String[] sourceNames, int[] ids, int width, SortDirection direction, NullOrder nullOrder) {
+    String[] quotedNames = new String[ids.length];
+    for (int i = 0; i < ids.length; i++) {
+      quotedNames[i] = quotedName(ids[i]);
+    }
+    return Expressions.sort(
+        Expressions.bucket(width, quotedNames), toSpark(direction), toSpark(nullOrder));
+  }
+
+  @Override
   public SortOrder truncate(
       String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
     return Expressions.sort(

@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -54,7 +55,7 @@ public class UnboundPartitionSpec {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
 
     for (UnboundPartitionField field : fields) {
-      Type fieldType = schema.findType(field.sourceId);
+      Type fieldType = schema.findType(field.sourceId());
       Transform<?, ?> transform;
       if (fieldType != null) {
         transform = Transforms.fromString(fieldType, field.transform.toString());
@@ -62,9 +63,9 @@ public class UnboundPartitionSpec {
         transform = Transforms.fromString(field.transform.toString());
       }
       if (field.partitionId != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, transform);
+        builder.add(field.sourceIds, field.partitionId, field.name, transform);
       } else {
-        builder.add(field.sourceId, field.name, transform);
+        builder.add(field.sourceIds, field.name, transform);
       }
     }
 
@@ -88,13 +89,22 @@ public class UnboundPartitionSpec {
       return this;
     }
 
-    Builder addField(String transformAsString, int sourceId, int partitionId, String name) {
-      fields.add(new UnboundPartitionField(transformAsString, sourceId, partitionId, name));
+    Builder addField(
+        String transformAsString, int sourceId, int[] sourceIds, int partitionId, String name) {
+      if (sourceIds.length == 1) {
+        fields.add(new UnboundPartitionField(transformAsString, sourceId, partitionId, name));
+      } else {
+        fields.add(new UnboundPartitionField(transformAsString, sourceIds, partitionId, name));
+      }
       return this;
     }
 
-    Builder addField(String transformAsString, int sourceId, String name) {
-      fields.add(new UnboundPartitionField(transformAsString, sourceId, null, name));
+    Builder addField(String transformAsString, int sourceId, int[] sourceIds, String name) {
+      if (sourceIds.length == 1) {
+        fields.add(new UnboundPartitionField(transformAsString, sourceId, null, name));
+      } else {
+        fields.add(new UnboundPartitionField(transformAsString, sourceIds, null, name));
+      }
       return this;
     }
 
@@ -106,6 +116,7 @@ public class UnboundPartitionSpec {
   static class UnboundPartitionField {
     private final Transform<?, ?> transform;
     private final int sourceId;
+    private final int[] sourceIds;
     private final Integer partitionId;
     private final String name;
 
@@ -121,6 +132,10 @@ public class UnboundPartitionSpec {
       return sourceId;
     }
 
+    public int[] sourceIds() {
+      return sourceIds;
+    }
+
     public Integer partitionId() {
       return partitionId;
     }
@@ -133,6 +148,19 @@ public class UnboundPartitionSpec {
         String transformAsString, int sourceId, Integer partitionId, String name) {
       this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
+      this.sourceIds = new int[] {sourceId};
+      this.partitionId = partitionId;
+      this.name = name;
+    }
+
+    private UnboundPartitionField(
+        String trasformAsString, int[] sourceIds, Integer partitionId, String name) {
+      Preconditions.checkArgument(
+          sourceIds != null && sourceIds.length >= 1,
+          "sourceId should be the first in the sourceIds");
+      this.transform = Transforms.fromString(trasformAsString);
+      this.sourceId = sourceIds.length > 1 ? -1 : sourceIds[0];
+      this.sourceIds = sourceIds;
       this.partitionId = partitionId;
       this.name = name;
     }

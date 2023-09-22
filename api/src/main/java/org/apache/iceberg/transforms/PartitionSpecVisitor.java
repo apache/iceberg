@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -37,7 +38,15 @@ public interface PartitionSpecVisitor<T> {
     return bucket(sourceName, sourceId, numBuckets);
   }
 
+  default T bucket(int fieldId, String[] sourceNames, int[] sourceIds, int numBuckets) {
+    return bucket(sourceNames, sourceIds, numBuckets);
+  }
+
   default T bucket(String sourceName, int sourceId, int numBuckets) {
+    throw new UnsupportedOperationException("Bucket transform is not supported");
+  }
+
+  default T bucket(String[] sourceNames, int[] sourceIds, int numBuckets) {
     throw new UnsupportedOperationException("Bucket transform is not supported");
   }
 
@@ -117,7 +126,15 @@ public interface PartitionSpecVisitor<T> {
       return visitor.identity(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof Bucket) {
       int numBuckets = ((Bucket<?>) transform).numBuckets();
-      return visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets);
+      if (field.sourceIds().length == 1) {
+        return visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets);
+      } else {
+        String[] sourceColumnNames =
+            Arrays.stream(field.sourceIds())
+                .mapToObj(schema::findColumnName)
+                .toArray(String[]::new);
+        return visitor.bucket(field.fieldId(), sourceColumnNames, field.sourceIds(), numBuckets);
+      }
     } else if (transform instanceof Truncate) {
       int width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);

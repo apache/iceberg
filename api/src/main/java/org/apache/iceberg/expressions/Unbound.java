@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Collections;
+import java.util.List;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -39,4 +41,8 @@ public interface Unbound<T, B> {
 
   /** Returns this expression's underlying reference. */
   NamedReference<?> ref();
+
+  default List<NamedReference<?>> refs() {
+    return Collections.singletonList(ref());
+  }
 }

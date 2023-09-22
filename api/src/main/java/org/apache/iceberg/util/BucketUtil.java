@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 
 /**
@@ -96,5 +97,9 @@ public class BucketUtil {
 
   public static int hash(BigDecimal value) {
     return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
+  }
+
+  public static Hasher hasher() {
+    return MURMUR3.newHasher();
   }
 }

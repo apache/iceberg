@@ -53,7 +53,12 @@ public class PartitionKey implements StructLike, Serializable {
     Schema schema = spec.schema();
     for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
-      Accessor<StructLike> accessor = inputSchema.accessorForField(field.sourceId());
+      Accessor<StructLike> accessor;
+      if (field.sourceIds().length == 1) {
+        accessor = inputSchema.accessorForField(field.sourceId());
+      } else {
+        accessor = inputSchema.accessorForFields(field.sourceIds());
+      }
       Preconditions.checkArgument(
           accessor != null,
           "Cannot build accessor for field: " + schema.findField(field.sourceId()));

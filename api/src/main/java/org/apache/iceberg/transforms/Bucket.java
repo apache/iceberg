@@ -21,8 +21,10 @@ package org.apache.iceberg.transforms;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
@@ -30,6 +32,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
@@ -65,6 +68,8 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         return (B) new BucketByteBuffer(numBuckets);
       case UUID:
         return (B) new BucketUUID(numBuckets);
+      case STRUCT:
+        return (B) new BucketStructLike(numBuckets, type.asStructType());
       default:
         throw new IllegalArgumentException("Cannot bucket by type: " + type);
     }
@@ -101,6 +106,21 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
 
   @Override
   public boolean canTransform(Type type) {
+    if (type.isPrimitiveType()) {
+      return canTransformPrimitive(type);
+    } else {
+      switch (type.typeId()) {
+        case STRUCT:
+          // only struct of primitives fields can be bucketed.
+          return type.asStructType().fields().stream()
+              .map(Types.NestedField::type)
+              .allMatch(this::canTransform);
+      }
+    }
+    return false;
+  }
+
+  private boolean canTransformPrimitive(Type type) {
     switch (type.typeId()) {
       case INTEGER:
       case LONG:
@@ -263,6 +283,60 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     @Override
     protected int hash(BigDecimal value) {
       return BucketUtil.hash(value);
+    }
+  }
+
+  private static class BucketStructLike extends Bucket<StructLike>
+      implements SerializableFunction<StructLike, Integer> {
+
+    private final Types.StructType type;
+
+    private BucketStructLike(int numBuckets, Types.StructType type) {
+      super(numBuckets);
+      this.type = type;
+    }
+
+    @Override
+    protected int hash(StructLike value) {
+      Hasher hasher = BucketUtil.hasher();
+      boolean isNull = true;
+      for (int i = 0; i < value.size(); i += 1) {
+        Type fieldType = type.fields().get(i).type();
+        Object val = value.get(i, fieldType.typeId().javaClass());
+        if (val == null) {
+          continue;
+        } else {
+          isNull = false;
+        }
+        switch (fieldType.typeId()) {
+          case INTEGER:
+          case DATE:
+            hasher.putLong((long) ((int) val));
+            break;
+          case LONG:
+          case TIME:
+          case TIMESTAMP:
+            hasher.putLong((long) val);
+            break;
+          case DECIMAL:
+            hasher.putBytes(((BigDecimal) val).unscaledValue().toByteArray());
+            break;
+          case STRING:
+            hasher.putString((CharSequence) val, StandardCharsets.UTF_8);
+            break;
+          case FIXED:
+          case BINARY:
+            hasher.putBytes((ByteBuffer) val);
+            break;
+          case UUID:
+            UUID uuid = (UUID) val;
+            hasher.putLong(Long.reverseBytes(uuid.getMostSignificantBits()));
+            hasher.putLong(Long.reverseBytes(uuid.getLeastSignificantBits()));
+            break;
+        }
+      }
+      Preconditions.checkArgument(!isNull, "All fields are null");
+      return hasher.hash().asInt();
     }
   }
 }

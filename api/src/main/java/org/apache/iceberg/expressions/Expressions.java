@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -75,6 +78,18 @@ public class Expressions {
   public static <T> UnboundTerm<T> bucket(String name, int numBuckets) {
     Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(numBuckets);
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  public static <T> UnboundTerm<T> bucket(int numBuckets, String... names) {
+    if (names.length == 1) {
+      return bucket(names[0], numBuckets);
+    }
+    Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(numBuckets);
+    NamedReference<?>[] references = new NamedReference<?>[names.length];
+    for (int i = 0; i < names.length; i++) {
+      references[i] = ref(names[i]);
+    }
+    return new UnboundTransform<>(Arrays.asList(references), transform);
   }
 
   @SuppressWarnings("unchecked")
@@ -307,6 +322,12 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  public static <T> UnboundTerm<T> transform(List<String> names, Transform<?, T> transform) {
+    List<NamedReference<?>> refs =
+        names.stream().map(Expressions::ref).collect(Collectors.toList());
+    return new UnboundTransform<>(refs, transform);
   }
 
   public static <T> UnboundAggregate<T> count(String name) {

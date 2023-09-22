@@ -49,6 +49,17 @@ class CopySortOrderFields implements SortOrderVisitor<Void> {
   }
 
   @Override
+  public Void bucket(
+      String[] sourceNames,
+      int[] sourceIds,
+      int numBuckets,
+      SortDirection direction,
+      NullOrder nullOrder) {
+    builder.sortBy(Expressions.bucket(numBuckets, sourceNames), direction, nullOrder);
+    return null;
+  }
+
+  @Override
   public Void truncate(
       String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder) {
     builder.sortBy(Expressions.truncate(sourceName, width), direction, nullOrder);
