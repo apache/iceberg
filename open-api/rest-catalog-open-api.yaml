@@ -319,7 +319,7 @@ paths:
       summary: Check if a namespace exists
       operationId: namespaceExists
       description:
-        Check if a namespace exists. This response does not return a body.
+        Check if a namespace exists. The response does not contain a body.
       responses:
         204:
           description: Success, no content
@@ -809,7 +809,7 @@ paths:
       summary: Check if a table exists
       operationId: tableExists
       description:
-        Check if a table exists within a given namespace. This response does not return a body.
+        Check if a table exists within a given namespace. The response does not contain a body.
       responses:
         204:
           description: Success, no content
