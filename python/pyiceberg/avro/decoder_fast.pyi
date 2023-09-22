@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class CythonBinaryDecoder:
+from pyiceberg.avro.decoder import BinaryDecoder
+
+class CythonBinaryDecoder(BinaryDecoder):
     def __init__(self, input_contents: bytes) -> None:
         pass
     def tell(self) -> int:
