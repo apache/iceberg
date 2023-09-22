@@ -44,13 +44,15 @@ public interface ViewOperations {
    * Once the atomic commit operation succeeds, implementations must not perform any operations that
    * may fail because failure in this method cannot be distinguished from commit failure.
    *
-   * <p>Implementations must throw a {@link
+   * <p>Implementations should throw a {@link
    * org.apache.iceberg.exceptions.CommitStateUnknownException} in cases where it cannot be
    * determined if the commit succeeded or failed. For example if a network partition causes the
    * confirmation of the commit to be lost, the implementation should throw a
-   * CommitStateUnknownException. This is important because downstream users of this API need to
-   * know whether they can clean up the commit or not, if the state is unknown then it is not safe
-   * to remove any files. All other exceptions will be treated as if the commit has failed.
+   * CommitStateUnknownException. An unknown state indicates to downstream users of this API that it
+   * is not safe to perform clean up and remove any files. In general, strict metadata cleanup will
+   * only trigger cleanups when the commit fails with an exception implementing the marker interface
+   * {@link org.apache.iceberg.exceptions.CleanableFailure}. All other exceptions will be treated as
+   * if the commit has failed.
    *
    * @param base view metadata on which changes were based
    * @param metadata new view metadata with updates
