@@ -601,5 +601,5 @@ def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
 
 
 def test_catalog_repr(catalog: InMemoryCatalog) -> None:
-    s = catalog.__repr__()
+    s = repr(catalog)
     assert s == "test.in.memory.catalog (<class 'test_base.InMemoryCatalog'>)"
