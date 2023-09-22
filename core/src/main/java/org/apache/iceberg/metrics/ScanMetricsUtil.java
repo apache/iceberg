@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.metrics;
 
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 
@@ -33,5 +34,18 @@ public class ScanMetricsUtil {
     } else if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
       metrics.equalityDeleteFiles().increment();
     }
+  }
+
+  public static void fileTask(ScanMetrics metrics, DataFile dataFile, DeleteFile[] deleteFiles) {
+    metrics.totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
+    metrics.resultDataFiles().increment();
+    metrics.resultDeleteFiles().increment(deleteFiles.length);
+
+    long deletesSizeInBytes = 0L;
+    for (DeleteFile deleteFile : deleteFiles) {
+      deletesSizeInBytes += deleteFile.fileSizeInBytes();
+    }
+
+    metrics.totalDeleteFileSizeInBytes().increment(deletesSizeInBytes);
   }
 }

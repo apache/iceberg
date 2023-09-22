@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -72,9 +71,6 @@ public class TestViewMetadataParser {
                     .build())
             .build();
 
-    ViewHistoryEntry historyEntry1 =
-        ImmutableViewHistoryEntry.builder().timestampMillis(4353L).versionId(1).build();
-
     ViewVersion version2 =
         ImmutableViewVersion.builder()
             .versionId(2)
@@ -90,25 +86,24 @@ public class TestViewMetadataParser {
                     .build())
             .build();
 
-    ViewHistoryEntry historyEntry2 =
-        ImmutableViewHistoryEntry.builder().timestampMillis(5555L).versionId(2).build();
-
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
-        ImmutableViewMetadata.builder()
-            .schemas(ImmutableList.of(TEST_SCHEMA))
-            .versions(ImmutableList.of(version1, version2))
-            .history(ImmutableList.of(historyEntry1, historyEntry2))
-            .location("s3://bucket/test/location")
-            .properties(ImmutableMap.of("some-key", "some-value"))
-            .currentVersionId(2)
-            .formatVersion(1)
+        ViewMetadata.builder()
+            .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
+            .addSchema(TEST_SCHEMA)
+            .addVersion(version1)
+            .addVersion(version2)
+            .setLocation("s3://bucket/test/location")
+            .setProperties(ImmutableMap.of("some-key", "some-value"))
+            .setCurrentVersionId(2)
+            .upgradeFormatVersion(1)
             .build();
 
     ViewMetadata actual = ViewMetadataParser.fromJson(json);
     assertThat(actual)
         .usingRecursiveComparison()
         .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
         .isEqualTo(expectedViewMetadata);
     for (Schema schema : expectedViewMetadata.schemas()) {
       assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();
@@ -118,20 +113,11 @@ public class TestViewMetadataParser {
     assertThat(actual)
         .usingRecursiveComparison()
         .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
         .isEqualTo(expectedViewMetadata);
     for (Schema schema : expectedViewMetadata.schemas()) {
       assertThat(schema.sameSchema(actual.schemasById().get(schema.schemaId()))).isTrue();
     }
-  }
-
-  @Test
-  public void readViewMetadataWithLimitedNumberVersionEntries() throws Exception {
-    String json =
-        readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataLimitedVersions.json");
-
-    ViewMetadata viewMetadata = ViewMetadataParser.fromJson(json);
-    assertThat(viewMetadata.versions()).hasSize(1);
-    assertThat(viewMetadata.history()).hasSize(1);
   }
 
   @Test
@@ -147,7 +133,8 @@ public class TestViewMetadataParser {
   public void failReadingViewMetadataInvalidSchemaId() throws Exception {
     String json =
         readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentSchema.json");
-    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+    ViewMetadata metadata = ViewMetadataParser.fromJson(json);
+    assertThatThrownBy(metadata::currentSchemaId)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current schema with id 1234 in schemas: [1]");
   }
@@ -165,7 +152,8 @@ public class TestViewMetadataParser {
   public void failReadingViewMetadataInvalidVersionId() throws Exception {
     String json =
         readViewMetadataInputFile("org/apache/iceberg/view/ViewMetadataInvalidCurrentVersion.json");
-    assertThatThrownBy(() -> ViewMetadataParser.fromJson(json))
+    ViewMetadata metadata = ViewMetadataParser.fromJson(json);
+    assertThatThrownBy(metadata::currentVersion)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find current version 1234 in view versions: [1, 2]");
   }
@@ -173,5 +161,70 @@ public class TestViewMetadataParser {
   private String readViewMetadataInputFile(String fileName) throws Exception {
     Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
     return String.join("", java.nio.file.Files.readAllLines(path));
+  }
+
+  @Test
+  public void viewMetadataWithMetadataLocation() throws Exception {
+    ViewVersion version1 =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .timestampMillis(4353L)
+            .summary(ImmutableMap.of("operation", "create"))
+            .schemaId(1)
+            .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select 'foo' foo")
+                    .dialect("spark-sql")
+                    .build())
+            .build();
+
+    ViewVersion version2 =
+        ImmutableViewVersion.builder()
+            .versionId(2)
+            .schemaId(1)
+            .timestampMillis(5555L)
+            .summary(ImmutableMap.of("operation", "replace"))
+            .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select 1 id, 'abc' data")
+                    .dialect("spark-sql")
+                    .build())
+            .build();
+
+    String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
+    String metadataLocation = "s3://bucket/test/location/metadata/v1.metadata.json";
+    ViewMetadata expectedViewMetadata =
+        ViewMetadata.buildFrom(
+                ViewMetadata.builder()
+                    .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
+                    .addSchema(TEST_SCHEMA)
+                    .addVersion(version1)
+                    .addVersion(version2)
+                    .setLocation("s3://bucket/test/location")
+                    .setProperties(ImmutableMap.of("some-key", "some-value"))
+                    .setCurrentVersionId(2)
+                    .upgradeFormatVersion(1)
+                    .build())
+            .setMetadataLocation(metadataLocation)
+            .build();
+
+    ViewMetadata actual = ViewMetadataParser.fromJson(metadataLocation, json);
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(expectedViewMetadata);
+
+    actual =
+        ViewMetadataParser.fromJson(
+            metadataLocation, ViewMetadataParser.toJson(expectedViewMetadata));
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(expectedViewMetadata);
+    assertThat(actual.metadataFileLocation()).isEqualTo(metadataLocation);
   }
 }

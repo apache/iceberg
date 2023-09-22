@@ -46,6 +46,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -232,13 +233,19 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     if (fileFormat == FileFormat.AVRO) {
       Assert.assertNull(deleteFile.lowerBounds());
       Assert.assertNull(deleteFile.upperBounds());
+      Assert.assertNull(deleteFile.columnSizes());
     } else {
       Assert.assertEquals(1, referencedDataFiles.size());
       Assert.assertEquals(2, deleteFile.lowerBounds().size());
       Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_PATH.fieldId()));
       Assert.assertEquals(2, deleteFile.upperBounds().size());
       Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertEquals(2, deleteFile.columnSizes().size());
     }
+
+    Assert.assertNull(deleteFile.valueCounts());
+    Assert.assertNull(deleteFile.nullValueCounts());
+    Assert.assertNull(deleteFile.nanValueCounts());
 
     // verify the written delete file
     GenericRecord deleteRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
@@ -280,6 +287,34 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
     CharSequenceSet referencedDataFiles = result.second();
+
+    if (fileFormat == FileFormat.AVRO) {
+      Assert.assertNull(deleteFile.lowerBounds());
+      Assert.assertNull(deleteFile.upperBounds());
+      Assert.assertNull(deleteFile.columnSizes());
+      Assert.assertNull(deleteFile.valueCounts());
+      Assert.assertNull(deleteFile.nullValueCounts());
+      Assert.assertNull(deleteFile.nanValueCounts());
+    } else {
+      Assert.assertEquals(1, referencedDataFiles.size());
+      Assert.assertEquals(4, deleteFile.lowerBounds().size());
+      Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_POS.fieldId()));
+      for (Types.NestedField column : table.schema().columns()) {
+        Assert.assertTrue(deleteFile.lowerBounds().containsKey(column.fieldId()));
+      }
+      Assert.assertEquals(4, deleteFile.upperBounds().size());
+      Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_POS.fieldId()));
+      for (Types.NestedField column : table.schema().columns()) {
+        Assert.assertTrue(deleteFile.upperBounds().containsKey(column.fieldId()));
+      }
+      // ORC also contains metrics for the deleted row struct, not just actual data fields
+      Assert.assertTrue(deleteFile.columnSizes().size() >= 4);
+      Assert.assertTrue(deleteFile.valueCounts().size() >= 2);
+      Assert.assertTrue(deleteFile.nullValueCounts().size() >= 2);
+      Assert.assertNull(deleteFile.nanValueCounts());
+    }
 
     // verify the written delete file
     GenericRecord deletedRow = GenericRecord.create(table.schema());
@@ -336,6 +371,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     Assert.assertEquals(2, referencedDataFiles.size());
     Assert.assertNull(deleteFile.lowerBounds());
     Assert.assertNull(deleteFile.upperBounds());
+    Assert.assertNull(deleteFile.valueCounts());
+    Assert.assertNull(deleteFile.nullValueCounts());
+    Assert.assertNull(deleteFile.nanValueCounts());
+
+    if (fileFormat == FileFormat.AVRO) {
+      Assert.assertNull(deleteFile.columnSizes());
+    } else {
+      Assert.assertEquals(2, deleteFile.columnSizes().size());
+    }
 
     // commit the data and delete files
     table

@@ -28,8 +28,8 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The spark project version to use, such as iceberg-spark-3.4'
-        default: 'iceberg-spark-3.4'
+        description: 'The spark project version to use, such as iceberg-spark-3.5'
+        default: 'iceberg-spark-3.5'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
@@ -42,7 +42,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       foundlabel: ${{ steps.set-matrix.outputs.foundlabel }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: ${{ github.event.inputs.repo }}
           ref: ${{ github.event.inputs.ref }}
@@ -75,7 +75,7 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: ${{ github.event.inputs.repo }}
         ref: ${{ github.event.inputs.ref }}

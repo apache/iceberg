@@ -22,7 +22,6 @@ import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
@@ -52,12 +51,8 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
-  public TableScan useSnapshot(long scanSnapshotId) {
-    // call method in superclass just for the side effect of argument validation;
-    // we do not use its return value
-    super.useSnapshot(scanSnapshotId);
-    Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
-    return newRefinedScan(table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
+  protected boolean useSnapshotSchema() {
+    return true;
   }
 
   @Override

@@ -1,4 +1,5 @@
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version": 1,
   "properties": {"some-key": "some-value"},
   "current-schema-id": 1,

@@ -741,7 +741,7 @@ public class S3FileIOProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {

@@ -143,6 +143,7 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  public static final String PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0 = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
@@ -230,6 +231,10 @@ public class TableProperties {
 
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
+
+  public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
+  public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
+  public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
 
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;

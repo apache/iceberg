@@ -102,6 +102,38 @@ public final class NessieUtil {
         .orElseGet(() -> System.getProperty("user.name"));
   }
 
+  private static void checkAndUpdateGCProperties(
+      TableMetadata tableMetadata, Map<String, String> updatedProperties, String identifier) {
+    if (tableMetadata.propertyAsBoolean(
+        NessieTableOperations.NESSIE_GC_NO_WARNING_PROPERTY, false)) {
+      return;
+    }
+
+    // To prevent accidental deletion of files that are still referenced by other branches/tags,
+    // setting GC_ENABLED to 'false' is recommended, so that all Iceberg's gc operations like
+    // expire_snapshots, remove_orphan_files, drop_table with purge will fail with an error.
+    // `nessie-gc` CLI provides a reference-aware GC functionality for the expired/unreferenced
+    // files.
+    // Advanced users may still want to use the simpler Iceberg GC tools iff their Nessie Server
+    // contains only one branch (in which case the full Nessie history will be reflected in the
+    // Iceberg sequence of snapshots).
+    if (tableMetadata.propertyAsBoolean(
+            TableProperties.GC_ENABLED, TableProperties.GC_ENABLED_DEFAULT)
+        || tableMetadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT)) {
+      updatedProperties.put(NessieTableOperations.NESSIE_GC_NO_WARNING_PROPERTY, "true");
+      LOG.warn(
+          "The Iceberg property '{}' and/or '{}' is enabled on table '{}' in NessieCatalog."
+              + " This will likely make data in other Nessie branches and tags and in earlier, historical Nessie"
+              + " commits inaccessible. The recommended setting for those properties is 'false'. Use the 'nessie-gc'"
+              + " tool for Nessie reference-aware garbage collection.",
+          TableProperties.GC_ENABLED,
+          TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+          identifier);
+    }
+  }
+
   public static TableMetadata updateTableMetadataWithNessieSpecificProperties(
       TableMetadata tableMetadata,
       String metadataLocation,
@@ -111,24 +143,8 @@ public final class NessieUtil {
     // Update the TableMetadata with the Content of NessieTableState.
     Map<String, String> newProperties = Maps.newHashMap(tableMetadata.properties());
     newProperties.put(NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
-    // To prevent accidental deletion of files that are still referenced by other branches/tags,
-    // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
-    // remove_orphan_files, drop_table with purge will fail with an error.
-    // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
-    // files.
-    newProperties.put(TableProperties.GC_ENABLED, "false");
 
-    boolean metadataCleanupEnabled =
-        newProperties
-            .getOrDefault(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false")
-            .equalsIgnoreCase("true");
-    if (metadataCleanupEnabled) {
-      newProperties.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false");
-      LOG.warn(
-          "Automatic table metadata files cleanup was requested, but disabled because "
-              + "the Nessie catalog can use historical metadata files from other references. "
-              + "Use the 'nessie-gc' tool for history-aware GC");
-    }
+    checkAndUpdateGCProperties(tableMetadata, newProperties, identifier);
 
     TableMetadata.Builder builder =
         TableMetadata.buildFrom(tableMetadata)

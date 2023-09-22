@@ -17,18 +17,22 @@
  under the License.
 */
 
+#include <stdint.h>
+
 /*
-  Decode an an array of zig-zag encoded longs from a buffer.
+  Decode an an array of zig-zag encoded integers from a buffer.
 
   The buffer is advanced to the end of the integers.
   `count` is the number of integers to decode.
   `result` is where the decoded integers are stored.
 
+  The result is guaranteed to be 64 bits wide.
+
 */
-static inline void decode_longs(const unsigned char **buffer, unsigned int count, unsigned long *result) {
-  unsigned int current_index;
+static inline void decode_zigzag_ints(const unsigned char **buffer, const uint64_t count, uint64_t *result) {
+  uint64_t current_index;
   const unsigned char *current_position = *buffer;
-  unsigned long temp;
+  uint64_t temp;
   // The largest shift will always be < 64
   unsigned char shift;
 
@@ -37,7 +41,7 @@ static inline void decode_longs(const unsigned char **buffer, unsigned int count
     temp = *current_position & 0x7F;
     while(*current_position & 0x80) {
         current_position += 1;
-        temp |= (unsigned long)(*current_position & 0x7F) << shift;
+        temp |= (uint64_t)(*current_position & 0x7F) << shift;
         shift += 7;
     }
     result[current_index] = (temp >> 1) ^ (~(temp & 1) + 1);
@@ -53,7 +57,7 @@ static inline void decode_longs(const unsigned char **buffer, unsigned int count
 
   The buffer is advanced to the end of the integer.
 */
-static inline void skip_int(const unsigned char **buffer) {
+static inline void skip_zigzag_int(const unsigned char **buffer) {
   while(**buffer & 0x80) {
     *buffer += 1;
   }
