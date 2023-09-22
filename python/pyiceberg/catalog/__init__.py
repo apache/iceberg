@@ -602,5 +602,5 @@ class Catalog(ABC):
         return properties_update_summary, updated_properties
 
     def __repr__(self) -> str:
-        """Returns the string representation of the Catalog class."""
+        """Return the string representation of the Catalog class."""
         return f"{self.name} ({self.__class__})"
