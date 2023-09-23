@@ -18,11 +18,20 @@
  */
 
 
-task aggregateJavadoc(type: Javadoc) {
+tasks.register('removeJavadoc', Exec.class).configure {
+  commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
+}
+
+
+tasks.register("aggregateJavadoc", Javadoc.class).configure {
+  group "documentation"
+  description "Gererate aggregate javadoc"
   dependsOn subprojects.javadoc
   source subprojects.javadoc.source
   destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
   classpath = project.rootProject.files(subprojects.javadoc.classpath)
+
+  mustRunAfter tasks.named('removeJavadoc')
 
   final JAVADOC_FIX_SEARCH_STR = '\n\n' +
           'getURLPrefix = function(ui) {\n' +
@@ -37,20 +46,16 @@ task aggregateJavadoc(type: Javadoc) {
       searchScript.append JAVADOC_FIX_SEARCH_STR
     }
   }
+
+  mustRunAfter(tasks.named("removeJavadoc"))
 }
 
-task removeJavadoc(type: Exec) {
-  commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
+tasks.register("refreshJavadoc").configure {
+  dependsOn(tasks.named("aggregateJavadoc"), tasks.named("removeJavadoc"))
 }
 
-task refreshJavadoc() {
-  dependsOn aggregateJavadoc
-  dependsOn removeJavadoc
-  aggregateJavadoc.mustRunAfter removeJavadoc
-}
 
-task deploySite(type: Exec) {
+tasks.register('deploySite', Exec.class).configure {
   workingDir 'site'
   commandLine('./deploy.sh')
 }
-
