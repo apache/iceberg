@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name,arguments-renamed
 from __future__ import annotations
 
 import math
@@ -540,7 +539,6 @@ class ManifestWriter(ABC):
         self._deleted_rows = 0
         self._min_data_sequence_number = None
         self._partition_summary = PartitionSummary(spec, schema)
-        self._manifest_entry_schema = manifest_entry_schema(data_file_type(spec.partition_type(schema)))
 
     def __enter__(self) -> ManifestWriter:
         """Open the writer."""
