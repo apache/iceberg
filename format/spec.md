@@ -263,7 +263,7 @@ For details on serialization, see [Appendix C](#name-mapping-serialization).
 
 A schema can optionally track the set of primitive fields that identify rows in a table, using the property `identifier-field-ids` (see JSON encoding in Appendix C).
 
-Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg and it is the responsibility of processing engines or data providers to enforce.
+Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by the Iceberg library. It is the responsibility of processing engines or data providers to enforce this constraint while writing the Iceberg table. Readers might use this information for query optimization (join culling, rewriting `COUNT DISTINCT` into `COUNT`, ...). Given that some engines might not abide by this primary key constraint when writing, engines should make reasonable attempts to detect violations of uniqueness when relying on it during query processing.
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
