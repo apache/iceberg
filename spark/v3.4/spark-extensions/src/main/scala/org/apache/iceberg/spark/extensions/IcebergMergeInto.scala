@@ -42,6 +42,7 @@ object IcebergMergeInto {
 
   /**
    * Initialize an [[IcebergMergeIntoBuilder]]. A Builder to specify an IcebergMergeInto action.
+   *
    * It could be possible to provide any number of `whenMatched` and `whenNotMatched` actions.
    *
    * Scala Examples:
@@ -49,14 +50,15 @@ object IcebergMergeInto {
    *   val ds = ...
    *   IcebergMergeInto
    *      .table("icebergTable")
-   *      .using(ds.as("source")
-   *      .when("source.id = icebergTable.id")
+   *      .using(ds.as("source"))
+   *      .on("source.id = icebergTable.id")
    *      .whenMatched("source.op = U")
    *      .updateAll()
    *      .whenMatched("source.op = D)
    *      .delete()
    *      .whenNotMatched()
    *      .insertAll()
+   *      .merge()
    * }}}
    *
    * JavaExamples:
@@ -64,14 +66,15 @@ object IcebergMergeInto {
    *   Dataset<Row> ds = ...
    *   IcebergMergeInto
    *      .table("icebergTable")
-   *      .using(ds.as("source")
-   *      .when("source.id = icebergTable.id")
+   *      .using(ds.as("source"))
+   *      .on("source.id = icebergTable.id")
    *      .whenMatched("source.op = U")
    *      .updateAll()
    *      .whenMatched("source.op = D)
    *      .delete()
    *      .whenNotMatched()
    *      .insertAll()
+   *      .merge();
    * }}}
    *
    * @param table : Target table name of the merge action
@@ -99,7 +102,7 @@ object IcebergMergeInto {
     /**
      * Set the source dataset used during merge actions.
      *
-     * @param source : Dataset[Row]
+     * @param source : [[Dataset]] of [[Row]]
      * @return [[IcebergMergeIntoBuilder]]
      */
     def using(source: Dataset[Row]): IcebergMergeIntoBuilder =
@@ -111,7 +114,37 @@ object IcebergMergeInto {
         whenNotMatchedActions)
 
     /**
-     * Set the `on` condition of the merge action from a [[Column]]
+     * Set the `on` condition of the merge action from a [[Column]] expression.
+     *
+     * Examples:
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on(col("source.id).equalTo(col("icebergTable.id"))
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on(col("source.id).equalTo(col("icebergTable.id"))
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge()
+     * }}}
      *
      * @param condition : [[Column]] expression
      * @return [[IcebergMergeIntoBuilder]]
@@ -127,6 +160,36 @@ object IcebergMergeInto {
     /**
      * Set the `on` condition of the merge action from a [[String]] expression.
      *
+     * Examples:
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge();
+     * }}}
+     *
      * @param condition : String
      * @return [[IcebergMergeIntoBuilder]]
      */
@@ -134,7 +197,45 @@ object IcebergMergeInto {
       on(expr(condition))
 
     /**
-     * Set a `whenMatched` action.
+     * Initialize a `whenMatched` builder without any condition.
+     *
+     * This `whenMatched` action will be executed if and only if the `on` condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * updateAll: update all the target table fields with source dataset fields
+     * * updateSet(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment
+     * * updateExpr(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment expression.
+     * * delete: delete all the target table records
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge();
+     * }}}
      *
      * @return [[IcebergMergeWhenMatchedBuilder]]
      */
@@ -142,25 +243,142 @@ object IcebergMergeInto {
       new IcebergMergeWhenMatchedBuilder(this, None)
 
     /**
-     * Set a conditionally `whenMatched` action.
+     * Initialize a `whenMatched` builder with a specific  [[Column]] expression condition.
      *
-     * @param condition : [[Column]]
-     * @return IcebergMergeWhenMatchedBuilder
+     * This `whenMatched` action will be executed if and only if the `on` condition AND the `whenMatched`
+     * condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * updateAll: update all the target table fields with source dataset fields
+     * * updateSet(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment
+     * * updateExpr(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment expression.
+     * * delete: delete all the target table records
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .delete()
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .delete()
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .merge();
+     * }}}
+     *
+     * @param condition : [[Column]] based condition expression.
+     *                  It should be used to discriminate merge action based on some advanced condition
+     * @return [[IcebergMergeWhenMatchedBuilder]]
      */
     def whenMatched(condition: Column): IcebergMergeWhenMatchedBuilder =
       new IcebergMergeWhenMatchedBuilder(this, Some(condition.expr))
 
     /**
-     * Set a conditionally `whenMatched` action.
+     * Initialize a `whenMatched` builder with a specific  [[String]] expression condition.
      *
-     * @param condition : [[String]]
+     * This `whenMatched` action will be executed if and only if the `on` condition AND the `whenMatched`
+     * condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * updateAll: update all the target table fields with source dataset fields
+     * * updateSet(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment
+     * * updateExpr(Map): update all the target table records while change only a subset of fields
+     * based on the provided assignment expression.
+     * * delete: delete all the target table records
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .delete()
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .delete()
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .merge();
+     * }}}
+     *
+     * @param condition : [[String]] based condition expression.
+     *                  It should be used to discriminate merge action based on some advanced condition
      * @return [[IcebergMergeWhenMatchedBuilder]]
      */
     def whenMatched(condition: String): IcebergMergeWhenMatchedBuilder =
       whenMatched(expr(condition))
 
     /**
-     * Set a `whenNotMatched` action.
+     * Initialize a `whenNotMatched` builder without any condition.
+     *
+     * This `whenNotMatched` action will be executed if and only if the `on` condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * insertAll: update all the target table with source dataset records
+     * * insert(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment
+     * * insertExpr(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment expression.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .updateAll()
+     *      .whenNotMatched()
+     *      .insertAll()
+     *      .merge();
+     * }}}
      *
      * @return [[IcebergMergeWhenNotMatchedBuilder]]
      */
@@ -168,18 +386,96 @@ object IcebergMergeInto {
       new IcebergMergeWhenNotMatchedBuilder(this, None)
 
     /**
-     * Set a conditionally `whenNotMatched` action
+     * Initialize a `whenNotMatched` builder with a [[Column]] expression condition
      *
-     * @param condition : [[Column]]
+     * This `whenNotMatched` action will be executed if and only if the `on` condition AND the provided
+     * condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * insertAll: update all the target table with source dataset records
+     * * insert(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment
+     * * insertExpr(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment expression.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .whenNotMatched(col("source.timestamp").gt("icebergTable.timestamp"))
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .updateAll()
+     *      .whenNotMatched(col("source.timestamp").gt("icebergTable.timestamp"))
+     *      .insertAll()
+     *      .merge();
+     * }}}
+     *
+     * @param condition : [[Column]] based condition expression.
+     *                  It should be used to discriminate merge action based on some advanced condition
      * @return [[IcebergMergeWhenNotMatchedBuilder]]
      */
     def whenNotMatched(condition: Column): IcebergMergeWhenNotMatchedBuilder =
       new IcebergMergeWhenNotMatchedBuilder(this, Some(condition.expr))
 
     /**
-     * Set a conditionally `whenNotMatched` action
+     * Initialize a `whenNotMatched` builder with a [[String]] expression condition
      *
-     * @param condition : [[Column]]
+     * This `whenNotMatched` action will be executed if and only if the `on` condition AND the provided
+     * condition are satisfied.
+     *
+     * It could be possible to configure one of the following merge actions:
+     * * insertAll: update all the target table with source dataset records
+     * * insert(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment
+     * * insertExpr(Map): insert all the target table records while set value only to a subset of fields
+     * based on the provided assignment expression.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'U')
+     *      .updateAll()
+     *      .whenNotMatched("source.timestamp > icebergTable.timestamp")
+     *      .insertAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched("source.op" == 'D')
+     *      .updateAll()
+     *      .whenNotMatched("source.timestamp > icebergTable.timestamp")
+     *      .insertAll()
+     *      .merge();
+     * }}}
+     *
+     * @param condition : [[String]] based condition expression.
+     *                  It should be used to discriminate merge action based on some advanced condition
      * @return [[IcebergMergeWhenNotMatchedBuilder]]
      */
     def whenNotMatched(condition: String): IcebergMergeWhenNotMatchedBuilder =
@@ -222,10 +518,12 @@ object IcebergMergeInto {
         .getOrElse(throw new IllegalArgumentException("Merge statement require whenCondition"))
 
       val sparkSession = mergeSourceDs.sparkSession
+      val sparkSqlParser = sparkSession.sessionState.sqlParser
+      val sparkAnalyzer = sparkSession.sessionState.analyzer
+
       val mergePlan = UnresolvedMergeIntoIcebergTable(
-        UnresolvedRelation(
-          sparkSession.sessionState.sqlParser.parseMultipartIdentifier(targetTable)),
-        sparkSession.sessionState.analyzer.ResolveRelations(mergeSourceDs.queryExecution.logical),
+        UnresolvedRelation(sparkSqlParser.parseMultipartIdentifier(targetTable)),
+        sparkAnalyzer.ResolveRelations(mergeSourceDs.queryExecution.logical),
         MergeIntoContext(mergeWhenCondition, whenMatchedActions, whenNotMatchedActions))
       runCommand(sparkSession, mergePlan)
     }
@@ -237,7 +535,7 @@ object IcebergMergeInto {
   }
 
   /**
-   * Builder to specify IcebergMergeWhenMatched actions
+   * Builder to specifiy the IcebergMergeWhenMatched actions
    */
   class IcebergMergeWhenMatchedBuilder(
       private val icebergMergeIntoBuilder: IcebergMergeIntoBuilder,
@@ -246,6 +544,30 @@ object IcebergMergeInto {
     /**
      * Set an updateAll action.
      * It will update the target records with all the column on the source dataset.
+     * *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateAll()
+     *      .merge();
+     * }}}
      *
      * @return [[IcebergMergeIntoBuilder]]
      */
@@ -258,7 +580,43 @@ object IcebergMergeInto {
      *
      * It will update the target records accordingly with the assignment map provided as input.
      *
-     * @param set : Map[String,String]
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .update(Map(
+     *        "id" -> col("source.id"),
+     *        "name" -> col("source.name"),
+     *        "salary" -> lit(0)
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .update(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", col("source.id"));
+     *            put("name", col("source.name"));
+     *            put("salary", lit(0));
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
+     *
+     * @param set : Map[String,Column]
      * @return [[IcebergMergeIntoBuilder]]
      */
     def update(set: Map[String, Column]): IcebergMergeIntoBuilder = {
@@ -269,6 +627,42 @@ object IcebergMergeInto {
      * Set an update action with a map of references between source and target table.
      *
      * It will update the target records accordingly with the assignment map provided as input.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .update(Map(
+     *        "id" -> col("source.id"),
+     *        "name" -> col("source.name"),
+     *        "salary" -> lit(0)
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .update(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", col("source.id"));
+     *            put("name", col("source.name"));
+     *            put("salary", lit(0));
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
      *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]
@@ -282,6 +676,40 @@ object IcebergMergeInto {
      *
      * It will update the target records accordingly with the assignment map provided as input.
      *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateExpr(Map(
+     *        "id" -> "source.id",
+     *        "name" -> "source.name"
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateExpr(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", "source.id");
+     *            put("name", "source.name");
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
+     *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]
      */
@@ -294,6 +722,40 @@ object IcebergMergeInto {
      *
      * It will update the target records accordingly with the assignment map provided as input.
      *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateExpr(Map(
+     *        "id" -> "source.id",
+     *        "name" -> "source.name"
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .updateExpr(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", "source.id");
+     *            put("name", "source.name");
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
+     *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]
      */
@@ -303,7 +765,7 @@ object IcebergMergeInto {
 
     /**
      * Set a delete action.
-     * It will delete the target
+     * It will delete the target record
      *
      * @return [[IcebergMergeIntoBuilder]]
      */
@@ -327,6 +789,8 @@ object IcebergMergeInto {
     /**
      * Set an insert action.
      *
+     * It will insert all the records into the target table
+     *
      * @return [[IcebergMergeIntoBuilder]]
      */
     def insertAll(): IcebergMergeIntoBuilder = {
@@ -336,7 +800,44 @@ object IcebergMergeInto {
     /**
      * Set an insert action with a map of String Expression references.
      *
-     * It will insert a new record on the the target table accordingly with the assignment map provided as input.
+     * It will insert a new record on the the target table accordingly with the assignment map provided as input. O
+     * their values will be null
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(Map(
+     *        "id" -> "col(source.id)",
+     *        "name" -> "col(source.name)",
+     *        "salary" -> "lit(0)",
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", col("source.id"));
+     *            put("name", col("source.name"));
+     *            put("salary", lit(0));
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
      *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]
@@ -350,7 +851,43 @@ object IcebergMergeInto {
      *
      * It will insert a new record on the the target table accordingly with the assignment map provided as input.
      *
-     * @param set : java.util.Map[String,String]
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(Map(
+     *        "id" -> "col(source.id)",
+     *        "name" -> "col(source.name)",
+     *        "salary" -> "lit(0)",
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", col("source.id"));
+     *            put("name", col("source.name"));
+     *            put("salary", lit(0));
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
+     *
+     * @param set : java.util.Map[String,Column]
      * @return [[IcebergMergeIntoBuilder]]
      */
     def insert(set: java.util.Map[String, Column]): IcebergMergeIntoBuilder = {
@@ -361,6 +898,40 @@ object IcebergMergeInto {
      * Set an insert action with a map of String Column references.
      *
      * It will insert a new record on the the target table accordingly with the assignment map provided as input.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(Map(
+     *        "id" -> "source.id",
+     *        "name" -> "source.name",
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insertExpr(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", "source.id");
+     *            put("name","source.name");
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
      *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]
@@ -373,6 +944,40 @@ object IcebergMergeInto {
      * Set an insert action with a map of String Expression references.
      *
      * It will insert a new record on the the target table accordingly with the assignment map provided as input.
+     *
+     * * Scala Examples:
+     * {{{
+     *   val ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insert(Map(
+     *        "id" -> "source.id",
+     *        "name" -> "source.name",
+     *      ))
+     *      .merge()
+     * }}}
+     *
+     * JavaExamples:
+     * {{{
+     *   Dataset<Row> ds = ...
+     *   IcebergMergeInto
+     *      .table("icebergTable")
+     *      .using(ds.as("source"))
+     *      .on("source.id == icebergTable.id")
+     *      .whenMatched()
+     *      .insertExpr(
+     *        new HashMap<String, Column>() {
+     *          {
+     *            put("id", "source.id");
+     *            put("name","source.name");
+     *          }
+     *        }
+     *      )
+     *      .merge();
+     * }}}
      *
      * @param set : java.util.Map[String,String]
      * @return [[IcebergMergeIntoBuilder]]

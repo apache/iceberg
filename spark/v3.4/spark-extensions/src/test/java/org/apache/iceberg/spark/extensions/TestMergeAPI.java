@@ -254,6 +254,37 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeIntoEmptyTargetInsertAllNonMatchingRowsWithColumnCondition() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    createAndInitTable("id INT, dep STRING");
+
+    Dataset<Row> sourceDataset =
+        toDS(
+            "id INT, dep STRING",
+            "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+                + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+                + "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    IcebergMergeInto.table(tableName)
+        .using(sourceDataset.as("source"))
+        .on(col(format("%s.id", tableName)).equalTo(col("source.id")))
+        .whenNotMatched()
+        .insertAll()
+        .merge();
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "emp-id-1"), // new
+            row(2, "emp-id-2"), // new
+            row(3, "emp-id-3") // new
+            );
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
     Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
