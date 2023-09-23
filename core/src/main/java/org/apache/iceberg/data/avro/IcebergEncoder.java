@@ -98,7 +98,10 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
 
   @Override
   public void encode(D datum, OutputStream stream) throws IOException {
-    BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(stream, ENCODER.get());
+    BinaryEncoder encoder =
+        new EncoderFactory()
+            .configureBlockSize(1024 * 1024)
+            .blockingBinaryEncoder(stream, ENCODER.get());
     ENCODER.set(encoder);
     writer.write(datum, encoder);
     encoder.flush();

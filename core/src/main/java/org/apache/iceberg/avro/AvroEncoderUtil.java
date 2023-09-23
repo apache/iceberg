@@ -54,7 +54,8 @@ public class AvroEncoderUtil {
       dataOut.writeUTF(avroSchema.toString());
 
       // Encode the datum with avro schema.
-      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+      BinaryEncoder encoder =
+          new EncoderFactory().configureBlockSize(1024 * 1024).blockingBinaryEncoder(out, null);
       DatumWriter<T> writer = new GenericAvroWriter<>(avroSchema);
       writer.write(datum, encoder);
       encoder.flush();
