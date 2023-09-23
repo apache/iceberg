@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -33,7 +35,6 @@ import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -99,9 +100,8 @@ public class TestDataStatisticsCoordinatorProvider {
     // Verify checkpoint 1 global data statistics
     MapDataStatistics checkpoint1GlobalDataStatistics =
         (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.statistics(),
-        checkpoint1GlobalDataStatistics.statistics());
+    assertThat(checkpoint1GlobalDataStatistics.statistics())
+        .isEqualTo(checkpoint1Subtask0DataStatistic.statistics());
     byte[] bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
@@ -117,9 +117,8 @@ public class TestDataStatisticsCoordinatorProvider {
     // Verify checkpoint 2 global data statistics
     MapDataStatistics checkpoint2GlobalDataStatistics =
         (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-    Assert.assertEquals(
-        checkpoint2Subtask0DataStatistic.statistics(),
-        checkpoint2GlobalDataStatistics.statistics());
+    assertThat(checkpoint2GlobalDataStatistics.statistics())
+        .isEqualTo(checkpoint2Subtask0DataStatistic.statistics());
     waitForCheckpoint(2L, dataStatisticsCoordinator);
 
     // Reset coordinator to checkpoint 1
@@ -128,16 +127,13 @@ public class TestDataStatisticsCoordinatorProvider {
         restoredDataStatisticsCoordinator =
             (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
                 coordinator.getInternalCoordinator();
-    Assert.assertNotEquals(
-        "The restored coordinator should be a different instance",
-        restoredDataStatisticsCoordinator,
-        dataStatisticsCoordinator);
+    assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
     // Verify restored data statistics
     MapDataStatistics restoredAggregateDataStatistics =
         (MapDataStatistics)
             restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
-    Assert.assertEquals(
-        checkpoint1GlobalDataStatistics.statistics(), restoredAggregateDataStatistics.statistics());
+    assertThat(restoredAggregateDataStatistics.statistics())
+        .isEqualTo(checkpoint1GlobalDataStatistics.statistics());
   }
 
   private byte[] waitForCheckpoint(

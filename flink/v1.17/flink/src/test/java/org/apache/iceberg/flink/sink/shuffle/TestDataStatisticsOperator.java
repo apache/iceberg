@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
@@ -129,7 +128,7 @@ public class TestDataStatisticsOperator {
       operator.processElement(new StreamRecord<>(binaryRowDataA));
       operator.processElement(new StreamRecord<>(binaryRowDataA));
       operator.processElement(new StreamRecord<>(binaryRowDataB));
-      assertTrue(operator.localDataStatistics() instanceof MapDataStatistics);
+      assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
       MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
       Map<RowData, Long> statsMap = mapDataStatistics.statistics();
       assertThat(statsMap).hasSize(2);

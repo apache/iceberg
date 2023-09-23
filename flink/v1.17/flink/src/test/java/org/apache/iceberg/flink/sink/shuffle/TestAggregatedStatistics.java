@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -26,7 +28,6 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 
 public class TestAggregatedStatistics {
 
@@ -48,13 +49,13 @@ public class TestAggregatedStatistics {
     MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
     mapDataStatistics2.add(rowDataA);
     aggregatedStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics2);
-    Assertions.assertEquals(
-        mapDataStatistics1.statistics().get(rowDataA)
-            + mapDataStatistics2.statistics().get(rowDataA),
-        aggregatedStatistics.dataStatistics().statistics().get(rowDataA));
-    Assertions.assertEquals(
-        mapDataStatistics1.statistics().get(rowDataB)
-            + mapDataStatistics2.statistics().getOrDefault(rowDataB, 0L),
-        aggregatedStatistics.dataStatistics().statistics().get(rowDataB));
+    assertThat(aggregatedStatistics.dataStatistics().statistics().get(rowDataA))
+        .isEqualTo(
+            mapDataStatistics1.statistics().get(rowDataA)
+                + mapDataStatistics2.statistics().get(rowDataA));
+    assertThat(aggregatedStatistics.dataStatistics().statistics().get(rowDataB))
+        .isEqualTo(
+            mapDataStatistics1.statistics().get(rowDataB)
+                + mapDataStatistics2.statistics().getOrDefault(rowDataB, 0L));
   }
 }

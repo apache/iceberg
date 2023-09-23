@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.GenericRowData;
@@ -27,7 +29,6 @@ import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -59,23 +60,23 @@ public class TestAggregatedStatisticsTracker {
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            0, checkpoint1Subtask0DataStatisticEvent));
-
-    Assert.assertEquals(1, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                0, checkpoint1Subtask0DataStatisticEvent))
+        .isNull();
+    assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(1);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
     checkpoint2Subtask0DataStatistic.add(binaryRowDataA);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            0, checkpoint2Subtask0DataStatisticEvent));
-
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                0, checkpoint2Subtask0DataStatisticEvent))
+        .isNull();
     // Checkpoint 2 is newer than checkpoint1, thus dropping in progress statistics for checkpoint1
-    Assert.assertEquals(2, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
+    assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(2);
   }
 
   @Test
@@ -87,9 +88,10 @@ public class TestAggregatedStatisticsTracker {
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint3Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            0, checkpoint3Subtask0DataStatisticEvent));
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                0, checkpoint3Subtask0DataStatisticEvent))
+        .isNull();
 
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
     checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
@@ -98,10 +100,11 @@ public class TestAggregatedStatisticsTracker {
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker won't return
     // completed statistics and in progress statistics won't be updated
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            1, checkpoint1Subtask1DataStatisticEvent));
-    Assert.assertEquals(2, aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                1, checkpoint1Subtask1DataStatisticEvent))
+        .isNull();
+    assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(2);
   }
 
   @Test
@@ -111,64 +114,64 @@ public class TestAggregatedStatisticsTracker {
     checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
     checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
-        checkpoint3Subtask0DataStatisticEvent =
+        checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            0, checkpoint3Subtask0DataStatisticEvent));
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                0, checkpoint1Subtask0DataStatisticEvent))
+        .isNull();
 
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
     checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
     checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
     checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
-        checkpoint3Subtask1DataStatisticEvent =
+        checkpoint1Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 1
     AggregatedStatistics<MapDataStatistics, Map<RowData, Long>> completedStatistics =
         aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            1, checkpoint3Subtask1DataStatisticEvent);
+            1, checkpoint1Subtask1DataStatisticEvent);
 
-    Assert.assertNotNull(completedStatistics);
-    Assert.assertEquals(1, completedStatistics.checkpointId());
+    assertThat(completedStatistics).isNotNull();
+    assertThat(completedStatistics.checkpointId()).isEqualTo(1);
     MapDataStatistics globalDataStatistics =
         (MapDataStatistics) completedStatistics.dataStatistics();
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataA)
-            + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataA),
-        (long) globalDataStatistics.statistics().get(binaryRowDataA));
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataB)
-            + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataB),
-        (long) globalDataStatistics.statistics().get(binaryRowDataB));
-    Assert.assertEquals(
-        completedStatistics.checkpointId() + 1,
-        aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
+    assertThat((long) globalDataStatistics.statistics().get(binaryRowDataA))
+        .isEqualTo(
+            checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataA)
+                + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataA));
+    assertThat((long) globalDataStatistics.statistics().get(binaryRowDataB))
+        .isEqualTo(
+            checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataB)
+                + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataB));
+    assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId())
+        .isEqualTo(completedStatistics.checkpointId() + 1);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
     checkpoint2Subtask0DataStatistic.add(binaryRowDataA);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
-        checkpoint4Subtask0DataStatisticEvent =
+        checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
-    Assert.assertNull(
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            0, checkpoint4Subtask0DataStatisticEvent));
-    Assert.assertEquals(1, completedStatistics.checkpointId());
+    assertThat(
+            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+                0, checkpoint2Subtask0DataStatisticEvent))
+        .isNull();
+    assertThat(completedStatistics.checkpointId()).isEqualTo(1);
 
     MapDataStatistics checkpoint2Subtask1DataStatistic = new MapDataStatistics();
     checkpoint2Subtask1DataStatistic.add(binaryRowDataB);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
-        checkpoint4Subtask1DataStatisticEvent =
+        checkpoint2Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 2
     completedStatistics =
         aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
-            1, checkpoint4Subtask1DataStatisticEvent);
+            1, checkpoint2Subtask1DataStatisticEvent);
 
-    Assert.assertNotNull(completedStatistics);
-    Assert.assertEquals(2, completedStatistics.checkpointId());
-    Assert.assertEquals(
-        completedStatistics.checkpointId() + 1,
-        aggregatedStatisticsTracker.inProgressStatistics().checkpointId());
+    assertThat(completedStatistics).isNotNull();
+    assertThat(completedStatistics.checkpointId()).isEqualTo(2);
+    assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId())
+        .isEqualTo(completedStatistics.checkpointId() + 1);
   }
 }

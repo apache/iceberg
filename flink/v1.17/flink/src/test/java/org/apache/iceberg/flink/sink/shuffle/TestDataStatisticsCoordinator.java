@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -36,7 +37,6 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -74,7 +74,7 @@ public class TestDataStatisticsCoordinator {
   public void testThrowExceptionWhenNotStarted() {
     String failureMessage = "The coordinator of TestCoordinator has not started yet.";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 dataStatisticsCoordinator.handleEventFromOperator(
                     0,
@@ -82,11 +82,10 @@ public class TestDataStatisticsCoordinator {
                     DataStatisticsEvent.create(0, new MapDataStatistics(), statisticsSerializer)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(failureMessage);
-    Assertions.assertThatThrownBy(
-            () -> dataStatisticsCoordinator.executionAttemptFailed(0, 0, null))
+    assertThatThrownBy(() -> dataStatisticsCoordinator.executionAttemptFailed(0, 0, null))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(failureMessage);
-    Assertions.assertThatThrownBy(() -> dataStatisticsCoordinator.checkpointCoordinator(0, null))
+    assertThatThrownBy(() -> dataStatisticsCoordinator.checkpointCoordinator(0, null))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(failureMessage);
   }
