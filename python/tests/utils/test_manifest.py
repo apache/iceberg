@@ -326,7 +326,7 @@ def test_write_manifest(generated_manifest_file_file_v1: str, generated_manifest
         tmp_avro_file = tmpdir + "/test_write_manifest.avro"
         output = io.new_output(tmp_avro_file)
         with write_manifest(
-            format_version=format_version,
+            format_version=format_version,  # type: ignore
             spec=test_spec,
             schema=test_schema,
             output_file=output,
@@ -492,7 +492,7 @@ def test_write_manifest_list(
         path = tmp_dir + "/manifest-list.avro"
         output = io.new_output(path)
         with write_manifest_list(
-            format_version=format_version, output_file=output, snapshot_id=25, parent_snapshot_id=19, sequence_number=0
+            format_version=format_version, output_file=output, snapshot_id=25, parent_snapshot_id=19, sequence_number=0  # type: ignore
         ) as writer:
             writer.add_manifests(demo_manifest_list)
         new_manifest_list = list(read_manifest_list(io.new_input(path)))

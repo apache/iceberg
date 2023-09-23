@@ -26,6 +26,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Literal,
     Optional,
     Type,
 )
@@ -93,11 +94,6 @@ class FileFormat(str, Enum):
     def __repr__(self) -> str:
         """Return the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
-
-    def add_extension(self, filename: str) -> str:
-        if filename.endswith(f".{self.name.lower()}"):
-            return filename
-        return f"{filename}.{self.name.lower()}"
 
 
 def data_file_type(partition_type: StructType) -> StructType:
@@ -676,7 +672,7 @@ class ManifestWriterV2(ManifestWriter):
 
 
 def write_manifest(
-    format_version: int, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int
+    format_version: Literal[1, 2], spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int
 ) -> ManifestWriter:
     if format_version == 1:
         return ManifestWriterV1(spec, schema, output_file, snapshot_id)
@@ -776,7 +772,7 @@ class ManifestListWriterV2(ManifestListWriter):
 
 
 def write_manifest_list(
-    format_version: int, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int
+    format_version: Literal[1, 2], output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int
 ) -> ManifestListWriter:
     if format_version == 1:
         return ManifestListWriterV1(output_file, snapshot_id, parent_snapshot_id)
