@@ -53,6 +53,7 @@ from pyiceberg.types import (
 )
 
 UNASSIGNED_SEQ = -1
+DEFAULT_BLOCK_SIZE = 67108864  # 64 * 1024 * 1024
 
 
 class DataFileContent(int, Enum):
@@ -129,6 +130,13 @@ def data_file_type(partition_type: StructType) -> StructType:
             field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"
         ),
         NestedField(
+            field_id=105,
+            name="block_size_in_bytes",
+            field_type=LongType(),
+            required=False,
+            doc="Deprecated. Always write a default in v1. Do not write in v2.",
+        ),
+        NestedField(
             field_id=108,
             name="column_sizes",
             field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
@@ -203,6 +211,7 @@ class DataFile(Record):
         "partition",
         "record_count",
         "file_size_in_bytes",
+        "block_size_in_bytes",
         "column_sizes",
         "value_counts",
         "null_value_counts",
@@ -221,6 +230,7 @@ class DataFile(Record):
     partition: Record
     record_count: int
     file_size_in_bytes: int
+    block_size_in_bytes: Optional[int]
     column_sizes: Dict[int, int]
     value_counts: Dict[int, int]
     null_value_counts: Dict[int, int]
@@ -504,6 +514,7 @@ def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> Ma
 class ManifestWriter(ABC):
     closed: bool
     _spec: PartitionSpec
+    _schema: Schema
     _output_file: OutputFile
     _writer: AvroOutputFile[ManifestEntry]
     _snapshot_id: int
@@ -520,6 +531,7 @@ class ManifestWriter(ABC):
     def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int, meta: Dict[str, str]):
         self.closed = False
         self._spec = spec
+        self._schema = schema
         self._output_file = output_file
         self._snapshot_id = snapshot_id
         self._meta = meta
@@ -536,7 +548,11 @@ class ManifestWriter(ABC):
 
     def __enter__(self) -> ManifestWriter:
         """Open the writer."""
-        self._writer = AvroOutputFile[ManifestEntry](self._output_file, self._manifest_entry_schema, "manifest_entry", self._meta)
+        current_data_file_type = data_file_type(self._spec.partition_type(self._schema))
+        current_manifest_entry_schema = manifest_entry_schema(current_data_file_type)
+        self._writer = AvroOutputFile[ManifestEntry](
+            self._output_file, current_manifest_entry_schema, "manifest_entry", self._meta
+        )
         self._writer.__enter__()
         return self
 
@@ -603,7 +619,7 @@ class ManifestWriter(ABC):
         ):
             self._min_data_sequence_number = entry.data_sequence_number
 
-        self._writer.write_block([entry])
+        self._writer.write_block([self.prepare_entry(entry)])
         return self
 
 
@@ -626,7 +642,9 @@ class ManifestWriterV1(ManifestWriter):
         return ManifestContent.DATA
 
     def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
-        return entry
+        wrapped_entry = ManifestEntry(*entry.record_fields())
+        wrapped_entry.data_file.block_size_in_bytes = DEFAULT_BLOCK_SIZE
+        return wrapped_entry
 
 
 class ManifestWriterV2(ManifestWriter):
@@ -672,6 +690,7 @@ class ManifestListWriter(ABC):
     _output_file: OutputFile
     _meta: Dict[str, str]
     _manifest_files: List[ManifestFile]
+    _commit_snapshot_id: int
     _writer: AvroOutputFile[ManifestFile]
 
     def __init__(self, output_file: OutputFile, meta: Dict[str, str]):
@@ -717,6 +736,9 @@ class ManifestListWriterV1(ManifestListWriter):
 
 
 class ManifestListWriterV2(ManifestListWriter):
+    _commit_snapshot_id: int
+    _sequence_number: int
+
     def __init__(self, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int):
         super().__init__(
             output_file,
@@ -727,9 +749,30 @@ class ManifestListWriterV2(ManifestListWriter):
                 "format-version": "2",
             },
         )
+        self._commit_snapshot_id = snapshot_id
+        self._sequence_number = sequence_number
 
     def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
-        return manifest_file
+        wrapped_manifest_file = ManifestFile(*manifest_file.record_fields())
+
+        if wrapped_manifest_file.sequence_number == UNASSIGNED_SEQ:
+            # if the sequence number is being assigned here, then the manifest must be created by the current operation.
+            # To validate this, check that the snapshot id matches the current commit
+            if self._commit_snapshot_id != wrapped_manifest_file.added_snapshot_id:
+                raise ValueError(
+                    f"Found unassigned sequence number for a manifest from snapshot: {wrapped_manifest_file.added_snapshot_id}"
+                )
+            wrapped_manifest_file.sequence_number = self._sequence_number
+
+        if wrapped_manifest_file.min_sequence_number == UNASSIGNED_SEQ:
+            if self._commit_snapshot_id != wrapped_manifest_file.added_snapshot_id:
+                raise ValueError(
+                    f"Found unassigned sequence number for a manifest from snapshot: {wrapped_manifest_file.added_snapshot_id}"
+                )
+            # if the min sequence number is not determined, then there was no assigned sequence number for any file
+            # written to the wrapped manifest. Replace the unassigned sequence number with the one for this commit
+            wrapped_manifest_file.min_sequence_number = self._sequence_number
+        return wrapped_manifest_file
 
 
 def write_manifest_list(

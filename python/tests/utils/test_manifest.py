@@ -370,6 +370,8 @@ def test_write_manifest(generated_manifest_file_file_v1: str, generated_manifest
         assert repr(data_file.partition) == "Record[VendorID=1, tpep_pickup_datetime=1925]"
         assert data_file.record_count == 19513
         assert data_file.file_size_in_bytes == 388872
+        if format_version == 1:
+            assert data_file.block_size_in_bytes == 67108864
         assert data_file.column_sizes == {
             1: 53,
             2: 98153,
