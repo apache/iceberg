@@ -28,6 +28,8 @@ import org.apache.iceberg.expressions.Expression;
  * CommitFailedException}.
  */
 public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements DeleteFiles {
+  private boolean validateFilesToDeleteExist = false;
+
   protected StreamingDelete(String tableName, TableOperations ops) {
     super(tableName, ops);
   }
@@ -61,8 +63,21 @@ public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implem
   }
 
   @Override
+  public DeleteFiles validateFilesExist() {
+    this.validateFilesToDeleteExist = true;
+    return this;
+  }
+
+  @Override
   public StreamingDelete toBranch(String branch) {
     targetBranch(branch);
     return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base, Snapshot parent) {
+    if (validateFilesToDeleteExist) {
+      failMissingDeletePaths();
+    }
   }
 }

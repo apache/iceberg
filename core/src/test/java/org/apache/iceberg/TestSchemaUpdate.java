@@ -303,7 +303,7 @@ public class TestSchemaUpdate {
           continue;
         }
 
-        String typeChange = fromType.toString() + " -> " + toType.toString();
+        String typeChange = fromType + " -> " + toType.toString();
         Assertions.assertThatThrownBy(
                 () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType))
             .isInstanceOf(IllegalArgumentException.class)
@@ -2066,5 +2066,182 @@ public class TestSchemaUpdate {
         "move first should not affect identifier fields",
         Sets.newHashSet(SCHEMA.findField("id").fieldId()),
         newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testMoveTopDeletedColumnAfterAnotherColumn() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "data_1", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(2, "data", Types.StringType.get()),
+            required(4, "id", Types.IntegerType.get()),
+            required(3, "data_1", Types.StringType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 3)
+            .allowIncompatibleChanges()
+            .deleteColumn("id")
+            .addRequiredColumn("id", Types.IntegerType.get())
+            .moveAfter("id", "data")
+            .apply();
+    Assert.assertEquals(
+        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopDeletedColumnBeforeAnotherColumn() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "data_1", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(2, "data", Types.StringType.get()),
+            required(4, "id", Types.IntegerType.get()),
+            required(3, "data_1", Types.StringType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 3)
+            .allowIncompatibleChanges()
+            .deleteColumn("id")
+            .addRequiredColumn("id", Types.IntegerType.get())
+            .moveBefore("id", "data_1")
+            .apply();
+    Assert.assertEquals(
+        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopDeletedColumnToFirst() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "data_1", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(4, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "data_1", Types.StringType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 3)
+            .allowIncompatibleChanges()
+            .deleteColumn("id")
+            .addRequiredColumn("id", Types.IntegerType.get())
+            .moveFirst("id")
+            .apply();
+    Assert.assertEquals(
+        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveDeletedNestedStructFieldAfterAnotherColumn() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "count", Types.LongType.get()),
+                    required(4, "data", Types.StringType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "count", Types.LongType.get()),
+                    required(6, "data", Types.IntegerType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+
+    Schema actual =
+        new SchemaUpdate(schema, 5)
+            .allowIncompatibleChanges()
+            .deleteColumn("struct.data")
+            .addRequiredColumn("struct", "data", Types.IntegerType.get())
+            .moveAfter("struct.data", "struct.count")
+            .apply();
+
+    Assert.assertEquals(
+        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveDeletedNestedStructFieldBeforeAnotherColumn() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "count", Types.LongType.get()),
+                    required(4, "data", Types.StringType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "count", Types.LongType.get()),
+                    required(6, "data", Types.IntegerType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+
+    Schema actual =
+        new SchemaUpdate(schema, 5)
+            .allowIncompatibleChanges()
+            .deleteColumn("struct.data")
+            .addRequiredColumn("struct", "data", Types.IntegerType.get())
+            .moveBefore("struct.data", "struct.data_1")
+            .apply();
+
+    Assert.assertEquals(
+        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveDeletedNestedStructFieldToFirst() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "count", Types.LongType.get()),
+                    required(4, "data", Types.StringType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(6, "data", Types.IntegerType.get()),
+                    required(3, "count", Types.LongType.get()),
+                    required(5, "data_1", Types.StringType.get()))));
+
+    Schema actual =
+        new SchemaUpdate(schema, 5)
+            .allowIncompatibleChanges()
+            .deleteColumn("struct.data")
+            .addRequiredColumn("struct", "data", Types.IntegerType.get())
+            .moveFirst("struct.data")
+            .apply();
+
+    Assert.assertEquals(
+        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
   }
 }

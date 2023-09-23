@@ -38,6 +38,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -139,6 +140,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         catalogName,
         null,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
@@ -380,6 +382,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         catalogName,
         testBucketPath,
         properties,
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
@@ -596,11 +599,17 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
             "true",
-            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
-    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(properties), glue, null);
+    glueCatalog.initialize(
+        catalogName,
+        testBucketPath,
+        new AwsProperties(properties),
+        new S3FileIOProperties(properties),
+        glue,
+        null);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
@@ -617,9 +626,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .tagSet();
     Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(Tag::key, Tag::value));
 
-    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_TABLE));
-    Assert.assertEquals(tableName, tagMap.get(AwsProperties.S3_TAG_ICEBERG_TABLE));
-    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
-    Assert.assertEquals(namespace, tagMap.get(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertTrue(tagMap.containsKey(S3FileIOProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertEquals(tableName, tagMap.get(S3FileIOProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertTrue(tagMap.containsKey(S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertEquals(namespace, tagMap.get(S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE));
   }
 }

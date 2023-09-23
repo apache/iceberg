@@ -57,7 +57,7 @@ public class AwsClientProperties implements Serializable {
    * classes to pass provider-specific properties. Each property consists of a key name and an
    * associated value.
    */
-  private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
+  protected static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
   /**
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
@@ -97,12 +97,27 @@ public class AwsClientProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
+   *     S3Client.builder().applyMutation(awsClientProperties::applyClientRegionConfiguration)
    * </pre>
    */
   public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
     if (clientRegion != null) {
       builder.region(Region.of(clientRegion));
+    }
+  }
+
+  /**
+   * Configure the credential provider for AWS clients.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     DynamoDbClient.builder().applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyClientCredentialConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     }
   }
 

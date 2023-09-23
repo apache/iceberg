@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.net.URI;
 import java.util.Map;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
@@ -90,28 +91,35 @@ public class AwsClientFactories {
 
   static class DefaultAwsClientFactory implements AwsClientFactory {
     private AwsProperties awsProperties;
+    private AwsClientProperties awsClientProperties;
+    private S3FileIOProperties s3FileIOProperties;
+    private HttpClientProperties httpClientProperties;
 
     DefaultAwsClientFactory() {
       awsProperties = new AwsProperties();
+      awsClientProperties = new AwsClientProperties();
+      s3FileIOProperties = new S3FileIOProperties();
+      httpClientProperties = new HttpClientProperties();
     }
 
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .applyMutation(awsProperties::applyClientRegionConfiguration)
-          .applyMutation(awsProperties::applyHttpClientConfigurations)
-          .applyMutation(awsProperties::applyS3EndpointConfigurations)
-          .applyMutation(awsProperties::applyS3ServiceConfigurations)
-          .applyMutation(awsProperties::applyS3CredentialConfigurations)
-          .applyMutation(awsProperties::applyS3SignerConfiguration)
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+          .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties::applyServiceConfigurations)
+          .applyMutation(
+              b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
+          .applyMutation(s3FileIOProperties::applySignerConfiguration)
           .build();
     }
 
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .applyMutation(awsProperties::applyClientRegionConfiguration)
-          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .build();
@@ -120,8 +128,8 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
-          .applyMutation(awsProperties::applyClientRegionConfiguration)
-          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .build();
     }
@@ -129,8 +137,8 @@ public class AwsClientFactories {
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .applyMutation(awsProperties::applyClientRegionConfiguration)
-          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
@@ -139,6 +147,9 @@ public class AwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
+      this.awsClientProperties = new AwsClientProperties(properties);
+      this.s3FileIOProperties = new S3FileIOProperties(properties);
+      this.httpClientProperties = new HttpClientProperties(properties);
     }
   }
 
@@ -146,19 +157,19 @@ public class AwsClientFactories {
    * Build a httpClientBuilder object
    *
    * @deprecated Not for public use. To configure the httpClient for a client, please use {@link
-   *     AwsProperties#applyHttpClientConfigurations(AwsSyncClientBuilder)}. It will be removed in
-   *     2.0.0
+   *     HttpClientProperties#applyHttpClientConfigurations(AwsSyncClientBuilder)}. It will be
+   *     removed in 2.0.0
    */
   @Deprecated
   public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
     if (Strings.isNullOrEmpty(clientType)) {
-      clientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+      clientType = HttpClientProperties.CLIENT_TYPE_DEFAULT;
     }
     switch (clientType) {
-      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+      case HttpClientProperties.CLIENT_TYPE_URLCONNECTION:
         return UrlConnectionHttpClient.builder();
-      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+      case HttpClientProperties.CLIENT_TYPE_APACHE:
         return ApacheHttpClient.builder();
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -169,7 +180,7 @@ public class AwsClientFactories {
    * Configure the endpoint setting for a client
    *
    * @deprecated Not for public use. To configure the endpoint for a client, please use {@link
-   *     AwsProperties#applyS3EndpointConfigurations(S3ClientBuilder)}, {@link
+   *     S3FileIOProperties#applyEndpointConfigurations(S3ClientBuilder)}, {@link
    *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
    *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)} accordingly. It
    *     will be removed in 2.0.0
@@ -200,8 +211,8 @@ public class AwsClientFactories {
    * Build an AwsBasicCredential object
    *
    * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
-   *     AwsProperties#applyS3CredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will
-   *     be removed in 2.0.0.
+   *     S3FileIOProperties#applyCredentialConfigurations(AwsClientProperties, S3ClientBuilder)} in
+   *     AwsProperties. It will be removed in 2.0.0.
    */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(

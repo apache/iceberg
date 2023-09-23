@@ -39,6 +39,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class ViewMetadataParser {
 
+  static final String VIEW_UUID = "view-uuid";
   static final String FORMAT_VERSION = "format-version";
   static final String LOCATION = "location";
   static final String CURRENT_VERSION_ID = "current-version-id";
@@ -62,6 +63,7 @@ public class ViewMetadataParser {
 
     gen.writeStartObject();
 
+    gen.writeStringField(VIEW_UUID, metadata.uuid());
     gen.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     gen.writeStringField(LOCATION, metadata.location());
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), gen);
@@ -88,16 +90,25 @@ public class ViewMetadataParser {
     gen.writeEndObject();
   }
 
+  public static ViewMetadata fromJson(String metadataLocation, String json) {
+    return JsonUtil.parse(json, node -> ViewMetadataParser.fromJson(metadataLocation, node));
+  }
+
   public static ViewMetadata fromJson(String json) {
     Preconditions.checkArgument(json != null, "Cannot parse view metadata from null string");
     return JsonUtil.parse(json, ViewMetadataParser::fromJson);
   }
 
   public static ViewMetadata fromJson(JsonNode json) {
+    return fromJson(null, json);
+  }
+
+  public static ViewMetadata fromJson(String metadataLocation, JsonNode json) {
     Preconditions.checkArgument(json != null, "Cannot parse view metadata from null object");
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse view metadata from non-object: %s", json);
 
+    String uuid = JsonUtil.getString(VIEW_UUID, json);
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, json);
     String location = JsonUtil.getString(LOCATION, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);
@@ -131,6 +142,7 @@ public class ViewMetadataParser {
     }
 
     return ImmutableViewMetadata.of(
+        uuid,
         formatVersion,
         location,
         schemas,
@@ -138,7 +150,8 @@ public class ViewMetadataParser {
         versions,
         historyEntries,
         properties,
-        ImmutableList.of());
+        ImmutableList.of(),
+        metadataLocation);
   }
 
   public static void overwrite(ViewMetadata metadata, OutputFile outputFile) {
@@ -151,7 +164,7 @@ public class ViewMetadataParser {
 
   public static ViewMetadata read(InputFile file) {
     try (InputStream is = file.newStream()) {
-      return fromJson(JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file.location(), JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to read json file: %s", file), e);
     }

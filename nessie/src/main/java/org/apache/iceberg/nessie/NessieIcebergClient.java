@@ -513,6 +513,8 @@ public class NessieIcebergClient implements AutoCloseable {
           "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
     } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
       return String.format("Iceberg schema change against %s", tableName);
+    } else if (base == null) {
+      return String.format("Iceberg table created/registered with name %s", tableName);
     }
     return String.format("Iceberg commit against %s", tableName);
   }

@@ -279,7 +279,7 @@ def test_deleting_s3_file_no_permission() -> None:
     s3fs_mock = MagicMock()
     s3fs_mock.delete_file.side_effect = OSError("AWS Error [code 15]")
 
-    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
         submocked.return_value = s3fs_mock
 
         with pytest.raises(PermissionError) as exc_info:
@@ -294,7 +294,7 @@ def test_deleting_s3_file_not_found() -> None:
     s3fs_mock = MagicMock()
     s3fs_mock.delete_file.side_effect = OSError("Path does not exist")
 
-    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
         submocked.return_value = s3fs_mock
 
         with pytest.raises(FileNotFoundError) as exc_info:
@@ -309,7 +309,7 @@ def test_deleting_hdfs_file_not_found() -> None:
     hdfs_mock = MagicMock()
     hdfs_mock.delete_file.side_effect = OSError("Path does not exist")
 
-    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
         submocked.return_value = hdfs_mock
 
         with pytest.raises(FileNotFoundError) as exc_info:
@@ -1529,17 +1529,16 @@ def test_writing_avro_file_gcs(generated_manifest_entry_file: str, pyarrow_filei
     pyarrow_fileio_gcs.delete(f"gs://warehouse/{filename}")
 
 
-def test_parse_hdfs_location() -> None:
-    locations = ["hdfs://127.0.0.1:9000/root/foo.txt", "hdfs://127.0.0.1/root/foo.txt"]
-    for location in locations:
-        schema, path = PyArrowFileIO.parse_location(location)
-        assert schema == "hdfs"
-        assert location == path
+def test_parse_location() -> None:
+    def check_results(location: str, expected_schema: str, expected_netloc: str, expected_uri: str) -> None:
+        schema, netloc, uri = PyArrowFileIO.parse_location(location)
+        assert schema == expected_schema
+        assert netloc == expected_netloc
+        assert uri == expected_uri
 
+    check_results("hdfs://127.0.0.1:9000/root/foo.txt", "hdfs", "127.0.0.1:9000", "hdfs://127.0.0.1:9000/root/foo.txt")
+    check_results("hdfs://127.0.0.1/root/foo.txt", "hdfs", "127.0.0.1", "hdfs://127.0.0.1/root/foo.txt")
+    check_results("hdfs://clusterA/root/foo.txt", "hdfs", "clusterA", "hdfs://clusterA/root/foo.txt")
 
-def test_parse_local_location() -> None:
-    locations = ["/root/foo.txt", "/root/tmp/foo.txt"]
-    for location in locations:
-        schema, path = PyArrowFileIO.parse_location(location)
-        assert schema == "file"
-        assert location == path
+    check_results("/root/foo.txt", "file", "", "/root/foo.txt")
+    check_results("/root/tmp/foo.txt", "file", "", "/root/tmp/foo.txt")

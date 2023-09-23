@@ -149,6 +149,35 @@ def test_create_table_without_namespace(test_catalog: SqlCatalog, table_schema_n
         test_catalog.create_table(table_name, table_schema_nested)
 
 
+def test_register_table(test_catalog: SqlCatalog, random_identifier: Identifier, metadata_location: str) -> None:
+    database_name, _table_name = random_identifier
+    test_catalog.create_namespace(database_name)
+    table = test_catalog.register_table(random_identifier, metadata_location)
+    assert table.identifier == (test_catalog.name,) + random_identifier
+    assert table.metadata_location == metadata_location
+    assert os.path.exists(metadata_location)
+    test_catalog.drop_table(random_identifier)
+
+
+def test_register_existing_table(test_catalog: SqlCatalog, random_identifier: Identifier, metadata_location: str) -> None:
+    database_name, _table_name = random_identifier
+    test_catalog.create_namespace(database_name)
+    test_catalog.register_table(random_identifier, metadata_location)
+    with pytest.raises(TableAlreadyExistsError):
+        test_catalog.register_table(random_identifier, metadata_location)
+
+
+def test_register_table_with_non_existing_namespace(test_catalog: SqlCatalog, metadata_location: str, table_name: str) -> None:
+    identifier = ("invalid", table_name)
+    with pytest.raises(NoSuchNamespaceError):
+        test_catalog.register_table(identifier, metadata_location)
+
+
+def test_register_table_without_namespace(test_catalog: SqlCatalog, metadata_location: str, table_name: str) -> None:
+    with pytest.raises(ValueError):
+        test_catalog.register_table(table_name, metadata_location)
+
+
 def test_load_table(test_catalog: SqlCatalog, table_schema_nested: Schema, random_identifier: Identifier) -> None:
     database_name, _table_name = random_identifier
     test_catalog.create_namespace(database_name)

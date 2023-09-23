@@ -41,18 +41,36 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
-   * Copies a metrics object without lower and upper bounds for given fields.
+   * Copies a metrics object without value, NULL and NaN counts for given fields.
    *
-   * @param excludedFieldIds field IDs for which the lower and upper bounds must be dropped
-   * @return a new metrics object without lower and upper bounds for given fields
+   * @param excludedFieldIds field IDs for which the counts must be dropped
+   * @return a new metrics object without counts for given fields
    */
-  public static Metrics copyWithoutFieldBounds(Metrics metrics, Set<Integer> excludedFieldIds) {
+  public static Metrics copyWithoutFieldCounts(Metrics metrics, Set<Integer> excludedFieldIds) {
     return new Metrics(
         metrics.recordCount(),
         metrics.columnSizes(),
-        metrics.valueCounts(),
-        metrics.nullValueCounts(),
-        metrics.nanValueCounts(),
+        copyWithoutKeys(metrics.valueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
+        metrics.lowerBounds(),
+        metrics.upperBounds());
+  }
+
+  /**
+   * Copies a metrics object without counts and bounds for given fields.
+   *
+   * @param excludedFieldIds field IDs for which the counts and bounds must be dropped
+   * @return a new metrics object without lower and upper bounds for given fields
+   */
+  public static Metrics copyWithoutFieldCountsAndBounds(
+      Metrics metrics, Set<Integer> excludedFieldIds) {
+    return new Metrics(
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        copyWithoutKeys(metrics.valueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
         copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
   }

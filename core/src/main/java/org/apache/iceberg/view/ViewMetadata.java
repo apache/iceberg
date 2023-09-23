@@ -23,8 +23,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -45,6 +47,8 @@ public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
   int DEFAULT_VIEW_FORMAT_VERSION = 1;
+
+  String uuid();
 
   int formatVersion();
 
@@ -74,6 +78,9 @@ public interface ViewMetadata extends Serializable {
   Map<String, String> properties();
 
   List<MetadataUpdate> changes();
+
+  @Nullable
+  String metadataFileLocation();
 
   default ViewVersion version(int versionId) {
     return versionsById().get(versionId);
@@ -141,6 +148,8 @@ public interface ViewMetadata extends Serializable {
     private int formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
     private int currentVersionId;
     private String location;
+    private String uuid;
+    private String metadataLocation;
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
@@ -157,6 +166,7 @@ public interface ViewMetadata extends Serializable {
       this.history = Lists.newArrayList();
       this.properties = Maps.newHashMap();
       this.changes = Lists.newArrayList();
+      this.uuid = null;
     }
 
     private Builder(ViewMetadata base) {
@@ -170,6 +180,8 @@ public interface ViewMetadata extends Serializable {
       this.formatVersion = base.formatVersion();
       this.currentVersionId = base.currentVersionId();
       this.location = base.location();
+      this.uuid = base.uuid();
+      this.metadataLocation = null;
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
@@ -196,6 +208,11 @@ public interface ViewMetadata extends Serializable {
 
       this.location = newLocation;
       changes.add(new MetadataUpdate.SetLocation(newLocation));
+      return this;
+    }
+
+    public Builder setMetadataLocation(String newMetadataLocation) {
+      this.metadataLocation = newMetadataLocation;
       return this;
     }
 
@@ -353,9 +370,28 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
+    public ViewMetadata.Builder assignUUID(String newUUID) {
+      Preconditions.checkArgument(newUUID != null, "Cannot set uuid to null");
+      Preconditions.checkArgument(uuid == null || newUUID.equals(uuid), "Cannot reassign uuid");
+
+      if (!newUUID.equals(uuid)) {
+        this.uuid = newUUID;
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+
+      // when associated with a metadata file, metadata must have no changes so that the metadata
+      // matches exactly what is in the metadata file, which does not store changes. metadata
+      // location with changes is inconsistent.
+      Preconditions.checkArgument(
+          metadataLocation == null || changes.isEmpty(),
+          "Cannot create view metadata with a metadata location and changes");
 
       int historySize =
           PropertyUtil.propertyAsInt(
@@ -386,6 +422,7 @@ public interface ViewMetadata extends Serializable {
       }
 
       return ImmutableViewMetadata.of(
+          null == uuid ? UUID.randomUUID().toString() : uuid,
           formatVersion,
           location,
           schemas,
@@ -393,7 +430,8 @@ public interface ViewMetadata extends Serializable {
           retainedVersions,
           retainedHistory,
           properties,
-          changes);
+          changes,
+          metadataLocation);
     }
 
     static List<ViewVersion> expireVersions(
