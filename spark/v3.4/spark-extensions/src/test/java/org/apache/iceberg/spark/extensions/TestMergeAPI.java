@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -85,8 +86,19 @@ public abstract class TestMergeAPI extends SparkRowLevelOperationsTestBase {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
-      String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+      boolean fanoutEnabled,
+      String branch,
+      PlanningMode planningMode) {
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        fanoutEnabled,
+        branch,
+        planningMode);
   }
 
   @BeforeClass
