@@ -27,11 +27,11 @@ import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
-import org.assertj.core.api.Assertions;
 
 public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
@@ -196,9 +196,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).year("ts").build();
 
-    Assertions.assertThat(table.spec())
-        .as("Should have new spec field")
-        .isEqualTo(expected);
+    Assertions.assertThat(table.spec()).as("Should have new spec field").isEqualTo(expected);
   }
 
   @Test
@@ -217,9 +215,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).month("ts").build();
 
-    Assertions.assertThat(table.spec())
-        .as("Should have new spec field")
-        .isEqualTo(expected);
+    Assertions.assertThat(table.spec()).as("Should have new spec field").isEqualTo(expected);
   }
 
   @Test
@@ -238,9 +234,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).day("ts").build();
 
-    Assertions.assertThat(table.spec())
-        .as("Should have new spec field")
-        .isEqualTo(expected);
+    Assertions.assertThat(table.spec()).as("Should have new spec field").isEqualTo(expected);
   }
 
   @Test
@@ -259,9 +253,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     PartitionSpec expected =
         PartitionSpec.builderFor(table.schema()).withSpecId(1).hour("ts").build();
 
-    Assertions.assertThat(table.spec())
-        .as("Should have new spec field")
-        .isEqualTo(expected);
+    Assertions.assertThat(table.spec()).as("Should have new spec field").isEqualTo(expected);
   }
 
   @Test
