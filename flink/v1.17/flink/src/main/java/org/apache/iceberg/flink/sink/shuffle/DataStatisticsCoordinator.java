@@ -144,7 +144,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
           } catch (Throwable t) {
             ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
             LOG.error(
-                "Uncaught exception in the data statistics coordinator: {} while {}. Triggering job failover.",
+                "Uncaught exception in the data statistics coordinator: {} while {}. Triggering job failover",
                 operatorName,
                 actionString,
                 t);
@@ -163,7 +163,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
   private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
     AggregatedStatistics<D, S> aggregatedStatistics =
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(subtask, event);
+        aggregatedStatisticsTracker.updateAndCheckCompletion(subtask, event);
 
     if (aggregatedStatistics != null) {
       completedStatistics = aggregatedStatistics;
@@ -235,14 +235,14 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
     if (checkpointData == null) {
       LOG.info(
-          "Data statistic coordinator {} checkpoint {} data is null. Cannot be restored.",
+          "Data statistic coordinator {} has nothing to restore from checkpoint {}",
           operatorName,
           checkpointId);
       return;
     }
 
     LOG.info(
-        "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
+        "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
     completedStatistics =
         DataStatisticsUtil.deserializeAggregatedStatistics(checkpointData, statisticsSerializer);
   }
@@ -252,10 +252,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     runInCoordinatorThread(
         () -> {
           LOG.info(
-              "Resetting subtask {} to checkpoint {} for data statistics {}.",
+              "Operator {} subtask {} is reset to checkpoint {}",
+              operatorName,
               subtask,
-              checkpointId,
-              operatorName);
+              checkpointId);
           Preconditions.checkState(
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.reset(subtask);
@@ -268,7 +268,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     runInCoordinatorThread(
         () -> {
           LOG.info(
-              "Unregistering gateway after failure for subtask {} (#{}) of data statistic {}.",
+              "Unregistering gateway after failure for subtask {} (#{}) of data statistic {}",
               subtask,
               attemptNumber,
               operatorName);
@@ -316,7 +316,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways[subtaskIndex].containsKey(attemptNumber),
-          "Coordinator of %s already has a subtask gateway for %d (#%d).",
+          "Coordinator of %s already has a subtask gateway for %d (#%d)",
           operatorName,
           subtaskIndex,
           attemptNumber);
@@ -340,7 +340,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     private OperatorCoordinator.SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
           gateways[subtaskIndex].size() > 0,
-          "Coordinator of %s subtask %d is not ready yet to receive events.",
+          "Coordinator of %s subtask %d is not ready yet to receive events",
           operatorName,
           subtaskIndex);
       return Iterables.getOnlyElement(gateways[subtaskIndex].values());

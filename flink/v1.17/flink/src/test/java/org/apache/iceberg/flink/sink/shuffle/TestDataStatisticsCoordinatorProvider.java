@@ -102,7 +102,7 @@ public class TestDataStatisticsCoordinatorProvider {
         (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
     assertThat(checkpoint1GlobalDataStatistics.statistics())
         .isEqualTo(checkpoint1Subtask0DataStatistic.statistics());
-    byte[] bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
+    byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
     checkpoint2Subtask0DataStatistic.add(binaryRowDataD);
@@ -122,7 +122,7 @@ public class TestDataStatisticsCoordinatorProvider {
     waitForCheckpoint(2L, dataStatisticsCoordinator);
 
     // Reset coordinator to checkpoint 1
-    coordinator.resetToCheckpoint(1L, bytes);
+    coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
     DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>
         restoredDataStatisticsCoordinator =
             (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)

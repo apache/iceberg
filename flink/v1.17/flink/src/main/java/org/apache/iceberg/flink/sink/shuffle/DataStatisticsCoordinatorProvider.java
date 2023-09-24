@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
@@ -27,6 +28,7 @@ import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCo
  * DataStatisticsCoordinatorProvider provides the method to create new {@link
  * DataStatisticsCoordinator}
  */
+@Internal
 public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S>
     extends RecreateOnResetOperatorCoordinator.Provider {
 

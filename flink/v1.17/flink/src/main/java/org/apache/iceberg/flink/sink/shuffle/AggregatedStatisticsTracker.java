@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Set;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -31,10 +30,9 @@ import org.slf4j.LoggerFactory;
  * {@link AggregatedStatistics} received from {@link DataStatisticsOperator} subtasks for specific
  * checkpoint.
  */
-@Internal
 class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
   private static final Logger LOG = LoggerFactory.getLogger(AggregatedStatisticsTracker.class);
-  private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 90;
+  private static final double ACCEPT_PARTIAL_AGGR_THRESHOLD = 90;
   private final String operatorName;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final int parallelism;
@@ -51,7 +49,7 @@ class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
     this.inProgressSubtaskSet = Sets.newHashSet();
   }
 
-  AggregatedStatistics<D, S> receiveDataStatisticEventAndCheckCompletion(
+  AggregatedStatistics<D, S> updateAndCheckCompletion(
       int subtask, DataStatisticsEvent<D, S> event) {
     long checkpointId = event.checkpointId();
 
@@ -67,7 +65,7 @@ class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
     AggregatedStatistics<D, S> completedStatistics = null;
     if (inProgressStatistics != null && inProgressStatistics.checkpointId() < checkpointId) {
       if ((double) inProgressSubtaskSet.size() / parallelism * 100
-          >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
+          >= ACCEPT_PARTIAL_AGGR_THRESHOLD) {
         completedStatistics = inProgressStatistics;
         LOG.info(
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
@@ -77,7 +75,7 @@ class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
             operatorName,
             checkpointId,
             inProgressStatistics.checkpointId(),
-            EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE);
+            ACCEPT_PARTIAL_AGGR_THRESHOLD);
       } else {
         LOG.info(
             "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "

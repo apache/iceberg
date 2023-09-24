@@ -61,7 +61,7 @@ public class TestAggregatedStatisticsTracker {
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 0, checkpoint1Subtask0DataStatisticEvent))
         .isNull();
     assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(1);
@@ -72,7 +72,7 @@ public class TestAggregatedStatisticsTracker {
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 0, checkpoint2Subtask0DataStatisticEvent))
         .isNull();
     // Checkpoint 2 is newer than checkpoint1, thus dropping in progress statistics for checkpoint1
@@ -89,7 +89,7 @@ public class TestAggregatedStatisticsTracker {
         checkpoint3Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 0, checkpoint3Subtask0DataStatisticEvent))
         .isNull();
 
@@ -101,7 +101,7 @@ public class TestAggregatedStatisticsTracker {
     // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker won't return
     // completed statistics and in progress statistics won't be updated
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 1, checkpoint1Subtask1DataStatisticEvent))
         .isNull();
     assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(2);
@@ -117,7 +117,7 @@ public class TestAggregatedStatisticsTracker {
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 0, checkpoint1Subtask0DataStatisticEvent))
         .isNull();
 
@@ -130,7 +130,7 @@ public class TestAggregatedStatisticsTracker {
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 1
     AggregatedStatistics<MapDataStatistics, Map<RowData, Long>> completedStatistics =
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+        aggregatedStatisticsTracker.updateAndCheckCompletion(
             1, checkpoint1Subtask1DataStatisticEvent);
 
     assertThat(completedStatistics).isNotNull();
@@ -154,7 +154,7 @@ public class TestAggregatedStatisticsTracker {
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
-            aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+            aggregatedStatisticsTracker.updateAndCheckCompletion(
                 0, checkpoint2Subtask0DataStatisticEvent))
         .isNull();
     assertThat(completedStatistics.checkpointId()).isEqualTo(1);
@@ -166,7 +166,7 @@ public class TestAggregatedStatisticsTracker {
             DataStatisticsEvent.create(2, checkpoint2Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 2
     completedStatistics =
-        aggregatedStatisticsTracker.receiveDataStatisticEventAndCheckCompletion(
+        aggregatedStatisticsTracker.updateAndCheckCompletion(
             1, checkpoint2Subtask1DataStatisticEvent);
 
     assertThat(completedStatistics).isNotNull();

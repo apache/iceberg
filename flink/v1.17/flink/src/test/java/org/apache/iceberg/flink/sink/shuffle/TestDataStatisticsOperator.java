@@ -64,6 +64,8 @@ import org.junit.Test;
 public class TestDataStatisticsOperator {
   private final RowType rowType = RowType.of(new VarCharType());
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
+  private final GenericRowData genericRowDataA = GenericRowData.of(StringData.fromString("a"));
+  private final GenericRowData genericRowDataB = GenericRowData.of(StringData.fromString("b"));
   // When operator hands events from coordinator, DataStatisticsUtil#deserializeDataStatistics
   // deserializes bytes into BinaryRowData
   private final BinaryRowData binaryRowDataA =
@@ -125,16 +127,16 @@ public class TestDataStatisticsOperator {
         testHarness = createHarness(this.operator)) {
       StateInitializationContext stateContext = getStateContext();
       operator.initializeState(stateContext);
-      operator.processElement(new StreamRecord<>(binaryRowDataA));
-      operator.processElement(new StreamRecord<>(binaryRowDataA));
-      operator.processElement(new StreamRecord<>(binaryRowDataB));
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataB));
       assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
       MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
       Map<RowData, Long> statsMap = mapDataStatistics.statistics();
       assertThat(statsMap).hasSize(2);
       assertThat(statsMap)
           .containsExactlyInAnyOrderEntriesOf(
-              ImmutableMap.of(binaryRowDataA, 2L, binaryRowDataB, 1L));
+              ImmutableMap.of(genericRowDataA, 2L, genericRowDataB, 1L));
       testHarness.endInput();
     }
   }
@@ -144,9 +146,9 @@ public class TestDataStatisticsOperator {
     try (OneInputStreamOperatorTestHarness<
             RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
         testHarness = createHarness(this.operator)) {
-      testHarness.processElement(new StreamRecord<>(binaryRowDataA));
-      testHarness.processElement(new StreamRecord<>(binaryRowDataB));
-      testHarness.processElement(new StreamRecord<>(binaryRowDataB));
+      testHarness.processElement(new StreamRecord<>(genericRowDataA));
+      testHarness.processElement(new StreamRecord<>(genericRowDataB));
+      testHarness.processElement(new StreamRecord<>(genericRowDataB));
 
       List<RowData> recordsOutput =
           testHarness.extractOutputValues().stream()
@@ -155,7 +157,7 @@ public class TestDataStatisticsOperator {
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(
-              ImmutableList.of(binaryRowDataA, binaryRowDataB, binaryRowDataB));
+              ImmutableList.of(genericRowDataA, genericRowDataB, genericRowDataB));
     }
   }
 
