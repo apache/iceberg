@@ -212,6 +212,19 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .create())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot create view without specifying a default namespace");
+
+    // cannot define multiple SQLs for same dialect
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(identifier)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .create())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add multiple SQLs for dialect: trino");
   }
 
   @Test
@@ -815,6 +828,19 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .replace())
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageStartingWith("View does not exist: ns.non_existing");
+
+    // cannot define multiple SQLs for same dialect
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(identifier)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .replace())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add multiple SQLs for dialect: trino");
   }
 
   @Test
@@ -1093,5 +1119,18 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .commit())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot replace view without specifying a default namespace");
+
+    // cannot define multiple SQLs for same dialect
+    assertThatThrownBy(
+            () ->
+                view.replaceVersion()
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withQuery(trino.dialect(), trino.sql())
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add multiple SQLs for dialect: trino");
   }
 }
