@@ -434,7 +434,7 @@ public class Spark3Util {
           builder.day(colName);
           break;
         case "date_hour":
-        case "hour"
+        case "hour":
         case "hours":
           builder.hour(colName);
           break;
