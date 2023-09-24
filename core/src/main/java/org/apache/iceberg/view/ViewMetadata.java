@@ -272,6 +272,11 @@ public interface ViewMetadata extends Serializable {
           "Cannot add version with unknown schema: %s",
           version.schemaId());
 
+      for (Map.Entry<String, Long> entry : sqlDialectFrequency(version).entrySet()) {
+        Preconditions.checkArgument(
+            entry.getValue() == 1L, "Cannot add multiple SQLs for dialect: %s", entry.getKey());
+      }
+
       ViewVersion newVersion;
       if (newVersionId != version.versionId()) {
         newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
@@ -291,6 +296,19 @@ public interface ViewMetadata extends Serializable {
       this.lastAddedVersionId = newVersionId;
 
       return newVersionId;
+    }
+
+    /**
+     * @param version The view version to analyze
+     * @return A map of SQL dialect to its frequency in the list of representations for the given
+     *     view version
+     */
+    private Map<String, Long> sqlDialectFrequency(ViewVersion version) {
+      return version.representations().stream()
+          .filter(v -> v instanceof SQLViewRepresentation)
+          .map(v -> (SQLViewRepresentation) v)
+          .map(SQLViewRepresentation::dialect)
+          .collect(Collectors.groupingBy(d -> d, Collectors.counting()));
     }
 
     private int reuseOrCreateNewViewVersionId(ViewVersion viewVersion) {
