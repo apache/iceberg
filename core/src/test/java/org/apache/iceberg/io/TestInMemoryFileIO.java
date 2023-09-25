@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.inmemory;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.InMemoryFileIO;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

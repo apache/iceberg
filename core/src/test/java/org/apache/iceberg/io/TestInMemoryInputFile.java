@@ -16,25 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.inmemory;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestInMemoryOutputFile {
+public class TestInMemoryInputFile {
   @Test
-  public void testWriteAfterClose() throws IOException {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
-    OutputStream outputStream = outputFile.create();
-    outputStream.write('a');
-    outputStream.write('b');
-    outputStream.close();
-    Assertions.assertThatThrownBy(() -> outputStream.write('c')).hasMessage("Stream is closed");
-    Assertions.assertThat(outputFile.toByteArray())
-        .isEqualTo("ab".getBytes(StandardCharsets.ISO_8859_1));
+  public void testReadAfterClose() throws IOException {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile("abc".getBytes(StandardCharsets.ISO_8859_1));
+    InputStream inputStream = inputFile.newStream();
+    Assertions.assertThat(inputStream.read()).isEqualTo('a');
+    inputStream.close();
+    Assertions.assertThatThrownBy(inputStream::read).hasMessage("Stream is closed");
   }
 }
