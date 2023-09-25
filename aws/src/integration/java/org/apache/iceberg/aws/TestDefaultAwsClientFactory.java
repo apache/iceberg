@@ -55,7 +55,7 @@ public class TestDefaultAwsClientFactory {
     AssertHelpers.assertThrowsCause(
         "Should refuse connection to unknown endpoint",
         SdkClientException.class,
-        "Unable to execute HTTP request: unknown",
+        "Unable to execute HTTP request: bucket.unknown",
         () -> s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()));
   }
 
