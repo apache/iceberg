@@ -80,4 +80,7 @@ public class SparkWriteOptions {
   public static final String COMPRESSION_CODEC = "compression-codec";
   public static final String COMPRESSION_LEVEL = "compression-level";
   public static final String COMPRESSION_STRATEGY = "compression-strategy";
+
+  // Overrides the advisory partition size
+  public static final String ADVISORY_PARTITION_SIZE = "advisory-partition-size";
 }

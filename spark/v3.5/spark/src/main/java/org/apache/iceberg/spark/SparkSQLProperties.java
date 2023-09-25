@@ -64,4 +64,7 @@ public class SparkSQLProperties {
 
   // Overrides the delete planning mode
   public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
+
+  // Overrides the advisory partition size
+  public static final String ADVISORY_PARTITION_SIZE = "spark.sql.iceberg.advisory-partition-size";
 }
