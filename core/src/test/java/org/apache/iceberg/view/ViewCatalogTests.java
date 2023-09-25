@@ -30,6 +30,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -780,7 +781,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .withQuery(trino.dialect(), trino.sql())
         .create();
 
-    assertThat(catalog().viewExists(identifier)).as("View should not exist").isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     // query is required
     assertThatThrownBy(() -> catalog().buildView(identifier).replace())
@@ -1067,7 +1068,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withQuery(trino.dialect(), trino.sql())
             .create();
 
-    assertThat(catalog().viewExists(identifier)).as("View should not exist").isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
     // empty commits are not allowed
     assertThatThrownBy(() -> view.replaceVersion().commit())
@@ -1093,5 +1094,138 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .commit())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot replace view without specifying a default namespace");
+  }
+
+  @Test
+  public void updateViewPropertiesConflict() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    UpdateViewProperties updateViewProperties = view.updateProperties();
+
+    // drop view and then try to use the updateProperties API
+    catalog().dropView(identifier);
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    assertThatThrownBy(() -> updateViewProperties.set("key1", "val1").commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Cannot commit");
+  }
+
+  @Test
+  public void replaceViewVersionConflict() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    ReplaceViewVersion replaceViewVersion = view.replaceVersion();
+
+    // drop view and then try to use the replaceVersion API
+    catalog().dropView(identifier);
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    assertThatThrownBy(
+            () ->
+                replaceViewVersion
+                    .withQuery("trino", "select * from ns.tbl")
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Cannot commit");
+  }
+
+  @Test
+  public void createViewConflict() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+    ViewBuilder viewBuilder = catalog().buildView(identifier);
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("trino", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    // the view was already created concurrently
+    assertThatThrownBy(
+            () ->
+                viewBuilder
+                    .withQuery("trino", "select * from ns.tbl")
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .create())
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("View already exists: ns.view");
+  }
+
+  @Test
+  public void replaceViewConflict() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("trino", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    ViewBuilder viewBuilder = catalog().buildView(identifier);
+
+    catalog().dropView(identifier);
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    // the view was already dropped concurrently
+    assertThatThrownBy(
+            () ->
+                viewBuilder
+                    .withQuery("trino", "select * from ns.tbl")
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .replace())
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageStartingWith("View does not exist: ns.view");
   }
 }
