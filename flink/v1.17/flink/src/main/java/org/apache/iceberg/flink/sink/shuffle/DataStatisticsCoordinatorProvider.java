@@ -20,38 +20,32 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
+import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
 
 /**
- * DataStatisticsEvent is sent between data statistics coordinator and operator to transmit data
- * statistics in bytes
+ * DataStatisticsCoordinatorProvider provides the method to create new {@link
+ * DataStatisticsCoordinator}
  */
 @Internal
-class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
+public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S>
+    extends RecreateOnResetOperatorCoordinator.Provider {
 
-  private static final long serialVersionUID = 1L;
-  private final long checkpointId;
-  private final byte[] statisticsBytes;
+  private final String operatorName;
+  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
 
-  private DataStatisticsEvent(long checkpointId, byte[] statisticsBytes) {
-    this.checkpointId = checkpointId;
-    this.statisticsBytes = statisticsBytes;
-  }
-
-  static <D extends DataStatistics<D, S>, S> DataStatisticsEvent<D, S> create(
-      long checkpointId,
-      DataStatistics<D, S> dataStatistics,
+  public DataStatisticsCoordinatorProvider(
+      String operatorName,
+      OperatorID operatorID,
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    return new DataStatisticsEvent<>(
-        checkpointId,
-        DataStatisticsUtil.serializeDataStatistics(dataStatistics, statisticsSerializer));
+    super(operatorID);
+    this.operatorName = operatorName;
+    this.statisticsSerializer = statisticsSerializer;
   }
 
-  long checkpointId() {
-    return checkpointId;
-  }
-
-  byte[] statisticsBytes() {
-    return statisticsBytes;
+  @Override
+  public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
+    return new DataStatisticsCoordinator<>(operatorName, context, statisticsSerializer);
   }
 }
