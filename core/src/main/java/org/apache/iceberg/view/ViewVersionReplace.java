@@ -40,9 +40,9 @@ class ViewVersionReplace implements ReplaceViewVersion {
   private final ViewOperations ops;
   private final List<ViewRepresentation> representations = Lists.newArrayList();
   private ViewMetadata base;
-  private Namespace defaultNamespace;
-  private String defaultCatalog;
-  private Schema schema;
+  private Namespace defaultNamespace = null;
+  private String defaultCatalog = null;
+  private Schema schema = null;
 
   ViewVersionReplace(ViewOperations ops) {
     this.ops = ops;
@@ -60,6 +60,8 @@ class ViewVersionReplace implements ReplaceViewVersion {
     Preconditions.checkState(
         !representations.isEmpty(), "Cannot replace view without specifying a query");
     Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+    Preconditions.checkState(
+        null != defaultNamespace, "Cannot replace view without specifying a default namespace");
 
     ViewVersion viewVersion = metadata.currentVersion();
     int maxVersionId =

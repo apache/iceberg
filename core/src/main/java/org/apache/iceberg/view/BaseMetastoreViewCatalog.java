@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.view;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.Schema;
@@ -28,6 +29,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog implements ViewCatalog {
@@ -66,7 +68,9 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private final TableIdentifier identifier;
     private final ImmutableViewVersion.Builder viewVersionBuilder = ImmutableViewVersion.builder();
     private final Map<String, String> properties = Maps.newHashMap();
-    private Schema schema;
+    private final List<ViewRepresentation> representations = Lists.newArrayList();
+    private Namespace defaultNamespace = null;
+    private Schema schema = null;
 
     protected BaseViewBuilder(TableIdentifier identifier) {
       Preconditions.checkArgument(
@@ -83,7 +87,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
 
     @Override
     public ViewBuilder withQuery(String dialect, String sql) {
-      viewVersionBuilder.addRepresentations(
+      representations.add(
           ImmutableSQLViewRepresentation.builder().dialect(dialect).sql(sql).build());
       return this;
     }
@@ -96,7 +100,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
 
     @Override
     public ViewBuilder withDefaultNamespace(Namespace namespace) {
-      viewVersionBuilder.defaultNamespace(namespace);
+      this.defaultNamespace = namespace;
       return this;
     }
 
@@ -137,9 +141,17 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
         throw new AlreadyExistsException("View already exists: %s", identifier);
       }
 
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot create view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot create view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot create view without specifying a default namespace");
+
       ViewVersion viewVersion =
           viewVersionBuilder
               .versionId(1)
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
               .timestampMillis(System.currentTimeMillis())
               .putSummary("operation", "create")
               .build();
@@ -165,6 +177,12 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
         throw new NoSuchViewException("View does not exist: %s", identifier);
       }
 
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot replace view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot replace view without specifying a default namespace");
+
       ViewMetadata metadata = ops.current();
       int maxVersionId =
           metadata.versions().stream()
@@ -175,6 +193,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       ViewVersion viewVersion =
           viewVersionBuilder
               .versionId(maxVersionId + 1)
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
               .timestampMillis(System.currentTimeMillis())
               .putSummary("operation", "replace")
               .build();

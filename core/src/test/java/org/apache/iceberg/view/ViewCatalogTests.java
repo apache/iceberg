@@ -39,14 +39,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespaces> {
+  // the schema ID of SCHEMA / OTHER_SCHEMA are by default set to 0. The schema id of SCHEMA will
+  // stay 0, but the schema id of OTHER_SCHEMA will be re-assigned to 1
+  private static final int EXPECTED_SCHEMA_ID = 0;
+  private static final int EXPECTED_OTHER_SCHEMA_ID = 1;
+
   protected static final Schema SCHEMA =
       new Schema(
-          1,
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
 
   private static final Schema OTHER_SCHEMA =
-      new Schema(2, required(1, "some_id", Types.IntegerType.get()));
+      new Schema(required(1, "some_id", Types.IntegerType.get()));
 
   protected abstract C catalog();
 
@@ -84,8 +88,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .first()
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(1);
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
+    assertThat(view.schema().schemaId()).isEqualTo(EXPECTED_SCHEMA_ID);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(view.schemas()).hasSize(1).containsKey(EXPECTED_SCHEMA_ID);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
     assertThat(view.currentVersion())
@@ -93,7 +98,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             ImmutableViewVersion.builder()
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
-                .schemaId(SCHEMA.schemaId())
+                .schemaId(EXPECTED_SCHEMA_ID)
                 .putSummary("operation", "create")
                 .defaultNamespace(identifier.namespace())
                 .addRepresentations(
@@ -139,9 +144,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .first()
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(1);
-    assertThat(view.schema().schemaId()).isEqualTo(SCHEMA.schemaId());
+    assertThat(view.schema().schemaId()).isEqualTo(EXPECTED_SCHEMA_ID);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
+    assertThat(view.schemas()).hasSize(1).containsKey(EXPECTED_SCHEMA_ID);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
     assertThat(view.currentVersion())
@@ -149,7 +154,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             ImmutableViewVersion.builder()
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
-                .schemaId(SCHEMA.schemaId())
+                .schemaId(EXPECTED_SCHEMA_ID)
                 .putSummary("operation", "create")
                 .defaultNamespace(identifier.namespace())
                 .addRepresentations(
@@ -166,6 +171,45 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void createViewErrorCases() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    SQLViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select * from ns.tbl")
+            .dialect("trino")
+            .build();
+
+    // query is required
+    assertThatThrownBy(() -> catalog().buildView(identifier).create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot create view without specifying a query");
+
+    // schema is required
+    assertThatThrownBy(
+            () -> catalog().buildView(identifier).withQuery(trino.dialect(), trino.sql()).create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot create view without specifying schema");
+
+    // default namespace is required
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(identifier)
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withSchema(SCHEMA)
+                    .create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot create view without specifying a default namespace");
   }
 
   @Test
@@ -554,28 +598,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
 
-    // validate view settings
-    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
-    assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(1);
-    assertThat(view.schema().schemaId()).isEqualTo(SCHEMA.schemaId());
-    assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(SCHEMA.schemaId());
-    assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
-
     ViewVersion viewVersion = view.currentVersion();
-    assertThat(viewVersion).isNotNull();
-    assertThat(viewVersion.versionId()).isEqualTo(1);
-    assertThat(viewVersion.schemaId()).isEqualTo(SCHEMA.schemaId());
-    assertThat(viewVersion.summary()).hasSize(1).containsEntry("operation", "create");
-    assertThat(viewVersion.operation()).isEqualTo("create");
-    assertThat(viewVersion.defaultNamespace()).isEqualTo(identifier.namespace());
     assertThat(viewVersion.representations())
-        .hasSize(1)
         .containsExactly(
             ImmutableSQLViewRepresentation.builder()
                 .sql("select * from ns.tbl")
@@ -609,12 +633,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(2);
 
-    assertThat(replacedView.schema().schemaId()).isEqualTo(OTHER_SCHEMA.schemaId());
+    assertThat(replacedView.schema().schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
     assertThat(replacedView.schema().asStruct()).isEqualTo(OTHER_SCHEMA.asStruct());
     assertThat(replacedView.schemas())
         .hasSize(2)
-        .containsKey(SCHEMA.schemaId())
-        .containsKey(OTHER_SCHEMA.schemaId());
+        .containsKey(EXPECTED_SCHEMA_ID)
+        .containsKey(EXPECTED_OTHER_SCHEMA_ID);
 
     ViewVersion replacedViewVersion = replacedView.currentVersion();
     assertThat(replacedView.versions())
@@ -622,11 +646,10 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .containsExactly(viewVersion, replacedViewVersion);
     assertThat(replacedViewVersion).isNotNull();
     assertThat(replacedViewVersion.versionId()).isEqualTo(2);
-    assertThat(replacedViewVersion.schemaId()).isEqualTo(OTHER_SCHEMA.schemaId());
+    assertThat(replacedViewVersion.schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
     assertThat(replacedViewVersion.operation()).isEqualTo("replace");
     assertThat(replacedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(replacedViewVersion.representations())
-        .hasSize(1)
         .containsExactly(
             ImmutableSQLViewRepresentation.builder()
                 .sql("select count(*) from ns.tbl")
@@ -635,6 +658,66 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void replaceViewErrorCases() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    SQLViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select * from ns.tbl")
+            .dialect("trino")
+            .build();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery(trino.dialect(), trino.sql())
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isTrue();
+
+    // query is required
+    assertThatThrownBy(() -> catalog().buildView(identifier).replace())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot replace view without specifying a query");
+
+    // schema is required
+    assertThatThrownBy(
+            () -> catalog().buildView(identifier).withQuery(trino.dialect(), trino.sql()).replace())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot replace view without specifying schema");
+
+    // default namespace is required
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(identifier)
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withSchema(SCHEMA)
+                    .replace())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot replace view without specifying a default namespace");
+
+    // cannot replace non-existing view
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(TableIdentifier.of("ns", "non_existing"))
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .replace())
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageStartingWith("View does not exist: ns.non_existing");
   }
 
   @Test
@@ -777,8 +860,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isEqualTo(updatedView.currentVersion().versionId());
     assertThat(updatedView.schemas())
         .hasSize(2)
-        .containsKey(SCHEMA.schemaId())
-        .containsKey(OTHER_SCHEMA.schemaId());
+        .containsKey(EXPECTED_SCHEMA_ID)
+        .containsKey(EXPECTED_OTHER_SCHEMA_ID);
     assertThat(updatedView.versions())
         .hasSize(2)
         .containsExactly(viewVersion, updatedView.currentVersion());
@@ -789,7 +872,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(updatedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(updatedViewVersion.operation()).isEqualTo("replace");
     assertThat(updatedViewVersion.representations()).hasSize(1).containsExactly(trino);
-    assertThat(updatedViewVersion.schemaId()).isEqualTo(OTHER_SCHEMA.schemaId());
+    assertThat(updatedViewVersion.schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
     assertThat(updatedViewVersion.defaultCatalog()).isEqualTo("default");
     assertThat(updatedViewVersion.defaultNamespace()).isEqualTo(identifier.namespace());
 
@@ -798,7 +881,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
-  public void replaceViewVersionByUpdatingSqlForDialect() {
+  public void replaceViewVersionByUpdatingSQLForDialect() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
@@ -903,5 +986,15 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .commit())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot replace view without specifying schema");
+
+    // default namespace is required
+    assertThatThrownBy(
+            () ->
+                view.replaceVersion()
+                    .withQuery(trino.dialect(), trino.sql())
+                    .withSchema(SCHEMA)
+                    .commit())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot replace view without specifying a default namespace");
   }
 }
