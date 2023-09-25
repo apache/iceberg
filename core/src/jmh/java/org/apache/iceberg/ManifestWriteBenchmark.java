@@ -22,20 +22,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-import org.apache.iceberg.io.CloseableIterator;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -48,27 +42,51 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 
+/**
+ * A benchmark that evaluates the performance of writing manifest files
+ *
+ * <p>To run this benchmark: <code>
+ *   ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestWriteBenchmark
+ * </code>
+ */
 @Fork(1)
 @State(Scope.Benchmark)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
-public class ManifestReadBenchmark {
+public class ManifestWriteBenchmark {
 
   private static final int NUM_FILES = 10;
   private static final int NUM_ROWS = 100000;
-  private static final int NUM_COLS = 10;
+  private static final int NUM_COLS = 100;
 
   private String baseDir;
   private String manifestListFile;
 
+  private Metrics metrics;
+
   @Setup
   public void before() {
-    baseDir =
-        Paths.get(new File(System.getProperty("java.io.tmpdir")).getAbsolutePath()).toString();
-    manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
-
     Random random = new Random(System.currentTimeMillis());
+    // Pre-create the metrics to avoid doing this in the benchmark itself
+    metrics = randomMetrics(random);
+  }
+
+  @TearDown
+  public void after() {
+    if (baseDir != null) {
+      FileUtils.deleteQuietly(new File(baseDir));
+      baseDir = null;
+    }
+
+    manifestListFile = null;
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void writeManifestFile() throws IOException {
+    baseDir = Files.createTempDir().getAbsolutePath();
+    manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
     try (ManifestListWriter listWriter =
         ManifestLists.write(1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0)) {
@@ -87,7 +105,7 @@ public class ManifestReadBenchmark {
                     .withPath(String.format("/path/to/data-%s-%s.parquet", i, j))
                     .withFileSizeInBytes(j)
                     .withRecordCount(j)
-                    .withMetrics(randomMetrics(random))
+                    .withMetrics(metrics)
                     .build();
             finalWriter.add(dataFile);
           }
@@ -99,37 +117,6 @@ public class ManifestReadBenchmark {
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
-    }
-  }
-
-  @TearDown
-  public void after() throws IOException {
-    if (baseDir != null) {
-      try (Stream<Path> walk = Files.walk(Paths.get(baseDir))) {
-        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-      }
-      baseDir = null;
-    }
-
-    manifestListFile = null;
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void readManifestFile() throws IOException {
-    List<ManifestFile> manifests =
-        ManifestLists.read(org.apache.iceberg.Files.localInput(manifestListFile));
-    TestTables.LocalFileIO fileIO = new TestTables.LocalFileIO();
-    Map<Integer, PartitionSpec> specs =
-        ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
-    long recordCount = 0L;
-    for (ManifestFile manifestFile : manifests) {
-      ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, fileIO, specs);
-      try (CloseableIterator<DataFile> it = reader.iterator()) {
-        while (it.hasNext()) {
-          recordCount += it.next().recordCount();
-        }
-      }
     }
   }
 
