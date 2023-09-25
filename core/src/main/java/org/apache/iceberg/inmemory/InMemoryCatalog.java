@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.StampedLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
@@ -65,6 +68,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private final ConcurrentMap<Namespace, Map<String, String>> namespaces;
   private final ConcurrentMap<TableIdentifier, String> tables;
   private final ConcurrentMap<TableIdentifier, String> views;
+  private final StampedLock lock = new StampedLock();
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
@@ -118,15 +122,18 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       lastMetadata = null;
     }
 
-    if (null == tables.remove(tableIdentifier)) {
-      return false;
-    }
+    return withWriteLock(
+        () -> {
+          if (null == tables.remove(tableIdentifier)) {
+            return false;
+          }
 
-    if (purge && lastMetadata != null) {
-      CatalogUtil.dropTableData(ops.io(), lastMetadata);
-    }
+          if (purge && lastMetadata != null) {
+            CatalogUtil.dropTableData(ops.io(), lastMetadata);
+          }
 
-    return true;
+          return true;
+        });
   }
 
   @Override
@@ -143,27 +150,32 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public synchronized void renameTable(TableIdentifier from, TableIdentifier to) {
+  public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
       return;
     }
 
-    if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
-    }
+    withWriteLock(
+        () -> {
+          if (!namespaceExists(to.namespace())) {
+            throw new NoSuchNamespaceException(
+                "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+          }
 
-    String fromLocation = tables.get(from);
-    if (null == fromLocation) {
-      throw new NoSuchTableException("Cannot rename %s to %s. Table does not exist", from, to);
-    }
+          String fromLocation = tables.get(from);
+          if (null == fromLocation) {
+            throw new NoSuchTableException(
+                "Cannot rename %s to %s. Table does not exist", from, to);
+          }
 
-    if (tables.containsKey(to)) {
-      throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
-    }
+          if (tables.containsKey(to)) {
+            throw new AlreadyExistsException(
+                "Cannot rename %s to %s. Table already exists", from, to);
+          }
 
-    tables.put(to, fromLocation);
-    tables.remove(from);
+          tables.put(to, fromLocation);
+          tables.remove(from);
+        });
   }
 
   @Override
@@ -178,7 +190,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
           "Cannot create namespace %s. Namespace already exists", namespace);
     }
 
-    namespaces.put(namespace, ImmutableMap.copyOf(metadata));
+    withWriteLock(() -> namespaces.put(namespace, ImmutableMap.copyOf(metadata)));
   }
 
   @Override
@@ -198,7 +210,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
           "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
     }
 
-    return namespaces.remove(namespace) != null;
+    return withWriteLock(() -> namespaces.remove(namespace) != null);
   }
 
   @Override
@@ -208,12 +220,18 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    namespaces.computeIfPresent(
-        namespace,
-        (k, v) ->
-            ImmutableMap.<String, String>builder().putAll(v).putAll(properties).buildKeepingLast());
+    return withWriteLock(
+        () -> {
+          namespaces.computeIfPresent(
+              namespace,
+              (k, v) ->
+                  ImmutableMap.<String, String>builder()
+                      .putAll(v)
+                      .putAll(properties)
+                      .buildKeepingLast());
 
-    return true;
+          return true;
+        });
   }
 
   @Override
@@ -223,15 +241,18 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    namespaces.computeIfPresent(
-        namespace,
-        (k, v) -> {
-          Map<String, String> newProperties = Maps.newHashMap(v);
-          properties.forEach(newProperties::remove);
-          return ImmutableMap.copyOf(newProperties);
-        });
+    return withWriteLock(
+        () -> {
+          namespaces.computeIfPresent(
+              namespace,
+              (k, v) -> {
+                Map<String, String> newProperties = Maps.newHashMap(v);
+                properties.forEach(newProperties::remove);
+                return ImmutableMap.copyOf(newProperties);
+              });
 
-    return true;
+          return true;
+        });
   }
 
   @Override
@@ -308,35 +329,40 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean dropView(TableIdentifier identifier) {
-    return null != views.remove(identifier);
+    return withWriteLock(() -> null != views.remove(identifier));
   }
 
   @Override
-  public synchronized void renameView(TableIdentifier from, TableIdentifier to) {
+  public void renameView(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
       return;
     }
 
-    if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
-    }
+    withWriteLock(
+        () -> {
+          if (!namespaceExists(to.namespace())) {
+            throw new NoSuchNamespaceException(
+                "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+          }
 
-    String fromViewLocation = views.get(from);
-    if (null == fromViewLocation) {
-      throw new NoSuchViewException("Cannot rename %s to %s. View does not exist", from, to);
-    }
+          String fromViewLocation = views.get(from);
+          if (null == fromViewLocation) {
+            throw new NoSuchViewException("Cannot rename %s to %s. View does not exist", from, to);
+          }
 
-    if (tables.containsKey(to)) {
-      throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
-    }
+          if (tables.containsKey(to)) {
+            throw new AlreadyExistsException(
+                "Cannot rename %s to %s. Table already exists", from, to);
+          }
 
-    if (views.containsKey(to)) {
-      throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
-    }
+          if (views.containsKey(to)) {
+            throw new AlreadyExistsException(
+                "Cannot rename %s to %s. View already exists", from, to);
+          }
 
-    views.put(to, fromViewLocation);
-    views.remove(from);
+          views.put(to, fromViewLocation);
+          views.remove(from);
+        });
   }
 
   private class InMemoryTableOperations extends BaseMetastoreTableOperations {
@@ -361,34 +387,37 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     @Override
-    public synchronized void doCommit(TableMetadata base, TableMetadata metadata) {
-      String newLocation = writeNewMetadataIfRequired(base == null, metadata);
-      String oldLocation = base == null ? null : base.metadataFileLocation();
-
-      if (null == base && !namespaceExists(tableIdentifier.namespace())) {
-        throw new NoSuchNamespaceException(
-            "Cannot create table %s. Namespace does not exist: %s",
-            tableIdentifier, tableIdentifier.namespace());
-      }
-
-      if (views.containsKey(tableIdentifier)) {
-        throw new AlreadyExistsException("View with same name already exists: %s", tableIdentifier);
-      }
-
-      tables.compute(
-          tableIdentifier,
-          (k, existingLocation) -> {
-            if (!Objects.equal(existingLocation, oldLocation)) {
-              if (null == base) {
-                throw new AlreadyExistsException("Table already exists: %s", tableName());
-              }
-
-              throw new CommitFailedException(
-                  "Cannot commit to table %s metadata location from %s to %s "
-                      + "because it has been concurrently modified to %s",
-                  tableIdentifier, oldLocation, newLocation, existingLocation);
+    public void doCommit(TableMetadata base, TableMetadata metadata) {
+      withWriteLock(
+          () -> {
+            String newLocation = writeNewMetadataIfRequired(base == null, metadata);
+            String oldLocation = base == null ? null : base.metadataFileLocation();
+            if (null == base && !namespaceExists(tableIdentifier.namespace())) {
+              throw new NoSuchNamespaceException(
+                  "Cannot create table %s. Namespace does not exist: %s",
+                  tableIdentifier, tableIdentifier.namespace());
             }
-            return newLocation;
+
+            if (views.containsKey(tableIdentifier)) {
+              throw new AlreadyExistsException(
+                  "View with same name already exists: %s", tableIdentifier);
+            }
+
+            tables.compute(
+                tableIdentifier,
+                (k, existingLocation) -> {
+                  if (!Objects.equal(existingLocation, oldLocation)) {
+                    if (null == base) {
+                      throw new AlreadyExistsException("Table already exists: %s", tableName());
+                    }
+
+                    throw new CommitFailedException(
+                        "Cannot commit to table %s metadata location from %s to %s "
+                            + "because it has been concurrently modified to %s",
+                        tableIdentifier, oldLocation, newLocation, existingLocation);
+                  }
+                  return newLocation;
+                });
           });
     }
 
@@ -425,35 +454,39 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     @Override
-    public synchronized void doCommit(ViewMetadata base, ViewMetadata metadata) {
-      String newLocation = writeNewMetadataIfRequired(metadata);
-      String oldLocation = base == null ? null : currentMetadataLocation();
+    public void doCommit(ViewMetadata base, ViewMetadata metadata) {
+      withWriteLock(
+          () -> {
+            String newLocation = writeNewMetadataIfRequired(metadata);
+            String oldLocation = base == null ? null : currentMetadataLocation();
 
-      if (null == base && !namespaceExists(identifier.namespace())) {
-        throw new NoSuchNamespaceException(
-            "Cannot create view %s. Namespace does not exist: %s",
-            identifier, identifier.namespace());
-      }
-
-      if (tables.containsKey(identifier)) {
-        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
-      }
-
-      views.compute(
-          identifier,
-          (k, existingLocation) -> {
-            if (!Objects.equal(existingLocation, oldLocation)) {
-              if (null == base) {
-                throw new AlreadyExistsException("View already exists: %s", identifier);
-              }
-
-              throw new CommitFailedException(
-                  "Cannot commit to view %s metadata location from %s to %s "
-                      + "because it has been concurrently modified to %s",
-                  identifier, oldLocation, newLocation, existingLocation);
+            if (null == base && !namespaceExists(identifier.namespace())) {
+              throw new NoSuchNamespaceException(
+                  "Cannot create view %s. Namespace does not exist: %s",
+                  identifier, identifier.namespace());
             }
 
-            return newLocation;
+            if (tables.containsKey(identifier)) {
+              throw new AlreadyExistsException(
+                  "Table with same name already exists: %s", identifier);
+            }
+
+            views.compute(
+                identifier,
+                (k, existingLocation) -> {
+                  if (!Objects.equal(existingLocation, oldLocation)) {
+                    if (null == base) {
+                      throw new AlreadyExistsException("View already exists: %s", identifier);
+                    }
+
+                    throw new CommitFailedException(
+                        "Cannot commit to view %s metadata location from %s to %s "
+                            + "because it has been concurrently modified to %s",
+                        identifier, oldLocation, newLocation, existingLocation);
+                  }
+
+                  return newLocation;
+                });
           });
     }
 
@@ -465,6 +498,36 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     @Override
     protected String viewName() {
       return fullViewName;
+    }
+  }
+
+  private <T> T withWriteLock(Supplier<T> supplier) {
+    long stamp;
+    try {
+      stamp = lock.tryWriteLock(5, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new CommitFailedException(e);
+    }
+
+    try {
+      return supplier.get();
+    } finally {
+      lock.unlock(stamp);
+    }
+  }
+
+  private void withWriteLock(Runnable runnable) {
+    long stamp;
+    try {
+      stamp = lock.tryWriteLock(5, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new CommitFailedException(e);
+    }
+
+    try {
+      runnable.run();
+    } finally {
+      lock.unlock(stamp);
     }
   }
 }
