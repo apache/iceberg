@@ -2261,8 +2261,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize(
         "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.InMemoryFileIO"));
+        ImmutableMap.of(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.InMemoryFileIO"));
     return catalog;
   }
 }

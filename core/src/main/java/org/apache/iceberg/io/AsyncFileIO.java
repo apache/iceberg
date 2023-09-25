@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -130,11 +129,12 @@ public class AsyncFileIO extends ResolvingFileIO {
 
   private LoadingCache<String, InputFile> cache() {
     if (null == lazyCache) {
-      this.lazyCache = Caffeine.newBuilder()
-          .softValues()
-          .removalListener(
-              (RemovalListener<String, InputFile>) (path, cached, cause) -> deleteCached(path))
-          .build(this::download);
+      this.lazyCache =
+          Caffeine.newBuilder()
+              .softValues()
+              .removalListener(
+                  (RemovalListener<String, InputFile>) (path, cached, cause) -> deleteCached(path))
+              .build(this::download);
     }
 
     return lazyCache;

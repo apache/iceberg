@@ -21,8 +21,6 @@ package org.apache.iceberg.io;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.UUID;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class InMemoryInputFile implements InputFile {
