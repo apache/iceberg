@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.InMemoryFileIO;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -778,7 +778,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.URI,
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "org.apache.iceberg.io.InMemoryFileIO",
             // default loading to refs only
             "snapshot-loading-mode",
             "refs"));
@@ -873,7 +873,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.URI,
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "org.apache.iceberg.io.InMemoryFileIO",
             "snapshot-loading-mode",
             "refs"));
 
@@ -993,7 +993,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.URI,
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "org.apache.iceberg.io.InMemoryFileIO",
             "snapshot-loading-mode",
             "refs"));
 
@@ -2262,7 +2262,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.InMemoryFileIO"));
     return catalog;
   }
 }

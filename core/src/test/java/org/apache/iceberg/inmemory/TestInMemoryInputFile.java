@@ -21,6 +21,7 @@ package org.apache.iceberg.inmemory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.io.InMemoryInputFile;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

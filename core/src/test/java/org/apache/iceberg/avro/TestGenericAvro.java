@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;

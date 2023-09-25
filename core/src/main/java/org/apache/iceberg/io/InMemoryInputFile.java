@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.inmemory;
+package org.apache.iceberg.io;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
