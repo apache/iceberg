@@ -40,6 +40,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
 from pyiceberg.transforms import IdentityTransform
+from pyiceberg.typedef import Record
 from pyiceberg.types import IntegerType, NestedField
 
 
@@ -367,11 +368,13 @@ def test_write_manifest(generated_manifest_file_file_v1: str, generated_manifest
             == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
         )
         assert data_file.file_format == FileFormat.PARQUET
-        assert repr(data_file.partition) == "Record[VendorID=1, tpep_pickup_datetime=1925]"
+        assert data_file.partition == Record(VendorID=1, tpep_pickup_datetime=1925)
         assert data_file.record_count == 19513
         assert data_file.file_size_in_bytes == 388872
         if format_version == 1:
             assert data_file.block_size_in_bytes == 67108864
+        else:
+            assert data_file.block_size_in_bytes is None
         assert data_file.column_sizes == {
             1: 53,
             2: 98153,
