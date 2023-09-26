@@ -1542,3 +1542,23 @@ def test_parse_location() -> None:
 
     check_results("/root/foo.txt", "file", "", "/root/foo.txt")
     check_results("/root/tmp/foo.txt", "file", "", "/root/tmp/foo.txt")
+
+
+def test_write() -> None:
+    import pyarrow as pa
+
+    df = pa.Table.from_pylist(
+        [
+            {"lat": 52.371807, "long": 4.896029},
+            {"lat": 52.387386, "long": 4.646219},
+            {"lat": 52.078663, "long": 4.288788},
+        ],
+    )
+
+    from pyiceberg.catalog import load_catalog
+
+    cat = load_catalog('local')
+
+    tbl = cat.load_table('default.coordinates')
+
+    tbl.write_arrow(df)

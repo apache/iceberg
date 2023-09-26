@@ -524,6 +524,13 @@ class Table:
     def update_schema(self, allow_incompatible_changes: bool = False, case_sensitive: bool = True) -> UpdateSchema:
         return UpdateSchema(self, allow_incompatible_changes=allow_incompatible_changes, case_sensitive=case_sensitive)
 
+    def write_arrow(self, df: pa.Table) -> None:
+        if len(self.spec().fields) > 0:
+            raise ValueError("Currently only unpartitioned tables are supported")
+        from pyiceberg.io.pyarrow import write_file
+
+        write_file(self, df)
+
     def _do_commit(self, updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]) -> None:
         response = self.catalog._commit_table(  # pylint: disable=W0212
             CommitTableRequest(identifier=self.identifier[1:], updates=updates, requirements=requirements)
