@@ -123,15 +123,22 @@ public interface PartitionSpecVisitor<T> {
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
     } else if (transform == Dates.YEAR
         || transform == Timestamps.YEAR
+        || transform == Timestampns.YEAR
         || transform instanceof Years) {
       return visitor.year(field.fieldId(), sourceName, field.sourceId());
     } else if (transform == Dates.MONTH
         || transform == Timestamps.MONTH
+        || transform == Timestampns.MONTH
         || transform instanceof Months) {
       return visitor.month(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.DAY || transform == Timestamps.DAY || transform instanceof Days) {
+    } else if (transform == Dates.DAY
+        || transform == Timestamps.DAY
+        || transform == Timestampns.DAY
+        || transform instanceof Days) {
       return visitor.day(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
+    } else if (transform == Timestamps.HOUR
+        || transform == Timestampns.HOUR
+        || transform instanceof Hours) {
       return visitor.hour(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof VoidTransform) {
       return visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId());

@@ -43,6 +43,7 @@ public class ExpressionUtil {
       Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final long FIVE_MINUTES_IN_MICROS = TimeUnit.MINUTES.toMicros(5);
+  private static final long FIVE_MINUTES_IN_NANOS = TimeUnit.MINUTES.toNanos(5);
   private static final long THREE_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(3);
   private static final long NINETY_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(90);
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
@@ -247,13 +248,12 @@ public class ExpressionUtil {
 
   private static class ExpressionSanitizer
       extends ExpressionVisitors.ExpressionVisitor<Expression> {
-    private final long now;
+    private final long nowMillis;
     private final int today;
 
     private ExpressionSanitizer() {
-      long nowMillis = System.currentTimeMillis();
-      OffsetDateTime nowDateTime = Instant.ofEpochMilli(nowMillis).atOffset(ZoneOffset.UTC);
-      this.now = nowMillis * 1000;
+      this.nowMillis = System.currentTimeMillis();
+      OffsetDateTime nowDateTime = Instant.ofEpochMilli(this.nowMillis).atOffset(ZoneOffset.UTC);
       this.today = (int) ChronoUnit.DAYS.between(EPOCH, nowDateTime);
     }
 
@@ -293,13 +293,13 @@ public class ExpressionUtil {
         return new UnboundPredicate<>(
             pred.op(),
             unbind(pred.term()),
-            (T) sanitize(bound.term().type(), bound.literal(), now, today));
+            (T) sanitize(bound.term().type(), bound.literal(), nowMillis, today));
       } else if (pred.isSetPredicate()) {
         BoundSetPredicate<T> bound = (BoundSetPredicate<T>) pred;
         Iterable<T> iter =
             () ->
                 bound.literalSet().stream()
-                    .map(lit -> (T) sanitize(bound.term().type(), lit, now, today))
+                    .map(lit -> (T) sanitize(bound.term().type(), lit, nowMillis, today))
                     .iterator();
         return new UnboundPredicate<>(pred.op(), unbind(pred.term()), iter);
       }
@@ -326,11 +326,11 @@ public class ExpressionUtil {
         case STARTS_WITH:
         case NOT_STARTS_WITH:
           return new UnboundPredicate<>(
-              pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
+              pred.op(), pred.term(), (T) sanitize(pred.literal(), nowMillis, today));
         case IN:
         case NOT_IN:
           Iterable<String> iter =
-              () -> pred.literals().stream().map(lit -> sanitize(lit, now, today)).iterator();
+              () -> pred.literals().stream().map(lit -> sanitize(lit, nowMillis, today)).iterator();
           return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
         default:
           throw new UnsupportedOperationException(
@@ -340,13 +340,12 @@ public class ExpressionUtil {
   }
 
   private static class StringSanitizer extends ExpressionVisitors.ExpressionVisitor<String> {
-    private final long nowMicros;
+    private final long nowMillis;
     private final int today;
 
     private StringSanitizer() {
-      long nowMillis = System.currentTimeMillis();
-      OffsetDateTime nowDateTime = Instant.ofEpochMilli(nowMillis).atOffset(ZoneOffset.UTC);
-      this.nowMicros = nowMillis * 1000;
+      this.nowMillis = System.currentTimeMillis();
+      OffsetDateTime nowDateTime = Instant.ofEpochMilli(this.nowMillis).atOffset(ZoneOffset.UTC);
       this.today = (int) ChronoUnit.DAYS.between(EPOCH, nowDateTime);
     }
 
@@ -376,7 +375,7 @@ public class ExpressionUtil {
     }
 
     private String value(BoundLiteralPredicate<?> pred) {
-      return sanitize(pred.term().type(), pred.literal().value(), nowMicros, today);
+      return sanitize(pred.term().type(), pred.literal().value(), nowMillis, today);
     }
 
     @Override
@@ -408,7 +407,7 @@ public class ExpressionUtil {
               + " IN "
               + abbreviateValues(
                       pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
+                          .map(lit -> sanitize(pred.term().type(), lit, nowMillis, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -417,7 +416,7 @@ public class ExpressionUtil {
               + " NOT IN "
               + abbreviateValues(
                       pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
+                          .map(lit -> sanitize(pred.term().type(), lit, nowMillis, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -444,23 +443,23 @@ public class ExpressionUtil {
         case NOT_NAN:
           return "not_nan(" + term + ")";
         case LT:
-          return term + " < " + sanitize(pred.literal(), nowMicros, today);
+          return term + " < " + sanitize(pred.literal(), nowMillis, today);
         case LT_EQ:
-          return term + " <= " + sanitize(pred.literal(), nowMicros, today);
+          return term + " <= " + sanitize(pred.literal(), nowMillis, today);
         case GT:
-          return term + " > " + sanitize(pred.literal(), nowMicros, today);
+          return term + " > " + sanitize(pred.literal(), nowMillis, today);
         case GT_EQ:
-          return term + " >= " + sanitize(pred.literal(), nowMicros, today);
+          return term + " >= " + sanitize(pred.literal(), nowMillis, today);
         case EQ:
-          return term + " = " + sanitize(pred.literal(), nowMicros, today);
+          return term + " = " + sanitize(pred.literal(), nowMillis, today);
         case NOT_EQ:
-          return term + " != " + sanitize(pred.literal(), nowMicros, today);
+          return term + " != " + sanitize(pred.literal(), nowMillis, today);
         case IN:
           return term
               + " IN "
               + abbreviateValues(
                       pred.literals().stream()
-                          .map(lit -> sanitize(lit, nowMicros, today))
+                          .map(lit -> sanitize(lit, nowMillis, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -469,14 +468,14 @@ public class ExpressionUtil {
               + " NOT IN "
               + abbreviateValues(
                       pred.literals().stream()
-                          .map(lit -> sanitize(lit, nowMicros, today))
+                          .map(lit -> sanitize(lit, nowMillis, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
-          return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+          return term + " STARTS WITH " + sanitize(pred.literal(), nowMillis, today);
         case NOT_STARTS_WITH:
-          return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+          return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMillis, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -501,7 +500,7 @@ public class ExpressionUtil {
     return sanitizedValues;
   }
 
-  private static String sanitize(Type type, Object value, long now, int today) {
+  private static String sanitize(Type type, Object value, long nowMillis, int today) {
     switch (type.typeId()) {
       case INTEGER:
       case LONG:
@@ -514,9 +513,11 @@ public class ExpressionUtil {
       case TIME:
         return "(time)";
       case TIMESTAMP:
-        return sanitizeTimestamp((long) value, now);
+        return sanitizeTimestamp((long) value, nowMillis);
+      case TIMESTAMPNS:
+        return sanitizeTimestampns((long) value, nowMillis);
       case STRING:
-        return sanitizeString((CharSequence) value, now, today);
+        return sanitizeString((CharSequence) value, nowMillis, today);
       case BOOLEAN:
       case UUID:
       case DECIMAL:
@@ -529,13 +530,15 @@ public class ExpressionUtil {
         String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
   }
 
-  private static String sanitize(Literal<?> literal, long now, int today) {
+  private static String sanitize(Literal<?> literal, long nowMillis, int today) {
     if (literal instanceof Literals.StringLiteral) {
-      return sanitizeString(((Literals.StringLiteral) literal).value(), now, today);
+      return sanitizeString(((Literals.StringLiteral) literal).value(), nowMillis, today);
     } else if (literal instanceof Literals.DateLiteral) {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
-      return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
+      return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), nowMillis);
+    } else if (literal instanceof Literals.TimestampnsLiteral) {
+      return sanitizeTimestampns(((Literals.TimestampnsLiteral) literal).value(), nowMillis);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
@@ -564,13 +567,13 @@ public class ExpressionUtil {
     return "(date)";
   }
 
-  private static String sanitizeTimestamp(long micros, long now) {
-    String isPast = now > micros ? "ago" : "from-now";
-    long diff = Math.abs(now - micros);
+  private static String sanitizeTimestamp(long micros, long nowMillis) {
+    long diff = Math.abs(nowMillis * 1000 - micros);
     if (diff < FIVE_MINUTES_IN_MICROS) {
       return "(timestamp-about-now)";
     }
 
+    String isPast = nowMillis * 1000 > micros ? "ago" : "from-now";
     long hours = TimeUnit.MICROSECONDS.toHours(diff);
     if (hours <= THREE_DAYS_IN_HOURS) {
       return "(timestamp-" + hours + "-hours-" + isPast + ")";
@@ -582,6 +585,24 @@ public class ExpressionUtil {
     return "(timestamp)";
   }
 
+  private static String sanitizeTimestampns(long nanos, long nowMillis) {
+    long diff = Math.abs(nowMillis * 1000_000 - nanos);
+    if (diff < FIVE_MINUTES_IN_NANOS) {
+      return "(timestampns-about-now)";
+    }
+
+    String isPast = nowMillis * 1000_000 > nanos ? "ago" : "from-now";
+    long hours = TimeUnit.NANOSECONDS.toHours(diff);
+    if (hours <= THREE_DAYS_IN_HOURS) {
+      return "(timestampns-" + hours + "-hours-" + isPast + ")";
+    } else if (hours < NINETY_DAYS_IN_HOURS) {
+      long days = hours / 24;
+      return "(timestampns-" + days + "-days-" + isPast + ")";
+    }
+
+    return "(timestampns)";
+  }
+
   private static String sanitizeNumber(Number value, String type) {
     // log10 of zero isn't defined and will result in negative infinity
     int numDigits =
@@ -589,17 +610,17 @@ public class ExpressionUtil {
     return "(" + numDigits + "-digit-" + type + ")";
   }
 
-  private static String sanitizeString(CharSequence value, long now, int today) {
+  private static String sanitizeString(CharSequence value, long nowMillis, int today) {
     try {
       if (DATE.matcher(value).matches()) {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
       } else if (TIMESTAMP.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-        return sanitizeTimestamp(ts.value(), now);
+        return sanitizeTimestamp(ts.value(), nowMillis);
       } else if (TIMESTAMPTZ.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-        return sanitizeTimestamp(ts.value(), now);
+        return sanitizeTimestamp(ts.value(), nowMillis);
       } else if (TIME.matcher(value).matches()) {
         return "(time)";
       } else {

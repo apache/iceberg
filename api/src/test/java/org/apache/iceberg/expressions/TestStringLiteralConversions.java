@@ -188,10 +188,28 @@ public class TestStringLiteralConversions {
   }
 
   @Test
+  public void testTimestampnsWithZoneWithoutZoneInLiteral() {
+    // Zone must be present in literals when converting to timestamp with zone
+    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919123456");
+    Assertions.assertThatThrownBy(() -> timestampStr.to(Types.TimestampnsType.withZone()))
+        .isInstanceOf(DateTimeException.class)
+        .hasMessageContaining("could not be parsed");
+  }
+
+  @Test
   public void testTimestampWithoutZoneWithZoneInLiteral() {
     // Zone must not be present in literals when converting to timestamp without zone
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919+07:00");
     Assertions.assertThatThrownBy(() -> timestampStr.to(Types.TimestampType.withoutZone()))
+        .isInstanceOf(DateTimeException.class)
+        .hasMessageContaining("could not be parsed");
+  }
+
+  @Test
+  public void testTimestampnsWithoutZoneWithZoneInLiteral() {
+    // Zone must not be present in literals when converting to timestamp without zone
+    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919123456+07:00");
+    Assertions.assertThatThrownBy(() -> timestampStr.to(Types.TimestampnsType.withoutZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
   }

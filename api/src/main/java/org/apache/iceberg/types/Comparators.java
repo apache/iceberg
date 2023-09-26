@@ -41,6 +41,8 @@ public class Comparators {
           .put(Types.TimeType.get(), Comparator.naturalOrder())
           .put(Types.TimestampType.withZone(), Comparator.naturalOrder())
           .put(Types.TimestampType.withoutZone(), Comparator.naturalOrder())
+          .put(Types.TimestampnsType.withZone(), Comparator.naturalOrder())
+          .put(Types.TimestampnsType.withoutZone(), Comparator.naturalOrder())
           .put(Types.StringType.get(), Comparators.charSequences())
           .put(Types.UUIDType.get(), Comparator.naturalOrder())
           .put(Types.BinaryType.get(), Comparators.unsignedBytes())

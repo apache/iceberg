@@ -38,6 +38,8 @@ class Years<T> extends TimeTransform<T> {
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.YEAR;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.YEAR;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -56,6 +58,8 @@ class Years<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return Timestamps.YEAR.satisfiesOrderOf(other);
+    } else if (other instanceof Timestampns) {
+      return Timestampns.YEAR.satisfiesOrderOf(other);
     } else if (other instanceof Dates) {
       return Dates.YEAR.satisfiesOrderOf(other);
     } else if (other instanceof Years) {

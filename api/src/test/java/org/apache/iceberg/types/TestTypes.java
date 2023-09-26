@@ -30,6 +30,8 @@ public class TestTypes {
 
     Assertions.assertThat(Types.fromPrimitiveString("timestamp"))
         .isSameAs(Types.TimestampType.withoutZone());
+    Assertions.assertThat(Types.fromPrimitiveString("timestampns"))
+        .isSameAs(Types.TimestampnsType.withoutZone());
 
     Assertions.assertThat(Types.fromPrimitiveString("Fixed[ 3 ]"))
         .isEqualTo(Types.FixedType.ofLength(3));

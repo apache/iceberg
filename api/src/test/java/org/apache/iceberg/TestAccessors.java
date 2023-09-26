@@ -183,6 +183,12 @@ public class TestAccessors {
   }
 
   @Test
+  public void testTimestampns() {
+    assertAccessorReturns(Types.TimestampnsType.withoutZone(), 123L);
+    assertAccessorReturns(Types.TimestampnsType.withZone(), 123L);
+  }
+
+  @Test
   public void testString() {
     assertAccessorReturns(Types.StringType.get(), "abc");
   }

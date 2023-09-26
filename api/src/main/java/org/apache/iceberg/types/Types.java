@@ -48,6 +48,8 @@ public class Types {
           .put(TimeType.get().toString(), TimeType.get())
           .put(TimestampType.withZone().toString(), TimestampType.withZone())
           .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
+          .put(TimestampnsType.withZone().toString(), TimestampnsType.withZone())
+          .put(TimestampnsType.withoutZone().toString(), TimestampnsType.withoutZone())
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
@@ -255,6 +257,60 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(TimestampType.class, adjustToUTC);
+    }
+  }
+
+  public static class TimestampnsType extends PrimitiveType {
+    private static final TimestampnsType INSTANCE_WITH_ZONE = new TimestampnsType(true);
+    private static final TimestampnsType INSTANCE_WITHOUT_ZONE = new TimestampnsType(false);
+
+    public static TimestampnsType withZone() {
+      return INSTANCE_WITH_ZONE;
+    }
+
+    public static TimestampnsType withoutZone() {
+      return INSTANCE_WITHOUT_ZONE;
+    }
+
+    private final boolean adjustToUTC;
+
+    private TimestampnsType(boolean adjustToUTC) {
+      this.adjustToUTC = adjustToUTC;
+    }
+
+    public boolean shouldAdjustToUTC() {
+      return adjustToUTC;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.TIMESTAMPNS;
+    }
+
+    @Override
+    public String toString() {
+      if (shouldAdjustToUTC()) {
+        return "timestamptzns";
+      } else {
+        return "timestampns";
+      }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof TimestampnsType)) {
+        return false;
+      }
+
+      TimestampnsType timestampnsType = (TimestampnsType) o;
+      return adjustToUTC == timestampnsType.adjustToUTC;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(TimestampnsType.class, adjustToUTC);
     }
   }
 

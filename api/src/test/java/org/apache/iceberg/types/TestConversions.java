@@ -38,6 +38,7 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.TimestampnsType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +94,7 @@ public class TestConversions {
     assertThat(Literal.of(10000L).to(TimeType.get()).toByteBuffer().array())
         .isEqualTo(new byte[] {16, 39, 0, 0, 0, 0, 0, 0});
 
-    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // microsecond timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
@@ -102,6 +103,17 @@ public class TestConversions {
     assertThat(Literal.of(400000L).to(TimestampType.withoutZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+
+    // nanosecond timestamps are stored as nanoseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // little-endian long
+    // 400000L is 0...110|00011010|10000000 in binary
+    // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
+    assertConversion(400000L, TimestampnsType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(400000L, TimestampnsType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampnsType.withoutZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampnsType.withZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)

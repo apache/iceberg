@@ -38,6 +38,8 @@ public class Months<T> extends TimeTransform<T> {
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.MONTH;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.MONTH;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -56,6 +58,8 @@ public class Months<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return Timestamps.MONTH.satisfiesOrderOf(other);
+    } else if (other instanceof Timestampns) {
+      return Timestampns.MONTH.satisfiesOrderOf(other);
     } else if (other instanceof Dates) {
       return Dates.MONTH.satisfiesOrderOf(other);
     } else if (other instanceof Months || other instanceof Years) {

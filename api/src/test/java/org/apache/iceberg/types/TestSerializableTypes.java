@@ -41,6 +41,8 @@ public class TestSerializableTypes {
           Types.TimeType.get(),
           Types.TimestampType.withoutZone(),
           Types.TimestampType.withZone(),
+          Types.TimestampnsType.withoutZone(),
+          Types.TimestampnsType.withZone(),
           Types.StringType.get(),
           Types.UUIDType.get(),
           Types.BinaryType.get()

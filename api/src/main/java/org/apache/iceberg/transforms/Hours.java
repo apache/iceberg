@@ -35,6 +35,8 @@ public class Hours<T> extends TimeTransform<T> {
   protected Transform<T, Integer> toEnum(Type type) {
     if (type.typeId() == Type.TypeID.TIMESTAMP) {
       return (Transform<T, Integer>) Timestamps.HOUR;
+    } else if (type.typeId() == Type.TypeID.TIMESTAMPNS) {
+      return (Transform<T, Integer>) Timestampns.HOUR;
     }
 
     throw new IllegalArgumentException("Unsupported type: " + type);
@@ -42,7 +44,7 @@ public class Hours<T> extends TimeTransform<T> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMPNS;
   }
 
   @Override
@@ -58,6 +60,8 @@ public class Hours<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return other == Timestamps.HOUR;
+      } else if (other instanceof Timestampns) {
+      return other == Timestampns.HOUR;
     } else if (other instanceof Hours
         || other instanceof Days
         || other instanceof Months

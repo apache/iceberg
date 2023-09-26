@@ -40,6 +40,8 @@ public class TestLiteralSerialization {
           Literal.of("11:30:07").to(Types.TimeType.get()),
           Literal.of("2017-11-29T11:30:07.123").to(Types.TimestampType.withoutZone()),
           Literal.of("2017-11-29T11:30:07.123+01:00").to(Types.TimestampType.withZone()),
+          Literal.of("2017-11-29T11:30:07.123").to(Types.TimestampnsType.withoutZone()),
+          Literal.of("2017-11-29T11:30:07.123+01:00").to(Types.TimestampnsType.withZone()),
           Literal.of("abc"),
           Literal.of(UUID.randomUUID()),
           Literal.of(new byte[] {1, 2, 3}).to(Types.FixedType.ofLength(3)),

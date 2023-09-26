@@ -181,6 +181,12 @@ public interface Transform<S, T> extends Serializable {
         } else {
           return TransformUtil.humanTimestampWithoutZone((Long) value);
         }
+      case TIMESTAMPNS:
+        if (((Types.TimestampnsType) type).shouldAdjustToUTC()) {
+          return TransformUtil.humanTimestampnsWithZone((Long) value);
+        } else {
+          return TransformUtil.humanTimestampnsWithoutZone((Long) value);
+        }
       case FIXED:
       case BINARY:
         if (value instanceof ByteBuffer) {

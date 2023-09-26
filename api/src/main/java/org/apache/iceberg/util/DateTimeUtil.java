@@ -35,6 +35,7 @@ public class DateTimeUtil {
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
   public static final long MICROS_PER_MILLIS = 1000L;
   public static final long MICROS_PER_SECOND = 1_000_000L;
+  public static final long NANOS_PER_SECOND = 1_000_000_000L;
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -159,16 +160,32 @@ public class DateTimeUtil {
     return convertMicros(micros, ChronoUnit.YEARS);
   }
 
+  public static int nanosToYears(long nanos) {
+    return convertNanos(nanos, ChronoUnit.YEARS);
+  }
+
   public static int microsToMonths(long micros) {
     return convertMicros(micros, ChronoUnit.MONTHS);
+  }
+
+  public static int nanosToMonths(long nanos) {
+    return convertNanos(nanos, ChronoUnit.MONTHS);
   }
 
   public static int microsToDays(long micros) {
     return convertMicros(micros, ChronoUnit.DAYS);
   }
 
+  public static int nanosToDays(long nanos) {
+    return convertNanos(nanos, ChronoUnit.DAYS);
+  }
+
   public static int microsToHours(long micros) {
     return convertMicros(micros, ChronoUnit.HOURS);
+  }
+
+  public static int nanosToHours(long nanos) {
+    return convertNanos(nanos, ChronoUnit.HOURS);
   }
 
   private static int convertMicros(long micros, ChronoUnit granularity) {
@@ -181,6 +198,20 @@ public class DateTimeUtil {
       // the timestamp and epoch because the result will always be decremented.
       long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * 1000;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+    }
+  }
+
+  private static int convertNanos(long nanos, ChronoUnit granularity) {
+    if (nanos >= 0) {
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+    } else {
+      // add 1 nano to the value to account for the case where there is exactly 1 unit between
+      // the timestamp and epoch because the result will always be decremented.
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos + 1, NANOS_PER_SECOND);
       return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
   }

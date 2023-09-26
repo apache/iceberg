@@ -1,0 +1,211 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.transforms;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
+
+public class TestTimestampns {
+  @Test
+  public void testTimestampnsTransform() {
+    Types.TimestampnsType type = Types.TimestampnsType.withoutZone();
+    Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194654").to(type);
+    Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000000001").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999999").to(type);
+
+    Transform<Long, Integer> years = Transforms.year();
+    assertThat((int) years.bind(type).apply(ts.value()))
+        .as("Should produce 2017 - 1970 = 47")
+        .isEqualTo(47);
+    assertThat((int) years.bind(type).apply(pts.value()))
+        .as("Should produce 1970 - 1970 = 0")
+        .isZero();
+    assertThat((int) years.bind(type).apply(nts.value()))
+        .as("Should produce 1969 - 1970 = -1")
+        .isEqualTo(-1);
+
+    Transform<Long, Integer> months = Transforms.month();
+    assertThat((int) months.bind(type).apply(ts.value()))
+        .as("Should produce 47 * 12 + 11 = 575")
+        .isEqualTo(575);
+    assertThat((int) months.bind(type).apply(pts.value()))
+        .as("Should produce 0 * 12 + 0 = 0")
+        .isZero();
+    assertThat((int) months.bind(type).apply(nts.value())).isEqualTo(-1);
+
+    Transform<Long, Integer> days = Transforms.day();
+    assertThat((int) days.bind(type).apply(ts.value())).as("Should produce 17501").isEqualTo(17501);
+    assertThat((int) days.bind(type).apply(pts.value()))
+        .as("Should produce 0 * 365 + 0 = 0")
+        .isZero();
+    assertThat((int) days.bind(type).apply(nts.value())).isEqualTo(-1);
+
+    Transform<Long, Integer> hours = Transforms.hour();
+    assertThat((int) hours.bind(type).apply(ts.value()))
+        .as("Should produce 17501 * 24 + 10")
+        .isEqualTo(420034);
+    assertThat((int) hours.bind(type).apply(pts.value()))
+        .as("Should produce 0 * 24 + 0 = 0")
+        .isZero();
+    assertThat((int) hours.bind(type).apply(nts.value())).isEqualTo(-1);
+  }
+
+  @Test
+  public void testTimestampnsWithoutZoneToHumanString() {
+    Types.TimestampnsType type = Types.TimestampnsType.withoutZone();
+    Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194654").to(type);
+
+    Transform<Long, Integer> year = Transforms.year();
+    assertThat(year.toHumanString(type, year.bind(type).apply(date.value()))).isEqualTo("2017");
+
+    Transform<Long, Integer> month = Transforms.month();
+    assertThat(month.toHumanString(type, month.bind(type).apply(date.value())))
+        .isEqualTo("2017-12");
+
+    Transform<Long, Integer> day = Transforms.day();
+    assertThat(day.toHumanString(type, day.bind(type).apply(date.value()))).isEqualTo("2017-12-01");
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    assertThat(hour.toHumanString(type, hour.bind(type).apply(date.value())))
+        .isEqualTo("2017-12-01-10");
+  }
+
+  @Test
+  public void testNegativeTimestampnsWithoutZoneToHumanString() {
+    Types.TimestampnsType type = Types.TimestampnsType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-30T10:12:55.038194654").to(type);
+
+    Transform<Long, Integer> year = Transforms.year();
+    assertThat(year.toHumanString(type, year.bind(type).apply(date.value()))).isEqualTo("1969");
+
+    Transform<Long, Integer> month = Transforms.month();
+    assertThat(month.toHumanString(type, month.bind(type).apply(date.value())))
+        .isEqualTo("1969-12");
+
+    Transform<Long, Integer> day = Transforms.day();
+    assertThat(day.toHumanString(type, day.bind(type).apply(date.value()))).isEqualTo("1969-12-30");
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    assertThat(hour.toHumanString(type, hour.bind(type).apply(date.value())))
+        .isEqualTo("1969-12-30-10");
+  }
+
+  @Test
+  public void testNegativeTimestampnsWithoutZoneToHumanStringLowerBound() {
+    Types.TimestampnsType type = Types.TimestampnsType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-30T00:00:00.000000000").to(type);
+
+    Transform<Long, Integer> year = Transforms.year();
+    assertThat(year.toHumanString(type, year.bind(type).apply(date.value()))).isEqualTo("1969");
+
+    Transform<Long, Integer> month = Transforms.month();
+    assertThat(month.toHumanString(type, month.bind(type).apply(date.value())))
+        .isEqualTo("1969-12");
+
+    Transform<Long, Integer> day = Transforms.day();
+    assertThat(day.toHumanString(type, day.bind(type).apply(date.value()))).isEqualTo("1969-12-30");
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    assertThat(hour.toHumanString(type, hour.bind(type).apply(date.value())))
+        .isEqualTo("1969-12-30-00");
+  }
+
+  @Test
+  public void testNegativeTimestampnsWithoutZoneToHumanStringUpperBound() {
+    Types.TimestampnsType type = Types.TimestampnsType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-31T23:59:59.999999999").to(type);
+
+    Transform<Long, Integer> year = Transforms.year();
+    assertThat(year.toHumanString(type, year.bind(type).apply(date.value()))).isEqualTo("1969");
+
+    Transform<Long, Integer> month = Transforms.month();
+    assertThat(month.toHumanString(type, month.bind(type).apply(date.value())))
+        .isEqualTo("1969-12");
+
+    Transform<Long, Integer> day = Transforms.day();
+    assertThat(day.toHumanString(type, day.bind(type).apply(date.value()))).isEqualTo("1969-12-31");
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    assertThat(hour.toHumanString(type, hour.bind(type).apply(date.value())))
+        .isEqualTo("1969-12-31-23");
+  }
+
+  @Test
+  public void testTimestampnsWithZoneToHumanString() {
+    Types.TimestampnsType type = Types.TimestampnsType.withZone();
+    Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194654-08:00").to(type);
+
+    Transform<Long, Integer> year = Transforms.year();
+    assertThat(year.toHumanString(type, year.bind(type).apply(date.value()))).isEqualTo("2017");
+
+    Transform<Long, Integer> month = Transforms.month();
+    assertThat(month.toHumanString(type, month.bind(type).apply(date.value())))
+        .isEqualTo("2017-12");
+
+    Transform<Long, Integer> day = Transforms.day();
+    assertThat(day.toHumanString(type, day.bind(type).apply(date.value()))).isEqualTo("2017-12-01");
+
+    // the hour is 18 because the value is always UTC
+    Transform<Long, Integer> hour = Transforms.hour();
+    assertThat(hour.toHumanString(type, hour.bind(type).apply(date.value())))
+        .isEqualTo("2017-12-01-18");
+  }
+
+  @Test
+  public void testNullHumanString() {
+    Types.TimestampnsType type = Types.TimestampnsType.withZone();
+    assertThat(Transforms.year().toHumanString(type, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+    assertThat(Transforms.month().toHumanString(type, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+    assertThat(Transforms.day().toHumanString(type, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+    assertThat(Transforms.hour().toHumanString(type, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+  }
+
+  @Test
+  public void testTimestampnsReturnType() {
+    Types.TimestampnsType type = Types.TimestampnsType.withZone();
+
+    Transform<Integer, Integer> year = Transforms.year();
+    Type yearResultType = year.getResultType(type);
+    assertThat(yearResultType).isEqualTo(Types.IntegerType.get());
+
+    Transform<Integer, Integer> month = Transforms.month();
+    Type monthResultType = month.getResultType(type);
+    assertThat(monthResultType).isEqualTo(Types.IntegerType.get());
+
+    Transform<Integer, Integer> day = Transforms.day();
+    Type dayResultType = day.getResultType(type);
+    assertThat(dayResultType).isEqualTo(Types.DateType.get());
+
+    Transform<Integer, Integer> hour = Transforms.hour();
+    Type hourResultType = hour.getResultType(type);
+    assertThat(hourResultType).isEqualTo(Types.IntegerType.get());
+  }
+}

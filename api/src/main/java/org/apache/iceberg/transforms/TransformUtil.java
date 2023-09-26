@@ -58,8 +58,16 @@ class TransformUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toString();
   }
 
+  static String humanTimestampnsWithZone(Long timestampNanos) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampNanos).toString();
+  }
+
   static String humanTimestampWithoutZone(Long timestampMicros) {
     return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
+  }
+
+  static String humanTimestampnsWithoutZone(Long timestampNanos) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampNanos).toLocalDateTime().toString();
   }
 
   static String humanHour(int hourOrdinal) {

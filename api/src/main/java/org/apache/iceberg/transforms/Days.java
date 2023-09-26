@@ -38,6 +38,8 @@ public class Days<T> extends TimeTransform<T> {
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.DAY;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.DAY;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -56,6 +58,8 @@ public class Days<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return Timestamps.DAY.satisfiesOrderOf(other);
+    } else if (other instanceof Timestampns) {
+      return Timestampns.DAY.satisfiesOrderOf(other);
     } else if (other instanceof Dates) {
       return Dates.DAY.satisfiesOrderOf(other);
     } else if (other instanceof Days || other instanceof Months || other instanceof Years) {

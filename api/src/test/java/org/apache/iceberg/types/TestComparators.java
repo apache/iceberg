@@ -80,6 +80,12 @@ public class TestComparators {
   }
 
   @Test
+  public void testTimestampns() {
+    assertComparesCorrectly(Comparators.forType(Types.TimestampnsType.withoutZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampnsType.withZone()), 111, 222);
+  }
+
+  @Test
   public void testString() {
     assertComparesCorrectly(Comparators.forType(Types.StringType.get()), "a", "b");
   }

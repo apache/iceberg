@@ -23,7 +23,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -87,6 +86,8 @@ public class Transforms {
     try {
       if (type.typeId() == Type.TypeID.TIMESTAMP) {
         return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      } else if (type.typeId() == Type.TypeID.TIMESTAMPNS) {
+        return Timestampns.valueOf(transform.toUpperCase(Locale.ENGLISH));
       } else if (type.typeId() == Type.TypeID.DATE) {
         return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
       }
@@ -130,6 +131,8 @@ public class Transforms {
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.YEAR;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.YEAR;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by year");
     }
@@ -151,6 +154,8 @@ public class Transforms {
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.MONTH;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.MONTH;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by month");
     }
@@ -172,6 +177,8 @@ public class Transforms {
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.DAY;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.DAY;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by day");
     }
@@ -188,9 +195,14 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    Preconditions.checkArgument(
-        type.typeId() == Type.TypeID.TIMESTAMP, "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) Timestamps.HOUR;
+    switch (type.typeId()) {
+      case TIMESTAMP:
+        return (Transform<T, Integer>) Timestamps.HOUR;
+      case TIMESTAMPNS:
+        return (Transform<T, Integer>) Timestampns.HOUR;
+      default:
+        throw new IllegalArgumentException("Cannot partition type " + type + " by day");
+    }
   }
 
   /**

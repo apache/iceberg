@@ -299,6 +299,8 @@ class Literals {
           return (Literal<T>) new TimeLiteral(value());
         case TIMESTAMP:
           return (Literal<T>) new TimestampLiteral(value());
+        case TIMESTAMPNS:
+          return (Literal<T>) new TimestampnsLiteral(value());
         case DATE:
           if ((long) Integer.MAX_VALUE < value()) {
             return aboveMax();
@@ -436,6 +438,8 @@ class Literals {
       switch (type.typeId()) {
         case TIMESTAMP:
           return (Literal<T>) this;
+        case TIMESTAMPNS:
+          return (Literal<T>) new TimestampnsLiteral(value() * 1000);
         case DATE:
           return (Literal<T>)
               new DateLiteral(
@@ -450,6 +454,36 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.TIMESTAMP;
+    }
+  }
+
+  static class TimestampnsLiteral extends ComparableLiteral<Long> {
+    TimestampnsLiteral(Long value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case TIMESTAMPNS:
+          return (Literal<T>) this;
+        case TIMESTAMP:
+          return (Literal<T>) new TimestampLiteral(value() / 1000);
+        case DATE:
+          return (Literal<T>)
+              new DateLiteral(
+                  (int)
+                      ChronoUnit.DAYS.between(
+                          EPOCH_DAY, EPOCH.plus(value(), ChronoUnit.NANOS).toLocalDate()));
+        default:
+      }
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.TIMESTAMPNS;
     }
   }
 
@@ -513,6 +547,21 @@ class Literals {
                     LocalDateTime.parse(value(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                         .atOffset(ZoneOffset.UTC));
             return (Literal<T>) new TimestampLiteral(timestampMicros);
+          }
+
+        case TIMESTAMPNS:
+          if (((Types.TimestampnsType) type).shouldAdjustToUTC()) {
+            long timestampNanos =
+                ChronoUnit.NANOS.between(
+                    EPOCH, OffsetDateTime.parse(value(), DateTimeFormatter.ISO_DATE_TIME));
+            return (Literal<T>) new TimestampnsLiteral(timestampNanos);
+          } else {
+            long timestampNanos =
+                ChronoUnit.NANOS.between(
+                    EPOCH,
+                    LocalDateTime.parse(value(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        .atOffset(ZoneOffset.UTC));
+            return (Literal<T>) new TimestampnsLiteral(timestampNanos);
           }
 
         case STRING:
