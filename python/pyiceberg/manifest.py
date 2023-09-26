@@ -95,107 +95,133 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-def data_file_type(partition_type: StructType) -> StructType:
-    return StructType(
-        NestedField(
-            field_id=134,
-            name="content",
-            field_type=IntegerType(),
-            required=False,
-            doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
-            initial_default=DataFileContent.DATA,
-        ),
-        NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
-        NestedField(
-            field_id=101,
-            name="file_format",
-            field_type=StringType(),
-            required=True,
-            doc="File format name: avro, orc, or parquet",
-        ),
-        NestedField(
-            field_id=102,
-            name="partition",
-            field_type=partition_type,
-            required=True,
-            doc="Partition data tuple, schema based on the partition spec",
-        ),
-        NestedField(field_id=103, name="record_count", field_type=LongType(), required=True, doc="Number of records in the file"),
-        NestedField(
-            field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"
-        ),
-        NestedField(
-            field_id=105,
-            name="block_size_in_bytes",
-            field_type=LongType(),
-            required=False,
-            doc="Deprecated. Always write a default in v1. Do not write in v2.",
-        ),
-        NestedField(
-            field_id=108,
-            name="column_sizes",
-            field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
-            required=False,
-            doc="Map of column id to total size on disk",
-        ),
-        NestedField(
-            field_id=109,
-            name="value_counts",
-            field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
-            required=False,
-            doc="Map of column id to total count, including null and NaN",
-        ),
-        NestedField(
-            field_id=110,
-            name="null_value_counts",
-            field_type=MapType(key_id=121, key_type=IntegerType(), value_id=122, value_type=LongType()),
-            required=False,
-            doc="Map of column id to null value count",
-        ),
-        NestedField(
-            field_id=137,
-            name="nan_value_counts",
-            field_type=MapType(key_id=138, key_type=IntegerType(), value_id=139, value_type=LongType()),
-            required=False,
-            doc="Map of column id to number of NaN values in the column",
-        ),
-        NestedField(
-            field_id=125,
-            name="lower_bounds",
-            field_type=MapType(key_id=126, key_type=IntegerType(), value_id=127, value_type=BinaryType()),
-            required=False,
-            doc="Map of column id to lower bound",
-        ),
-        NestedField(
-            field_id=128,
-            name="upper_bounds",
-            field_type=MapType(key_id=129, key_type=IntegerType(), value_id=130, value_type=BinaryType()),
-            required=False,
-            doc="Map of column id to upper bound",
-        ),
-        NestedField(
-            field_id=131, name="key_metadata", field_type=BinaryType(), required=False, doc="Encryption key metadata blob"
-        ),
-        NestedField(
-            field_id=132,
-            name="split_offsets",
-            field_type=ListType(element_id=133, element_type=LongType(), element_required=True),
-            required=False,
-            doc="Splittable offsets",
-        ),
-        NestedField(
-            field_id=135,
-            name="equality_ids",
-            field_type=ListType(element_id=136, element_type=LongType(), element_required=True),
-            required=False,
-            doc="Equality comparison field IDs",
-        ),
-        NestedField(field_id=140, name="sort_order_id", field_type=IntegerType(), required=False, doc="Sort order ID"),
-        NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
-    )
+DATA_FILE_TYPE = StructType(
+    NestedField(
+        field_id=134,
+        name="content",
+        field_type=IntegerType(),
+        required=False,
+        doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
+        initial_default=DataFileContent.DATA,
+    ),
+    NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
+    NestedField(
+        field_id=101,
+        name="file_format",
+        field_type=StringType(),
+        required=True,
+        doc="File format name: avro, orc, or parquet",
+    ),
+    NestedField(
+        field_id=102,
+        name="partition",
+        field_type=StructType(),
+        required=True,
+        doc="Partition data tuple, schema based on the partition spec",
+    ),
+    NestedField(field_id=103, name="record_count", field_type=LongType(), required=True, doc="Number of records in the file"),
+    NestedField(field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"),
+    NestedField(
+        field_id=105,
+        name="block_size_in_bytes",
+        field_type=LongType(),
+        required=False,
+        doc="Deprecated. Always write a default in v1. Do not write in v2.",
+    ),
+    NestedField(
+        field_id=108,
+        name="column_sizes",
+        field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
+        required=False,
+        doc="Map of column id to total size on disk",
+    ),
+    NestedField(
+        field_id=109,
+        name="value_counts",
+        field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
+        required=False,
+        doc="Map of column id to total count, including null and NaN",
+    ),
+    NestedField(
+        field_id=110,
+        name="null_value_counts",
+        field_type=MapType(key_id=121, key_type=IntegerType(), value_id=122, value_type=LongType()),
+        required=False,
+        doc="Map of column id to null value count",
+    ),
+    NestedField(
+        field_id=137,
+        name="nan_value_counts",
+        field_type=MapType(key_id=138, key_type=IntegerType(), value_id=139, value_type=LongType()),
+        required=False,
+        doc="Map of column id to number of NaN values in the column",
+    ),
+    NestedField(
+        field_id=125,
+        name="lower_bounds",
+        field_type=MapType(key_id=126, key_type=IntegerType(), value_id=127, value_type=BinaryType()),
+        required=False,
+        doc="Map of column id to lower bound",
+    ),
+    NestedField(
+        field_id=128,
+        name="upper_bounds",
+        field_type=MapType(key_id=129, key_type=IntegerType(), value_id=130, value_type=BinaryType()),
+        required=False,
+        doc="Map of column id to upper bound",
+    ),
+    NestedField(field_id=131, name="key_metadata", field_type=BinaryType(), required=False, doc="Encryption key metadata blob"),
+    NestedField(
+        field_id=132,
+        name="split_offsets",
+        field_type=ListType(element_id=133, element_type=LongType(), element_required=True),
+        required=False,
+        doc="Splittable offsets",
+    ),
+    NestedField(
+        field_id=135,
+        name="equality_ids",
+        field_type=ListType(element_id=136, element_type=LongType(), element_required=True),
+        required=False,
+        doc="Equality comparison field IDs",
+    ),
+    NestedField(field_id=140, name="sort_order_id", field_type=IntegerType(), required=False, doc="Sort order ID"),
+    NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
+)
 
 
-DATA_FILE_TYPE = data_file_type(StructType())
+def datafile_with_partition(partition_type: StructType, format_version: Literal[1, 2]) -> StructType:
+    if format_version == 1:
+        return StructType(
+            *[
+                NestedField(
+                    field_id=102,
+                    name="partition",
+                    field_type=partition_type,
+                    required=True,
+                    doc="Partition data tuple, schema based on the partition spec",
+                )
+                if field.field_id == 102
+                else field
+                for field in DATA_FILE_TYPE.fields
+            ]
+        )
+    else:
+        return StructType(
+            *[
+                NestedField(
+                    field_id=102,
+                    name="partition",
+                    field_type=partition_type,
+                    required=True,
+                    doc="Partition data tuple, schema based on the partition spec",
+                )
+                if field.field_id == 102
+                else field
+                for field in DATA_FILE_TYPE.fields
+                if field.field_id != 105
+            ]
+        )
 
 
 class DataFile(Record):
@@ -245,8 +271,8 @@ class DataFile(Record):
             value = FileFormat[value]
         super().__setattr__(name, value)
 
-    def __init__(self, *data: Any, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
+    def __init__(self, *data: Any, format_version: Literal[1, 2] = 1, **named_data: Any) -> None:
+        super().__init__(*data, **{"struct": datafile_with_partition(StructType(), format_version), **named_data})
 
     def __hash__(self) -> int:
         """Return the hash of the file path."""
@@ -260,19 +286,24 @@ class DataFile(Record):
         return self.file_path == other.file_path if isinstance(other, DataFile) else False
 
 
-def manifest_entry_schema(data_file: StructType) -> Schema:
-    return Schema(
-        NestedField(0, "status", IntegerType(), required=True),
-        NestedField(1, "snapshot_id", LongType(), required=False),
-        NestedField(3, "data_sequence_number", LongType(), required=False),
-        NestedField(4, "file_sequence_number", LongType(), required=False),
-        NestedField(2, "data_file", data_file, required=True),
-    )
-
-
-MANIFEST_ENTRY_SCHEMA = manifest_entry_schema(DATA_FILE_TYPE)
+MANIFEST_ENTRY_SCHEMA = Schema(
+    NestedField(0, "status", IntegerType(), required=True),
+    NestedField(1, "snapshot_id", LongType(), required=False),
+    NestedField(3, "data_sequence_number", LongType(), required=False),
+    NestedField(4, "file_sequence_number", LongType(), required=False),
+    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
+)
 
 MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
+
+
+def manifest_entry_schema_with_data_file(data_file: StructType) -> Schema:
+    return Schema(
+        *[
+            NestedField(2, "data_file", data_file, required=True) if field.field_id == 2 else field
+            for field in MANIFEST_ENTRY_SCHEMA.fields
+        ]
+    )
 
 
 class ManifestEntry(Record):
@@ -542,11 +573,7 @@ class ManifestWriter(ABC):
 
     def __enter__(self) -> ManifestWriter:
         """Open the writer."""
-        current_data_file_type = data_file_type(self._spec.partition_type(self._schema))
-        current_manifest_entry_schema = manifest_entry_schema(current_data_file_type)
-        self._writer = AvroOutputFile[ManifestEntry](
-            self._output_file, current_manifest_entry_schema, "manifest_entry", self._meta
-        )
+        self._writer = self.new_writer()
         self._writer.__enter__()
         return self
 
@@ -562,6 +589,10 @@ class ManifestWriter(ABC):
 
     @abstractmethod
     def content(self) -> ManifestContent:
+        ...
+
+    @abstractmethod
+    def new_writer(self) -> AvroOutputFile[ManifestEntry]:
         ...
 
     @abstractmethod
@@ -635,6 +666,11 @@ class ManifestWriterV1(ManifestWriter):
     def content(self) -> ManifestContent:
         return ManifestContent.DATA
 
+    def new_writer(self) -> AvroOutputFile[ManifestEntry]:
+        v1_data_file_type = datafile_with_partition(self._spec.partition_type(self._schema), format_version=1)
+        v1_manifest_entry_schema = manifest_entry_schema_with_data_file(v1_data_file_type)
+        return AvroOutputFile[ManifestEntry](self._output_file, v1_manifest_entry_schema, "manifest_entry", self._meta)
+
     def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
         wrapped_entry = ManifestEntry(*entry.record_fields())
         wrapped_entry.data_file.block_size_in_bytes = DEFAULT_BLOCK_SIZE
@@ -660,13 +696,21 @@ class ManifestWriterV2(ManifestWriter):
     def content(self) -> ManifestContent:
         return ManifestContent.DATA
 
+    def new_writer(self) -> AvroOutputFile[ManifestEntry]:
+        v2_data_file_type = datafile_with_partition(self._spec.partition_type(self._schema), format_version=2)
+        v2_manifest_entry_schema = manifest_entry_schema_with_data_file(v2_data_file_type)
+        return AvroOutputFile[ManifestEntry](self._output_file, v2_manifest_entry_schema, "manifest_entry", self._meta)
+
     def prepare_entry(self, entry: ManifestEntry) -> ManifestEntry:
         if entry.data_sequence_number is None:
             if entry.snapshot_id is not None and entry.snapshot_id != self._snapshot_id:
                 raise ValueError(f"Found unassigned sequence number for an entry from snapshot: {entry.snapshot_id}")
             if entry.status != ManifestEntryStatus.ADDED:
                 raise ValueError("Only entries with status ADDED can have null sequence number")
-        return entry
+        wrapped_data_file_v2 = DataFile(format_version=2, *entry.data_file.record_fields(skip_fields=["block_size_in_bytes"]))
+        wrapped_entry = ManifestEntry(*entry.record_fields())
+        wrapped_entry.data_file = wrapped_data_file_v2
+        return wrapped_entry
 
 
 def write_manifest(
