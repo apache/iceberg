@@ -51,21 +51,21 @@ class ViewVersionReplace implements ReplaceViewVersion {
 
   @Override
   public ViewVersion apply() {
-    this.base = ops.refresh();
-
-    return internalApply(base).currentVersion();
+    return internalApply().currentVersion();
   }
 
-  private ViewMetadata internalApply(ViewMetadata metadata) {
+  private ViewMetadata internalApply() {
     Preconditions.checkState(
         !representations.isEmpty(), "Cannot replace view without specifying a query");
     Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
     Preconditions.checkState(
         null != defaultNamespace, "Cannot replace view without specifying a default namespace");
 
-    ViewVersion viewVersion = metadata.currentVersion();
+    this.base = ops.refresh();
+
+    ViewVersion viewVersion = base.currentVersion();
     int maxVersionId =
-        metadata.versions().stream()
+        base.versions().stream()
             .map(ViewVersion::versionId)
             .max(Integer::compareTo)
             .orElseGet(viewVersion::versionId);
@@ -81,7 +81,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
             .addAllRepresentations(representations)
             .build();
 
-    return ViewMetadata.buildFrom(metadata).setCurrentVersion(newVersion, schema).build();
+    return ViewMetadata.buildFrom(base).setCurrentVersion(newVersion, schema).build();
   }
 
   @Override
@@ -99,7 +99,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> taskOps.commit(base, internalApply(base)));
+        .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 
   @Override

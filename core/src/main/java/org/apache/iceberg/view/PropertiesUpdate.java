@@ -49,16 +49,13 @@ class PropertiesUpdate implements UpdateViewProperties {
 
   @Override
   public Map<String, String> apply() {
-    this.base = ops.refresh();
-
-    return internalApply(base).properties();
+    return internalApply().properties();
   }
 
-  private ViewMetadata internalApply(ViewMetadata metadata) {
-    return ViewMetadata.buildFrom(metadata)
-        .setProperties(updates)
-        .removeProperties(removals)
-        .build();
+  private ViewMetadata internalApply() {
+    this.base = ops.refresh();
+
+    return ViewMetadata.buildFrom(base).setProperties(updates).removeProperties(removals).build();
   }
 
   @Override
@@ -76,7 +73,7 @@ class PropertiesUpdate implements UpdateViewProperties {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> taskOps.commit(base, internalApply(base)));
+        .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 
   @Override
