@@ -241,6 +241,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -252,23 +254,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testDefaultWritePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
@@ -285,6 +272,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(WRITE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -296,27 +285,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testHashWritePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(WRITE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
@@ -333,6 +303,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(WRITE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -342,31 +314,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testRangeWritePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(WRITE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    SortOrder[] expectedOrdering =
-        new SortOrder[] {
-          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-          Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
-        };
-
-    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
+    enableFanoutWriters(table);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
@@ -434,6 +383,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.replaceSortOrder().asc("id").commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -443,29 +394,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testRangeWritePartitionedSortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date)",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table.replaceSortOrder().asc("id").commit();
-
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-
-    SortOrder[] expectedOrdering =
-        new SortOrder[] {
-          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-          Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING)
-        };
-
-    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
+    enableFanoutWriters(table);
 
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
@@ -642,6 +572,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -653,23 +585,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testDefaultCopyOnWriteDeletePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -686,6 +603,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -694,23 +613,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkCopyOnWriteDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
-  }
 
-  @Test
-  public void testNoneCopyOnWriteDeletePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
@@ -728,6 +632,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -739,27 +645,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testHashCopyOnWriteDeletePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -776,6 +663,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -785,30 +674,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testRangeCopyOnWriteDeletePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    SortOrder[] expectedOrdering =
-        new SortOrder[] {
-          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-          Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
-        };
-    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1086,6 +953,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -1097,23 +966,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testDefaultCopyOnWriteUpdatePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1130,6 +984,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -1138,23 +994,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkCopyOnWriteDistributionAndOrdering(
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
-  }
 
-  @Test
-  public void testNoneCopyOnWriteUpdatePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
@@ -1172,6 +1013,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -1183,27 +1026,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testHashCopyOnWriteUpdatePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1220,6 +1044,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -1229,30 +1055,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testRangeCopyOnWriteUpdatePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    SortOrder[] expectedOrdering =
-        new SortOrder[] {
-          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-          Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
-        };
-    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1526,6 +1330,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -1537,23 +1343,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testDefaultCopyOnWriteMergePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1570,6 +1361,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -1578,23 +1371,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkCopyOnWriteDistributionAndOrdering(
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
-  }
 
-  @Test
-  public void testNoneCopyOnWriteMergePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
@@ -1611,6 +1389,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
@@ -1622,27 +1402,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testHashCopyOnWriteMergePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    Expression[] expectedClustering =
-        new Expression[] {Expressions.identity("date"), Expressions.days("ts")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1659,6 +1420,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
@@ -1668,30 +1431,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
-  }
 
-  @Test
-  public void testRangeCopyOnWriteMergePartitionedUnsortedTableFanout() {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-            + "USING iceberg "
-            + "PARTITIONED BY (date, days(ts))",
-        tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    table
-        .updateProperties()
-        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
-        .set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-        .commit();
-
-    SortOrder[] expectedOrdering =
-        new SortOrder[] {
-          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-          Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
-        };
-    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
+    enableFanoutWriters(table);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -1838,6 +1579,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table,
         DELETE,
@@ -1858,6 +1601,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
 
@@ -1874,6 +1619,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     checkPositionDeltaDistributionAndOrdering(
         table,
@@ -1895,6 +1642,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_FILE_ORDERING);
 
     checkPositionDeltaDistributionAndOrdering(
@@ -1914,6 +1663,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
+
+    disableFanoutWriters(table);
 
     checkPositionDeltaDistributionAndOrdering(
         table,
@@ -1939,6 +1690,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
 
@@ -1959,6 +1712,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     checkPositionDeltaDistributionAndOrdering(
         table,
@@ -1983,6 +1738,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
+
+    disableFanoutWriters(table);
 
     Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_ORDERING);
 
@@ -2063,6 +1820,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table,
         UPDATE,
@@ -2083,6 +1842,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
 
@@ -2099,6 +1860,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     checkPositionDeltaDistributionAndOrdering(
         table,
@@ -2120,12 +1883,14 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
 
+    disableFanoutWriters(table);
+
     Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_FILE_ORDERING);
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
 
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+    enableFanoutWriters(table);
 
     checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
@@ -2263,6 +2028,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {
           Expressions.column(MetadataColumns.SPEC_ID.name()),
@@ -2306,6 +2073,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(
@@ -2340,6 +2109,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     Expression[] expectedClustering =
         new Expression[] {
@@ -2383,6 +2154,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
+
+    disableFanoutWriters(table);
 
     SortOrder[] expectedDistributionOrdering =
         new SortOrder[] {
@@ -2647,6 +2420,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {
           Expressions.column(MetadataColumns.SPEC_ID.name()),
@@ -2671,6 +2446,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
 
@@ -2687,6 +2464,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     Expression[] expectedClustering =
         new Expression[] {
@@ -2711,6 +2490,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
+
+    disableFanoutWriters(table);
 
     SortOrder[] expectedDistributionOrdering =
         new SortOrder[] {
@@ -2877,6 +2658,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    disableFanoutWriters(table);
+
     Expression[] expectedClustering =
         new Expression[] {
           Expressions.column(MetadataColumns.SPEC_ID.name()),
@@ -2919,6 +2702,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    disableFanoutWriters(table);
+
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(
@@ -2953,6 +2738,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
+
+    disableFanoutWriters(table);
 
     Expression[] expectedClustering =
         new Expression[] {
@@ -2995,6 +2782,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
+
+    disableFanoutWriters(table);
 
     SortOrder[] expectedDistributionOrdering =
         new SortOrder[] {
@@ -3225,6 +3014,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     SortOrder[] ordering = requirements.ordering();
     Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+  }
+
+  private void disableFanoutWriters(Table table) {
+    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "false").commit();
   }
 
   private void enableFanoutWriters(Table table) {
