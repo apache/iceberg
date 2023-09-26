@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -34,7 +35,7 @@ public class Hours<T> extends TimeTransform<T> {
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
     if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return (Transform<T, Integer>) Timestamps.HOUR;
+      return (Transform<T, Integer>) Timestamps.get((Types.TimestampType) type, ChronoUnit.HOURS);
     }
 
     throw new IllegalArgumentException("Unsupported type: " + type);
@@ -57,15 +58,16 @@ public class Hours<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return other == Timestamps.HOUR;
-    } else if (other instanceof Hours
-        || other instanceof Days
-        || other instanceof Months
-        || other instanceof Years) {
-      return true;
+      return ((Timestamps) other).getResultTypeUnit() == ChronoUnit.HOURS
+          || ((Timestamps) other).getResultTypeUnit() == ChronoUnit.DAYS
+          || ((Timestamps) other).getResultTypeUnit() == ChronoUnit.MONTHS
+          || ((Timestamps) other).getResultTypeUnit() == ChronoUnit.YEARS;
+    } else {
+      return other instanceof Hours
+          || other instanceof Days
+          || other instanceof Months
+          || other instanceof Years;
     }
-
-    return false;
   }
 
   @Override
