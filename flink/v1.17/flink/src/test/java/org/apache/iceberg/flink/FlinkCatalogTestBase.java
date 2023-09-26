@@ -113,6 +113,14 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {DATABASE}));
   }
 
+  protected TemporaryFolder warehouse() {
+    if (isHadoopCatalog) {
+      return hadoopWarehouse;
+    } else {
+      return hiveWarehouse;
+    }
+  }
+
   protected String warehouseRoot() {
     if (isHadoopCatalog) {
       return hadoopWarehouse.getRoot().getAbsolutePath();

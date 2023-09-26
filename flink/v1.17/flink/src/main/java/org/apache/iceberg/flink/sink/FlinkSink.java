@@ -59,6 +59,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
+import org.apache.iceberg.flink.IcebergRowLevelModificationScanContext;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
@@ -140,6 +141,7 @@ public class FlinkSink {
     private ReadableConfig readableConfig = new Configuration();
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private FlinkWriteConf flinkWriteConf = null;
+    private IcebergRowLevelModificationScanContext rowLevelModificationScanContext = null;
 
     private Builder() {}
 
@@ -323,6 +325,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder rowLevelModificationScanContext(IcebergRowLevelModificationScanContext context) {
+      this.rowLevelModificationScanContext = context;
+      return this;
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
@@ -434,7 +441,8 @@ public class FlinkSink {
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),
-              table.spec());
+              table.spec(),
+              rowLevelModificationScanContext);
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)

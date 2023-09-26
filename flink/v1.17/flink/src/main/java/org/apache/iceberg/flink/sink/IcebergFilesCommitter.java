@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -38,15 +44,19 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.table.connector.source.abilities.SupportsRowLevelModificationScan;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.IcebergRowLevelModificationScanContext;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -98,6 +108,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // be flushed to the 'dataFilesPerCheckpoint'.
   private final List<WriteResult> writeResultsOfCurrentCkpt = Lists.newArrayList();
   private final String branch;
+  private final IcebergRowLevelModificationScanContext scanContext;
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
@@ -132,12 +143,24 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       Integer workerPoolSize,
       String branch,
       PartitionSpec spec) {
+    this(tableLoader, replacePartitions, snapshotProperties, workerPoolSize, branch, spec, null);
+  }
+
+  IcebergFilesCommitter(
+      TableLoader tableLoader,
+      boolean replacePartitions,
+      Map<String, String> snapshotProperties,
+      Integer workerPoolSize,
+      String branch,
+      PartitionSpec spec,
+      IcebergRowLevelModificationScanContext rowLevelModificationScanContext) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
     this.spec = spec;
+    this.scanContext = rowLevelModificationScanContext;
   }
 
   @Override
@@ -333,20 +356,50 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
-    for (WriteResult result : pendingResults.values()) {
-      Preconditions.checkState(
-          result.referencedDataFiles().length == 0, "Should have no referenced data files.");
-      Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
-    }
+    if (scanContext != null) {
+      OverwriteFiles overwrite =
+          table
+              .newOverwrite()
+              .overwriteByRowFilter(scanContext.asCowContext().overwritePartitions());
 
-    commitOperation(
-        dynamicOverwrite,
-        summary,
-        "dynamic partition overwrite",
-        newFlinkJobId,
-        operatorId,
-        checkpointId);
+      overwrite =
+          overwrite
+              .conflictDetectionFilter(scanContext.conflictDetectionFilter())
+              .validateFromSnapshot(scanContext.snapshotId())
+              .validateAddedFilesMatchOverwriteFilter();
+
+      // Conflict detection
+      overwrite = overwrite.validateNoConflictingDeletes();
+      IsolationLevel isolationLevel = isolationLevel(table.properties(), scanContext.type());
+      if (isolationLevel == SERIALIZABLE) {
+        overwrite = overwrite.validateNoConflictingData();
+      }
+
+      for (WriteResult result : pendingResults.values()) {
+        Preconditions.checkState(
+            result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+        Arrays.stream(result.dataFiles()).forEach(overwrite::addFile);
+      }
+
+      commitOperation(
+          overwrite, summary, "partition overwrite", newFlinkJobId, operatorId, checkpointId);
+    } else {
+      ReplacePartitions dynamicOverwrite =
+          table.newReplacePartitions().scanManifestsWith(workerPool);
+      for (WriteResult result : pendingResults.values()) {
+        Preconditions.checkState(
+            result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+        Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
+      }
+
+      commitOperation(
+          dynamicOverwrite,
+          summary,
+          "dynamic partition overwrite",
+          newFlinkJobId,
+          operatorId,
+          checkpointId);
+    }
   }
 
   private void commitDeltaTxn(
@@ -512,5 +565,22 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  private static IsolationLevel isolationLevel(
+      Map<String, String> properties,
+      SupportsRowLevelModificationScan.RowLevelModificationType type) {
+    String levelName;
+    switch (type) {
+      case DELETE:
+        levelName = properties.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
+        break;
+      case UPDATE:
+        levelName = properties.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported row level modification type: " + type);
+    }
+    return IsolationLevel.fromName(levelName);
   }
 }
