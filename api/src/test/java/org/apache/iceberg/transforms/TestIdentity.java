@@ -98,7 +98,7 @@ public class TestIdentity {
 
   @Test
   public void testTimestampWithZoneHumanString() {
-    Types.TimestampType timestamptz = Types.TimestampType.withZone();
+    Types.TimestampType timestamptz = Types.TimestampType.microsWithZone();
     Transform<Long, Long> identity = Transforms.identity();
 
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194-08:00").to(timestamptz);
@@ -111,7 +111,7 @@ public class TestIdentity {
 
   @Test
   public void testTimestampWithoutZoneHumanString() {
-    Types.TimestampType timestamp = Types.TimestampType.withoutZone();
+    Types.TimestampType timestamp = Types.TimestampType.microsWithoutZone();
     Transform<Long, Long> identity = Transforms.identity();
 
     String tsString = "2017-12-01T10:12:55.038194";

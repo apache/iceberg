@@ -39,7 +39,9 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
 
 class Literals {
@@ -298,7 +300,7 @@ class Literals {
         case TIME:
           return (Literal<T>) new TimeLiteral(value());
         case TIMESTAMP:
-          return (Literal<T>) new TimestampLiteral(value());
+          return (Literal<T>) new TimestampLiteral(((TimestampType) type).unit(), value());
         case DATE:
           if ((long) Integer.MAX_VALUE < value()) {
             return aboveMax();
@@ -426,8 +428,11 @@ class Literals {
   }
 
   static class TimestampLiteral extends ComparableLiteral<Long> {
-    TimestampLiteral(Long value) {
+    private final ChronoUnit unit;
+
+    TimestampLiteral(ChronoUnit unit, Long value) {
       super(value);
+      this.unit = unit;
     }
 
     @Override
@@ -435,7 +440,25 @@ class Literals {
     public <T> Literal<T> to(Type type) {
       switch (type.typeId()) {
         case TIMESTAMP:
-          return (Literal<T>) this;
+          ChronoUnit toUnit = ((TimestampType) type).unit();
+          switch (unit) {
+            case MICROS:
+              switch (toUnit) {
+                case MICROS:
+                  return (Literal<T>) this;
+                case NANOS:
+                  return (Literal<T>)
+                      new TimestampLiteral(unit, DateTimeUtil.microsToNanos(value()));
+              }
+            case NANOS:
+              switch (toUnit) {
+                case MICROS:
+                  return (Literal<T>)
+                      new TimestampLiteral(unit, DateTimeUtil.nanosToMicros(value()));
+                case NANOS:
+                  return (Literal<T>) this;
+              }
+          }
         case DATE:
           return (Literal<T>)
               new DateLiteral(
@@ -450,6 +473,10 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.TIMESTAMP;
+    }
+
+    protected ChronoUnit unit() {
+      return unit;
     }
   }
 
@@ -501,18 +528,22 @@ class Literals {
           return (Literal<T>) new TimeLiteral(timeMicros);
 
         case TIMESTAMP:
-          if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-            long timestampMicros =
-                ChronoUnit.MICROS.between(
-                    EPOCH, OffsetDateTime.parse(value(), DateTimeFormatter.ISO_DATE_TIME));
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+          TimestampType tsType = (TimestampType) type;
+          if (tsType.shouldAdjustToUTC()) {
+            long timestampUnits =
+                tsType
+                    .unit()
+                    .between(EPOCH, OffsetDateTime.parse(value(), DateTimeFormatter.ISO_DATE_TIME));
+            return (Literal<T>) new TimestampLiteral(tsType.unit(), timestampUnits);
           } else {
-            long timestampMicros =
-                ChronoUnit.MICROS.between(
-                    EPOCH,
-                    LocalDateTime.parse(value(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        .atOffset(ZoneOffset.UTC));
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+            long timestampUnits =
+                tsType
+                    .unit()
+                    .between(
+                        EPOCH,
+                        LocalDateTime.parse(value(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            .atOffset(ZoneOffset.UTC));
+            return (Literal<T>) new TimestampLiteral(tsType.unit(), timestampUnits);
           }
 
         case STRING:

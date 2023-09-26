@@ -29,12 +29,13 @@ public class PartitionSpecTestBase {
           Types.NestedField.required(2, "l", Types.LongType.get()),
           Types.NestedField.required(3, "d", Types.DateType.get()),
           Types.NestedField.required(4, "t", Types.TimeType.get()),
-          Types.NestedField.required(5, "ts", Types.TimestampType.withoutZone()),
+          Types.NestedField.required(5, "ts", Types.TimestampType.microsWithoutZone()),
           Types.NestedField.required(6, "dec", Types.DecimalType.of(9, 2)),
           Types.NestedField.required(7, "s", Types.StringType.get()),
           Types.NestedField.required(8, "u", Types.UUIDType.get()),
           Types.NestedField.required(9, "f", Types.FixedType.ofLength(3)),
-          Types.NestedField.required(10, "b", Types.BinaryType.get()));
+          Types.NestedField.required(10, "b", Types.BinaryType.get()),
+          Types.NestedField.required(11, "tsn", Types.TimestampType.nanosWithoutZone()));
 
   // a spec with all of the allowed transform/type pairs
   public static final PartitionSpec[] SPECS =
@@ -49,6 +50,7 @@ public class PartitionSpecTestBase {
         PartitionSpec.builderFor(SCHEMA).identity("u").build(),
         PartitionSpec.builderFor(SCHEMA).identity("f").build(),
         PartitionSpec.builderFor(SCHEMA).identity("b").build(),
+        PartitionSpec.builderFor(SCHEMA).identity("tsn").build(),
         PartitionSpec.builderFor(SCHEMA).bucket("i", 128).build(),
         PartitionSpec.builderFor(SCHEMA).bucket("l", 128).build(),
         PartitionSpec.builderFor(SCHEMA).bucket("d", 128).build(),
@@ -59,6 +61,7 @@ public class PartitionSpecTestBase {
         PartitionSpec.builderFor(SCHEMA).bucket("u", 128).build(),
         PartitionSpec.builderFor(SCHEMA).bucket("f", 128).build(),
         PartitionSpec.builderFor(SCHEMA).bucket("b", 128).build(),
+        PartitionSpec.builderFor(SCHEMA).bucket("tsn", 128).build(),
         PartitionSpec.builderFor(SCHEMA).year("d").build(),
         PartitionSpec.builderFor(SCHEMA).month("d").build(),
         PartitionSpec.builderFor(SCHEMA).day("d").build(),
@@ -66,6 +69,10 @@ public class PartitionSpecTestBase {
         PartitionSpec.builderFor(SCHEMA).month("ts").build(),
         PartitionSpec.builderFor(SCHEMA).day("ts").build(),
         PartitionSpec.builderFor(SCHEMA).hour("ts").build(),
+        PartitionSpec.builderFor(SCHEMA).year("tsn").build(),
+        PartitionSpec.builderFor(SCHEMA).month("tsn").build(),
+        PartitionSpec.builderFor(SCHEMA).day("tsn").build(),
+        PartitionSpec.builderFor(SCHEMA).hour("tsn").build(),
         PartitionSpec.builderFor(SCHEMA).truncate("i", 10).build(),
         PartitionSpec.builderFor(SCHEMA).truncate("l", 10).build(),
         PartitionSpec.builderFor(SCHEMA).truncate("dec", 10).build(),
