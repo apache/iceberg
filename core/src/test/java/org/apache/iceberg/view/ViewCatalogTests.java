@@ -412,26 +412,29 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
 
-    catalog()
-        .buildView(from)
-        .withSchema(SCHEMA)
-        .withDefaultNamespace(from.namespace())
-        .withQuery("spark", "select * from ns.tbl")
-        .create();
+    View view =
+        catalog()
+            .buildView(from)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(from.namespace())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
 
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
+
+    ViewMetadata original = ((BaseView) view).operations().current();
 
     catalog().renameView(from, to);
 
     assertThat(catalog().viewExists(from)).as("View should not exist with old name").isFalse();
     assertThat(catalog().viewExists(to)).as("View should exist with new name").isTrue();
 
-    // ensure current view version id didn't change after renaming
-    assertThat(catalog().loadView(to))
-        .isNotNull()
-        .extracting(View::currentVersion)
-        .extracting(ViewVersion::versionId)
-        .isEqualTo(1);
+    // ensure view metadata didn't change after renaming
+    View renamed = catalog().loadView(to);
+    assertThat(((BaseView) renamed).operations().current())
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(original);
 
     assertThat(catalog().dropView(from)).isFalse();
     assertThat(catalog().dropView(to)).isTrue();
@@ -450,19 +453,29 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
 
-    catalog()
-        .buildView(from)
-        .withSchema(SCHEMA)
-        .withDefaultNamespace(from.namespace())
-        .withQuery("spark", "select * from ns.tbl")
-        .create();
+    View view =
+        catalog()
+            .buildView(from)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(from.namespace())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
 
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
+
+    ViewMetadata original = ((BaseView) view).operations().current();
 
     catalog().renameView(from, to);
 
     assertThat(catalog().viewExists(from)).as("View should not exist with old name").isFalse();
     assertThat(catalog().viewExists(to)).as("View should exist with new name").isTrue();
+
+    // ensure view metadata didn't change after renaming
+    View renamed = catalog().loadView(to);
+    assertThat(((BaseView) renamed).operations().current())
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(original);
 
     assertThat(catalog().dropView(from)).isFalse();
     assertThat(catalog().dropView(to)).isTrue();
