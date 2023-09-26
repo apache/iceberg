@@ -53,11 +53,6 @@ public class SparkWriteOptions {
   // File scan task set ID that indicates which files must be replaced
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
-  // Controls whether to allow writing timestamps without zone info
-  @Deprecated
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-      "handle-timestamp-without-timezone";
-
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";

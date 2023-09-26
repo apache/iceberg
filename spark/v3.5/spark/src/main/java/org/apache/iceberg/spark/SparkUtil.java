@@ -30,12 +30,10 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
@@ -155,40 +153,6 @@ public class SparkUtil {
 
   private static String hadoopConfPrefixForCatalog(String catalogName) {
     return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
-  }
-
-  public static void validateTimestampWithoutTimezoneConfig(RuntimeConfig conf) {
-    validateTimestampWithoutTimezoneConfig(conf, ImmutableMap.of());
-  }
-
-  /**
-   * Checks for properties both supplied by Spark's RuntimeConfig and the read or write options
-   *
-   * @param conf The RuntimeConfig of the active Spark session
-   * @param options The read or write options supplied when reading/writing a table
-   */
-  public static void validateTimestampWithoutTimezoneConfig(
-      RuntimeConfig conf, Map<String, String> options) {
-    if (conf.contains(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-
-    if (options.containsKey(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Option "
-              + SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-
-    if (conf.contains(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
   }
 
   /**
