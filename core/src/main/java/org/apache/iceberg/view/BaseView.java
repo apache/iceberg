@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.UpdateLocation;
 
 public class BaseView implements View, Serializable {
 
@@ -78,6 +79,11 @@ public class BaseView implements View, Serializable {
   }
 
   @Override
+  public String location() {
+    return operations().current().location();
+  }
+
+  @Override
   public UpdateViewProperties updateProperties() {
     return new PropertiesUpdate(ops);
   }
@@ -85,5 +91,10 @@ public class BaseView implements View, Serializable {
   @Override
   public ReplaceViewVersion replaceVersion() {
     return new ViewVersionReplace(ops);
+  }
+
+  @Override
+  public UpdateLocation updateLocation() {
+    return new SetViewLocation(ops);
   }
 }

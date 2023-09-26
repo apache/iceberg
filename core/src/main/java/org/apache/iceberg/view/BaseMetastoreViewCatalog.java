@@ -71,6 +71,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private Namespace defaultNamespace = null;
     private String defaultCatalog = null;
     private Schema schema = null;
+    private String location = null;
 
     protected BaseViewBuilder(TableIdentifier identifier) {
       Preconditions.checkArgument(
@@ -112,6 +113,12 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     @Override
     public ViewBuilder withProperty(String key, String value) {
       this.properties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withLocation(String newLocation) {
+      this.location = newLocation;
       return this;
     }
 
@@ -160,7 +167,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       ViewMetadata viewMetadata =
           ViewMetadata.builder()
               .setProperties(properties)
-              .setLocation(defaultWarehouseLocation(identifier))
+              .setLocation(null != location ? location : defaultWarehouseLocation(identifier))
               .setCurrentVersion(viewVersion, schema)
               .build();
 
@@ -202,11 +209,16 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .putSummary("operation", "replace")
               .build();
 
-      ViewMetadata replacement =
+      ViewMetadata.Builder builder =
           ViewMetadata.buildFrom(metadata)
               .setProperties(properties)
-              .setCurrentVersion(viewVersion, schema)
-              .build();
+              .setCurrentVersion(viewVersion, schema);
+
+      if (null != location) {
+        builder.setLocation(location);
+      }
+
+      ViewMetadata replacement = builder.build();
 
       try {
         ops.commit(metadata, replacement);

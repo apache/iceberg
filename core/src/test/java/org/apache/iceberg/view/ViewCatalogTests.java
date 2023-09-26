@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -131,6 +132,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withQuery("trino", "select * from ns.tbl using X")
             .withProperty("prop1", "val1")
             .withProperty("prop2", "val2")
+            .withLocation("file://tmp/ns/view")
             .create();
 
     assertThat(view).isNotNull();
@@ -138,6 +140,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     // validate view settings
     assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
     assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
     assertThat(view.history())
         .hasSize(1)
@@ -1336,5 +1339,114 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .replace())
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageStartingWith("View does not exist: ns.view");
+  }
+
+  @Test
+  public void createAndReplaceViewWithLocation() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .withLocation("file://tmp/ns/view")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
+
+    view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .withLocation("file://updated_tmp/ns/view")
+            .replace();
+
+    assertThat(view.location()).isEqualTo("file://updated_tmp/ns/view");
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void updateViewLocation() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .withLocation("file://tmp/ns/view")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
+
+    view.updateLocation().setLocation("file://updated_tmp/ns/view").commit();
+
+    View updatedView = catalog().loadView(identifier);
+
+    assertThat(updatedView.location()).isEqualTo("file://updated_tmp/ns/view");
+
+    // history and view versions should stay the same after updating view properties
+    assertThat(updatedView.history()).hasSize(1).isEqualTo(view.history());
+    assertThat(updatedView.versions()).hasSize(1).containsExactly(view.currentVersion());
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void updateViewLocationConflict() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    // new location must be non-null
+    assertThatThrownBy(() -> view.updateLocation().setLocation(null).commit())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid view location: null");
+
+    UpdateLocation updateViewLocation = view.updateLocation();
+
+    catalog().dropView(identifier);
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    // the view was already dropped concurrently
+    assertThatThrownBy(() -> updateViewLocation.setLocation("new-location").commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Cannot commit");
   }
 }
