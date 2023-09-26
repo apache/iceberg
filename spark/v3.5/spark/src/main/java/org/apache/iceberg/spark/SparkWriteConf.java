@@ -92,8 +92,6 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), writeOptions);
   }
 
   public boolean checkNullability() {
