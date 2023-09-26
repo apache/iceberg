@@ -121,17 +121,13 @@ public interface PartitionSpecVisitor<T> {
     } else if (transform instanceof Truncate) {
       int width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
-    } else if (transform == Dates.YEAR
-        || transform == Timestamps.YEAR
-        || transform instanceof Years) {
+    } else if ("year".equalsIgnoreCase(transform.toString())) {
       return visitor.year(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.MONTH
-        || transform == Timestamps.MONTH
-        || transform instanceof Months) {
+    } else if ("month".equalsIgnoreCase(transform.toString())) {
       return visitor.month(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.DAY || transform == Timestamps.DAY || transform instanceof Days) {
+    } else if ("day".equalsIgnoreCase(transform.toString())) {
       return visitor.day(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
+    } else if ("hour".equalsIgnoreCase(transform.toString())) {
       return visitor.hour(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof VoidTransform) {
       return visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId());

@@ -29,7 +29,9 @@ public class TestTypes {
     Assertions.assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
 
     Assertions.assertThat(Types.fromPrimitiveString("timestamp"))
-        .isSameAs(Types.TimestampType.withoutZone());
+        .isSameAs(Types.TimestampType.microsWithoutZone());
+    Assertions.assertThat(Types.fromPrimitiveString("timestamp_ns"))
+        .isSameAs(Types.TimestampType.nanosWithoutZone());
 
     Assertions.assertThat(Types.fromPrimitiveString("Fixed[ 3 ]"))
         .isEqualTo(Types.FixedType.ofLength(3));

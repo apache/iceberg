@@ -75,8 +75,10 @@ public class TestComparators {
 
   @Test
   public void testTimestamp() {
-    assertComparesCorrectly(Comparators.forType(Types.TimestampType.withoutZone()), 111, 222);
-    assertComparesCorrectly(Comparators.forType(Types.TimestampType.withZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampType.microsWithoutZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampType.microsWithZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampType.nanosWithoutZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampType.nanosWithZone()), 111, 222);
   }
 
   @Test

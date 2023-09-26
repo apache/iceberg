@@ -33,8 +33,12 @@ public class DateTimeUtil {
 
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-  public static final long MICROS_PER_MILLIS = 1000L;
+  public static final long MICROS_PER_MILLI = 1_000L;
+  public static final long MILLIS_PER_SECOND = 1_000L;
   public static final long MICROS_PER_SECOND = 1_000_000L;
+  public static final long NANOS_PER_SECOND = 1_000_000_000L;
+  public static final long NANOS_PER_MILLI = 1_000_000L;
+  public static final long NANOS_PER_MICRO = 1_000L;
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -72,7 +76,23 @@ public class DateTimeUtil {
     // When the timestamp is negative, i.e before 1970, we need to adjust the milliseconds portion.
     // Example - 1965-01-01 10:11:12.123456 is represented as (-157700927876544) in micro precision.
     // In millis precision the above needs to be represented as (-157700927877).
-    return Math.floorDiv(micros, MICROS_PER_MILLIS);
+    return Math.floorDiv(micros, MICROS_PER_MILLI);
+  }
+
+  public static long nanosToMillis(long nanos) {
+    return Math.floorDiv(nanos, NANOS_PER_MILLI);
+  }
+
+  public static long nanosToMicros(long nanos) {
+    return Math.floorDiv(nanos, NANOS_PER_MICRO);
+  }
+
+  public static long microsToNanos(long micros) {
+    return Math.multiplyExact(micros, NANOS_PER_MICRO);
+  }
+
+  public static long millisToNanos(long millis) {
+    return Math.multiplyExact(millis, NANOS_PER_MILLI);
   }
 
   public static OffsetDateTime timestamptzFromMicros(long microsFromEpoch) {
@@ -159,28 +179,76 @@ public class DateTimeUtil {
     return convertMicros(micros, ChronoUnit.YEARS);
   }
 
+  public static int nanosToYears(long nanos) {
+    return convertNanos(nanos, ChronoUnit.YEARS);
+  }
+
   public static int microsToMonths(long micros) {
     return convertMicros(micros, ChronoUnit.MONTHS);
+  }
+
+  public static int nanosToMonths(long nanos) {
+    return convertNanos(nanos, ChronoUnit.MONTHS);
   }
 
   public static int microsToDays(long micros) {
     return convertMicros(micros, ChronoUnit.DAYS);
   }
 
+  public static int nanosToDays(long nanos) {
+    return convertNanos(nanos, ChronoUnit.DAYS);
+  }
+
+  public static int millisToHours(long millis) {
+    return convertMillis(millis, ChronoUnit.HOURS);
+  }
+
   public static int microsToHours(long micros) {
     return convertMicros(micros, ChronoUnit.HOURS);
+  }
+
+  public static int nanosToHours(long nanos) {
+    return convertNanos(nanos, ChronoUnit.HOURS);
+  }
+
+  private static int convertMillis(long millis, ChronoUnit granularity) {
+    if (millis >= 0) {
+      long epochSecond = Math.floorDiv(millis, MILLIS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(millis, MILLIS_PER_SECOND) * NANOS_PER_MILLI;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+    } else {
+      // add 1 milli to the value to account for the case where there is exactly 1 unit between
+      // the timestamp and epoch because the result will always be decremented.
+      long epochSecond = Math.floorDiv(millis, MILLIS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(millis + 1, MILLIS_PER_SECOND) * NANOS_PER_MILLI;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+    }
   }
 
   private static int convertMicros(long micros, ChronoUnit granularity) {
     if (micros >= 0) {
       long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
-      long nanoAdjustment = Math.floorMod(micros, MICROS_PER_SECOND) * 1000;
+      long nanoAdjustment = Math.floorMod(micros, MICROS_PER_SECOND) * NANOS_PER_MICRO;
       return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
     } else {
       // add 1 micro to the value to account for the case where there is exactly 1 unit between
       // the timestamp and epoch because the result will always be decremented.
       long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
-      long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * 1000;
+      long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * NANOS_PER_MICRO;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+    }
+  }
+
+  private static int convertNanos(long nanos, ChronoUnit granularity) {
+    if (nanos >= 0) {
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+    } else {
+      // add 1 nano to the value to account for the case where there is exactly 1 unit between
+      // the timestamp and epoch because the result will always be decremented.
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos + 1, NANOS_PER_SECOND);
       return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
   }
