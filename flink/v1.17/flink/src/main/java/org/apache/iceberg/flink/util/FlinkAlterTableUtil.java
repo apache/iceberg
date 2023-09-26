@@ -128,7 +128,7 @@ public class FlinkAlterTableUtil {
         Column flinkColumn = addColumn.getColumn();
         Preconditions.checkArgument(
             FlinkCompatibilityUtil.isPhysicalColumn(flinkColumn),
-            "Adding computed columns is not supported yet: %s",
+            "Unsupported table change: Adding computed column %s.",
             flinkColumn.getName());
         Type icebergType = FlinkSchemaUtil.convert(flinkColumn.getDataType().getLogicalType());
         if (flinkColumn.getDataType().getLogicalType().isNullable()) {
@@ -143,11 +143,11 @@ public class FlinkAlterTableUtil {
         TableChange.DropColumn dropColumn = (TableChange.DropColumn) change;
         pendingUpdate.deleteColumn(dropColumn.getColumnName());
       } else if (change instanceof TableChange.AddWatermark) {
-        throw new UnsupportedOperationException("Adding watermark specs is not supported yet. ");
+        throw new UnsupportedOperationException("Unsupported table change: AddWatermark.");
       } else if (change instanceof TableChange.ModifyWatermark) {
-        throw new UnsupportedOperationException("Modifying watermark specs is not supported yet. ");
+        throw new UnsupportedOperationException("Unsupported table change: ModifyWatermark.");
       } else if (change instanceof TableChange.DropWatermark) {
-        throw new UnsupportedOperationException("Dropping watermark specs is not supported yet. ");
+        throw new UnsupportedOperationException("Unsupported table change: DropWatermark.");
       } else if (change instanceof TableChange.AddUniqueConstraint) {
         TableChange.AddUniqueConstraint addPk = (TableChange.AddUniqueConstraint) change;
         applyUniqueConstraint(pendingUpdate, addPk.getConstraint());
@@ -155,7 +155,7 @@ public class FlinkAlterTableUtil {
         TableChange.ModifyUniqueConstraint modifyPk = (TableChange.ModifyUniqueConstraint) change;
         applyUniqueConstraint(pendingUpdate, modifyPk.getNewConstraint());
       } else if (change instanceof TableChange.DropConstraint) {
-        throw new UnsupportedOperationException("Dropping constraints is not supported yet. ");
+        throw new UnsupportedOperationException("Unsupported table change: DropConstraint.");
       } else {
         throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
@@ -237,7 +237,7 @@ public class FlinkAlterTableUtil {
         break;
       case UNIQUE_KEY:
         throw new UnsupportedOperationException(
-            "Setting unique key constraint is not supported yet.");
+            "Unsupported table change: setting unique key constraints.");
       default:
         throw new UnsupportedOperationException(
             "Cannot apply unknown unique constraint: " + constraint.getType().name());

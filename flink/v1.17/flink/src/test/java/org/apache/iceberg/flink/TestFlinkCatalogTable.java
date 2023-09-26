@@ -348,7 +348,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaAfter2.asStruct());
 
-    // Adding a required field should fail due to Iceberg's validation.
+    // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
+    // incompatible changes.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
@@ -461,7 +462,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .asStruct(),
         schemaBefore.asStruct());
 
-    // Changing nullability from optional to required should fail due to Iceberg's validation.
+    // Changing nullability from optional to required should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
         .isInstanceOf(TableException.class)
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
@@ -582,14 +584,16 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         schemaAfterComposite.asStruct());
     Assert.assertEquals(ImmutableSet.of("id", "dt"), schemaAfterComposite.identifierFieldNames());
 
-    // Setting an optional field as primary key should fail due to Iceberg's validation.
+    // Setting an optional field as primary key should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
-    // Setting a composite key containing an optional field should fail due to Iceberg's validation.
+    // Setting a composite key containing an optional field should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
@@ -600,7 +604,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
         .isInstanceOf(TableException.class)
         .hasRootCauseInstanceOf(UnsupportedOperationException.class)
-        .hasRootCauseMessage("Dropping constraints is not supported yet. ");
+        .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }
 
   @Test
