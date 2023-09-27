@@ -190,7 +190,7 @@ DATA_FILE_TYPE = StructType(
 )
 
 
-def datafile_with_partition(partition_type: StructType, format_version: Literal[1, 2]) -> StructType:
+def data_file_with_partition(partition_type: StructType, format_version: Literal[1, 2]) -> StructType:
     if format_version == 1:
         return StructType(
             *[
@@ -271,8 +271,11 @@ class DataFile(Record):
             value = FileFormat[value]
         super().__setattr__(name, value)
 
-    def __init__(self, *data: Any, format_version: Literal[1, 2] = 1, **named_data: Any) -> None:
-        super().__init__(*data, **{"struct": datafile_with_partition(StructType(), format_version), **named_data})
+    def __init__(self, format_version: Literal[1, 2] = 1, *data: Any, **named_data: Any) -> None:
+        super().__init__(
+            *data,
+            **{"struct": DATA_FILE_TYPE if format_version == 1 else data_file_with_partition(StructType(), 2), **named_data},
+        )
 
     def __hash__(self) -> int:
         """Return the hash of the file path."""
@@ -667,7 +670,7 @@ class ManifestWriterV1(ManifestWriter):
         return ManifestContent.DATA
 
     def new_writer(self) -> AvroOutputFile[ManifestEntry]:
-        v1_data_file_type = datafile_with_partition(self._spec.partition_type(self._schema), format_version=1)
+        v1_data_file_type = data_file_with_partition(self._spec.partition_type(self._schema), format_version=1)
         v1_manifest_entry_schema = manifest_entry_schema_with_data_file(v1_data_file_type)
         return AvroOutputFile[ManifestEntry](self._output_file, v1_manifest_entry_schema, "manifest_entry", self._meta)
 
@@ -697,7 +700,7 @@ class ManifestWriterV2(ManifestWriter):
         return ManifestContent.DATA
 
     def new_writer(self) -> AvroOutputFile[ManifestEntry]:
-        v2_data_file_type = datafile_with_partition(self._spec.partition_type(self._schema), format_version=2)
+        v2_data_file_type = data_file_with_partition(self._spec.partition_type(self._schema), format_version=2)
         v2_manifest_entry_schema = manifest_entry_schema_with_data_file(v2_data_file_type)
         return AvroOutputFile[ManifestEntry](self._output_file, v2_manifest_entry_schema, "manifest_entry", self._meta)
 
@@ -707,9 +710,29 @@ class ManifestWriterV2(ManifestWriter):
                 raise ValueError(f"Found unassigned sequence number for an entry from snapshot: {entry.snapshot_id}")
             if entry.status != ManifestEntryStatus.ADDED:
                 raise ValueError("Only entries with status ADDED can have null sequence number")
-        wrapped_data_file_v2 = DataFile(format_version=2, *entry.data_file.record_fields(skip_fields=["block_size_in_bytes"]))
+        # In v2, we should not write block_size_in_bytes field
+        wrapped_data_file_v2_debug = DataFile(
+            format_version=2,
+            content=entry.data_file.content,
+            file_path=entry.data_file.file_path,
+            file_format=entry.data_file.file_format,
+            partition=entry.data_file.partition,
+            record_count=entry.data_file.record_count,
+            file_size_in_bytes=entry.data_file.file_size_in_bytes,
+            column_sizes=entry.data_file.column_sizes,
+            value_counts=entry.data_file.value_counts,
+            null_value_counts=entry.data_file.null_value_counts,
+            nan_value_counts=entry.data_file.nan_value_counts,
+            lower_bounds=entry.data_file.lower_bounds,
+            upper_bounds=entry.data_file.upper_bounds,
+            key_metadata=entry.data_file.key_metadata,
+            split_offsets=entry.data_file.split_offsets,
+            equality_ids=entry.data_file.equality_ids,
+            sort_order_id=entry.data_file.sort_order_id,
+            spec_id=entry.data_file.spec_id,
+        )
         wrapped_entry = ManifestEntry(*entry.record_fields())
-        wrapped_entry.data_file = wrapped_data_file_v2
+        wrapped_entry.data_file = wrapped_data_file_v2_debug
         return wrapped_entry
 
 
