@@ -28,9 +28,18 @@ import org.apache.spark.sql.SparkSession;
 
 class SparkCompressionUtil {
 
+  private static final String LZ4 = "lz4";
+  private static final String ZSTD = "zstd";
+  private static final String GZIP = "gzip";
+  private static final String ZLIB = "zlib";
+  private static final String SNAPPY = "snappy";
+  private static final String NONE = "none";
+
+  // an internal Spark config that controls whether shuffle data is compressed
   private static final String SHUFFLE_COMPRESSION_ENABLED = "spark.shuffle.compress";
   private static final boolean SHUFFLE_COMPRESSION_ENABLED_DEFAULT = true;
 
+  // an internal Spark config that controls what compression codec is used
   private static final String SPARK_COMPRESSION_CODEC = "spark.io.compression.codec";
   private static final String SPARK_COMPRESSION_CODEC_DEFAULT = "lz4";
 
@@ -61,7 +70,7 @@ class SparkCompressionUtil {
 
   private static String shuffleCodec(SparkSession spark) {
     SparkConf sparkConf = spark.sparkContext().conf();
-    return shuffleCompressionEnabled(sparkConf) ? sparkCodec(sparkConf) : "none";
+    return shuffleCompressionEnabled(sparkConf) ? sparkCodec(sparkConf) : NONE;
   }
 
   private static boolean shuffleCompressionEnabled(SparkConf sparkConf) {
@@ -89,29 +98,29 @@ class SparkCompressionUtil {
   private static Map<Pair<String, String>, Double> initColumnarCompressions() {
     Map<Pair<String, String>, Double> compressions = Maps.newHashMap();
 
-    compressions.put(Pair.of("none", "zstd"), 4.0);
-    compressions.put(Pair.of("none", "gzip"), 4.0);
-    compressions.put(Pair.of("none", "zlib"), 4.0);
-    compressions.put(Pair.of("none", "snappy"), 3.0);
-    compressions.put(Pair.of("none", "lz4"), 3.0);
+    compressions.put(Pair.of(NONE, ZSTD), 4.0);
+    compressions.put(Pair.of(NONE, GZIP), 4.0);
+    compressions.put(Pair.of(NONE, ZLIB), 4.0);
+    compressions.put(Pair.of(NONE, SNAPPY), 3.0);
+    compressions.put(Pair.of(NONE, LZ4), 3.0);
 
-    compressions.put(Pair.of("zstd", "zstd"), 2.0);
-    compressions.put(Pair.of("zstd", "gzip"), 2.0);
-    compressions.put(Pair.of("zstd", "zlib"), 2.0);
-    compressions.put(Pair.of("zstd", "snappy"), 1.5);
-    compressions.put(Pair.of("zstd", "lz4"), 1.5);
+    compressions.put(Pair.of(ZSTD, ZSTD), 2.0);
+    compressions.put(Pair.of(ZSTD, GZIP), 2.0);
+    compressions.put(Pair.of(ZSTD, ZLIB), 2.0);
+    compressions.put(Pair.of(ZSTD, SNAPPY), 1.5);
+    compressions.put(Pair.of(ZSTD, LZ4), 1.5);
 
-    compressions.put(Pair.of("snappy", "zstd"), 3.0);
-    compressions.put(Pair.of("snappy", "gzip"), 3.0);
-    compressions.put(Pair.of("snappy", "zlib"), 3.0);
-    compressions.put(Pair.of("snappy", "snappy"), 2.0);
-    compressions.put(Pair.of("snappy", "lz4"), 2.);
+    compressions.put(Pair.of(SNAPPY, ZSTD), 3.0);
+    compressions.put(Pair.of(SNAPPY, GZIP), 3.0);
+    compressions.put(Pair.of(SNAPPY, ZLIB), 3.0);
+    compressions.put(Pair.of(SNAPPY, SNAPPY), 2.0);
+    compressions.put(Pair.of(SNAPPY, LZ4), 2.);
 
-    compressions.put(Pair.of("lz4", "zstd"), 3.0);
-    compressions.put(Pair.of("lz4", "gzip"), 3.0);
-    compressions.put(Pair.of("lz4", "zlib"), 3.0);
-    compressions.put(Pair.of("lz4", "snappy"), 2.0);
-    compressions.put(Pair.of("lz4", "lz4"), 2.0);
+    compressions.put(Pair.of(LZ4, ZSTD), 3.0);
+    compressions.put(Pair.of(LZ4, GZIP), 3.0);
+    compressions.put(Pair.of(LZ4, ZLIB), 3.0);
+    compressions.put(Pair.of(LZ4, SNAPPY), 2.0);
+    compressions.put(Pair.of(LZ4, LZ4), 2.0);
 
     return compressions;
   }
@@ -119,11 +128,20 @@ class SparkCompressionUtil {
   private static Map<Pair<String, String>, Double> initRowBasedCompressions() {
     Map<Pair<String, String>, Double> compressions = Maps.newHashMap();
 
-    compressions.put(Pair.of("none", "zstd"), 2.0);
-    compressions.put(Pair.of("none", "gzip"), 2.0);
+    compressions.put(Pair.of(NONE, ZSTD), 2.0);
+    compressions.put(Pair.of(NONE, GZIP), 2.0);
+    compressions.put(Pair.of(NONE, ZLIB), 2.0);
 
-    compressions.put(Pair.of("lz4", "zstd"), 1.5);
-    compressions.put(Pair.of("lz4", "gzip"), 1.5);
+    compressions.put(Pair.of(ZSTD, SNAPPY), 0.5);
+    compressions.put(Pair.of(ZSTD, LZ4), 0.5);
+
+    compressions.put(Pair.of(SNAPPY, ZSTD), 1.5);
+    compressions.put(Pair.of(SNAPPY, GZIP), 1.5);
+    compressions.put(Pair.of(SNAPPY, ZLIB), 1.5);
+
+    compressions.put(Pair.of(LZ4, ZSTD), 1.5);
+    compressions.put(Pair.of(LZ4, GZIP), 1.5);
+    compressions.put(Pair.of(LZ4, ZLIB), 1.5);
 
     return compressions;
   }

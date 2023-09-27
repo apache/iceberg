@@ -695,9 +695,9 @@ public class SparkWriteConf {
   }
 
   private long advisoryPartitionSize(
-      long targetFileSize, FileFormat outputFileFormat, String outputCodec) {
+      long expectedFileSize, FileFormat outputFileFormat, String outputCodec) {
     double shuffleCompressionRatio = shuffleCompressionRatio(outputFileFormat, outputCodec);
-    return (long) (targetFileSize * shuffleCompressionRatio);
+    return (long) (expectedFileSize * shuffleCompressionRatio);
   }
 
   private double shuffleCompressionRatio(FileFormat outputFileFormat, String outputCodec) {

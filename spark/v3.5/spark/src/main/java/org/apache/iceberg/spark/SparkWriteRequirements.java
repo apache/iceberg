@@ -53,6 +53,7 @@ public class SparkWriteRequirements {
   }
 
   public long advisoryPartitionSize() {
+    // Spark prohibits requesting a particular advisory partition size without distribution
     return distribution instanceof UnspecifiedDistribution ? 0 : advisoryPartitionSize;
   }
 }
