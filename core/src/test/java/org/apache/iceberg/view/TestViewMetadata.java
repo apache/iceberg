@@ -757,6 +757,6 @@ public class TestViewMetadata {
                     .setCurrentVersionId(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot add multiple SQLs for dialect: spark");
+        .hasMessage("Invalid view version: Cannot add multiple queries for dialect spark");
   }
 }

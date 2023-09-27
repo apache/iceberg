@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.ImplementationVisibility;
@@ -272,9 +273,15 @@ public interface ViewMetadata extends Serializable {
           "Cannot add version with unknown schema: %s",
           version.schemaId());
 
-      for (Map.Entry<String, Long> entry : sqlDialectFrequency(version).entrySet()) {
-        Preconditions.checkArgument(
-            entry.getValue() == 1L, "Cannot add multiple SQLs for dialect: %s", entry.getKey());
+      Set<String> dialects = Sets.newHashSet();
+      for (ViewRepresentation repr : version.representations()) {
+        if (repr instanceof SQLViewRepresentation) {
+          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+          Preconditions.checkArgument(
+              dialects.add(sql.dialect()),
+              "Invalid view version: Cannot add multiple queries for dialect %s",
+              sql.dialect());
+        }
       }
 
       ViewVersion newVersion;
@@ -296,19 +303,6 @@ public interface ViewMetadata extends Serializable {
       this.lastAddedVersionId = newVersionId;
 
       return newVersionId;
-    }
-
-    /**
-     * @param version The view version to analyze
-     * @return A map of SQL dialect to its frequency in the list of representations for the given
-     *     view version
-     */
-    private Map<String, Long> sqlDialectFrequency(ViewVersion version) {
-      return version.representations().stream()
-          .filter(v -> v instanceof SQLViewRepresentation)
-          .map(v -> (SQLViewRepresentation) v)
-          .map(SQLViewRepresentation::dialect)
-          .collect(Collectors.groupingBy(d -> d, Collectors.counting()));
     }
 
     private int reuseOrCreateNewViewVersionId(ViewVersion viewVersion) {
