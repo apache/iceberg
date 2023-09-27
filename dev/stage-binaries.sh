@@ -20,7 +20,7 @@
 
 SCALA_VERSION=2.12
 FLINK_VERSIONS=1.15,1.16,1.17
-SPARK_VERSIONS=3.2,3.3,3.4
+SPARK_VERSIONS=3.2,3.3,3.4,3.5
 HIVE_VERSIONS=2,3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS publishApachePublicationToMavenRepository
@@ -30,4 +30,5 @@ HIVE_VERSIONS=2,3
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.2_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.2_2.13:publishApachePublicationToMavenRepository
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.3_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.3_2.13:publishApachePublicationToMavenRepository
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.4_2.13:publishApachePublicationToMavenRepository
+./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.5_2.13:publishApachePublicationToMavenRepository
 
