@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from enum import Enum
+from functools import singledispatch
 from types import TracebackType
 from typing import (
     Any,
@@ -30,7 +31,6 @@ from typing import (
     Type,
 )
 
-from pyiceberg import conversions
 from pyiceberg.avro.file import AvroFile, AvroOutputFile
 from pyiceberg.conversions import to_bytes
 from pyiceberg.exceptions import ValidationError
@@ -41,6 +41,7 @@ from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    DateType,
     IcebergType,
     IntegerType,
     ListType,
@@ -50,6 +51,9 @@ from pyiceberg.types import (
     PrimitiveType,
     StringType,
     StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
 )
 
 UNASSIGNED_SEQ = -1
@@ -190,14 +194,44 @@ DATA_FILE_TYPE = StructType(
 )
 
 
+@singledispatch
+def partition_field_to_data_file_partition_field(partition_field_type: IcebergType) -> PrimitiveType:
+    raise TypeError(f"Unsupported partition field type: {partition_field_type}")
+
+
+@partition_field_to_data_file_partition_field.register(LongType)
+@partition_field_to_data_file_partition_field.register(DateType)
+@partition_field_to_data_file_partition_field.register(TimeType)
+@partition_field_to_data_file_partition_field.register(TimestampType)
+@partition_field_to_data_file_partition_field.register(TimestamptzType)
+def _(partition_field_type: PrimitiveType) -> IntegerType:
+    return IntegerType()
+
+
+@partition_field_to_data_file_partition_field.register(PrimitiveType)
+def _(partition_field_type: PrimitiveType) -> PrimitiveType:
+    return partition_field_type
+
+
 def data_file_with_partition(partition_type: StructType, format_version: Literal[1, 2]) -> StructType:
+    data_file_partition_type = StructType(
+        *[
+            NestedField(
+                field_id=field.field_id,
+                name=field.name,
+                field_type=partition_field_to_data_file_partition_field(field.field_type),
+            )
+            for field in partition_type.fields
+        ]
+    )
+
     if format_version == 1:
         return StructType(
             *[
                 NestedField(
                     field_id=102,
                     name="partition",
-                    field_type=partition_type,
+                    field_type=data_file_partition_type,
                     required=True,
                     doc="Partition data tuple, schema based on the partition spec",
                 )
@@ -212,7 +246,7 @@ def data_file_with_partition(partition_type: StructType, format_version: Literal
                 NestedField(
                     field_id=102,
                     name="partition",
-                    field_type=partition_type,
+                    field_type=data_file_partition_type,
                     required=True,
                     doc="Partition data tuple, schema based on the partition spec",
                 )
@@ -367,7 +401,7 @@ class PartitionFieldStats:
     def update(self, value: Any) -> None:
         if value is None:
             self._contains_null = True
-        elif math.isnan(value):
+        elif isinstance(value, float) and math.isnan(value):
             self._contains_nan = True
         else:
             if self._min is None:
@@ -378,24 +412,16 @@ class PartitionFieldStats:
                 self._min = min(self._min, value)
 
 
-class PartitionSummary:
-    _field_stats: List[PartitionFieldStats]
-    _types: List[IcebergType]
-
-    def __init__(self, spec: PartitionSpec, schema: Schema):
-        self._types = [field.field_type for field in spec.partition_type(schema).fields]
-        self._field_stats = [PartitionFieldStats(field_type) for field_type in self._types]
-
-    def summaries(self) -> List[PartitionFieldSummary]:
-        return [field.to_summary() for field in self._field_stats]
-
-    def update(self, partition_keys: Record) -> PartitionSummary:
-        for i, field_type in enumerate(self._types):
+def construct_partition_summaries(spec: PartitionSpec, schema: Schema, partitions: List[Record]) -> List[PartitionFieldSummary]:
+    types = [field.field_type for field in spec.partition_type(schema).fields]
+    field_stats = [PartitionFieldStats(field_type) for field_type in types]
+    for partition_keys in partitions:
+        for i, field_type in enumerate(types):
             if not isinstance(field_type, PrimitiveType):
                 raise ValueError(f"Expected a primitive type for the partition field, got {field_type}")
             partition_key = partition_keys[i]
-            self._field_stats[i].update(conversions.partition_to_py(field_type, partition_key))
-        return self
+            field_stats[i].update(partition_key)
+    return [field.to_summary() for field in field_stats]
 
 
 MANIFEST_FILE_SCHEMA: Schema = Schema(
@@ -555,7 +581,7 @@ class ManifestWriter(ABC):
     _deleted_files: int
     _deleted_rows: int
     _min_data_sequence_number: Optional[int]
-    _partition_summary: PartitionSummary
+    _partitions: List[Record]
 
     def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int, meta: Dict[str, str]):
         self.closed = False
@@ -572,7 +598,7 @@ class ManifestWriter(ABC):
         self._deleted_files = 0
         self._deleted_rows = 0
         self._min_data_sequence_number = None
-        self._partition_summary = PartitionSummary(spec, schema)
+        self._partitions = []
 
     def __enter__(self) -> ManifestWriter:
         """Open the writer."""
@@ -621,7 +647,7 @@ class ManifestWriter(ABC):
             added_rows_count=self._added_rows,
             existing_rows_count=self._existing_rows,
             deleted_rows_count=self._deleted_rows,
-            partitions=self._partition_summary.summaries(),
+            partitions=construct_partition_summaries(self._spec, self._schema, self._partitions),
             key_metadatas=None,
         )
 
@@ -638,7 +664,7 @@ class ManifestWriter(ABC):
             self._deleted_files += 1
             self._deleted_rows += entry.data_file.record_count
 
-        self._partition_summary.update(entry.data_file.partition)
+        self._partitions.append(entry.data_file.partition)
 
         if (
             (entry.status == ManifestEntryStatus.ADDED or entry.status == ManifestEntryStatus.EXISTING)
@@ -731,8 +757,13 @@ class ManifestWriterV2(ManifestWriter):
             sort_order_id=entry.data_file.sort_order_id,
             spec_id=entry.data_file.spec_id,
         )
-        wrapped_entry = ManifestEntry(*entry.record_fields())
-        wrapped_entry.data_file = wrapped_data_file_v2_debug
+        wrapped_entry = ManifestEntry(
+            status=entry.status,
+            snapshot_id=entry.snapshot_id,
+            data_sequence_number=entry.data_sequence_number,
+            file_sequence_number=entry.file_sequence_number,
+            data_file=wrapped_data_file_v2_debug,
+        )
         return wrapped_entry
 
 
