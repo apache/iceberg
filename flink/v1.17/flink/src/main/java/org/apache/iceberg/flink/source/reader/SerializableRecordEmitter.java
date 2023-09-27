@@ -22,6 +22,7 @@ import java.io.Serializable;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
+@FunctionalInterface
 public interface SerializableRecordEmitter<T>
     extends RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit>, Serializable {
   static <T> SerializableRecordEmitter<T> defaultEmitter() {

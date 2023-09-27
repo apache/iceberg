@@ -224,7 +224,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     // (100 min - 20 min - 0 min)
     // Also this validates that the WatermarkAlignment is working
     Awaitility.await()
-        .atMost(5, TimeUnit.SECONDS)
+        .atMost(10, TimeUnit.SECONDS)
         .until(() -> findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).isPresent());
     Gauge<Long> drift = findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).get();
 

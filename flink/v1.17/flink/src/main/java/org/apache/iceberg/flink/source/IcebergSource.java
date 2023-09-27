@@ -515,7 +515,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
         splitAssignerFactory =
             new OrderedSplitAssignerFactory(
-                SplitComparators.watermarkComparator(watermarkExtractor));
+                SplitComparators.watermarksAwareComparator(watermarkExtractor));
       }
 
       checkRequired();
