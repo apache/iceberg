@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -84,6 +85,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
+  private Map<String, String> metadata;
 
   // updated by configuration methods
   private PartitionSet partitionSet = null;
@@ -118,7 +120,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
-    Map<String, String> metadata = readMetadata(inputFile);
+    this.metadata = readMetadata(inputFile);
 
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
@@ -290,6 +292,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   private boolean isLiveEntry(ManifestEntry<F> entry) {
     return entry != null && entry.status() != ManifestEntry.Status.DELETED;
+  }
+
+  @VisibleForTesting
+  Map<String, String> metadata() {
+    return metadata;
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */

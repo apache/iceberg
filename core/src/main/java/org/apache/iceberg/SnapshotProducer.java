@@ -229,11 +229,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            ops.current().formatVersion(),
+            base.formatVersion(),
             manifestList,
             snapshotId(),
             parentSnapshotId,
-            sequenceNumber)) {
+            sequenceNumber,
+            base.properties().get(TableProperties.AVRO_COMPRESSION),
+            base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL))) {
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -500,12 +502,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        base.formatVersion(),
+        spec,
+        newManifestOutput(),
+        snapshotId(),
+        base.properties().get(TableProperties.AVRO_COMPRESSION),
+        base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        base.formatVersion(),
+        spec,
+        newManifestOutput(),
+        snapshotId(),
+        base.properties().get(TableProperties.AVRO_COMPRESSION),
+        base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {

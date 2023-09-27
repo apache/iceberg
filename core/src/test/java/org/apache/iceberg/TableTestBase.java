@@ -28,10 +28,13 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -162,6 +165,19 @@ public class TableTestBase {
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
+  // Mapping of Avro codec name used by Iceberg to name used by Avro (and appearing in Avro metadata
+  // under the key, avro.codec).
+  // In tests, we use the Iceberg name to specify the codec, and we verify the codec used by reading
+  // the Avro metadata and checking for the Avro name in avro.codec.
+  static final Map<String, String> AVRO_CODEC_NAME_MAPPING =
+      ImmutableMap.<String, String>builder()
+          .put("uncompressed", "null")
+          .put("zstd", "zstandard")
+          .put("gzip", "deflate")
+          .build();
+
+  static final long EXAMPLE_SNAPSHOT_ID = 987134631982734L;
+
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   protected File tableDir = null;
@@ -236,12 +252,22 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.newFile("input.m0.avro");
+    return writeManifest(snapshotId, null, files);
+  }
+
+  ManifestFile writeManifest(Long snapshotId, String compressionCodec, DataFile... files)
+      throws IOException {
+    File manifestFile = temp.newFile();
     Assert.assertTrue(manifestFile.delete());
-    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+    OutputFile outputFile =
+        table
+            .ops()
+            .io()
+            .newOutputFile(FileFormat.AVRO.addExtension(manifestFile.getCanonicalPath()));
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+        ManifestFiles.write(
+            formatVersion, table.spec(), outputFile, snapshotId, compressionCodec, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -292,11 +318,18 @@ public class TableTestBase {
 
   ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
+    return writeDeleteManifest(newFormatVersion, snapshotId, null, deleteFiles);
+  }
+
+  ManifestFile writeDeleteManifest(
+      int newFormatVersion, Long snapshotId, String compressionCodec, DeleteFile... deleteFiles)
+      throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
+        ManifestFiles.writeDeleteManifest(
+            newFormatVersion, SPEC, manifestFile, snapshotId, compressionCodec, null);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -305,6 +338,31 @@ public class TableTestBase {
       writer.close();
     }
     return writer.toManifestFile();
+  }
+
+  InputFile writeManifestList(String compressionCodec, ManifestFile... manifestFiles)
+      throws IOException {
+    File manifestListFile = temp.newFile();
+    Assert.assertTrue(manifestListFile.delete());
+    OutputFile outputFile =
+        org.apache.iceberg.Files.localOutput(
+            FileFormat.AVRO.addExtension(manifestListFile.toString()));
+
+    try (FileAppender<ManifestFile> writer =
+        ManifestLists.write(
+            formatVersion,
+            outputFile,
+            EXAMPLE_SNAPSHOT_ID,
+            EXAMPLE_SNAPSHOT_ID - 1,
+            formatVersion > 1 ? 34L : 0,
+            compressionCodec,
+            null)) {
+      for (ManifestFile manifestFile : manifestFiles) {
+        writer.add(manifestFile);
+      }
+    }
+
+    return outputFile.toInputFile();
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
