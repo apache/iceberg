@@ -66,7 +66,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.eventtimeextractor.IcebergTimestampEventTimeExtractor;
+import org.apache.iceberg.flink.source.reader.IcebergTimestampWatermarkExtractor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -79,7 +79,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestIcebergSourceWithEventTimeExtractor implements Serializable {
+public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   private static final InMemoryReporter reporter = InMemoryReporter.createWithRetainedMetrics();
   private static final int PARALLELISM = 4;
   private static final String SOURCE_NAME = "IcebergSource";
@@ -142,7 +142,8 @@ public class TestIcebergSourceWithEventTimeExtractor implements Serializable {
                 .monitorInterval(Duration.ofMillis(10))
                 .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
                 .build(),
-            WatermarkStrategy.noWatermarks(),
+            WatermarkStrategy.<RowData>noWatermarks()
+                .withTimestampAssigner(new RowDataTimestampAssigner()),
             SOURCE_NAME,
             TypeInformation.of(RowData.class));
     DataStream<RowData> windowed =
@@ -264,7 +265,7 @@ public class TestIcebergSourceWithEventTimeExtractor implements Serializable {
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     return IcebergSource.<RowData>builder()
         .tableLoader(sourceTableResource.tableLoader())
-        .eventTimeExtractor(new IcebergTimestampEventTimeExtractor(TestFixtures.TS_SCHEMA, "ts"))
+        .watermarkExtractor(new IcebergTimestampWatermarkExtractor(TestFixtures.TS_SCHEMA, "ts"))
         .project(TestFixtures.TS_SCHEMA)
         .includeColumnStats(true)
         .splitSize(100L);

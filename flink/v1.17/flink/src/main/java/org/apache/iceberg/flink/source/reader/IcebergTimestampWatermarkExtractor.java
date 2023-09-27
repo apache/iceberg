@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.eventtimeextractor;
+package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import java.util.Comparator;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
@@ -30,13 +29,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * {@link IcebergEventTimeExtractor} implementation which uses an Iceberg timestamp column to get
- * the watermarks and the event times for the {@link RowData} read by the reader function.
+ * {@link IcebergWatermarkExtractor} implementation which uses an Iceberg timestamp column
+ * statistics to get the watermarks for the {@link IcebergSourceSplit}. This watermark is emitted by
+ * the {@link WatermarkExtractorRecordEmitter} along with the actual records.
  */
-public class IcebergTimestampEventTimeExtractor
-    implements IcebergEventTimeExtractor<RowData>, Serializable {
+public class IcebergTimestampWatermarkExtractor
+    implements IcebergWatermarkExtractor<RowData>, Serializable {
   private final int tsFieldId;
-  private final int tsFieldPos;
 
   /**
    * Creates the extractor.
@@ -44,12 +43,11 @@ public class IcebergTimestampEventTimeExtractor
    * @param schema The schema of the Table
    * @param tsFieldName The timestamp column which should be used as an event time
    */
-  public IcebergTimestampEventTimeExtractor(Schema schema, String tsFieldName) {
+  public IcebergTimestampWatermarkExtractor(Schema schema, String tsFieldName) {
     Types.NestedField field = schema.findField(tsFieldName);
     Preconditions.checkArgument(
         field.type().typeId().equals(Type.TypeID.TIMESTAMP), "Type should be timestamp");
     this.tsFieldId = field.fieldId();
-    this.tsFieldPos = FlinkSchemaUtil.convert(schema).getFieldIndex(tsFieldName);
   }
 
   @Override
@@ -63,10 +61,5 @@ public class IcebergTimestampEventTimeExtractor
                     / 1000L)
         .min(Comparator.comparingLong(l -> l))
         .get();
-  }
-
-  @Override
-  public long extractEventTime(RowData rowData) {
-    return rowData.getTimestamp(tsFieldPos, 0).getMillisecond();
   }
 }

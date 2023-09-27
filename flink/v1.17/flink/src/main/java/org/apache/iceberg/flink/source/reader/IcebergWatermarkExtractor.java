@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.eventtimeextractor;
+package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
-/** The interface used to extract watermarks and event timestamps from splits and records. */
-public interface IcebergEventTimeExtractor<T> extends Serializable {
+/** The interface used to extract watermarks from splits. */
+public interface IcebergWatermarkExtractor<T> extends Serializable {
   /** Get the watermark for a split. */
   long extractWatermark(IcebergSourceSplit split);
-
-  /** Get the event timestamp for the record. */
-  long extractEventTime(T record);
 }

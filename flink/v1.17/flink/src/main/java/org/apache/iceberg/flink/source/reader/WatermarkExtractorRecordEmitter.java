@@ -16,29 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.eventtimeextractor;
+package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.connector.source.SourceOutput;
-import org.apache.iceberg.flink.source.reader.RecordAndPosition;
-import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Emitter which emits the record with event time and updates the split position.
+ * Emitter which emits the watermarks, records and updates the split position.
  *
- * <p>The Emitter also emits watermarks at the beginning of every split, and sets the event
- * timestamp based on the provided {@link IcebergEventTimeExtractor}.
+ * <p>The Emitter emits watermarks at the beginning of every split provided by the {@link
+ * IcebergWatermarkExtractor}.
  */
-public final class EventTimeExtractorRecordEmitter<T> implements SerializableRecordEmitter<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(EventTimeExtractorRecordEmitter.class);
-  private final IcebergEventTimeExtractor timeExtractor;
+class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(WatermarkExtractorRecordEmitter.class);
+  private final IcebergWatermarkExtractor timeExtractor;
   private String lastSplit = null;
   private long watermark;
 
-  public EventTimeExtractorRecordEmitter(IcebergEventTimeExtractor timeExtractor) {
+  WatermarkExtractorRecordEmitter(IcebergWatermarkExtractor timeExtractor) {
     this.timeExtractor = timeExtractor;
   }
 
@@ -60,17 +58,7 @@ public final class EventTimeExtractorRecordEmitter<T> implements SerializableRec
       lastSplit = split.splitId();
     }
 
-    long eventTime = timeExtractor.extractEventTime(element.record());
-    if (eventTime <= watermark) {
-      LOG.warn(
-          "Late event arrived. PreviousWM {}, split {}, eventTime {}, record {}.",
-          watermark,
-          split,
-          eventTime,
-          element.record());
-    }
-
-    output.collect(element.record(), eventTime);
+    output.collect(element.record());
     split.updatePosition(element.fileOffset(), element.recordOffset());
   }
 }

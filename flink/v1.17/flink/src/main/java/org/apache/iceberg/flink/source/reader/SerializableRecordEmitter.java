@@ -23,4 +23,16 @@ import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 public interface SerializableRecordEmitter<T>
-    extends RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit>, Serializable {}
+    extends RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit>, Serializable {
+  static <T> SerializableRecordEmitter<T> defaultEmitter() {
+    return (element, output, split) -> {
+      output.collect(element.record());
+      split.updatePosition(element.fileOffset(), element.recordOffset());
+    };
+  }
+
+  static <T> SerializableRecordEmitter<T> emitterWithWatermark(
+      IcebergWatermarkExtractor extractor) {
+    return new WatermarkExtractorRecordEmitter(extractor);
+  }
+}

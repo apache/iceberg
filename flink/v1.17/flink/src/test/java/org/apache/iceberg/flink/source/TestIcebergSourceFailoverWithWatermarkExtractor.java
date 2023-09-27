@@ -34,12 +34,12 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.eventtimeextractor.IcebergTimestampEventTimeExtractor;
+import org.apache.iceberg.flink.source.reader.IcebergTimestampWatermarkExtractor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 
-public class TestIcebergSourceFailoverEventTimeExtractor extends TestIcebergSourceFailover {
-  // Increment ts by 60 minutes for each generateRecords batch
+public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
+  // Increment ts by 15 minutes for each generateRecords batch
   private static final long RECORD_BATCH_TS_INCREMENT_MILLI = TimeUnit.MINUTES.toMillis(15);
   // Within a batch, increment ts by 1 minute
   private static final long RECORD_TS_INCREMENT_MILLI = TimeUnit.SECONDS.toMillis(1);
@@ -50,7 +50,7 @@ public class TestIcebergSourceFailoverEventTimeExtractor extends TestIcebergSour
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     return IcebergSource.<RowData>builder()
         .tableLoader(sourceTableResource.tableLoader())
-        .eventTimeExtractor(new IcebergTimestampEventTimeExtractor(TestFixtures.TS_SCHEMA, "ts"))
+        .watermarkExtractor(new IcebergTimestampWatermarkExtractor(TestFixtures.TS_SCHEMA, "ts"))
         .project(TestFixtures.TS_SCHEMA)
         .includeColumnStats(true);
   }

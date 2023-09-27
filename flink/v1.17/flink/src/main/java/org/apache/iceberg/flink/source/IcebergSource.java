@@ -58,12 +58,11 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
-import org.apache.iceberg.flink.source.eventtimeextractor.IcebergEventTimeExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
+import org.apache.iceberg.flink.source.reader.IcebergWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
-import org.apache.iceberg.flink.source.reader.RecordEmitters;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -224,7 +223,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
-    private IcebergEventTimeExtractor<T> eventTimeExtractor;
+    private IcebergWatermarkExtractor<T> watermarkExtractor;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -247,8 +246,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> assignerFactory(SplitAssignerFactory assignerFactory) {
       Preconditions.checkArgument(
-          eventTimeExtractor == null,
-          "TimestampAssigner and SplitAssigner should not be set in the same source");
+          watermarkExtractor == null,
+          "WatermarkExtractor and SplitAssigner should not be set in the same source");
       this.splitAssignerFactory = assignerFactory;
       return this;
     }
@@ -442,16 +441,16 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
-     * Sets the {@link IcebergEventTimeExtractor} to retrieve the split watermark and the record
-     * timestamps when emitting the records. The {@link
-     * IcebergEventTimeExtractor#extractWatermark(IcebergSourceSplit)} is also used for ordering the
+     * Sets the {@link IcebergWatermarkExtractor} to retrieve the split watermark before emitting
+     * the records for a given split. The {@link
+     * IcebergWatermarkExtractor#extractWatermark(IcebergSourceSplit)} is also used for ordering the
      * splits for read.
      */
-    public Builder<T> eventTimeExtractor(IcebergEventTimeExtractor<T> newEventTimeExtractor) {
+    public Builder<T> watermarkExtractor(IcebergWatermarkExtractor<T> newWatermarkExtractor) {
       Preconditions.checkArgument(
           splitAssignerFactory == null,
-          "TimestampAssigner and SplitAssigner should not be set in the same source");
-      this.eventTimeExtractor = newEventTimeExtractor;
+          "WatermarkExtractor and SplitAssigner should not be set in the same source");
+      this.watermarkExtractor = newWatermarkExtractor;
       return this;
     }
 
@@ -510,13 +509,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       }
 
       SerializableRecordEmitter<T> emitter;
-      if (eventTimeExtractor == null) {
-        emitter = RecordEmitters.emitter();
+      if (watermarkExtractor == null) {
+        emitter = SerializableRecordEmitter.defaultEmitter();
       } else {
-        emitter = RecordEmitters.emitter(eventTimeExtractor);
+        emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
         splitAssignerFactory =
             new OrderedSplitAssignerFactory(
-                SplitComparators.watermarkComparator(eventTimeExtractor));
+                SplitComparators.watermarkComparator(watermarkExtractor));
       }
 
       checkRequired();
