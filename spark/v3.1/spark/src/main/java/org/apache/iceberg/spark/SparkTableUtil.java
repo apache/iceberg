@@ -607,6 +607,7 @@ public class SparkTableUtil {
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
+      filesToImport.cache();
       Dataset<Row> importedFiles =
           filesToImport
               .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
