@@ -135,6 +135,16 @@ public class FlinkSchemaUtil {
   }
 
   /**
+   * Convert a {@link LogicalType Flink type} to a {@link Type}.
+   *
+   * @param flinkType a FlinkType
+   * @return the equivalent Iceberg type
+   */
+  public static Type convert(LogicalType flinkType) {
+    return flinkType.accept(new FlinkTypeToType());
+  }
+
+  /**
    * Convert a {@link RowType} to a {@link TableSchema}.
    *
    * @param rowType a RowType

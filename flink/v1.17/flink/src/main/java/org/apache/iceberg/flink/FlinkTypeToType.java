@@ -49,6 +49,10 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   private final RowType root;
   private int nextId;
 
+  FlinkTypeToType() {
+    this.root = null;
+  }
+
   FlinkTypeToType(RowType root) {
     this.root = root;
     // the root struct's fields use the first ids

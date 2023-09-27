@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
@@ -297,7 +298,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testAlterTable() throws TableNotExistException {
+  public void testAlterTableProperties() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");
@@ -313,39 +314,297 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // remove property
-    CatalogTable catalogTable = catalogTable("tl");
+    sql("ALTER TABLE tl RESET('oldK')");
     properties.remove("oldK");
-    getTableEnv()
-        .getCatalog(getTableEnv().getCurrentCatalog())
-        .get()
-        .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
   }
 
   @Test
-  public void testAlterTableWithPrimaryKey() throws TableNotExistException {
-    sql("CREATE TABLE tl(id BIGINT, PRIMARY KEY(id) NOT ENFORCED) WITH ('oldK'='oldV')");
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("oldK", "oldV");
+  public void testAlterTableAddColumn() {
+    sql("CREATE TABLE tl(id BIGINT)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        schemaBefore.asStruct());
 
-    // new
-    sql("ALTER TABLE tl SET('newK'='newV')");
-    properties.put("newK", "newV");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    sql("ALTER TABLE tl ADD (dt STRING)");
+    Schema schemaAfter1 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter1.asStruct());
 
-    // update old
-    sql("ALTER TABLE tl SET('oldK'='oldV2')");
-    properties.put("oldK", "oldV2");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    // Add multiple columns
+    sql("ALTER TABLE tl ADD (col1 STRING, col2 BIGINT)");
+    Schema schemaAfter2 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter2.asStruct());
 
-    // remove property
-    CatalogTable catalogTable = catalogTable("tl");
-    properties.remove("oldK");
-    getTableEnv()
-        .getCatalog(getTableEnv().getCurrentCatalog())
-        .get()
-        .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
+    // incompatible changes.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
+
+    // Adding an existing field should fail due to Flink's internal validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Try to add a column `id` which already exists in the table.");
+  }
+
+  @Test
+  public void testAlterTableDropColumn() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING, col1 STRING, col2 BIGINT)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl DROP (dt)");
+    Schema schemaAfter1 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                Types.NestedField.optional(4, "col2", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter1.asStruct());
+
+    // Drop multiple columns
+    sql("ALTER TABLE tl DROP (col1, col2)");
+    Schema schemaAfter2 = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        schemaAfter2.asStruct());
+
+    // Dropping an non-existing field should fail due to Flink's internal validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (foo)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("The column `foo` does not exist in the base table.");
+
+    // Dropping an already-deleted field should fail due to Flink's internal validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (dt)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("The column `dt` does not exist in the base table.");
+  }
+
+  @Test
+  public void testAlterTableModifyColumnName() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl RENAME dt TO data");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "data", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnType() {
+    sql("CREATE TABLE tl(id INTEGER, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    // Promote type from Integer to Long
+    sql("ALTER TABLE tl MODIFY (id BIGINT)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+
+    // Type change that doesn't follow the type-promotion rule should fail due to Iceberg's
+    // validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot change column type: dt: string -> int");
+  }
+
+  @Test
+  public void testAlterTableModifyColumnNullability() {
+    sql("CREATE TABLE tl(id INTEGER NOT NULL, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    // Changing nullability from optional to required should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot change column nullability: dt: optional -> required");
+
+    // Set nullability from required to optional
+    sql("ALTER TABLE tl MODIFY (id INTEGER)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnPosition() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING FIRST)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(1, "id", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING AFTER id)");
+    Schema schemaAfterAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterAfter.asStruct());
+
+    // Modifying the position of a non-existing column should fail due to Flink's internal
+    // validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (non_existing STRING FIRST)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Try to modify a column `non_existing` which does not exist in the table.");
+
+    // Moving a column after a non-existing column should fail due to Flink's internal validation.
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING AFTER non_existing)"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Referenced column `non_existing` by 'AFTER' does not exist in the table.");
+  }
+
+  @Test
+  public void testAlterTableModifyColumnComment() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING COMMENT 'comment for dt field')");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt field"))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableConstraint() {
+    sql("CREATE TABLE tl(id BIGINT NOT NULL, dt STRING NOT NULL, col1 STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+    Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
+
+    sql("ALTER TABLE tl ADD (PRIMARY KEY (id) NOT ENFORCED)");
+    Schema schemaAfterAdd = table("tl").schema();
+    Assert.assertEquals(ImmutableSet.of("id"), schemaAfterAdd.identifierFieldNames());
+
+    sql("ALTER TABLE tl MODIFY (PRIMARY KEY (dt) NOT ENFORCED)");
+    Schema schemaAfterModify = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterModify.asStruct());
+    Assert.assertEquals(ImmutableSet.of("dt"), schemaAfterModify.identifierFieldNames());
+
+    // Composite primary key
+    sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, dt) NOT ENFORCED)");
+    Schema schemaAfterComposite = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(3, "col1", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterComposite.asStruct());
+    Assert.assertEquals(ImmutableSet.of("id", "dt"), schemaAfterComposite.identifierFieldNames());
+
+    // Setting an optional field as primary key should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
+
+    // Setting a composite key containing an optional field should fail
+    // because Iceberg's SchemaUpdate does not allow incompatible changes.
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
+
+    // Dropping constraints is not supported yet
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
+        .isInstanceOf(TableException.class)
+        .hasRootCauseInstanceOf(UnsupportedOperationException.class)
+        .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }
 
   @Test
