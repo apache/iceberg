@@ -697,7 +697,12 @@ public class SparkWriteConf {
   private long advisoryPartitionSize(
       long expectedFileSize, FileFormat outputFileFormat, String outputCodec) {
     double shuffleCompressionRatio = shuffleCompressionRatio(outputFileFormat, outputCodec);
-    return (long) (expectedFileSize * shuffleCompressionRatio);
+    long suggestedAdvisoryPartitionSize = (long) (expectedFileSize * shuffleCompressionRatio);
+    return Math.max(suggestedAdvisoryPartitionSize, sparkAdvisoryPartitionSize());
+  }
+
+  private long sparkAdvisoryPartitionSize() {
+    return (long) spark.sessionState().conf().getConf(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES());
   }
 
   private double shuffleCompressionRatio(FileFormat outputFileFormat, String outputCodec) {
