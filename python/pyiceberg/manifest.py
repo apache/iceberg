@@ -381,9 +381,7 @@ class PartitionFieldStats:
     _min: Optional[Any]
     _max: Optional[Any]
 
-    def __init__(self, iceberg_type: IcebergType) -> None:
-        if not isinstance(iceberg_type, PrimitiveType):
-            raise ValueError(f"Expected a primitive type for the partition field, got {iceberg_type}")
+    def __init__(self, iceberg_type: PrimitiveType) -> None:
         self._type = iceberg_type
         self._contains_null = False
         self._contains_nan = False
