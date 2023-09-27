@@ -94,7 +94,8 @@ public class TestConversions {
     assertThat(Literal.of(10000L).to(TimeType.get()).toByteBuffer().array())
         .isEqualTo(new byte[] {16, 39, 0, 0, 0, 0, 0, 0});
 
-    // microsecond timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // microsecond timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an
+    // 8-byte
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
@@ -109,7 +110,8 @@ public class TestConversions {
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
-    assertConversion(400000L, TimestampnsType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(
+        400000L, TimestampnsType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertConversion(400000L, TimestampnsType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampnsType.withoutZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});

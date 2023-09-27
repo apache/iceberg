@@ -60,7 +60,7 @@ public class Hours<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return other == Timestamps.HOUR;
-      } else if (other instanceof Timestampns) {
+    } else if (other instanceof Timestampns) {
       return other == Timestampns.HOUR;
     } else if (other instanceof Hours
         || other instanceof Days
