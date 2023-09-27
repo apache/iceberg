@@ -42,11 +42,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespaces> {
-  // the schema ID of SCHEMA / OTHER_SCHEMA are by default set to 0. The schema id of SCHEMA will
-  // stay 0, but the schema id of OTHER_SCHEMA will be re-assigned to 1
-  private static final int EXPECTED_SCHEMA_ID = 0;
-  private static final int EXPECTED_OTHER_SCHEMA_ID = 1;
-
   protected static final Schema SCHEMA =
       new Schema(
           required(3, "id", Types.IntegerType.get(), "unique ID"),
@@ -91,9 +86,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .first()
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(1);
-    assertThat(view.schema().schemaId()).isEqualTo(EXPECTED_SCHEMA_ID);
+    assertThat(view.schema().schemaId()).isEqualTo(0);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(EXPECTED_SCHEMA_ID);
+    assertThat(view.schemas()).hasSize(1).containsKey(0);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
     assertThat(view.currentVersion())
@@ -101,7 +96,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             ImmutableViewVersion.builder()
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
-                .schemaId(EXPECTED_SCHEMA_ID)
+                .schemaId(0)
                 .putSummary("operation", "create")
                 .defaultNamespace(identifier.namespace())
                 .addRepresentations(
@@ -148,9 +143,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .first()
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(1);
-    assertThat(view.schema().schemaId()).isEqualTo(EXPECTED_SCHEMA_ID);
+    assertThat(view.schema().schemaId()).isEqualTo(0);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
-    assertThat(view.schemas()).hasSize(1).containsKey(EXPECTED_SCHEMA_ID);
+    assertThat(view.schemas()).hasSize(1).containsKey(0);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
     assertThat(view.currentVersion())
@@ -158,7 +153,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             ImmutableViewVersion.builder()
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
-                .schemaId(EXPECTED_SCHEMA_ID)
+                .schemaId(0)
                 .putSummary("operation", "create")
                 .defaultNamespace(identifier.namespace())
                 .defaultCatalog(catalog().name())
@@ -824,12 +819,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(2);
 
-    assertThat(replacedView.schema().schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
+    assertThat(replacedView.schema().schemaId()).isEqualTo(1);
     assertThat(replacedView.schema().asStruct()).isEqualTo(OTHER_SCHEMA.asStruct());
-    assertThat(replacedView.schemas())
-        .hasSize(2)
-        .containsKey(EXPECTED_SCHEMA_ID)
-        .containsKey(EXPECTED_OTHER_SCHEMA_ID);
+    assertThat(replacedView.schemas()).hasSize(2).containsKey(0).containsKey(1);
 
     ViewVersion replacedViewVersion = replacedView.currentVersion();
     assertThat(replacedView.versions())
@@ -837,7 +829,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .containsExactly(viewVersion, replacedViewVersion);
     assertThat(replacedViewVersion).isNotNull();
     assertThat(replacedViewVersion.versionId()).isEqualTo(2);
-    assertThat(replacedViewVersion.schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
+    assertThat(replacedViewVersion.schemaId()).isEqualTo(1);
     assertThat(replacedViewVersion.operation()).isEqualTo("replace");
     assertThat(replacedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(replacedViewVersion.representations())
@@ -1062,10 +1054,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .element(1)
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(updatedView.currentVersion().versionId());
-    assertThat(updatedView.schemas())
-        .hasSize(2)
-        .containsKey(EXPECTED_SCHEMA_ID)
-        .containsKey(EXPECTED_OTHER_SCHEMA_ID);
+    assertThat(updatedView.schemas()).hasSize(2).containsKey(0).containsKey(1);
     assertThat(updatedView.versions())
         .hasSize(2)
         .containsExactly(viewVersion, updatedView.currentVersion());
@@ -1076,7 +1065,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(updatedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(updatedViewVersion.operation()).isEqualTo("replace");
     assertThat(updatedViewVersion.representations()).hasSize(1).containsExactly(trino);
-    assertThat(updatedViewVersion.schemaId()).isEqualTo(EXPECTED_OTHER_SCHEMA_ID);
+    assertThat(updatedViewVersion.schemaId()).isEqualTo(1);
     assertThat(updatedViewVersion.defaultCatalog()).isEqualTo("default");
     assertThat(updatedViewVersion.defaultNamespace()).isEqualTo(identifier.namespace());
 
