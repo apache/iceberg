@@ -32,6 +32,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   }
 
   GenericDeleteFile(
+      Integer schemaId,
       int specId,
       FileContent content,
       String filePath,
@@ -44,6 +45,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       List<Long> splitOffsets,
       ByteBuffer keyMetadata) {
     super(
+        schemaId,
         specId,
         content,
         filePath,

@@ -59,6 +59,7 @@ public class FileMetadata {
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
+    private Integer schemaId = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -82,6 +83,7 @@ public class FileMetadata {
       this.lowerBounds = null;
       this.upperBounds = null;
       this.sortOrderId = null;
+      this.schemaId = null;
     }
 
     public Builder copy(DeleteFile toCopy) {
@@ -104,6 +106,7 @@ public class FileMetadata {
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
+      this.schemaId = toCopy.schemaId();
       return this;
     }
 
@@ -220,6 +223,11 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withSchemaId(Integer newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -245,6 +253,7 @@ public class FileMetadata {
       }
 
       return new GenericDeleteFile(
+          schemaId,
           specId,
           content,
           filePath,

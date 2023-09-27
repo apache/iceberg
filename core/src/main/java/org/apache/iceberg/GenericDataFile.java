@@ -32,6 +32,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   }
 
   GenericDataFile(
+      Integer schemaId,
       int specId,
       String filePath,
       FileFormat format,
@@ -43,6 +44,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
       int[] equalityFieldIds,
       Integer sortOrderId) {
     super(
+        schemaId,
         specId,
         FileContent.DATA,
         filePath,

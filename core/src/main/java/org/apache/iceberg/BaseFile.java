@@ -78,6 +78,7 @@ abstract class BaseFile<F>
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private Integer schemaId;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -123,6 +124,7 @@ abstract class BaseFile<F>
   }
 
   BaseFile(
+      Integer schemaId,
       int specId,
       FileContent content,
       String filePath,
@@ -140,6 +142,7 @@ abstract class BaseFile<F>
       int[] equalityFieldIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata) {
+    this.schemaId = schemaId;
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -177,6 +180,7 @@ abstract class BaseFile<F>
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
     this.fileOrdinal = toCopy.fileOrdinal;
+    this.schemaId = toCopy.schemaId;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -320,6 +324,9 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 17:
+        this.schemaId = (Integer) value;
+        return;
+      case 18:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -375,6 +382,8 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
+        return schemaId;
+      case 18:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -394,6 +403,11 @@ abstract class BaseFile<F>
   @Override
   public Long pos() {
     return fileOrdinal;
+  }
+
+  @Override
+  public Integer schemaId() {
+    return schemaId;
   }
 
   @Override
@@ -526,6 +540,7 @@ abstract class BaseFile<F>
         .add("sort_order_id", sortOrderId)
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
+        .add("schema_id", schemaId == null ? "null" : schemaId)
         .toString();
   }
 }

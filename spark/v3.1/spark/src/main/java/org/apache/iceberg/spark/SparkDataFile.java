@@ -34,6 +34,7 @@ public class SparkDataFile implements DataFile {
 
   private final int filePathPosition;
   private final int fileFormatPosition;
+  private final int schemaIdPosition;
   private final int partitionPosition;
   private final int recordCountPosition;
   private final int fileSizeInBytesPosition;
@@ -69,6 +70,7 @@ public class SparkDataFile implements DataFile {
 
     filePathPosition = positions.get("file_path");
     fileFormatPosition = positions.get("file_format");
+    schemaIdPosition = positions.get("schema_id");
     partitionPosition = positions.get("partition");
     recordCountPosition = positions.get("record_count");
     fileSizeInBytesPosition = positions.get("file_size_in_bytes");
@@ -187,6 +189,11 @@ public class SparkDataFile implements DataFile {
   @Override
   public Integer sortOrderId() {
     return wrapped.getAs(sortOrderIdPosition);
+  }
+
+  @Override
+  public Integer schemaId() {
+    return wrapped.getAs(schemaIdPosition);
   }
 
   private int fieldPosition(String name, StructType sparkType) {

@@ -37,6 +37,12 @@ public interface ContentFile<F> {
   /** Returns id of the partition spec used for partition metadata. */
   int specId();
 
+  /** Return id of the schema when write this file. */
+  default Integer schemaId() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement schemaId");
+  }
+
   /**
    * Returns type of content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES.
    */
