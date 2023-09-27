@@ -70,6 +70,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private final Map<String, String> properties = Maps.newHashMap();
     private final List<ViewRepresentation> representations = Lists.newArrayList();
     private Namespace defaultNamespace = null;
+    private String defaultCatalog = null;
     private Schema schema = null;
 
     protected BaseViewBuilder(TableIdentifier identifier) {
@@ -93,8 +94,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     @Override
-    public ViewBuilder withDefaultCatalog(String defaultCatalog) {
-      viewVersionBuilder.defaultCatalog(defaultCatalog);
+    public ViewBuilder withDefaultCatalog(String catalog) {
+      this.defaultCatalog = catalog;
       return this;
     }
 
@@ -152,6 +153,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .versionId(1)
               .addAllRepresentations(representations)
               .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
               .putSummary("operation", "create")
               .build();
@@ -195,6 +197,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .versionId(maxVersionId + 1)
               .addAllRepresentations(representations)
               .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
               .putSummary("operation", "replace")
               .build();
