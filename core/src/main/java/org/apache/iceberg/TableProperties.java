@@ -356,19 +356,6 @@ public class TableProperties {
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
-  /**
-   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
-   *     performed starting from 0.13.0.
-   */
-  @Deprecated
-  public static final String MERGE_CARDINALITY_CHECK_ENABLED =
-      "write.merge.cardinality-check.enabled";
-  /**
-   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
-   *     performed starting from 0.13.0.
-   */
-  @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
-
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
