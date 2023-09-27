@@ -92,8 +92,6 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), writeOptions);
   }
 
   public boolean checkNullability() {
@@ -174,12 +172,21 @@ public class SparkWriteConf {
         .parse();
   }
 
-  public boolean fanoutWriterEnabled() {
+  public boolean useFanoutWriter(SparkWriteRequirements writeRequirements) {
+    boolean defaultValue = !writeRequirements.hasOrdering();
+    return fanoutWriterEnabled(defaultValue);
+  }
+
+  private boolean fanoutWriterEnabled() {
+    return fanoutWriterEnabled(true /* enabled by default */);
+  }
+
+  private boolean fanoutWriterEnabled(boolean defaultValue) {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
         .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
-        .defaultValue(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)
+        .defaultValue(defaultValue)
         .parse();
   }
 

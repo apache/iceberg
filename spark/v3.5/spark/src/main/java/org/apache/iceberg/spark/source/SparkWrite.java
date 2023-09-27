@@ -98,7 +98,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
-  private final boolean partitionedFanoutEnabled;
+  private final boolean useFanoutWriter;
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
 
@@ -126,7 +126,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
-    this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
+    this.useFanoutWriter = writeConf.useFanoutWriter(writeRequirements);
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
@@ -188,7 +188,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         targetFileSize,
         writeSchema,
         dsSchema,
-        partitionedFanoutEnabled,
+        useFanoutWriter,
         writeProperties);
   }
 
@@ -617,7 +617,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
-    private final boolean partitionedFanoutEnabled;
+    private final boolean useFanoutWriter;
     private final String queryId;
     private final Map<String, String> writeProperties;
 
@@ -629,7 +629,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
-        boolean partitionedFanoutEnabled,
+        boolean useFanoutWriter,
         Map<String, String> writeProperties) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
@@ -637,7 +637,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
-      this.partitionedFanoutEnabled = partitionedFanoutEnabled;
+      this.useFanoutWriter = useFanoutWriter;
       this.queryId = queryId;
       this.writeProperties = writeProperties;
     }
@@ -678,7 +678,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             writeSchema,
             dsSchema,
             targetFileSize,
-            partitionedFanoutEnabled);
+            useFanoutWriter);
       }
     }
   }

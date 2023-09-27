@@ -71,8 +71,6 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), readOptions);
   }
 
   public boolean caseSensitive() {

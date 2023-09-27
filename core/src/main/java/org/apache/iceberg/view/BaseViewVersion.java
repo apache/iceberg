@@ -19,6 +19,7 @@
 package org.apache.iceberg.view;
 
 import javax.annotation.Nullable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.BuilderVisibility;
 import org.immutables.value.Value.Style.ImplementationVisibility;
@@ -41,16 +42,12 @@ interface BaseViewVersion extends ViewVersion {
   @Override
   @Value.Lazy
   default String operation() {
+    Preconditions.checkArgument(
+        summary().containsKey("operation"), "Invalid view version summary, missing operation");
     return summary().get("operation");
   }
 
   @Override
   @Nullable
   String defaultCatalog();
-
-  @Override
-  @Value.Check
-  default void check() {
-    ViewVersion.super.check();
-  }
 }

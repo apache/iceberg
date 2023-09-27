@@ -113,7 +113,9 @@ public class TestViewVersionParser {
             "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s,\"schema-id\":1,\"default-namespace\":[\"one\",\"two\"]}",
             serializedRepresentations);
 
-    Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
+    // parsing a view version with an invalid operation shouldn't fail
+    ViewVersion viewVersion = ViewVersionParser.fromJson(viewVersionMissingOperation);
+    Assertions.assertThatThrownBy(() -> viewVersion.operation())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version summary, missing operation");
 
@@ -125,7 +127,8 @@ public class TestViewVersionParser {
                     .schemaId(1)
                     .defaultNamespace(Namespace.of("one", "two"))
                     .summary(ImmutableMap.of("user", "some-user"))
-                    .build())
+                    .build()
+                    .operation())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version summary, missing operation");
   }

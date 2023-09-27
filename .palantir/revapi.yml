@@ -801,11 +801,10 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.view.ViewVersion::check()"
+      justification: "Acceptable break due to updating View APIs"
     org.apache.iceberg:iceberg-core:
-    - code: "java.method.visibilityReduced"
-      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
-      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
-      justification: "Static utility class - should not have public constructor"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult"
       justification: "Removing deprecated code"
@@ -857,6 +856,10 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::setNewFilesSequenceNumber(long)\
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecated code"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      justification: "Static utility class - should not have public constructor"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
