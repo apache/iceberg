@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -295,14 +296,29 @@ public interface ViewMetadata extends Serializable {
       // if the view version already exists, use its id; otherwise use the highest id + 1
       int newVersionId = viewVersion.versionId();
       for (ViewVersion version : versions) {
-        if (version.equals(viewVersion)) {
+        if (sameViewVersion(version, viewVersion)) {
           return version.versionId();
         } else if (version.versionId() >= newVersionId) {
-          newVersionId = viewVersion.versionId() + 1;
+          newVersionId = version.versionId() + 1;
         }
       }
 
       return newVersionId;
+    }
+
+    /**
+     * Checks whether the given view versions would behave the same while ignoring the view version
+     * id, the creation timestamp, and the summary.
+     *
+     * @param one the view version to compare
+     * @param two the view version to compare
+     * @return true if the given view versions would behave the same
+     */
+    private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
+      return Objects.equals(one.representations(), two.representations())
+          && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
+          && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
+          && one.schemaId() == two.schemaId();
     }
 
     public Builder addSchema(Schema schema) {
