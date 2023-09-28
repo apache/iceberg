@@ -92,7 +92,7 @@ public class GenericManifestFile
     this.specId = specId;
     this.sequenceNumber = 0;
     this.minSequenceNumber = 0;
-    this.snapshotId = null;
+    this.snapshotId = 0L;
     this.addedFilesCount = null;
     this.addedRowsCount = null;
     this.existingFilesCount = null;
