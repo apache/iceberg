@@ -66,7 +66,6 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
 
   protected class BaseViewBuilder implements ViewBuilder {
     private final TableIdentifier identifier;
-    private final ImmutableViewVersion.Builder viewVersionBuilder = ImmutableViewVersion.builder();
     private final Map<String, String> properties = Maps.newHashMap();
     private final List<ViewRepresentation> representations = Lists.newArrayList();
     private Namespace defaultNamespace = null;
@@ -82,7 +81,6 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     @Override
     public ViewBuilder withSchema(Schema newSchema) {
       this.schema = newSchema;
-      viewVersionBuilder.schemaId(newSchema.schemaId());
       return this;
     }
 
@@ -149,8 +147,9 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
           null != defaultNamespace, "Cannot create view without specifying a default namespace");
 
       ViewVersion viewVersion =
-          viewVersionBuilder
+          ImmutableViewVersion.builder()
               .versionId(1)
+              .schemaId(schema.schemaId())
               .addAllRepresentations(representations)
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
@@ -193,8 +192,9 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .orElseGet(metadata::currentVersionId);
 
       ViewVersion viewVersion =
-          viewVersionBuilder
+          ImmutableViewVersion.builder()
               .versionId(maxVersionId + 1)
+              .schemaId(schema.schemaId())
               .addAllRepresentations(representations)
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
