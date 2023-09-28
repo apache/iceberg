@@ -187,6 +187,13 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
           return Types.TimestampType.withoutZone();
         }
 
+      } else if (logical instanceof IcebergLogicalTypes.TimestampNanos) {
+        if (AvroSchemaUtil.isTimestamptz(primitive)) {
+          return Types.TimestampnsType.withZone();
+        } else {
+          return Types.TimestampnsType.withoutZone();
+        }
+
       } else if (LogicalTypes.uuid().getName().equals(name)) {
         return Types.UUIDType.get();
       }

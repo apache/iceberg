@@ -48,8 +48,16 @@ class GenericReaders {
     return TimestampReader.INSTANCE;
   }
 
+  static ValueReader<LocalDateTime> timestampns() {
+    return TimestampnsReader.INSTANCE;
+  }
+
   static ValueReader<OffsetDateTime> timestamptz() {
     return TimestamptzReader.INSTANCE;
+  }
+
+  static ValueReader<OffsetDateTime> timestamptzns() {
+    return TimestamptznsReader.INSTANCE;
   }
 
   static ValueReader<Record> struct(
@@ -90,6 +98,17 @@ class GenericReaders {
     }
   }
 
+  private static class TimestampnsReader implements ValueReader<LocalDateTime> {
+    private static TimestampnsReader INSTANCE = new TimestampnsReader();
+
+    private TimestampnsReader() {}
+
+    @Override
+    public LocalDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestampFromNanos(decoder.readLong());
+    }
+  }
+
   private static class TimestamptzReader implements ValueReader<OffsetDateTime> {
     private static final TimestamptzReader INSTANCE = new TimestamptzReader();
 
@@ -98,6 +117,17 @@ class GenericReaders {
     @Override
     public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
       return DateTimeUtil.timestamptzFromMicros(decoder.readLong());
+    }
+  }
+
+  private static class TimestamptznsReader implements ValueReader<OffsetDateTime> {
+    private static final TimestamptznsReader INSTANCE = new TimestamptznsReader();
+
+    private TimestamptznsReader() {}
+
+    @Override
+    public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestamptzFromNanos(decoder.readLong());
     }
   }
 

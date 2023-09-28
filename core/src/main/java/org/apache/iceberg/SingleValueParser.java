@@ -140,6 +140,20 @@ public class SingleValueParser {
         } else {
           return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
         }
+      case TIMESTAMPNS:
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
+        if (((Types.TimestampnsType) type).shouldAdjustToUTC()) {
+          String timestampTz = defaultValue.textValue();
+          Preconditions.checkArgument(
+              DateTimeUtil.isUTCTimestamptz(timestampTz),
+              "Cannot parse default as a %s value: %s, offset must be +00:00",
+              type,
+              defaultValue);
+          return DateTimeUtil.isoTimestamptzToNanos(timestampTz);
+        } else {
+          return DateTimeUtil.isoTimestampToNanos(defaultValue.textValue());
+        }
       case FIXED:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
@@ -287,6 +301,15 @@ public class SingleValueParser {
           generator.writeString(DateTimeUtil.microsToIsoTimestamptz((Long) defaultValue));
         } else {
           generator.writeString(DateTimeUtil.microsToIsoTimestamp((Long) defaultValue));
+        }
+        break;
+      case TIMESTAMPNS:
+        Preconditions.checkArgument(
+            defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
+        if (((Types.TimestampnsType) type).shouldAdjustToUTC()) {
+          generator.writeString(DateTimeUtil.nanosToIsoTimestamptz((Long) defaultValue));
+        } else {
+          generator.writeString(DateTimeUtil.nanosToIsoTimestamp((Long) defaultValue));
         }
         break;
       case STRING:

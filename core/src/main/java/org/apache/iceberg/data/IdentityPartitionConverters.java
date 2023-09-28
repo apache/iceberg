@@ -45,6 +45,12 @@ public class IdentityPartitionConverters {
         } else {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
+      case TIMESTAMPNS:
+        if (((Types.TimestampnsType) type).shouldAdjustToUTC()) {
+          return DateTimeUtil.timestamptzFromNanos((Long) value);
+        } else {
+          return DateTimeUtil.timestampFromNanos((Long) value);
+        }
       case FIXED:
         if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();

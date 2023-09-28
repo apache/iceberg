@@ -119,6 +119,7 @@ class AvroTestHelpers {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMPNS:
       case UUID:
       case FIXED:
       case BINARY:

@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.TimestampnsType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,8 @@ public class TestSchemaUnionByFieldName {
         TimeType.get(),
         TimestampType.withoutZone(),
         TimestampType.withZone(),
+        TimestampnsType.withoutZone(),
+        TimestampnsType.withZone(),
         UUIDType.get(),
         DateType.get(),
         BooleanType.get(),

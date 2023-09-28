@@ -55,6 +55,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.TimestampnsType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.After;
 import org.junit.Assert;
@@ -100,9 +101,11 @@ public abstract class TestMetrics {
           optional(8, "dateCol", DateType.get()),
           required(9, "timeCol", TimeType.get()),
           required(10, "timestampColAboveEpoch", TimestampType.withoutZone()),
-          required(11, "fixedCol", FixedType.ofLength(4)),
-          required(12, "binaryCol", BinaryType.get()),
-          required(13, "timestampColBelowEpoch", TimestampType.withoutZone()));
+          required(11, "timestampnsColAboveEpoch", TimestampnsType.withoutZone()),
+          required(12, "fixedCol", FixedType.ofLength(4)),
+          required(13, "binaryCol", BinaryType.get()),
+          required(14, "timestampColBelowEpoch", TimestampType.withoutZone()),
+          required(15, "timestampnsColBelowEpoch", TimestampnsType.withoutZone()));
 
   private static final Schema FLOAT_DOUBLE_ONLY_SCHEMA =
       new Schema(
@@ -159,9 +162,11 @@ public abstract class TestMetrics {
     record.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     record.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
     record.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    record.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(0L));
     record.setField("fixedCol", fixed);
     record.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     record.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+    record.setField("timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos(0L));
 
     Metrics metrics = getMetrics(SIMPLE_SCHEMA, record, record);
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -193,9 +198,11 @@ public abstract class TestMetrics {
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
     firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-1_900_300L));
+    firstRecord.setField("timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos(-1_900_300_000L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", false);
     secondRecord.setField("intCol", Integer.MIN_VALUE);
@@ -207,9 +214,11 @@ public abstract class TestMetrics {
     secondRecord.setField("dateCol", null);
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(3000L));
     secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(900L));
+    secondRecord.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(900_000L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("W".getBytes()));
     secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-7_000L));
+    secondRecord.setField("timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos(-7_000_000L));
 
     Metrics metrics = getMetrics(SIMPLE_SCHEMA, firstRecord, secondRecord);
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -234,11 +243,13 @@ public abstract class TestMetrics {
     assertCounts(10, 2L, 0L, metrics);
     assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
     assertCounts(11, 2L, 0L, metrics);
-    assertBounds(
-        11, FixedType.ofLength(4), ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
+    assertBounds(11, TimestampnsType.withoutZone(), 0L, 900L, metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(
-        12,
+        12, FixedType.ofLength(4), ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
+    assertCounts(13, 2L, 0L, metrics);
+    assertBounds(
+        13,
         BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()),
         ByteBuffer.wrap("W".getBytes()),
@@ -249,9 +260,11 @@ public abstract class TestMetrics {
       // Values in the range `[1969-12-31 23:59:59.000,1969-12-31 23:59:59.999]` will have 1 sec
       // added to them
       // So the upper bound value of -7_000 micros becomes 993_000 micros
-      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, 993_000L, metrics);
+      assertBounds(14, TimestampType.withoutZone(), -1_900_300L, 993_000L, metrics);
+      assertBounds(15, TimestampnsType.withoutZone(), -1_900_300_000L, 993_000_000L, metrics);
     } else {
-      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, -7_000L, metrics);
+      assertBounds(14, TimestampType.withoutZone(), -1_900_300L, -7_000L, metrics);
+      assertBounds(15, TimestampnsType.withoutZone(), -1_900_300_000L, -7_000_000L, metrics);
     }
   }
 
@@ -465,10 +478,13 @@ public abstract class TestMetrics {
       newRecord.setField("dateCol", DateTimeUtil.dateFromDays(i + 1));
       newRecord.setField("timeCol", DateTimeUtil.timeFromMicros(i + 1L));
       newRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(i + 1L));
+      newRecord.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(i + 1L));
       newRecord.setField("fixedCol", fixed);
       newRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
       newRecord.setField(
           "timestampColBelowEpoch", DateTimeUtil.timestampFromMicros((i + 1L) * -1L));
+      newRecord.setField(
+          "timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos((i + 1L) * -1L));
       records.add(newRecord);
     }
 
@@ -696,9 +712,11 @@ public abstract class TestMetrics {
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
     firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos(0L));
 
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
 
@@ -712,9 +730,11 @@ public abstract class TestMetrics {
     secondRecord.setField("dateCol", DateTimeUtil.dateFromDays(3000));
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
     secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("timestampnsColAboveEpoch", DateTimeUtil.timestampFromNanos(0L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("timestampnsColBelowEpoch", DateTimeUtil.timestampFromNanos(0L));
 
     Metrics metrics =
         getMetrics(SIMPLE_SCHEMA, MetricsConfig.forTable(table), firstRecord, secondRecord);

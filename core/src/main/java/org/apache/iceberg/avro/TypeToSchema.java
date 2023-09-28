@@ -44,6 +44,10 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMPNS_SCHEMA =
+      IcebergLogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMPTZNS_SCHEMA =
+      IcebergLogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
@@ -52,6 +56,8 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   static {
     TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    TIMESTAMPNS_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    TIMESTAMPTZNS_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
@@ -208,6 +214,13 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
           primitiveSchema = TIMESTAMPTZ_SCHEMA;
         } else {
           primitiveSchema = TIMESTAMP_SCHEMA;
+        }
+        break;
+      case TIMESTAMPNS:
+        if (((Types.TimestampnsType) primitive).shouldAdjustToUTC()) {
+          primitiveSchema = TIMESTAMPTZNS_SCHEMA;
+        } else {
+          primitiveSchema = TIMESTAMPNS_SCHEMA;
         }
         break;
       case STRING:

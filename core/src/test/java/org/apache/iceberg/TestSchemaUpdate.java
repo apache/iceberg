@@ -283,6 +283,8 @@ public class TestSchemaUpdate {
             Types.TimeType.get(),
             Types.TimestampType.withZone(),
             Types.TimestampType.withoutZone(),
+            Types.TimestampnsType.withZone(),
+            Types.TimestampnsType.withoutZone(),
             Types.StringType.get(),
             Types.UUIDType.get(),
             Types.BinaryType.get(),

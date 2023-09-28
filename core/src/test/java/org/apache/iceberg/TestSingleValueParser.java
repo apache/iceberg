@@ -45,6 +45,8 @@ public class TestSingleValueParser {
           {Types.TimeType.get(), "\"10:15:30\""},
           {Types.TimestampType.withoutZone(), "\"2007-12-03T10:15:30\""},
           {Types.TimestampType.withZone(), "\"2007-12-03T10:15:30+00:00\""},
+          {Types.TimestampnsType.withoutZone(), "\"2008-12-03T10:15:30\""},
+          {Types.TimestampnsType.withZone(), "\"2008-12-03T10:15:30+00:00\""},
           {Types.StringType.get(), "\"foo\""},
           {Types.UUIDType.get(), "\"eb26bdb1-a1d8-4aa6-990e-da940875492c\""},
           {Types.FixedType.ofLength(2), "\"111f\""},
@@ -159,14 +161,20 @@ public class TestSingleValueParser {
 
   @Test
   public void testInvalidTimestamptz() {
-    Type expectedType = Types.TimestampType.withZone();
     String defaultJson = "\"2007-12-03T10:15:30+01:00\"";
     Exception exception =
         Assert.assertThrows(
             IllegalArgumentException.class,
-            () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+            () -> defaultValueParseAndUnParseRoundTrip(Types.TimestampType.withZone(), defaultJson));
     Assert.assertTrue(
         exception.getMessage().startsWith("Cannot parse default as a timestamptz value"));
+
+    exception =
+        Assert.assertThrows(
+            IllegalArgumentException.class,
+            () -> defaultValueParseAndUnParseRoundTrip(Types.TimestampnsType.withZone(), defaultJson));
+    Assert.assertTrue(
+        exception.getMessage().startsWith("Cannot parse default as a timestamptzns value"));
   }
 
   // serialize to json and deserialize back should return the same result
