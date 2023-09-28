@@ -41,7 +41,7 @@ import org.apache.iceberg.util.StructLikeWrapper;
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
   private static final long RECORD_BATCH_TS_INCREMENT_MILLI = TimeUnit.MINUTES.toMillis(15);
-  // Within a batch, increment ts by 1 minute
+  // Within a batch, increment ts by 1 second
   private static final long RECORD_TS_INCREMENT_MILLI = TimeUnit.SECONDS.toMillis(1);
 
   private final AtomicLong tsMilli = new AtomicLong(System.currentTimeMillis());

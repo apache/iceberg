@@ -19,9 +19,11 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
+@Internal
 @FunctionalInterface
 public interface SerializableRecordEmitter<T>
     extends RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit>, Serializable {
