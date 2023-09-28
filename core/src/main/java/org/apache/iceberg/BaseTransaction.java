@@ -320,7 +320,7 @@ public class BaseTransaction implements Transaction {
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update
-      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+      if (ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanAllUpdates();
       }
 
@@ -375,7 +375,7 @@ public class BaseTransaction implements Transaction {
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
-      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+      if (ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanAllUpdates();
       }
 
@@ -423,7 +423,7 @@ public class BaseTransaction implements Transaction {
       cleanUpOnCommitFailure();
       throw e.wrapped();
     } catch (RuntimeException e) {
-      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+      if (ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanUpOnCommitFailure();
       }
 
