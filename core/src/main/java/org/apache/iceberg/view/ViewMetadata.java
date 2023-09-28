@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -139,6 +140,7 @@ public interface ViewMetadata extends Serializable {
   }
 
   class Builder {
+    private static final int INITIAL_SCHEMA_ID = 0;
     private static final int LAST_ADDED = -1;
     private final List<ViewVersion> versions;
     private final List<Schema> schemas;
@@ -295,14 +297,29 @@ public interface ViewMetadata extends Serializable {
       // if the view version already exists, use its id; otherwise use the highest id + 1
       int newVersionId = viewVersion.versionId();
       for (ViewVersion version : versions) {
-        if (version.equals(viewVersion)) {
+        if (sameViewVersion(version, viewVersion)) {
           return version.versionId();
         } else if (version.versionId() >= newVersionId) {
-          newVersionId = viewVersion.versionId() + 1;
+          newVersionId = version.versionId() + 1;
         }
       }
 
       return newVersionId;
+    }
+
+    /**
+     * Checks whether the given view versions would behave the same while ignoring the view version
+     * id, the creation timestamp, and the summary.
+     *
+     * @param one the view version to compare
+     * @param two the view version to compare
+     * @return true if the given view versions would behave the same
+     */
+    private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
+      return Objects.equals(one.representations(), two.representations())
+          && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
+          && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
+          && one.schemaId() == two.schemaId();
     }
 
     public Builder addSchema(Schema schema) {
@@ -338,7 +355,7 @@ public interface ViewMetadata extends Serializable {
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
       // if the schema already exists, use its id; otherwise use the highest id + 1
-      int newSchemaId = newSchema.schemaId();
+      int newSchemaId = INITIAL_SCHEMA_ID;
       for (Schema schema : schemas) {
         if (schema.sameSchema(newSchema)) {
           return schema.schemaId();
