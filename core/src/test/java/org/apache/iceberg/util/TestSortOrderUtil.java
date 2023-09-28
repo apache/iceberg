@@ -41,7 +41,7 @@ public class TestSortOrderUtil {
       new Schema(
           required(10, "id", Types.IntegerType.get()),
           required(11, "data", Types.StringType.get()),
-          required(12, "ts", Types.TimestampType.withZone()),
+          required(12, "ts", Types.TimestampType.microsWithZone()),
           required(13, "category", Types.StringType.get()));
 
   @TempDir private File tableDir;

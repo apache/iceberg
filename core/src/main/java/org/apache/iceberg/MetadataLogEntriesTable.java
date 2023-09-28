@@ -28,7 +28,7 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
 
   private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "timestamp", Types.TimestampType.withZone()),
+          Types.NestedField.required(1, "timestamp", Types.TimestampType.microsWithZone()),
           Types.NestedField.required(2, "file", Types.StringType.get()),
           Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),

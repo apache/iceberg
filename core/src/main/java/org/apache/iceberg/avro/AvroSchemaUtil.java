@@ -129,7 +129,8 @@ public class AvroSchemaUtil {
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType instanceof LogicalTypes.TimestampMillis
-        || logicalType instanceof LogicalTypes.TimestampMicros) {
+        || logicalType instanceof LogicalTypes.TimestampMicros
+        || logicalType instanceof IcebergLogicalTypes.TimestampNanos) {
       // timestamptz is adjusted to UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 

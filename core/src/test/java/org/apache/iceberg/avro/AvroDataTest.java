@@ -46,15 +46,18 @@ public abstract class AvroDataTest {
           optional(105, "f", Types.FloatType.get()),
           required(106, "d", Types.DoubleType.get()),
           optional(107, "date", Types.DateType.get()),
-          required(108, "ts", Types.TimestampType.withZone()),
-          required(110, "s", Types.StringType.get()),
-          required(111, "uuid", Types.UUIDType.get()),
-          required(112, "fixed", Types.FixedType.ofLength(7)),
-          optional(113, "bytes", Types.BinaryType.get()),
-          required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-          required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-          required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
-          required(117, "time", Types.TimeType.get()));
+          required(108, "tstz", Types.TimestampType.microsWithZone()),
+          required(109, "ts", Types.TimestampType.microsWithoutZone()),
+          required(110, "tstzns", Types.TimestampType.nanosWithZone()),
+          required(111, "tsns", Types.TimestampType.nanosWithoutZone()),
+          required(112, "s", Types.StringType.get()),
+          required(113, "uuid", Types.UUIDType.get()),
+          required(114, "fixed", Types.FixedType.ofLength(7)),
+          optional(115, "bytes", Types.BinaryType.get()),
+          required(116, "dec_9_0", Types.DecimalType.of(9, 0)),
+          required(117, "dec_11_2", Types.DecimalType.of(11, 2)),
+          required(118, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
+          required(119, "time", Types.TimeType.get()));
 
   @Test
   public void testSimpleStruct() throws IOException {

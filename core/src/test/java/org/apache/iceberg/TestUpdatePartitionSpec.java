@@ -40,7 +40,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
-          Types.NestedField.required(2, "ts", Types.TimestampType.withZone()),
+          Types.NestedField.required(2, "ts", Types.TimestampType.microsWithZone()),
           Types.NestedField.required(3, "category", Types.StringType.get()),
           Types.NestedField.optional(4, "data", Types.StringType.get()));
 

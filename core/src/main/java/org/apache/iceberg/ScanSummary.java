@@ -91,7 +91,7 @@ public class ScanSummary {
     }
 
     public Builder after(String timestamp) {
-      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.microsWithoutZone());
       return after(tsLiteral.value() / 1000);
     }
 
@@ -101,7 +101,7 @@ public class ScanSummary {
     }
 
     public Builder before(String timestamp) {
-      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.microsWithoutZone());
       return before(tsLiteral.value() / 1000);
     }
 
@@ -133,7 +133,7 @@ public class ScanSummary {
           NamedReference<?> ref = (NamedReference<?>) pred.term();
           Literal<?> lit = pred.literal();
           if (TIMESTAMP_NAMES.contains(ref.name())) {
-            Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
+            Literal<Long> tsLiteral = lit.to(Types.TimestampType.microsWithoutZone());
             long millis = toMillis(tsLiteral.value());
             addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
             return;

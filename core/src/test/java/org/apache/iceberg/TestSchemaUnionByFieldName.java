@@ -51,8 +51,10 @@ public class TestSchemaUnionByFieldName {
     return Lists.newArrayList(
         StringType.get(),
         TimeType.get(),
-        TimestampType.withoutZone(),
-        TimestampType.withZone(),
+        TimestampType.microsWithoutZone(),
+        TimestampType.microsWithZone(),
+        TimestampType.nanosWithoutZone(),
+        TimestampType.nanosWithZone(),
         UUIDType.get(),
         DateType.get(),
         BooleanType.get(),

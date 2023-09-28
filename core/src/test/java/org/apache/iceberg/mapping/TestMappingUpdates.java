@@ -52,7 +52,7 @@ public class TestMappingUpdates extends TableTestBase {
         MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")),
         mapping.asMappedFields());
 
-    table.updateSchema().addColumn("ts", Types.TimestampType.withZone()).commit();
+    table.updateSchema().addColumn("ts", Types.TimestampType.microsWithZone()).commit();
 
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));

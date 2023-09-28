@@ -45,7 +45,7 @@ public class TestManifestWriterVersions {
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.LongType.get()),
-          required(2, "timestamp", Types.TimestampType.withZone()),
+          required(2, "timestamp", Types.TimestampType.microsWithZone()),
           required(3, "category", Types.StringType.get()),
           required(4, "data", Types.StringType.get()),
           required(5, "double", Types.DoubleType.get()));

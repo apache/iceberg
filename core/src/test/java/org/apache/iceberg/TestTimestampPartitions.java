@@ -45,7 +45,7 @@ public class TestTimestampPartitions extends TableTestBase {
     Schema dateSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(2, "timestamp", Types.TimestampType.withoutZone()));
+            optional(2, "timestamp", Types.TimestampType.microsWithoutZone()));
 
     PartitionSpec partitionSpec =
         PartitionSpec.builderFor(dateSchema).day("timestamp", "date").build();

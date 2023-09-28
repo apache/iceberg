@@ -281,8 +281,10 @@ public class TestSchemaUpdate {
             Types.DoubleType.get(),
             Types.DateType.get(),
             Types.TimeType.get(),
-            Types.TimestampType.withZone(),
-            Types.TimestampType.withoutZone(),
+            Types.TimestampType.microsWithZone(),
+            Types.TimestampType.microsWithoutZone(),
+            Types.TimestampType.nanosWithZone(),
+            Types.TimestampType.nanosWithoutZone(),
             Types.StringType.get(),
             Types.UUIDType.get(),
             Types.BinaryType.get(),
@@ -1086,11 +1088,11 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()),
             required(2, "data", Types.StringType.get()),
-            optional(3, "ts", Types.TimestampType.withZone()));
+            optional(3, "ts", Types.TimestampType.microsWithZone()));
     Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(3, "ts", Types.TimestampType.withZone()),
+            optional(3, "ts", Types.TimestampType.microsWithZone()),
             required(2, "data", Types.StringType.get()));
 
     Schema actual = new SchemaUpdate(schema, 3).moveAfter("ts", "id").apply();
@@ -1102,13 +1104,13 @@ public class TestSchemaUpdate {
   public void testMoveTopLevelColumnBefore() {
     Schema schema =
         new Schema(
-            optional(3, "ts", Types.TimestampType.withZone()),
+            optional(3, "ts", Types.TimestampType.microsWithZone()),
             required(1, "id", Types.LongType.get()),
             required(2, "data", Types.StringType.get()));
     Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(3, "ts", Types.TimestampType.withZone()),
+            optional(3, "ts", Types.TimestampType.microsWithZone()),
             required(2, "data", Types.StringType.get()));
 
     Schema actual = new SchemaUpdate(schema, 3).moveBefore("ts", "data").apply();
@@ -1205,7 +1207,7 @@ public class TestSchemaUpdate {
                 Types.StructType.of(
                     required(3, "count", Types.LongType.get()),
                     required(4, "data", Types.StringType.get()),
-                    optional(5, "ts", Types.TimestampType.withZone()))));
+                    optional(5, "ts", Types.TimestampType.microsWithZone()))));
     Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
@@ -1214,7 +1216,7 @@ public class TestSchemaUpdate {
                 "struct",
                 Types.StructType.of(
                     required(3, "count", Types.LongType.get()),
-                    optional(5, "ts", Types.TimestampType.withZone()),
+                    optional(5, "ts", Types.TimestampType.microsWithZone()),
                     required(4, "data", Types.StringType.get()))));
 
     Schema actual = new SchemaUpdate(schema, 5).moveAfter("struct.ts", "struct.count").apply();
@@ -1231,7 +1233,7 @@ public class TestSchemaUpdate {
                 2,
                 "struct",
                 Types.StructType.of(
-                    optional(5, "ts", Types.TimestampType.withZone()),
+                    optional(5, "ts", Types.TimestampType.microsWithZone()),
                     required(3, "count", Types.LongType.get()),
                     required(4, "data", Types.StringType.get()))));
     Schema expected =
@@ -1242,7 +1244,7 @@ public class TestSchemaUpdate {
                 "struct",
                 Types.StructType.of(
                     required(3, "count", Types.LongType.get()),
-                    optional(5, "ts", Types.TimestampType.withZone()),
+                    optional(5, "ts", Types.TimestampType.microsWithZone()),
                     required(4, "data", Types.StringType.get()))));
 
     Schema actual = new SchemaUpdate(schema, 5).moveBefore("struct.ts", "struct.data").apply();
@@ -1261,7 +1263,7 @@ public class TestSchemaUpdate {
                 Types.ListType.ofOptional(
                     6,
                     Types.StructType.of(
-                        optional(5, "ts", Types.TimestampType.withZone()),
+                        optional(5, "ts", Types.TimestampType.microsWithZone()),
                         required(3, "count", Types.LongType.get()),
                         required(4, "data", Types.StringType.get())))));
     Schema expected =
@@ -1274,7 +1276,7 @@ public class TestSchemaUpdate {
                     6,
                     Types.StructType.of(
                         required(3, "count", Types.LongType.get()),
-                        optional(5, "ts", Types.TimestampType.withZone()),
+                        optional(5, "ts", Types.TimestampType.microsWithZone()),
                         required(4, "data", Types.StringType.get())))));
 
     Schema actual = new SchemaUpdate(schema, 6).moveBefore("list.ts", "list.data").apply();
@@ -1295,7 +1297,7 @@ public class TestSchemaUpdate {
                     7,
                     Types.StringType.get(),
                     Types.StructType.of(
-                        optional(5, "ts", Types.TimestampType.withZone()),
+                        optional(5, "ts", Types.TimestampType.microsWithZone()),
                         required(3, "count", Types.LongType.get()),
                         required(4, "data", Types.StringType.get())))));
     Schema expected =
@@ -1310,7 +1312,7 @@ public class TestSchemaUpdate {
                     Types.StringType.get(),
                     Types.StructType.of(
                         required(3, "count", Types.LongType.get()),
-                        optional(5, "ts", Types.TimestampType.withZone()),
+                        optional(5, "ts", Types.TimestampType.microsWithZone()),
                         required(4, "data", Types.StringType.get())))));
 
     Schema actual = new SchemaUpdate(schema, 7).moveBefore("map.ts", "map.data").apply();
@@ -1326,12 +1328,12 @@ public class TestSchemaUpdate {
     Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(3, "ts", Types.TimestampType.withZone()),
+            optional(3, "ts", Types.TimestampType.microsWithZone()),
             required(2, "data", Types.StringType.get()));
 
     Schema actual =
         new SchemaUpdate(schema, 2)
-            .addColumn("ts", Types.TimestampType.withZone())
+            .addColumn("ts", Types.TimestampType.microsWithZone())
             .moveAfter("ts", "id")
             .apply();
 
@@ -1346,13 +1348,13 @@ public class TestSchemaUpdate {
     Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(3, "ts", Types.TimestampType.withZone()),
+            optional(3, "ts", Types.TimestampType.microsWithZone()),
             optional(4, "count", Types.LongType.get()),
             required(2, "data", Types.StringType.get()));
 
     Schema actual =
         new SchemaUpdate(schema, 2)
-            .addColumn("ts", Types.TimestampType.withZone())
+            .addColumn("ts", Types.TimestampType.microsWithZone())
             .addColumn("count", Types.LongType.get())
             .moveAfter("ts", "id")
             .moveAfter("count", "ts")
@@ -1379,13 +1381,13 @@ public class TestSchemaUpdate {
                 2,
                 "struct",
                 Types.StructType.of(
-                    optional(5, "ts", Types.TimestampType.withZone()),
+                    optional(5, "ts", Types.TimestampType.microsWithZone()),
                     required(3, "count", Types.LongType.get()),
                     required(4, "data", Types.StringType.get()))));
 
     Schema actual =
         new SchemaUpdate(schema, 4)
-            .addColumn("struct", "ts", Types.TimestampType.withZone())
+            .addColumn("struct", "ts", Types.TimestampType.microsWithZone())
             .moveBefore("struct.ts", "struct.count")
             .apply();
 
@@ -1411,13 +1413,13 @@ public class TestSchemaUpdate {
                 "struct",
                 Types.StructType.of(
                     optional(6, "size", Types.LongType.get()),
-                    optional(5, "ts", Types.TimestampType.withZone()),
+                    optional(5, "ts", Types.TimestampType.microsWithZone()),
                     required(3, "count", Types.LongType.get()),
                     required(4, "data", Types.StringType.get()))));
 
     Schema actual =
         new SchemaUpdate(schema, 4)
-            .addColumn("struct", "ts", Types.TimestampType.withZone())
+            .addColumn("struct", "ts", Types.TimestampType.microsWithZone())
             .addColumn("struct", "size", Types.LongType.get())
             .moveBefore("struct.ts", "struct.count")
             .moveBefore("struct.size", "struct.ts")
@@ -1472,7 +1474,7 @@ public class TestSchemaUpdate {
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveFirst("ts")
-                    .addColumn("ts", Types.TimestampType.withZone())
+                    .addColumn("ts", Types.TimestampType.microsWithZone())
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: ts");
@@ -1481,7 +1483,7 @@ public class TestSchemaUpdate {
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveBefore("ts", "id")
-                    .addColumn("ts", Types.TimestampType.withZone())
+                    .addColumn("ts", Types.TimestampType.microsWithZone())
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: ts");
@@ -1490,7 +1492,7 @@ public class TestSchemaUpdate {
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveAfter("ts", "data")
-                    .addColumn("ts", Types.TimestampType.withZone())
+                    .addColumn("ts", Types.TimestampType.microsWithZone())
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: ts");

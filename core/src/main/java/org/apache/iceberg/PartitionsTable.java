@@ -81,7 +81,7 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.optional(
                 9,
                 "last_updated_at",
-                Types.TimestampType.withZone(),
+                Types.TimestampType.microsWithZone(),
                 "Commit time of snapshot that last updated this partition"),
             Types.NestedField.optional(
                 10,

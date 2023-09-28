@@ -36,7 +36,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 public class HistoryTable extends BaseMetadataTable {
   private static final Schema HISTORY_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
+          Types.NestedField.required(1, "made_current_at", Types.TimestampType.microsWithZone()),
           Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
           Types.NestedField.required(4, "is_current_ancestor", Types.BooleanType.get()));

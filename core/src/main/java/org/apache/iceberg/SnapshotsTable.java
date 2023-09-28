@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Types;
 public class SnapshotsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
+          Types.NestedField.required(1, "committed_at", Types.TimestampType.microsWithZone()),
           Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
           Types.NestedField.optional(4, "operation", Types.StringType.get()),

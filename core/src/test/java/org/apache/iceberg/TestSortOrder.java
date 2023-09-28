@@ -52,7 +52,7 @@ public class TestSortOrder {
           required(10, "id", Types.IntegerType.get()),
           required(11, "data", Types.StringType.get()),
           required(40, "d", Types.DateType.get()),
-          required(41, "ts", Types.TimestampType.withZone()),
+          required(41, "ts", Types.TimestampType.microsWithZone()),
           optional(
               12,
               "s",

@@ -129,16 +129,29 @@ public class SingleValueParser {
       case TIMESTAMP:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          String timestampTz = defaultValue.textValue();
+        Types.TimestampType timestamp = (Types.TimestampType) type;
+        String timestampText = defaultValue.textValue();
+        if (timestamp.shouldAdjustToUTC()) {
           Preconditions.checkArgument(
-              DateTimeUtil.isUTCTimestamptz(timestampTz),
+              DateTimeUtil.isUTCTimestamptz(timestampText),
               "Cannot parse default as a %s value: %s, offset must be +00:00",
-              type,
+              timestamp,
               defaultValue);
-          return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
-        } else {
-          return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
+        }
+        switch (timestamp.unit()) {
+          case MICROS:
+            if (timestamp.shouldAdjustToUTC()) {
+              return DateTimeUtil.isoTimestamptzToMicros(timestampText);
+            }
+            return DateTimeUtil.isoTimestampToMicros(timestampText);
+          case NANOS:
+            if (timestamp.shouldAdjustToUTC()) {
+              return DateTimeUtil.isoTimestamptzToNanos(timestampText);
+            }
+            return DateTimeUtil.isoTimestampToNanos(timestampText);
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported timestamp unit: " + timestamp.unit());
         }
       case FIXED:
         Preconditions.checkArgument(
@@ -283,10 +296,25 @@ public class SingleValueParser {
       case TIMESTAMP:
         Preconditions.checkArgument(
             defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          generator.writeString(DateTimeUtil.microsToIsoTimestamptz((Long) defaultValue));
-        } else {
-          generator.writeString(DateTimeUtil.microsToIsoTimestamp((Long) defaultValue));
+        Types.TimestampType timestamp = (Types.TimestampType) type;
+        switch (timestamp.unit()) {
+          case MICROS:
+            if (timestamp.shouldAdjustToUTC()) {
+              generator.writeString(DateTimeUtil.microsToIsoTimestamptz((Long) defaultValue));
+            } else {
+              generator.writeString(DateTimeUtil.microsToIsoTimestamp((Long) defaultValue));
+            }
+            break;
+          case NANOS:
+            if (timestamp.shouldAdjustToUTC()) {
+              generator.writeString(DateTimeUtil.nanosToIsoTimestamptz((Long) defaultValue));
+            } else {
+              generator.writeString(DateTimeUtil.nanosToIsoTimestamp((Long) defaultValue));
+            }
+            break;
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported timestamp unit: " + timestamp.unit());
         }
         break;
       case STRING:

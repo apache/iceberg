@@ -40,10 +40,21 @@ public class IdentityPartitionConverters {
       case DATE:
         return DateTimeUtil.dateFromDays((Integer) value);
       case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.timestamptzFromMicros((Long) value);
-        } else {
-          return DateTimeUtil.timestampFromMicros((Long) value);
+        Types.TimestampType timestamp = (Types.TimestampType) type;
+        switch (timestamp.unit()) {
+          case MICROS:
+            if (timestamp.shouldAdjustToUTC()) {
+              return DateTimeUtil.timestamptzFromMicros((Long) value);
+            }
+            return DateTimeUtil.timestampFromMicros((Long) value);
+          case NANOS:
+            if (timestamp.shouldAdjustToUTC()) {
+              return DateTimeUtil.timestamptzFromNanos((Long) value);
+            }
+            return DateTimeUtil.timestampFromNanos((Long) value);
+          default:
+            throw new UnsupportedOperationException(
+                "Cannot convert timestamp with unit: " + timestamp.unit());
         }
       case FIXED:
         if (value instanceof GenericData.Fixed) {

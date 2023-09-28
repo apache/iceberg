@@ -144,6 +144,9 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
             // Spark uses the same representation
             return ValueReaders.longs();
 
+          case "timestamp-nanos":
+            return ValueReaders.longs();
+
           case "decimal":
             return ValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),

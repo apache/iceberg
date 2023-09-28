@@ -50,8 +50,10 @@ public class TestSchemaConversions {
             Types.DoubleType.get(),
             Types.DateType.get(),
             Types.TimeType.get(),
-            Types.TimestampType.withZone(),
-            Types.TimestampType.withoutZone(),
+            Types.TimestampType.microsWithZone(),
+            Types.TimestampType.microsWithoutZone(),
+            Types.TimestampType.nanosWithZone(),
+            Types.TimestampType.nanosWithoutZone(),
             Types.StringType.get(),
             Types.UUIDType.get(),
             Types.FixedType.ofLength(12),
@@ -71,6 +73,12 @@ public class TestSchemaConversions {
                 LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
             addAdjustToUtc(
                 LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            addAdjustToUtc(
+                IcebergLogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+                true),
+            addAdjustToUtc(
+                IcebergLogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+                false),
             Schema.create(Schema.Type.STRING),
             LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16)),
             Schema.createFixed("fixed_12", null, null, 12),
@@ -96,8 +104,13 @@ public class TestSchemaConversions {
     // avro<->iceberg conversion
     // This is because iceberg types can only can encode adjust-to-utc=true|false but not a missing
     // adjust-to-utc
-    Type expectedIcebergType = Types.TimestampType.withoutZone();
+    Type expectedIcebergType = Types.TimestampType.microsWithoutZone();
     Schema avroType = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+
+    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
+
+    expectedIcebergType = Types.TimestampType.nanosWithoutZone();
+    avroType = IcebergLogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
 
     assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
   }
@@ -118,13 +131,15 @@ public class TestSchemaConversions {
             optional(24, "double", Types.DoubleType.get()),
             optional(25, "date", Types.DateType.get()),
             optional(27, "time", Types.TimeType.get()),
-            optional(28, "timestamptz", Types.TimestampType.withZone()),
-            optional(29, "timestamp", Types.TimestampType.withoutZone()),
-            optional(30, "string", Types.StringType.get()),
-            optional(31, "uuid", Types.UUIDType.get()),
-            optional(32, "fixed", Types.FixedType.ofLength(16)),
-            optional(33, "binary", Types.BinaryType.get()),
-            optional(34, "decimal", Types.DecimalType.of(14, 2)));
+            optional(28, "timestamptz", Types.TimestampType.microsWithZone()),
+            optional(29, "timestamp", Types.TimestampType.microsWithoutZone()),
+            optional(30, "timestamptz_ns", Types.TimestampType.nanosWithZone()),
+            optional(31, "timestamp_ns", Types.TimestampType.nanosWithoutZone()),
+            optional(32, "string", Types.StringType.get()),
+            optional(33, "uuid", Types.UUIDType.get()),
+            optional(34, "fixed", Types.FixedType.ofLength(16)),
+            optional(35, "binary", Types.BinaryType.get()),
+            optional(36, "decimal", Types.DecimalType.of(14, 2)));
 
     Schema schema =
         record(
@@ -150,15 +165,29 @@ public class TestSchemaConversions {
                 addAdjustToUtc(
                     LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
                     false)),
-            optionalField(30, "string", Schema.create(Schema.Type.STRING)),
+            optionalField(
+                30,
+                "timestamptz_ns",
+                addAdjustToUtc(
+                    IcebergLogicalTypes.timestampNanos()
+                        .addToSchema(Schema.create(Schema.Type.LONG)),
+                    true)),
             optionalField(
                 31,
+                "timestamp_ns",
+                addAdjustToUtc(
+                    IcebergLogicalTypes.timestampNanos()
+                        .addToSchema(Schema.create(Schema.Type.LONG)),
+                    false)),
+            optionalField(32, "string", Schema.create(Schema.Type.STRING)),
+            optionalField(
+                33,
                 "uuid",
                 LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16))),
-            optionalField(32, "fixed", Schema.createFixed("fixed_16", null, null, 16)),
-            optionalField(33, "binary", Schema.create(Schema.Type.BYTES)),
+            optionalField(34, "fixed", Schema.createFixed("fixed_16", null, null, 16)),
+            optionalField(35, "binary", Schema.create(Schema.Type.BYTES)),
             optionalField(
-                34,
+                36,
                 "decimal",
                 LogicalTypes.decimal(14, 2)
                     .addToSchema(Schema.createFixed("decimal_14_2", null, null, 6))));

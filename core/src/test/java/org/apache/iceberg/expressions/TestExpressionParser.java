@@ -42,7 +42,8 @@ public class TestExpressionParser {
           optional(105, "f", Types.FloatType.get()),
           required(106, "d", Types.DoubleType.get()),
           optional(107, "date", Types.DateType.get()),
-          required(108, "ts", Types.TimestampType.withoutZone()),
+          required(108, "ts", Types.TimestampType.microsWithoutZone()),
+          required(109, "tsns", Types.TimestampType.nanosWithoutZone()),
           required(110, "s", Types.StringType.get()),
           required(111, "uuid", Types.UUIDType.get()),
           required(112, "fixed", Types.FixedType.ofLength(7)),
@@ -68,6 +69,7 @@ public class TestExpressionParser {
           Expressions.equal("d", 100.0d),
           Expressions.equal("date", "2022-08-14"),
           Expressions.equal("ts", "2022-08-14T10:00:00.123456"),
+          Expressions.equal("tsns", "2022-08-14T10:00:00.123456789"),
           Expressions.equal("uuid", UUID.randomUUID()),
           Expressions.equal("fixed", new byte[] {1, 2, 3, 4, 5, 6, 7}),
           Expressions.equal("bytes", ByteBuffer.wrap(new byte[] {1, 3, 5})),
@@ -92,6 +94,9 @@ public class TestExpressionParser {
               Expressions.greaterThanOrEqual("id", 66)),
           Expressions.or(
               Expressions.greaterThan(Expressions.day("ts"), "2022-08-14"),
+              Expressions.equal("date", "2022-08-14")),
+          Expressions.or(
+              Expressions.greaterThan(Expressions.day("tsns"), "2022-08-14"),
               Expressions.equal("date", "2022-08-14")),
           Expressions.not(Expressions.in("l", 1, 2, 3, 4))
         };
