@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 public class TestViewMetadata {
 
   private ViewVersion newViewVersion(int id, String sql) {
-    return newViewVersion(id, 1, sql);
+    return newViewVersion(id, 0, sql);
   }
 
   private ViewVersion newViewVersion(int id, int schemaId, String sql) {
@@ -121,11 +121,10 @@ public class TestViewMetadata {
                 ViewMetadata.builder()
                     .upgradeFormatVersion(23)
                     .setLocation("location")
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
-                            .schemaId(1)
+                            .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
@@ -181,11 +180,10 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("location")
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
-                            .schemaId(1)
+                            .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "op")
@@ -248,7 +246,7 @@ public class TestViewMetadata {
         ViewMetadata.builder()
             .setProperties(properties)
             .setLocation("location")
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
@@ -288,7 +286,7 @@ public class TestViewMetadata {
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
-        .isEqualTo(1);
+        .isEqualTo(0);
 
     assertThat(changes)
         .element(3)
@@ -322,11 +320,11 @@ public class TestViewMetadata {
   @Test
   public void viewMetadataAndMetadataChanges() {
     Map<String, String> properties = ImmutableMap.of("key1", "prop1", "key2", "prop2");
-    Schema schemaOne = new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(2, Types.NestedField.required(1, "y", Types.LongType.get()));
-    ViewVersion viewVersionOne = newViewVersion(1, 1, "select * from ns.tbl");
-    ViewVersion viewVersionTwo = newViewVersion(2, 1, "select count(*) from ns.tbl");
-    ViewVersion viewVersionThree = newViewVersion(3, 2, "select count(*) as count from ns.tbl");
+    Schema schemaOne = new Schema(0, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(1, Types.NestedField.required(1, "y", Types.LongType.get()));
+    ViewVersion viewVersionOne = newViewVersion(1, 0, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, 0, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(3, 1, "select count(*) as count from ns.tbl");
 
     String uuid = "fa6506c3-7681-40c8-86dc-e36561f83385";
     ViewMetadata viewMetadata =
@@ -349,7 +347,9 @@ public class TestViewMetadata {
     assertThat(viewMetadata.currentVersionId()).isEqualTo(3);
     assertThat(viewMetadata.currentVersion()).isEqualTo(viewVersionThree);
     assertThat(viewMetadata.formatVersion()).isEqualTo(ViewMetadata.DEFAULT_VIEW_FORMAT_VERSION);
-    assertThat(viewMetadata.schemas()).hasSize(2).containsExactly(schemaOne, schemaTwo);
+    assertThat(viewMetadata.schemas().stream().map(Schema::asStruct))
+        .hasSize(2)
+        .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct());
     assertThat(viewMetadata.schema().asStruct()).isEqualTo(schemaTwo.asStruct());
     assertThat(viewMetadata.currentSchemaId()).isEqualTo(schemaTwo.schemaId());
     assertThat(viewMetadata.location()).isEqualTo("custom-location");
@@ -384,7 +384,7 @@ public class TestViewMetadata {
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
-        .isEqualTo(1);
+        .isEqualTo(0);
 
     assertThat(changes)
         .element(4)
@@ -392,7 +392,7 @@ public class TestViewMetadata {
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddSchema.class))
         .extracting(MetadataUpdate.AddSchema::schema)
         .extracting(Schema::schemaId)
-        .isEqualTo(2);
+        .isEqualTo(1);
 
     assertThat(changes)
         .element(5)
@@ -430,10 +430,10 @@ public class TestViewMetadata {
         ViewMetadata.builder()
             .assignUUID(uuid)
             .setLocation("custom-location")
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(
                 ImmutableViewVersion.builder()
-                    .schemaId(1)
+                    .schemaId(0)
                     .versionId(1)
                     .timestampMillis(23L)
                     .putSummary("operation", "create")
@@ -466,7 +466,7 @@ public class TestViewMetadata {
 
   @Test
   public void viewMetadataWithMetadataLocation() {
-    Schema schema = new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
     ViewVersion viewVersion =
         ImmutableViewVersion.builder()
             .schemaId(schema.schemaId())
@@ -512,7 +512,7 @@ public class TestViewMetadata {
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
             .setLocation("custom-location")
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
@@ -556,7 +556,7 @@ public class TestViewMetadata {
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
             .setLocation("custom-location")
-            .addSchema(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(viewVersionOne)
             .addVersion(viewVersionTwo)
             .addVersion(viewVersionThree)
@@ -580,10 +580,9 @@ public class TestViewMetadata {
 
   @Test
   public void schemaIDReassignment() {
-    // all schemas have the same schema ID = 0
-    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(Types.NestedField.required(1, "y", Types.LongType.get()));
-    Schema schemaThree = new Schema(Types.NestedField.required(1, "z", Types.LongType.get()));
+    Schema schemaOne = new Schema(5, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(7, Types.NestedField.required(1, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(9, Types.NestedField.required(1, "z", Types.LongType.get()));
 
     ViewVersion viewVersion = newViewVersion(1, "select * from ns.tbl");
     ViewMetadata viewMetadata =
@@ -600,6 +599,7 @@ public class TestViewMetadata {
         .hasSize(1)
         .containsExactly(ImmutableViewVersion.builder().from(viewVersion).schemaId(2).build());
 
+    // all schema IDs should be re-assigned and start at 0
     assertThat(viewMetadata.schemas().stream().map(Schema::asStruct))
         .hasSize(3)
         .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct(), schemaThree.asStruct());
@@ -608,16 +608,15 @@ public class TestViewMetadata {
 
   @Test
   public void schemaDeduplication() {
-    // all schemas have the same schema ID = 0
-    Schema schemaOne = new Schema(0, Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get()));
-    Schema schemaThree = new Schema(0, Types.NestedField.required(1, "z", Types.LongType.get()));
+    Schema schemaOne = new Schema(5, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(7, Types.NestedField.required(1, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(9, Types.NestedField.required(1, "z", Types.LongType.get()));
     Schema schemaOneUpdated =
-        new Schema(5, Types.NestedField.required(1, "x", Types.LongType.get()));
+        new Schema(6, Types.NestedField.required(1, "x", Types.LongType.get()));
     Schema schemaTwoUpdated =
-        new Schema(6, Types.NestedField.required(1, "y", Types.LongType.get()));
+        new Schema(8, Types.NestedField.required(1, "y", Types.LongType.get()));
     Schema schemaThreeUpdated =
-        new Schema(7, Types.NestedField.required(1, "z", Types.LongType.get()));
+        new Schema(10, Types.NestedField.required(1, "z", Types.LongType.get()));
 
     ViewVersion viewVersion = newViewVersion(1, "select * from ns.tbl");
     ViewMetadata viewMetadata =
@@ -637,7 +636,7 @@ public class TestViewMetadata {
         .hasSize(1)
         .containsExactly(ImmutableViewVersion.builder().from(viewVersion).schemaId(2).build());
 
-    // schema should be de-duplicated
+    // all schema IDs should be re-assigned and start at 0 and be de-duplicated
     assertThat(viewMetadata.schemas().stream().map(Schema::asStruct))
         .hasSize(3)
         .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct(), schemaThree.asStruct());
@@ -646,15 +645,14 @@ public class TestViewMetadata {
 
   @Test
   public void viewVersionAndSchemaIDReassignment() {
-    // all schemas have the same schema ID = 0
-    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(Types.NestedField.required(1, "y", Types.LongType.get()));
-    Schema schemaThree = new Schema(Types.NestedField.required(1, "z", Types.LongType.get()));
+    Schema schemaOne = new Schema(5, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(7, Types.NestedField.required(1, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(9, Types.NestedField.required(1, "z", Types.LongType.get()));
 
     // all view versions have the same ID
-    ViewVersion viewVersionOne = newViewVersion(1, 0, "select * from ns.tbl");
-    ViewVersion viewVersionTwo = newViewVersion(1, 0, "select count(*) from ns.tbl");
-    ViewVersion viewVersionThree = newViewVersion(1, 0, "select count(*) as count from ns.tbl");
+    ViewVersion viewVersionOne = newViewVersion(1, 5, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(1, 7, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(1, 9, "select count(*) as count from ns.tbl");
 
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
@@ -682,20 +680,20 @@ public class TestViewMetadata {
     assertThat(viewMetadata.schemas().stream().map(Schema::asStruct))
         .hasSize(3)
         .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct(), schemaThree.asStruct());
+    assertThat(viewMetadata.schemasById().keySet()).containsExactly(0, 1, 2);
   }
 
   @Test
   public void viewVersionAndSchemaDeduplication() {
-    // all schemas have the same schema ID = 0
-    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
-    Schema schemaTwo = new Schema(Types.NestedField.required(1, "y", Types.LongType.get()));
-    Schema schemaThree = new Schema(Types.NestedField.required(1, "z", Types.LongType.get()));
+    Schema schemaOne = new Schema(5, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(7, Types.NestedField.required(1, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(9, Types.NestedField.required(1, "z", Types.LongType.get()));
 
     // all view versions have the same ID
     // additionally, there are duplicate view versions and schemas
-    ViewVersion viewVersionOne = newViewVersion(1, 0, "select * from ns.tbl");
-    ViewVersion viewVersionTwo = newViewVersion(1, 0, "select count(*) from ns.tbl");
-    ViewVersion viewVersionThree = newViewVersion(1, 0, "select count(*) as count from ns.tbl");
+    ViewVersion viewVersionOne = newViewVersion(1, 5, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(1, 7, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(1, 9, "select count(*) as count from ns.tbl");
 
     // all view versions have the same ID
     ViewMetadata viewMetadata =
@@ -727,5 +725,6 @@ public class TestViewMetadata {
     assertThat(viewMetadata.schemas().stream().map(Schema::asStruct))
         .hasSize(3)
         .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct(), schemaThree.asStruct());
+    assertThat(viewMetadata.schemasById().keySet()).containsExactly(0, 1, 2);
   }
 }

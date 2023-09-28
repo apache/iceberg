@@ -34,7 +34,6 @@ public class TestViewMetadataParser {
 
   private static final Schema TEST_SCHEMA =
       new Schema(
-          1,
           Types.NestedField.required(1, "x", Types.LongType.get()),
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
@@ -61,7 +60,7 @@ public class TestViewMetadataParser {
             .versionId(1)
             .timestampMillis(4353L)
             .summary(ImmutableMap.of("operation", "create"))
-            .schemaId(1)
+            .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -74,7 +73,7 @@ public class TestViewMetadataParser {
     ViewVersion version2 =
         ImmutableViewVersion.builder()
             .versionId(2)
-            .schemaId(1)
+            .schemaId(0)
             .timestampMillis(5555L)
             .summary(ImmutableMap.of("operation", "replace"))
             .defaultCatalog("some-catalog")
@@ -170,7 +169,7 @@ public class TestViewMetadataParser {
             .versionId(1)
             .timestampMillis(4353L)
             .summary(ImmutableMap.of("operation", "create"))
-            .schemaId(1)
+            .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -183,7 +182,7 @@ public class TestViewMetadataParser {
     ViewVersion version2 =
         ImmutableViewVersion.builder()
             .versionId(2)
-            .schemaId(1)
+            .schemaId(0)
             .timestampMillis(5555L)
             .summary(ImmutableMap.of("operation", "replace"))
             .defaultCatalog("some-catalog")

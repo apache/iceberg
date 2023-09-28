@@ -140,6 +140,7 @@ public interface ViewMetadata extends Serializable {
   }
 
   class Builder {
+    private static final int INITIAL_SCHEMA_ID = 0;
     private static final int LAST_ADDED = -1;
     private final List<ViewVersion> versions;
     private final List<Schema> schemas;
@@ -354,7 +355,7 @@ public interface ViewMetadata extends Serializable {
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
       // if the schema already exists, use its id; otherwise use the highest id + 1
-      int newSchemaId = newSchema.schemaId();
+      int newSchemaId = INITIAL_SCHEMA_ID;
       for (Schema schema : schemas) {
         if (schema.sameSchema(newSchema)) {
           return schema.schemaId();
