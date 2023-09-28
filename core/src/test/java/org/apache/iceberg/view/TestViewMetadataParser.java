@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -225,5 +226,86 @@ public class TestViewMetadataParser {
         .ignoringFieldsOfTypes(Schema.class)
         .isEqualTo(expectedViewMetadata);
     assertThat(actual.metadataFileLocation()).isEqualTo(metadataLocation);
+  }
+
+  @Test
+  public void viewMetadataWithMultipleSQLsForDialectShouldBeReadable() throws Exception {
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .timestampMillis(4353L)
+            .summary(ImmutableMap.of("operation", "create"))
+            .schemaId(0)
+            .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select 'foo' foo")
+                    .dialect("spark-sql")
+                    .build())
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select * from foo")
+                    .dialect("spark-sql")
+                    .build())
+            .build();
+
+    String json =
+        readViewMetadataInputFile(
+            "org/apache/iceberg/view/ViewMetadataMultipleSQLsForDialect.json");
+
+    // builder will throw an exception due to having multiple SQLs for the same dialect, thus
+    // construct the expected view metadata directly
+    ViewMetadata expectedViewMetadata =
+        ImmutableViewMetadata.of(
+            "fa6506c3-7681-40c8-86dc-e36561f83385",
+            1,
+            "s3://bucket/test/location",
+            ImmutableList.of(TEST_SCHEMA),
+            1,
+            ImmutableList.of(viewVersion),
+            ImmutableList.of(
+                ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(4353).build()),
+            ImmutableMap.of("some-key", "some-value"),
+            ImmutableList.of(),
+            null);
+
+    // reading view metadata with multiple SQLs for the same dialects shouldn't fail
+    ViewMetadata actual = ViewMetadataParser.fromJson(json);
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(expectedViewMetadata);
+  }
+
+  @Test
+  public void replaceViewMetadataWithMultipleSQLsForDialect() throws Exception {
+    String json =
+        readViewMetadataInputFile(
+            "org/apache/iceberg/view/ViewMetadataMultipleSQLsForDialect.json");
+
+    // reading view metadata with multiple SQLs for the same dialects shouldn't fail
+    ViewMetadata invalid = ViewMetadataParser.fromJson(json);
+
+    // replace metadata with a new view version that fixes the SQL representations
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(2)
+            .schemaId(0)
+            .timestampMillis(5555L)
+            .summary(ImmutableMap.of("operation", "replace"))
+            .defaultCatalog("some-catalog")
+            .defaultNamespace(Namespace.empty())
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .sql("select * from foo")
+                    .dialect("spark-sql")
+                    .build())
+            .build();
+
+    ViewMetadata replaced =
+        ViewMetadata.buildFrom(invalid).addVersion(viewVersion).setCurrentVersionId(2).build();
+
+    assertThat(replaced.currentVersion()).isEqualTo(viewVersion);
   }
 }

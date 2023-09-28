@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.ImplementationVisibility;
@@ -271,6 +272,17 @@ public interface ViewMetadata extends Serializable {
           schemasById.containsKey(version.schemaId()),
           "Cannot add version with unknown schema: %s",
           version.schemaId());
+
+      Set<String> dialects = Sets.newHashSet();
+      for (ViewRepresentation repr : version.representations()) {
+        if (repr instanceof SQLViewRepresentation) {
+          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+          Preconditions.checkArgument(
+              dialects.add(sql.dialect()),
+              "Invalid view version: Cannot add multiple queries for dialect %s",
+              sql.dialect());
+        }
+      }
 
       ViewVersion newVersion;
       if (newVersionId != version.versionId()) {

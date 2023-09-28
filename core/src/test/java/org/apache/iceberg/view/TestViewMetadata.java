@@ -727,4 +727,35 @@ public class TestViewMetadata {
         .containsExactly(schemaOne.asStruct(), schemaTwo.asStruct(), schemaThree.asStruct());
     assertThat(viewMetadata.schemasById().keySet()).containsExactly(0, 1, 2);
   }
+
+  @Test
+  public void viewMetadataWithMultipleSQLForSameDialect() {
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .addVersion(
+                        ImmutableViewVersion.builder()
+                            .schemaId(0)
+                            .versionId(1)
+                            .timestampMillis(23L)
+                            .putSummary("operation", "create")
+                            .defaultNamespace(Namespace.of("ns"))
+                            .addRepresentations(
+                                ImmutableSQLViewRepresentation.builder()
+                                    .dialect("spark")
+                                    .sql("select * from ns.tbl")
+                                    .build())
+                            .addRepresentations(
+                                ImmutableSQLViewRepresentation.builder()
+                                    .dialect("spark")
+                                    .sql("select * from ns.tbl2")
+                                    .build())
+                            .build())
+                    .setCurrentVersionId(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid view version: Cannot add multiple queries for dialect spark");
+  }
 }
