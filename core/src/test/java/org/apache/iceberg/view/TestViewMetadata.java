@@ -734,11 +734,10 @@ public class TestViewMetadata {
             () ->
                 ViewMetadata.builder()
                     .setLocation("custom-location")
-                    .addSchema(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+                    .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
                     .addVersion(
                         ImmutableViewVersion.builder()
-                            .schemaId(1)
+                            .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
                             .putSummary("operation", "create")

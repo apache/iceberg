@@ -44,11 +44,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespaces> {
   protected static final Schema SCHEMA =
       new Schema(
+          5,
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
 
   private static final Schema OTHER_SCHEMA =
-      new Schema(required(1, "some_id", Types.IntegerType.get()));
+      new Schema(7, required(1, "some_id", Types.IntegerType.get()));
 
   protected abstract C catalog();
 

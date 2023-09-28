@@ -235,7 +235,7 @@ public class TestViewMetadataParser {
             .versionId(1)
             .timestampMillis(4353L)
             .summary(ImmutableMap.of("operation", "create"))
-            .schemaId(1)
+            .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -291,7 +291,7 @@ public class TestViewMetadataParser {
     ViewVersion viewVersion =
         ImmutableViewVersion.builder()
             .versionId(2)
-            .schemaId(1)
+            .schemaId(0)
             .timestampMillis(5555L)
             .summary(ImmutableMap.of("operation", "replace"))
             .defaultCatalog("some-catalog")
