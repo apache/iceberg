@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
  *
  * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SizeBasedFileRewriter} instead.
- *     Note: This can only be removed once Spark 3.1 + 3.2 isn't using this API anymore.
+ *     Note: This can only be removed once Spark 3.2 isn't using this API anymore.
  */
 @Deprecated
 public abstract class BinPackStrategy implements RewriteStrategy {

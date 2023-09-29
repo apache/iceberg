@@ -282,13 +282,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     // enable AQE and set the advisory partition big enough to trigger combining
     // set the number of shuffle partitions to 200 to distribute the work across reducers
     // disable broadcast joins to make sure the join triggers a shuffle
+    // set the advisory partition size for shuffles small enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "200",
-            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(), "-1",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.COALESCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "256MB"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(),
+            "-1",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.COALESCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "100",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            String.valueOf(256 * 1024 * 1024)),
         () -> {
           sql(
               "MERGE INTO %s t USING source "
@@ -352,13 +360,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     // enable AQE and set the advisory partition size small enough to trigger a split
     // set the number of shuffle partitions to 2 to only have 2 reducers
     // set the min coalesce partition size small enough to avoid coalescing
+    // set the advisory partition size for shuffles big enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "4",
-            SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(), "100",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "4",
+            SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(),
+            "100",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "256MB",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            "100"),
         () -> {
           SparkPlan plan =
               executeAndKeepPlan(

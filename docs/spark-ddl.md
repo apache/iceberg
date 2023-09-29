@@ -79,14 +79,16 @@ PARTITIONED BY (bucket(16, id), days(ts), category)
 
 Supported transformations are:
 
-* `years(ts)`: partition by year
-* `months(ts)`: partition by month
-* `days(ts)` or `date(ts)`: equivalent to dateint partitioning
-* `hours(ts)` or `date_hour(ts)`: equivalent to dateint and hour partitioning
+* `year(ts)`: partition by year
+* `month(ts)`: partition by month
+* `day(ts)` or `date(ts)`: equivalent to dateint partitioning
+* `hour(ts)` or `date_hour(ts)`: equivalent to dateint and hour partitioning
 * `bucket(N, col)`: partition by hashed value mod N buckets
 * `truncate(L, col)`: partition by value truncated to L
     * Strings are truncated to the given length
     * Integers and longs truncate to bins: `truncate(10, i)` produces partitions 0, 10, 20, 30, ...
+
+Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility. 
 
 ## `CREATE TABLE ... AS SELECT`
 
@@ -348,7 +350,7 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 ```sql
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD year(ts)
 -- use optional AS keyword to specify a custom name for the partition field 
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
 ```
@@ -374,7 +376,7 @@ Partition fields can be removed using `DROP PARTITION FIELD`:
 ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
 ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD year(ts)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
 
@@ -396,9 +398,9 @@ Be careful when dropping a partition field because it will change the schema of 
 A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts)
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts)
 -- use optional AS keyword to specify a custom name for the new partition field 
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts) AS day_of_ts
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts) AS day_of_ts
 ```
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
