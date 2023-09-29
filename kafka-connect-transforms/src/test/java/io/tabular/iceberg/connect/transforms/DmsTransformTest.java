@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.Test;
 
@@ -57,24 +57,24 @@ public class DmsTransformTest {
   }
 
   private Map<String, Object> createDmsEvent(String operation) {
-    Map<String, Object> metadata = new HashMap<>();
-    metadata.put("timestamp", Instant.now().toString());
-    metadata.put("record-type", "data");
-    metadata.put("operation", operation);
-    metadata.put("partition-key-type", "schema-table");
-    metadata.put("schema-name", "db");
-    metadata.put("table-name", "tbl");
-    metadata.put("transaction-id", 12345);
+    Map<String, Object> metadata =
+        ImmutableMap.of(
+            "timestamp", Instant.now().toString(),
+            "record-type", "data",
+            "operation", operation,
+            "partition-key-type", "schema-table",
+            "schema-name", "db",
+            "table-name", "tbl",
+            "transaction-id", 12345);
 
-    Map<String, Object> data = new HashMap<>();
-    data.put("account_id", 1);
-    data.put("balance", 100);
-    data.put("last_updated", Instant.now().toString());
+    Map<String, Object> data =
+        ImmutableMap.of(
+            "account_id", 1,
+            "balance", 100,
+            "last_updated", Instant.now().toString());
 
-    Map<String, Object> event = new HashMap<>();
-    event.put("metadata", metadata);
-    event.put("data", data);
-
-    return event;
+    return ImmutableMap.of(
+        "metadata", metadata,
+        "data", data);
   }
 }

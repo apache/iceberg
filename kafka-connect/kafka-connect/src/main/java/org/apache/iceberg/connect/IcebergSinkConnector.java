@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect;
+package io.tabular.iceberg.connect;
+
+import static java.util.stream.Collectors.toList;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
@@ -34,7 +35,7 @@ public class IcebergSinkConnector extends SinkConnector {
 
   @Override
   public String version() {
-    return IcebergSinkConfig.version();
+    return IcebergSinkConfig.getVersion();
   }
 
   @Override
@@ -57,7 +58,7 @@ public class IcebergSinkConnector extends SinkConnector {
               map.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
               return map;
             })
-        .collect(Collectors.toList());
+        .collect(toList());
   }
 
   @Override

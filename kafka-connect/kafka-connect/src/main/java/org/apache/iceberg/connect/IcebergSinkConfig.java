@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect;
+package io.tabular.iceberg.connect;
+
+import static java.util.stream.Collectors.toList;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -25,12 +27,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -38,9 +39,11 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
+import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
 import org.slf4j.Logger;
@@ -52,42 +55,33 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public static final String INTERNAL_TRANSACTIONAL_SUFFIX_PROP =
       "iceberg.coordinator.transactional.suffix";
-  private static final String ROUTE_REGEX = "route-regex";
-  private static final String ID_COLUMNS = "id-columns";
-  private static final String PARTITION_BY = "partition-by";
-  private static final String COMMIT_BRANCH = "commit-branch";
+  private static final String ROUTE_REGEX = "routeRegex";
+  private static final String ID_COLUMNS = "idColumns";
+  private static final String COMMIT_BRANCH = "commitBranch";
 
   private static final String CATALOG_PROP_PREFIX = "iceberg.catalog.";
   private static final String HADOOP_PROP_PREFIX = "iceberg.hadoop.";
   private static final String KAFKA_PROP_PREFIX = "iceberg.kafka.";
   private static final String TABLE_PROP_PREFIX = "iceberg.table.";
-  private static final String AUTO_CREATE_PROP_PREFIX = "iceberg.tables.auto-create-props.";
-  private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";
-  private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
-  private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
-  private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
-  private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
-  private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
-  private static final String TABLES_AUTO_CREATE_ENABLED_PROP =
-      "iceberg.tables.auto-create-enabled";
+  private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic.enabled";
+  private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.routeField";
+  private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.defaultCommitBranch";
+  private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdcField";
+  private static final String TABLES_UPSERT_MODE_ENABLED_PROP = "iceberg.tables.upsertModeEnabled";
+  private static final String TABLES_AUTO_CREATE_ENABLED_PROP = "iceberg.tables.autoCreateEnabled";
   private static final String TABLES_EVOLVE_SCHEMA_ENABLED_PROP =
-      "iceberg.tables.evolve-schema-enabled";
-  private static final String TABLES_SCHEMA_FORCE_OPTIONAL_PROP =
-      "iceberg.tables.schema-force-optional";
-  private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
-      "iceberg.tables.schema-case-insensitive";
+      "iceberg.tables.evolveSchemaEnabled";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
-  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
-  private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
+  private static final String CONTROL_GROUP_ID_PROP = "iceberg.control.group.id";
+  private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commitIntervalMs";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
-  private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
+  private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commitTimeoutMs";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
-  private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
-  private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
-  private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
+  private static final String COMMIT_THREADS_PROP = "iceberg.control.commitThreads";
+  private static final String HADDOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
@@ -96,127 +90,113 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
 
-  public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
-  public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
-
-  @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
-
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
-  public static String version() {
-    return IcebergBuild.version();
+  public static String getVersion() {
+    String kcVersion = IcebergSinkConfig.class.getPackage().getImplementationVersion();
+    if (kcVersion == null) {
+      kcVersion = "unknown";
+    }
+    return IcebergBuild.version() + "-kc-" + kcVersion;
   }
 
   private static ConfigDef newConfigDef() {
     ConfigDef configDef = new ConfigDef();
     configDef.define(
+        SinkConnector.TOPICS_CONFIG,
+        Type.LIST,
+        Importance.HIGH,
+        "Comma-delimited list of source topics");
+    configDef.define(
         TABLES_PROP,
-        ConfigDef.Type.LIST,
+        Type.LIST,
         null,
         Importance.HIGH,
         "Comma-delimited list of destination tables");
     configDef.define(
         TABLES_DYNAMIC_PROP,
-        ConfigDef.Type.BOOLEAN,
+        Type.BOOLEAN,
         false,
         Importance.MEDIUM,
         "Enable dynamic routing to tables based on a record value");
     configDef.define(
         TABLES_ROUTE_FIELD_PROP,
-        ConfigDef.Type.STRING,
+        Type.STRING,
         null,
         Importance.MEDIUM,
         "Source record field for routing records to tables");
     configDef.define(
         TABLES_DEFAULT_COMMIT_BRANCH,
-        ConfigDef.Type.STRING,
+        Type.STRING,
         null,
         Importance.MEDIUM,
         "Default branch for commits");
     configDef.define(
-        TABLES_DEFAULT_ID_COLUMNS,
-        ConfigDef.Type.STRING,
+        TABLES_CDC_FIELD_PROP,
+        Type.STRING,
         null,
         Importance.MEDIUM,
-        "Default ID columns for tables, comma-separated");
+        "Source record field that identifies the type of operation (insert, update, or delete)");
     configDef.define(
-        TABLES_DEFAULT_PARTITION_BY,
-        ConfigDef.Type.STRING,
-        null,
+        TABLES_UPSERT_MODE_ENABLED_PROP,
+        Type.BOOLEAN,
+        false,
         Importance.MEDIUM,
-        "Default partition spec to use when creating tables, comma-separated");
+        "Set to true to treat all appends as upserts, false otherwise");
     configDef.define(
         TABLES_AUTO_CREATE_ENABLED_PROP,
-        ConfigDef.Type.BOOLEAN,
+        Type.BOOLEAN,
         false,
         Importance.MEDIUM,
         "Set to true to automatically create destination tables, false otherwise");
     configDef.define(
-        TABLES_SCHEMA_FORCE_OPTIONAL_PROP,
-        ConfigDef.Type.BOOLEAN,
-        false,
-        Importance.MEDIUM,
-        "Set to true to set columns as optional during table create and evolution, false to respect schema");
-    configDef.define(
-        TABLES_SCHEMA_CASE_INSENSITIVE_PROP,
-        ConfigDef.Type.BOOLEAN,
-        false,
-        Importance.MEDIUM,
-        "Set to true to look up table columns by case-insensitive name, false for case-sensitive");
-    configDef.define(
         TABLES_EVOLVE_SCHEMA_ENABLED_PROP,
-        ConfigDef.Type.BOOLEAN,
+        Type.BOOLEAN,
         false,
         Importance.MEDIUM,
         "Set to true to add any missing record fields to the table schema, false otherwise");
     configDef.define(
         CATALOG_NAME_PROP,
-        ConfigDef.Type.STRING,
+        Type.STRING,
         DEFAULT_CATALOG_NAME,
         Importance.MEDIUM,
         "Iceberg catalog name");
     configDef.define(
         CONTROL_TOPIC_PROP,
-        ConfigDef.Type.STRING,
+        Type.STRING,
         DEFAULT_CONTROL_TOPIC,
         Importance.MEDIUM,
         "Name of the control topic");
     configDef.define(
-        CONTROL_GROUP_ID_PREFIX_PROP,
-        ConfigDef.Type.STRING,
-        DEFAULT_CONTROL_GROUP_PREFIX,
-        Importance.LOW,
-        "Prefix of the control consumer group");
-    configDef.define(
-        CONNECT_GROUP_ID_PROP,
-        ConfigDef.Type.STRING,
+        CONTROL_GROUP_ID_PROP,
+        Type.STRING,
         null,
-        Importance.LOW,
-        "Name of the Connect consumer group, should not be set under normal conditions");
+        Importance.MEDIUM,
+        "Name of the consumer group to store offsets");
     configDef.define(
         COMMIT_INTERVAL_MS_PROP,
-        ConfigDef.Type.INT,
+        Type.INT,
         COMMIT_INTERVAL_MS_DEFAULT,
         Importance.MEDIUM,
         "Coordinator interval for performing Iceberg table commits, in millis");
     configDef.define(
         COMMIT_TIMEOUT_MS_PROP,
-        ConfigDef.Type.INT,
+        Type.INT,
         COMMIT_TIMEOUT_MS_DEFAULT,
         Importance.MEDIUM,
         "Coordinator time to wait for worker responses before committing, in millis");
     configDef.define(
         COMMIT_THREADS_PROP,
-        ConfigDef.Type.INT,
+        Type.INT,
         Runtime.getRuntime().availableProcessors() * 2,
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
     configDef.define(
-        HADOOP_CONF_DIR_PROP,
-        ConfigDef.Type.STRING,
+        HADDOP_CONF_DIR_PROP,
+        Type.STRING,
         null,
         Importance.MEDIUM,
-        "If specified, Hadoop config files in this directory will be loaded");
+        "Coordinator threads to use for table commits, default is (cores * 2)");
     return configDef;
   }
 
@@ -224,8 +204,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> catalogProps;
   private final Map<String, String> hadoopProps;
   private final Map<String, String> kafkaProps;
-  private final Map<String, String> autoCreateProps;
-  private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
 
@@ -239,10 +217,6 @@ public class IcebergSinkConfig extends AbstractConfig {
     this.kafkaProps = Maps.newHashMap(loadWorkerProps());
     kafkaProps.putAll(PropertyUtil.propertiesWithPrefix(originalProps, KAFKA_PROP_PREFIX));
 
-    this.autoCreateProps =
-        PropertyUtil.propertiesWithPrefix(originalProps, AUTO_CREATE_PROP_PREFIX);
-    this.writeProps = PropertyUtil.propertiesWithPrefix(originalProps, WRITE_PROP_PREFIX);
-
     this.jsonConverter = new JsonConverter();
     jsonConverter.configure(
         ImmutableMap.of(
@@ -255,12 +229,12 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   private void validate() {
-    checkState(!catalogProps().isEmpty(), "Must specify Iceberg catalog properties");
-    if (tables() != null) {
-      checkState(!dynamicTablesEnabled(), "Cannot specify both static and dynamic table names");
-    } else if (dynamicTablesEnabled()) {
+    checkState(!getCatalogProps().isEmpty(), "Must specify Iceberg catalog properties");
+    if (getTables() != null) {
+      checkState(!getDynamicTablesEnabled(), "Cannot specify both static and dynamic table names");
+    } else if (getDynamicTablesEnabled()) {
       checkState(
-          tablesRouteField() != null, "Must specify a route field if using dynamic table names");
+          getTablesRouteField() != null, "Must specify a route field if using dynamic table names");
     } else {
       throw new ConfigException("Must specify table name(s)");
     }
@@ -272,176 +246,133 @@ public class IcebergSinkConfig extends AbstractConfig {
     }
   }
 
-  public String connectorName() {
+  public String getConnectorName() {
     return originalProps.get(NAME_PROP);
   }
 
-  public String transactionalSuffix() {
+  public String getTransactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
   }
 
-  public Map<String, String> catalogProps() {
+  public SortedSet<String> getTopics() {
+    return new TreeSet<>(getList(SinkConnector.TOPICS_CONFIG));
+  }
+
+  public Map<String, String> getCatalogProps() {
     return catalogProps;
   }
 
-  public Map<String, String> hadoopProps() {
+  public Map<String, String> getHadoopProps() {
     return hadoopProps;
   }
 
-  public Map<String, String> kafkaProps() {
+  public Map<String, String> getKafkaProps() {
     return kafkaProps;
   }
 
-  public Map<String, String> autoCreateProps() {
-    return autoCreateProps;
-  }
-
-  public Map<String, String> writeProps() {
-    return writeProps;
-  }
-
-  public String catalogName() {
+  public String getCatalogName() {
     return getString(CATALOG_NAME_PROP);
   }
 
-  public List<String> tables() {
+  public List<String> getTables() {
     return getList(TABLES_PROP);
   }
 
-  public boolean dynamicTablesEnabled() {
+  public boolean getDynamicTablesEnabled() {
     return getBoolean(TABLES_DYNAMIC_PROP);
   }
 
-  public String tablesRouteField() {
+  public String getTablesRouteField() {
     return getString(TABLES_ROUTE_FIELD_PROP);
   }
 
-  public String tablesDefaultCommitBranch() {
+  public String getTablesDefaultCommitBranch() {
     return getString(TABLES_DEFAULT_COMMIT_BRANCH);
   }
 
-  public String tablesDefaultIdColumns() {
-    return getString(TABLES_DEFAULT_ID_COLUMNS);
-  }
-
-  public String tablesDefaultPartitionBy() {
-    return getString(TABLES_DEFAULT_PARTITION_BY);
-  }
-
-  public TableSinkConfig tableConfig(String tableName) {
+  public TableSinkConfig getTableConfig(String tableName) {
     return tableConfigMap.computeIfAbsent(
         tableName,
         notUsed -> {
-          Map<String, String> tableConfig =
+          Map<String, String> tableProps =
               PropertyUtil.propertiesWithPrefix(originalProps, TABLE_PROP_PREFIX + tableName + ".");
-
-          String routeRegexStr = tableConfig.get(ROUTE_REGEX);
+          String routeRegexStr = tableProps.get(ROUTE_REGEX);
           Pattern routeRegex = routeRegexStr == null ? null : Pattern.compile(routeRegexStr);
 
-          String idColumnsStr = tableConfig.getOrDefault(ID_COLUMNS, tablesDefaultIdColumns());
-          List<String> idColumns = stringToList(idColumnsStr, ",");
+          String idColumnsStr = tableProps.get(ID_COLUMNS);
+          List<String> idColumns =
+              idColumnsStr == null || idColumnsStr.isEmpty()
+                  ? ImmutableList.of()
+                  : Arrays.stream(idColumnsStr.split(",")).map(String::trim).collect(toList());
 
-          String partitionByStr =
-              tableConfig.getOrDefault(PARTITION_BY, tablesDefaultPartitionBy());
-          List<String> partitionBy = stringToList(partitionByStr, COMMA_NO_PARENS_REGEX);
+          String commitBranch = tableProps.get(COMMIT_BRANCH);
+          if (commitBranch == null) {
+            commitBranch = getTablesDefaultCommitBranch();
+          }
 
-          String commitBranch =
-              tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
-
-          return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);
+          return new TableSinkConfig(routeRegex, idColumns, commitBranch);
         });
   }
 
-  @VisibleForTesting
-  static List<String> stringToList(String value, String regex) {
-    if (value == null || value.isEmpty()) {
-      return ImmutableList.of();
-    }
-
-    return Arrays.stream(value.split(regex)).map(String::trim).collect(Collectors.toList());
+  public String getTablesCdcField() {
+    return getString(TABLES_CDC_FIELD_PROP);
   }
 
-  public String controlTopic() {
+  public String getControlTopic() {
     return getString(CONTROL_TOPIC_PROP);
   }
 
-  public String controlGroupIdPrefix() {
-    return getString(CONTROL_GROUP_ID_PREFIX_PROP);
-  }
-
-  public String connectGroupId() {
-    String result = getString(CONNECT_GROUP_ID_PROP);
+  public String getControlGroupId() {
+    String result = getString(CONTROL_GROUP_ID_PROP);
     if (result != null) {
       return result;
     }
-
-    String connectorName = connectorName();
+    String connectorName = getConnectorName();
     Preconditions.checkNotNull(connectorName, "Connector name cannot be null");
-    return "connect-" + connectorName;
+    return DEFAULT_CONTROL_GROUP_PREFIX + connectorName;
   }
 
-  public int commitIntervalMs() {
+  public int getCommitIntervalMs() {
     return getInt(COMMIT_INTERVAL_MS_PROP);
   }
 
-  public int commitTimeoutMs() {
+  public int getCommitTimeoutMs() {
     return getInt(COMMIT_TIMEOUT_MS_PROP);
   }
 
-  public int commitThreads() {
+  public int getCommitThreads() {
     return getInt(COMMIT_THREADS_PROP);
   }
 
-  public String hadoopConfDir() {
-    return getString(HADOOP_CONF_DIR_PROP);
+  public String getHadoopConfDir() {
+    return getString(HADDOP_CONF_DIR_PROP);
   }
 
-  public boolean autoCreateEnabled() {
+  public boolean isUpsertMode() {
+    return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
+  }
+
+  public boolean isAutoCreate() {
     return getBoolean(TABLES_AUTO_CREATE_ENABLED_PROP);
   }
 
-  public boolean evolveSchemaEnabled() {
+  public boolean isEvolveSchema() {
     return getBoolean(TABLES_EVOLVE_SCHEMA_ENABLED_PROP);
   }
 
-  public boolean schemaForceOptional() {
-    return getBoolean(TABLES_SCHEMA_FORCE_OPTIONAL_PROP);
-  }
-
-  public boolean schemaCaseInsensitive() {
-    return getBoolean(TABLES_SCHEMA_CASE_INSENSITIVE_PROP);
-  }
-
-  public JsonConverter jsonConverter() {
+  public JsonConverter getJsonConverter() {
     return jsonConverter;
   }
 
-  @VisibleForTesting
-  static boolean checkClassName(String className) {
-    return (className.matches(".*\\.ConnectDistributed.*")
-        || className.matches(".*\\.ConnectStandalone.*"));
-  }
-
-  /**
-   * This method attempts to load the Kafka Connect worker properties, which are not exposed to
-   * connectors. It does this by parsing the Java command used to launch the worker, extracting the
-   * name of the properties file, and then loading the file. <br>
-   * The sink uses these properties, if available, when initializing its internal Kafka clients. By
-   * doing this, Kafka-related properties only need to be set in the worker properties and do not
-   * need to be duplicated in the sink config. <br>
-   * If the worker properties cannot be loaded, then Kafka-related properties must be set via the
-   * `iceberg.kafka.*` sink configs.
-   *
-   * @return The Kafka Connect worker properties
-   */
   private Map<String, String> loadWorkerProps() {
     String javaCmd = System.getProperty("sun.java.command");
     if (javaCmd != null && !javaCmd.isEmpty()) {
-      List<String> args = Splitter.on(' ').splitToList(javaCmd);
-      if (args.size() > 1 && checkClassName(args.get(0))) {
+      String[] args = javaCmd.split(" ");
+      if (args.length > 1
+          && (args[0].endsWith(".ConnectDistributed") || args[0].endsWith(".ConnectStandalone"))) {
         Properties result = new Properties();
-        try (InputStream in = Files.newInputStream(Paths.get(args.get(1)))) {
+        try (InputStream in = Files.newInputStream(Paths.get(args[1]))) {
           result.load(in);
           // sanity check that this is the config we want
           if (result.containsKey(BOOTSTRAP_SERVERS_PROP)) {

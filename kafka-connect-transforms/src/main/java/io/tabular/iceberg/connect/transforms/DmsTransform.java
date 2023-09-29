@@ -18,15 +18,13 @@
  */
 package io.tabular.iceberg.connect.transforms;
 
-import static java.lang.String.format;
-import static org.apache.kafka.connect.transforms.util.Requirements.requireMap;
-
-import java.util.HashMap;
 import java.util.Map;
 import jdk.jfr.Experimental;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.transforms.Transformation;
+import org.apache.kafka.connect.transforms.util.Requirements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +47,7 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
 
   @SuppressWarnings("unchecked")
   private R applySchemaless(R record) {
-    final Map<String, Object> value = requireMap(record.value(), "DMS transform");
+    final Map<String, Object> value = Requirements.requireMap(record.value(), "DMS transform");
 
     // promote fields under "data"
     Object dataObj = value.get("data");
@@ -59,7 +57,7 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
       return record;
     }
 
-    final Map<String, Object> result = new HashMap<>((Map<String, Object>) dataObj);
+    final Map<String, Object> result = Maps.newHashMap((Map<String, Object>) dataObj);
 
     Map<String, Object> metadata = (Map<String, Object>) metadataObj;
 
@@ -78,7 +76,8 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
 
     result.put("_cdc_op", op);
     result.put(
-        "_cdc_table", format("%s.%s", metadata.get("schema-name"), metadata.get("table-name")));
+        "_cdc_table",
+        String.format("%s.%s", metadata.get("schema-name"), metadata.get("table-name")));
     result.put("_cdc_ts", metadata.get("timestamp"));
 
     return record.newRecord(
