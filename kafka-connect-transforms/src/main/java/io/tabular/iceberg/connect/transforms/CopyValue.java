@@ -18,12 +18,9 @@
  */
 package io.tabular.iceberg.connect.transforms;
 
-import static org.apache.kafka.connect.transforms.util.Requirements.requireMap;
-import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
-
-import java.util.HashMap;
 import java.util.Map;
 import jdk.jfr.Experimental;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.cache.Cache;
 import org.apache.kafka.common.cache.LRUCache;
 import org.apache.kafka.common.cache.SynchronizedCache;
@@ -34,6 +31,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.transforms.Transformation;
+import org.apache.kafka.connect.transforms.util.Requirements;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
@@ -83,16 +81,16 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   }
 
   private R applySchemaless(R record) {
-    final Map<String, Object> value = requireMap(record.value(), "copy value");
+    final Map<String, Object> value = Requirements.requireMap(record.value(), "copy value");
 
-    final Map<String, Object> updatedValue = new HashMap<>(value);
+    final Map<String, Object> updatedValue = Maps.newHashMap(value);
     updatedValue.put(targetField, value.get(sourceField));
 
     return newRecord(record, null, updatedValue);
   }
 
   private R applyWithSchema(R record) {
-    final Struct value = requireStruct(record.value(), "copy value");
+    final Struct value = Requirements.requireStruct(record.value(), "copy value");
 
     Schema updatedSchema = schemaUpdateCache.get(value.schema());
     if (updatedSchema == null) {

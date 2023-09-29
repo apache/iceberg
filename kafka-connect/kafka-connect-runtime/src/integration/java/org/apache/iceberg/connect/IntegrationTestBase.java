@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect;
+package io.tabular.iceberg.connect;
 
+import static io.tabular.iceberg.connect.TestConstants.MAPPER;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +35,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -40,48 +43,30 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import software.amazon.awssdk.services.s3.S3Client;
 
-public class IntegrationTestBase {
+public abstract class IntegrationTestBase {
 
-  private static TestContext context;
-
-  private Catalog catalog;
-  private Admin admin;
-  private String connectorName;
-  private String testTopic;
+  protected final TestContext context = TestContext.INSTANCE;
+  protected S3Client s3;
+  protected Catalog catalog;
+  protected Admin admin;
 
   private KafkaProducer<String, String> producer;
 
+  protected String connectorName;
+  protected String testTopic;
+
   protected static final int TEST_TOPIC_PARTITIONS = 2;
-
-  protected TestContext context() {
-    return context;
-  }
-
-  protected Catalog catalog() {
-    return catalog;
-  }
-
-  protected String connectorName() {
-    return connectorName;
-  }
-
-  protected String testTopic() {
-    return testTopic;
-  }
-
-  @BeforeAll
-  public static void baseBeforeAll() {
-    context = TestContext.instance();
-  }
 
   @BeforeEach
   public void baseBefore() {
-    this.catalog = context.initLocalCatalog();
-    this.producer = context.initLocalProducer();
-    this.admin = context.initLocalAdmin();
+    s3 = TestContextUtil.initLocalS3Client(context.localMinioPort());
+    catalog = intCatalog();
+    producer = TestContextUtil.initLocalProducer(context.kafkaBootstrapServers());
+    admin = TestContextUtil.initLocalAdmin(context.kafkaBootstrapServers());
+
     this.connectorName = "test_connector-" + UUID.randomUUID();
     this.testTopic = "test-topic-" + UUID.randomUUID();
   }
@@ -97,6 +82,27 @@ public class IntegrationTestBase {
     }
     producer.close();
     admin.close();
+    s3.close();
+  }
+
+  protected abstract TestConstants.CatalogType catalogType();
+
+  private Catalog intCatalog() {
+    if (catalogType() == TestConstants.CatalogType.REST) {
+      return context.initRestCatalog();
+    } else if (catalogType() == TestConstants.CatalogType.NESSIE) {
+      return context.initNessieCatalog();
+    }
+    return null;
+  }
+
+  protected Map<String, Object> connectorCatalogProperties() {
+    if (catalogType() == TestConstants.CatalogType.REST) {
+      return TestContextUtil.connectorRestCatalogProperties();
+    } else if (catalogType() == TestConstants.CatalogType.NESSIE) {
+      return TestContextUtil.connectorNessieCatalogProperties();
+    }
+    return ImmutableMap.of();
   }
 
   protected void assertSnapshotProps(TableIdentifier tableIdentifier, String branch) {
@@ -104,21 +110,21 @@ public class IntegrationTestBase {
     Map<String, String> props = latestSnapshot(table, branch).summary();
     assertThat(props)
         .hasKeySatisfying(
-            new Condition<>() {
+            new Condition<String>() {
               @Override
               public boolean matches(String str) {
                 return str.startsWith("kafka.connect.offsets.");
               }
             });
-    assertThat(props).containsKey("kafka.connect.commit-id");
+    assertThat(props).containsKey("kafka.connect.commitId");
   }
 
-  protected List<DataFile> dataFiles(TableIdentifier tableIdentifier, String branch) {
+  protected List<DataFile> getDataFiles(TableIdentifier tableIdentifier, String branch) {
     Table table = catalog.loadTable(tableIdentifier);
     return Lists.newArrayList(latestSnapshot(table, branch).addedDataFiles(table.io()));
   }
 
-  protected List<DeleteFile> deleteFiles(TableIdentifier tableIdentifier, String branch) {
+  protected List<DeleteFile> getDeleteFiles(TableIdentifier tableIdentifier, String branch) {
     Table table = catalog.loadTable(tableIdentifier);
     return Lists.newArrayList(latestSnapshot(table, branch).addedDeleteFiles(table.io()));
   }
@@ -146,11 +152,11 @@ public class IntegrationTestBase {
     }
   }
 
-  protected void send(String topicName, TestEvent event, boolean useSchema) {
-    String eventStr = event.serialize(useSchema);
+  protected void send(String topicName, TestEvent event) {
     try {
-      producer.send(new ProducerRecord<>(topicName, Long.toString(event.id()), eventStr)).get();
-    } catch (InterruptedException | ExecutionException e) {
+      String eventStr = MAPPER.writeValueAsString(event);
+      producer.send(new ProducerRecord<>(topicName, Long.toString(event.getId()), eventStr));
+    } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
   }

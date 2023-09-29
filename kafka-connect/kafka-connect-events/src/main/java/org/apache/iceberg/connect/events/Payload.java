@@ -16,18 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.events;
+package io.tabular.iceberg.connect.events;
 
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.Schema;
+import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.IndexedRecord;
-import org.apache.iceberg.types.Types;
+import org.apache.avro.specific.SpecificData.SchemaConstructable;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 
-/**
- * Interface for an element that is an event payload. Different event types contain different
- * payloads.
- */
-public interface Payload extends IndexedRecord {
+public interface Element extends IndexedRecord, SchemaConstructable {
+  // this is required by Iceberg's Avro deserializer to check for special metadata
+  // fields, but we aren't using any
+  String DUMMY_FIELD_ID = "-1";
 
-  PayloadType type();
+  String FIELD_ID_PROP = AvroSchemaUtil.FIELD_ID_PROP;
 
-  Types.StructType writeSchema();
+  Schema UUID_SCHEMA =
+      LogicalTypes.uuid().addToSchema(SchemaBuilder.builder().fixed("uuid").size(16));
 }

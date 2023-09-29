@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.channel;
+package io.tabular.iceberg.connect.channel;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,35 +33,35 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
-class KafkaClientFactory {
+public class KafkaClientFactory {
   private final Map<String, String> kafkaProps;
 
-  KafkaClientFactory(Map<String, String> kafkaProps) {
+  public KafkaClientFactory(Map<String, String> kafkaProps) {
     this.kafkaProps = kafkaProps;
   }
 
-  Producer<String, byte[]> createProducer(String transactionalId) {
+  public Producer<String, byte[]> createProducer(String transactionalId) {
     Map<String, Object> producerProps = Maps.newHashMap(kafkaProps);
-    producerProps.putIfAbsent(ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId);
+    producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     KafkaProducer<String, byte[]> result =
         new KafkaProducer<>(producerProps, new StringSerializer(), new ByteArraySerializer());
     result.initTransactions();
     return result;
   }
 
-  Consumer<String, byte[]> createConsumer(String consumerGroupId) {
+  public Consumer<String, byte[]> createConsumer(String consumerGroupId) {
     Map<String, Object> consumerProps = Maps.newHashMap(kafkaProps);
     consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-    consumerProps.putIfAbsent(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
     consumerProps.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
     consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
+    consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     return new KafkaConsumer<>(
         consumerProps, new StringDeserializer(), new ByteArrayDeserializer());
   }
 
-  Admin createAdmin() {
+  public Admin createAdmin() {
     Map<String, Object> adminProps = Maps.newHashMap(kafkaProps);
     return Admin.create(adminProps);
   }

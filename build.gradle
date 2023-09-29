@@ -3,17 +3,22 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath("com.diffplug.spotless:spotless-plugin-gradle:6.13.0")
+    classpath(libs.spotless.gradle)
+    classpath(libs.palantir.gradle)
   }
+}
+
+plugins {
+  alias(libs.plugins.nebula.release)
 }
 
 subprojects {
   apply plugin: "java"
   apply plugin: "com.diffplug.spotless"
+  apply plugin: "com.palantir.baseline-checkstyle"
   apply plugin: "maven-publish"
 
   group "io.tabular.connect"
-  version "0.4.8"
 
   repositories {
     mavenCentral()
@@ -50,6 +55,10 @@ subprojects {
       removeUnusedImports()
       licenseHeaderFile "$rootDir/header.txt"
     }
+  }
+
+  checkstyle {
+    toolVersion '9.3'
   }
 
   publishing {

@@ -21,8 +21,9 @@ package io.tabular.iceberg.connect.transforms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -43,11 +44,11 @@ public class CopyValueTest {
   @Test
   @SuppressWarnings("unchecked")
   public void testCopyValueSchemaless() {
-    Map<String, String> props = new HashMap<>();
+    Map<String, String> props = Maps.newHashMap();
     props.put("source.field", "data");
     props.put("target.field", "data_copy");
 
-    Map<String, Object> value = new HashMap<>();
+    Map<String, Object> value = Maps.newHashMap();
     value.put("id", 123L);
     value.put("data", "foobar");
 
@@ -63,9 +64,10 @@ public class CopyValueTest {
 
   @Test
   public void testCopyValueWithSchema() {
-    Map<String, String> props = new HashMap<>();
-    props.put("source.field", "data");
-    props.put("target.field", "data_copy");
+    Map<String, String> props =
+        ImmutableMap.of(
+            "source.field", "data",
+            "target.field", "data_copy");
 
     Schema schema =
         SchemaBuilder.struct().field("id", Schema.INT64_SCHEMA).field("data", Schema.STRING_SCHEMA);

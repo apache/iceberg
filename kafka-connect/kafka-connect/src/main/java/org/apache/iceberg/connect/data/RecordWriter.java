@@ -16,16 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.data;
+package io.tabular.iceberg.connect.data;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-interface RecordWriter extends Cloneable {
+public interface RecordWriter extends Cloneable {
 
-  void write(SinkRecord record);
+  default void write(SinkRecord record) {}
 
-  List<IcebergWriterResult> complete();
+  default List<WriterResult> complete() {
+    return ImmutableList.of();
+  }
 
-  void close();
+  default void close() {}
 }
