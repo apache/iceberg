@@ -117,7 +117,6 @@ def test_write_sample_manifest(table_test_all_types: Table) -> None:
         ) as manifest_writer:
             # For simplicity, try one entry first
             manifest_writer.add_entry(test_manifest_entries[0])
-            # new_manifest = manifest_writer.to_manifest_file()
 
         with open(tmp_avro_file, "rb") as fo:
             r = reader(fo=fo)

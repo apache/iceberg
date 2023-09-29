@@ -99,7 +99,7 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-DATA_FILE_TYPE = StructType(
+DATA_FILE_TYPE_V1 = StructType(
     NestedField(
         field_id=134,
         name="content",
@@ -193,6 +193,8 @@ DATA_FILE_TYPE = StructType(
     NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
 )
 
+DATA_FILE_TYPE_V2 = StructType(*[field for field in DATA_FILE_TYPE_V1.fields if field.field_id != 105])
+
 
 @singledispatch
 def partition_field_to_data_file_partition_field(partition_field_type: IcebergType) -> PrimitiveType:
@@ -225,37 +227,20 @@ def data_file_with_partition(partition_type: StructType, format_version: Literal
         ]
     )
 
-    if format_version == 1:
-        return StructType(
-            *[
-                NestedField(
-                    field_id=102,
-                    name="partition",
-                    field_type=data_file_partition_type,
-                    required=True,
-                    doc="Partition data tuple, schema based on the partition spec",
-                )
-                if field.field_id == 102
-                else field
-                for field in DATA_FILE_TYPE.fields
-            ]
-        )
-    else:
-        return StructType(
-            *[
-                NestedField(
-                    field_id=102,
-                    name="partition",
-                    field_type=data_file_partition_type,
-                    required=True,
-                    doc="Partition data tuple, schema based on the partition spec",
-                )
-                if field.field_id == 102
-                else field
-                for field in DATA_FILE_TYPE.fields
-                if field.field_id != 105
-            ]
-        )
+    return StructType(
+        *[
+            NestedField(
+                field_id=102,
+                name="partition",
+                field_type=data_file_partition_type,
+                required=True,
+                doc="Partition data tuple, schema based on the partition spec",
+            )
+            if field.field_id == 102
+            else field
+            for field in (DATA_FILE_TYPE_V1.fields if format_version == 1 else DATA_FILE_TYPE_V2.fields)
+        ]
+    )
 
 
 class DataFile(Record):
@@ -308,7 +293,7 @@ class DataFile(Record):
     def __init__(self, format_version: Literal[1, 2] = 1, *data: Any, **named_data: Any) -> None:
         super().__init__(
             *data,
-            **{"struct": DATA_FILE_TYPE if format_version == 1 else data_file_with_partition(StructType(), 2), **named_data},
+            **{"struct": DATA_FILE_TYPE_V1 if format_version == 1 else DATA_FILE_TYPE_V2, **named_data},
         )
 
     def __hash__(self) -> int:
@@ -328,7 +313,7 @@ MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(1, "snapshot_id", LongType(), required=False),
     NestedField(3, "data_sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE_TYPE, required=True),
+    NestedField(2, "data_file", DATA_FILE_TYPE_V1, required=True),
 )
 
 MANIFEST_ENTRY_SCHEMA_STRUCT = MANIFEST_ENTRY_SCHEMA.as_struct()
