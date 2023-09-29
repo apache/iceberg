@@ -36,7 +36,7 @@
     {
       "version-id": 1,
       "timestamp-ms": 4353,
-      "summary": {"operation":"create"},
+      "summary": {"user": "some-user"},
       "schema-id": 0,
       "default-catalog": "some-catalog",
       "default-namespace": [],

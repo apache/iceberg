@@ -320,14 +320,15 @@ public interface ViewMetadata extends Serializable {
 
     /**
      * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the summary.
+     * id, the creation timestamp, and the operation.
      *
      * @param one the view version to compare
      * @param two the view version to compare
      * @return true if the given view versions would behave the same
      */
     private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
-      return Objects.equals(one.representations(), two.representations())
+      return Objects.equals(one.summary(), two.summary())
+          && Objects.equals(one.representations(), two.representations())
           && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
           && one.schemaId() == two.schemaId();

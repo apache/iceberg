@@ -835,12 +835,12 @@ public class TestMetadataUpdateParser {
             .versionId(23)
             .timestampMillis(timestamp)
             .schemaId(4)
-            .putSummary("operation", "replace")
+            .putSummary("user", "some-user")
             .defaultNamespace(Namespace.of("ns"))
             .build();
     String json =
         String.format(
-            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"operation\":\"replace\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
+            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"user\":\"some-user\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
             action);
     MetadataUpdate expected = new MetadataUpdate.AddViewVersion(viewVersion);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
@@ -855,12 +855,12 @@ public class TestMetadataUpdateParser {
             .versionId(23)
             .timestampMillis(timestamp)
             .schemaId(4)
-            .putSummary("operation", "replace")
+            .putSummary("user", "some-user")
             .defaultNamespace(Namespace.of("ns"))
             .build();
     String expected =
         String.format(
-            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"operation\":\"replace\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
+            "{\"action\":\"%s\",\"view-version\":{\"version-id\":23,\"timestamp-ms\":123456789,\"schema-id\":4,\"summary\":{\"user\":\"some-user\"},\"default-namespace\":[\"ns\"],\"representations\":[]}}",
             action);
 
     MetadataUpdate update = new MetadataUpdate.AddViewVersion(viewVersion);

@@ -35,7 +35,7 @@
     {
       "version-id": 1,
       "timestamp-ms": 4353,
-      "summary": {"operation":"create"},
+      "summary": {"user": "some-user"},
       "schema-id": 1,
       "default-catalog": "some-catalog",
       "default-namespace": [],
@@ -50,7 +50,7 @@
     {
       "version-id": 2,
       "timestamp-ms": 5555,
-      "summary": {"operation": "replace"},
+      "summary": {"user": "some-user"},
       "schema-id": 1,
       "default-catalog": "some-catalog",
       "default-namespace": [],
