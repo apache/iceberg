@@ -22,18 +22,30 @@ import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.spark.util.KnownSizeEstimation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class provides a serializable table with a known size estimate. Spark calls its
  * SizeEstimator class when broadcasting variables and this can be an expensive operation, so
  * providing a known size estimate allows that operation to be skipped.
+ *
+ * <p>This class also implements AutoCloseable to avoid leaking resources upon broadcasting.
+ * Broadcast variables are destroyed and cleaned up on the driver and executors once they are
+ * garbage collected on the driver. The implementation ensures only resources used by copies of the
+ * main table are released.
  */
-public class SerializableTableWithSize extends SerializableTable implements KnownSizeEstimation {
+public class SerializableTableWithSize extends SerializableTable
+    implements KnownSizeEstimation, AutoCloseable {
 
+  private static final Logger LOG = LoggerFactory.getLogger(SerializableTableWithSize.class);
   private static final long SIZE_ESTIMATE = 32_768L;
+
+  private final transient Object serializationMarker;
 
   protected SerializableTableWithSize(Table table) {
     super(table);
+    this.serializationMarker = new Object();
   }
 
   @Override
@@ -46,6 +58,14 @@ public class SerializableTableWithSize extends SerializableTable implements Know
       return new SerializableMetadataTableWithSize((BaseMetadataTable) table);
     } else {
       return new SerializableTableWithSize(table);
+    }
+  }
+
+  @Override
+  public void close() throws Exception {
+    if (serializationMarker == null) {
+      LOG.info("Releasing resources");
+      io().close();
     }
   }
 
