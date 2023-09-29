@@ -226,7 +226,7 @@ public class AwsClientFactories {
             AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
       }
     } else {
-      return DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.builder().build();
     }
   }
 }

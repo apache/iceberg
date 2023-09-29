@@ -485,7 +485,7 @@ public class AwsProperties implements Serializable {
       return credentialsProvider(this.clientCredentialsProvider);
     }
 
-    return DefaultCredentialsProvider.create();
+    return DefaultCredentialsProvider.builder().build();
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
