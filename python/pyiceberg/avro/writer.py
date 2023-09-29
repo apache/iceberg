@@ -34,7 +34,7 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.encoder import BinaryEncoder
-from pyiceberg.types import StructType
+from pyiceberg.typedef import Record
 from pyiceberg.utils.decimal import decimal_required_bytes, decimal_to_bytes
 from pyiceberg.utils.singleton import Singleton
 
@@ -160,7 +160,7 @@ class OptionWriter(Writer):
 class StructWriter(Writer):
     field_writers: Tuple[Writer, ...] = dataclassfield()
 
-    def write(self, encoder: BinaryEncoder, val: StructType) -> None:
+    def write(self, encoder: BinaryEncoder, val: Record) -> None:
         for writer, value in zip(self.field_writers, val.record_fields()):
             writer.write(encoder, value)
 
