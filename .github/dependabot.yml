@@ -19,12 +19,6 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/python/"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-    open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

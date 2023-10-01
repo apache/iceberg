@@ -28,7 +28,6 @@ on:
   pull_request:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
-    - '.github/workflows/python-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.gitignore'
@@ -40,7 +39,6 @@ on:
     - 'hive-runtime/**'
     - 'flink/**'
     - 'pig/**'
-    - 'python/**'
     - 'docs/**'
     - 'open-api/**'
     - 'format/**'

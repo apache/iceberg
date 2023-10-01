@@ -28,7 +28,6 @@ on:
   pull_request:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
-    - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.gitignore'
@@ -38,7 +37,6 @@ on:
     - 'spark/**'
     - 'flink/**'
     - 'pig/**'
-    - 'python/**'
     - 'docs/**'
     - 'open-api/**'
     - 'format/**'
