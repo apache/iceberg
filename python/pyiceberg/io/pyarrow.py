@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-outer-name,arguments-renamed,fixme
-"""FileIO implementation for reading and writing table files that uses pyarrow.fs
+"""FileIO implementation for reading and writing table files that uses pyarrow.fs.
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
 by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct filesystem
@@ -24,18 +24,24 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
-import multiprocessing
+import concurrent.futures
+import logging
 import os
+import re
 from abc import ABC, abstractmethod
+from concurrent.futures import Future
+from dataclasses import dataclass
+from enum import Enum
 from functools import lru_cache, singledispatch
-from multiprocessing.pool import ThreadPool
-from multiprocessing.sharedctypes import Synchronized
+from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Generic,
     Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -46,20 +52,23 @@ from typing import (
 )
 from urllib.parse import urlparse
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
+import pyarrow.lib
+import pyarrow.parquet as pq
+from pyarrow import ChunkedArray
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
     FSSpecHandler,
-    LocalFileSystem,
-    PyFileSystem,
-    S3FileSystem,
 )
+from sortedcontainers import SortedList
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import (
     AlwaysTrue,
     BooleanExpression,
@@ -74,8 +83,17 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT_MS,
+    HDFS_HOST,
+    HDFS_KERB_TICKET,
+    HDFS_PORT,
+    HDFS_USER,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
+    S3_PROXY_URI,
     S3_REGION,
     S3_SECRET_ACCESS_KEY,
     S3_SESSION_TOKEN,
@@ -85,16 +103,20 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import (
     PartnerAccessor,
+    PreOrderSchemaVisitor,
     Schema,
     SchemaVisitorPerPrimitiveType,
     SchemaWithPartnerVisitor,
+    pre_order_visit,
     promote,
     prune_columns,
     visit,
     visit_with_partner,
 )
+from pyiceberg.transforms import TruncateTransform
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -118,10 +140,15 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.concurrent import ExecutorFactory
+from pyiceberg.utils.datetime import millis_to_datetime
 from pyiceberg.utils.singleton import Singleton
+from pyiceberg.utils.truncate import truncate_upper_bound_binary_string, truncate_upper_bound_text_string
 
 if TYPE_CHECKING:
     from pyiceberg.table import FileScanTask, Table
+
+logger = logging.getLogger(__name__)
 
 ONE_MEGABYTE = 1024 * 1024
 BUFFER_SIZE = "buffer-size"
@@ -135,13 +162,13 @@ T = TypeVar("T")
 
 
 class PyArrowFile(InputFile, OutputFile):
-    """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
+    """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances.
 
     Args:
-        location (str): A URI or a path to a local file
+        location (str): A URI or a path to a local file.
 
     Attributes:
-        location(str): The URI or path to a local file for a PyArrowFile instance
+        location(str): The URI or path to a local file for a PyArrowFile instance.
 
     Examples:
         >>> from pyiceberg.io.pyarrow import PyArrowFile
@@ -167,11 +194,11 @@ class PyArrowFile(InputFile, OutputFile):
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
-        """Retrieves a pyarrow.fs.FileInfo object for the location
+        """Retrieve a pyarrow.fs.FileInfo object for the location.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         try:
             file_info = self._filesystem.get_file_info(self._path)
@@ -185,12 +212,12 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Return the total length of the file, in bytes."""
         file_info = self._file_info()
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Check whether the location exists."""
         try:
             self._file_info()  # raises FileNotFoundError if it does not exist
             return True
@@ -198,18 +225,18 @@ class PyArrowFile(InputFile, OutputFile):
             return False
 
     def open(self, seekable: bool = True) -> InputStream:
-        """Opens the location using a PyArrow FileSystem inferred from the location
+        """Open the location using a PyArrow FileSystem inferred from the location.
 
         Args:
-            seekable: If the stream should support seek, or if it is consumed sequential
+            seekable: If the stream should support seek, or if it is consumed sequential.
 
         Returns:
-            pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`.
 
         Raises:
-            FileNotFoundError: If the file at self.location does not exist
+            FileNotFoundError: If the file at self.location does not exist.
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         try:
             if seekable:
@@ -229,16 +256,16 @@ class PyArrowFile(InputFile, OutputFile):
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location
+        """Create a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
 
         Args:
-            overwrite (bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists.
 
         Returns:
-            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location.
 
         Raises:
-            FileExistsError: If the file already exists at `self.location` and `overwrite` is False
+            FileExistsError: If the file already exists at `self.location` and `overwrite` is False.
 
         Note:
             This retrieves a pyarrow NativeFile by opening an output stream. If overwrite is set to False,
@@ -260,7 +287,7 @@ class PyArrowFile(InputFile, OutputFile):
         return output_file
 
     def to_input_file(self) -> PyArrowFile:
-        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
+        """Return a new PyArrowFile for the location of an existing PyArrowFile instance.
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
         PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
@@ -270,18 +297,27 @@ class PyArrowFile(InputFile, OutputFile):
 
 
 class PyArrowFileIO(FileIO):
+    fs_by_scheme: Callable[[str, Optional[str]], FileSystem]
+
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
+        self.fs_by_scheme: Callable[[str, Optional[str]], FileSystem] = lru_cache(self._initialize_fs)
         super().__init__(properties=properties)
 
     @staticmethod
-    def parse_location(location: str) -> Tuple[str, str]:
-        """Returns the path without the scheme"""
+    def parse_location(location: str) -> Tuple[str, str, str]:
+        """Return the path without the scheme."""
         uri = urlparse(location)
-        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+        if not uri.scheme:
+            return "file", uri.netloc, os.path.abspath(location)
+        elif uri.scheme == "hdfs":
+            return uri.scheme, uri.netloc, location
+        else:
+            return uri.scheme, uri.netloc, f"{uri.netloc}{uri.path}"
 
-    def _get_fs(self, scheme: str) -> FileSystem:
+    def _initialize_fs(self, scheme: str, netloc: Optional[str] = None) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
+            from pyarrow.fs import S3FileSystem
+
             client_kwargs = {
                 "endpoint_override": self.properties.get(S3_ENDPOINT),
                 "access_key": self.properties.get(S3_ACCESS_KEY_ID),
@@ -289,53 +325,100 @@ class PyArrowFileIO(FileIO):
                 "session_token": self.properties.get(S3_SESSION_TOKEN),
                 "region": self.properties.get(S3_REGION),
             }
+
+            if proxy_uri := self.properties.get(S3_PROXY_URI):
+                client_kwargs["proxy_options"] = proxy_uri
+
             return S3FileSystem(**client_kwargs)
+        elif scheme == "hdfs":
+            from pyarrow.fs import HadoopFileSystem
+
+            hdfs_kwargs: Dict[str, Any] = {}
+            if netloc:
+                return HadoopFileSystem.from_uri(f"hdfs://{netloc}")
+            if host := self.properties.get(HDFS_HOST):
+                hdfs_kwargs["host"] = host
+            if port := self.properties.get(HDFS_PORT):
+                # port should be an integer type
+                hdfs_kwargs["port"] = int(port)
+            if user := self.properties.get(HDFS_USER):
+                hdfs_kwargs["user"] = user
+            if kerb_ticket := self.properties.get(HDFS_KERB_TICKET):
+                hdfs_kwargs["kerb_ticket"] = kerb_ticket
+
+            return HadoopFileSystem(**hdfs_kwargs)
+        elif scheme in {"gs", "gcs"}:
+            from pyarrow.fs import GcsFileSystem
+
+            gcs_kwargs: Dict[str, Any] = {}
+            if access_token := self.properties.get(GCS_TOKEN):
+                gcs_kwargs["access_token"] = access_token
+            if expiration := self.properties.get(GCS_TOKEN_EXPIRES_AT_MS):
+                gcs_kwargs["credential_token_expiration"] = millis_to_datetime(int(expiration))
+            if bucket_location := self.properties.get(GCS_DEFAULT_LOCATION):
+                gcs_kwargs["default_bucket_location"] = bucket_location
+            if endpoint := self.properties.get(GCS_ENDPOINT):
+                url_parts = urlparse(endpoint)
+                gcs_kwargs["scheme"] = url_parts.scheme
+                gcs_kwargs["endpoint_override"] = url_parts.netloc
+
+            return GcsFileSystem(**gcs_kwargs)
         elif scheme == "file":
+            from pyarrow.fs import LocalFileSystem
+
             return LocalFileSystem()
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
     def new_input(self, location: str) -> PyArrowFile:
-        """Get a PyArrowFile instance to read bytes from the file at the given location
+        """Get a PyArrowFile instance to read bytes from the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            PyArrowFile: A PyArrowFile instance for the given location
+            PyArrowFile: A PyArrowFile instance for the given location.
         """
-        scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        scheme, netloc, path = self.parse_location(location)
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme, netloc),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def new_output(self, location: str) -> PyArrowFile:
-        """Get a PyArrowFile instance to write bytes to the file at the given location
+        """Get a PyArrowFile instance to write bytes to the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            PyArrowFile: A PyArrowFile instance for the given location
+            PyArrowFile: A PyArrowFile instance for the given location.
         """
-        scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
+        scheme, netloc, path = self.parse_location(location)
+        return PyArrowFile(
+            fs=self.fs_by_scheme(scheme, netloc),
+            location=location,
+            path=path,
+            buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)),
+        )
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given location
+        """Delete the file at the given location.
 
         Args:
             location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an OutputFile instance is provided,
-                the location attribute for that instance is used as the location to delete
+                the location attribute for that instance is used as the location to delete.
 
         Raises:
-            FileNotFoundError: When the file at the provided location does not exist
+            FileNotFoundError: When the file at the provided location does not exist.
             PermissionError: If the file at the provided location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        scheme, path = self.parse_location(str_location)
-        fs = self._get_fs(scheme)
+        scheme, netloc, path = self.parse_location(str_location)
+        fs = self.fs_by_scheme(scheme, netloc)
 
         try:
             fs.delete_file(path)
@@ -412,7 +495,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
     def visit_timestamp(self, _: TimestampType) -> pa.DataType:
         return pa.timestamp(unit="us")
 
-    def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
+    def visit_timestamptz(self, _: TimestamptzType) -> pa.DataType:
         return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
@@ -428,7 +511,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
 def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
     if not isinstance(iceberg_type, PrimitiveType):
         raise ValueError(f"Expected primitive type, got: {iceberg_type}")
-    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
+    return pa.scalar(value=value, type=schema_to_pyarrow(iceberg_type))
 
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
@@ -498,23 +581,56 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
+@lru_cache
+def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.FileFormat:
+    if file_format == FileFormat.PARQUET:
+        return ds.ParquetFileFormat(**kwargs)
+    else:
+        raise ValueError(f"Unsupported file format: {file_format}")
+
+
+def _construct_fragment(fs: FileSystem, data_file: DataFile, file_format_kwargs: Dict[str, Any] = EMPTY_DICT) -> ds.Fragment:
+    _, _, path = PyArrowFileIO.parse_location(data_file.file_path)
+    return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)
+
+
+def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedArray]:
+    delete_fragment = _construct_fragment(
+        fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
+    )
+    table = ds.Scanner.from_fragment(fragment=delete_fragment).to_table()
+    table = table.unify_dictionaries()
+    return {
+        file.as_py(): table.filter(pc.field("file_path") == file).column("pos")
+        for file in table.column("file_path").chunks[0].dictionary
+    }
+
+
+def _combine_positional_deletes(positional_deletes: List[pa.ChunkedArray], rows: int) -> pa.Array:
+    if len(positional_deletes) == 1:
+        all_chunks = positional_deletes[0]
+    else:
+        all_chunks = pa.chunked_array(chain(*[arr.chunks for arr in positional_deletes]))
+    return np.setdiff1d(np.arange(rows), all_chunks, assume_unique=False)
+
+
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
     visitor = _ConvertToIceberg()
     return visit_pyarrow(schema, visitor)
 
 
 @singledispatch
-def visit_pyarrow(obj: pa.DataType | pa.Schema, visitor: PyArrowSchemaVisitor[T]) -> T:
-    """A generic function for applying a pyarrow schema visitor to any point within a schema
+def visit_pyarrow(obj: Union[pa.DataType, pa.Schema], visitor: PyArrowSchemaVisitor[T]) -> T:
+    """Apply a pyarrow schema visitor to any point within a schema.
 
-    The function traverses the schema in post-order fashion
+    The function traverses the schema in post-order fashion.
 
     Args:
-        obj(pa.DataType): An instance of a Schema or an IcebergType
-        visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class
+        obj (Union[pa.DataType, pa.Schema]): An instance of a Schema or an IcebergType.
+        visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class.
 
     Raises:
-        NotImplementedError: If attempting to visit an unrecognized object type
+        NotImplementedError: If attempting to visit an unrecognized object type.
     """
     raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
@@ -578,23 +694,23 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
     @abstractmethod
     def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Optional[T]:
-        """visit a schema"""
+        """Visit a schema."""
 
     @abstractmethod
     def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> Optional[T]:
-        """visit a struct"""
+        """Visit a struct."""
 
     @abstractmethod
     def list(self, list_type: pa.ListType, element_result: Optional[T]) -> Optional[T]:
-        """visit a list"""
+        """Visit a list."""
 
     @abstractmethod
     def map(self, map_type: pa.MapType, key_result: Optional[T], value_result: Optional[T]) -> Optional[T]:
-        """visit a map"""
+        """Visit a map."""
 
     @abstractmethod
     def primitive(self, primitive: pa.DataType) -> Optional[T]:
-        """visit a primitive type"""
+        """Visit a primitive type."""
 
 
 def _get_field_id(field: pa.Field) -> Optional[int]:
@@ -682,20 +798,21 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         raise TypeError(f"Unsupported type: {primitive}")
 
 
-def _file_to_table(
+def _task_to_table(
     fs: FileSystem,
     task: FileScanTask,
     bound_row_filter: BooleanExpression,
     projected_schema: Schema,
     projected_field_ids: Set[int],
+    positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
-    rows_counter: Synchronized[int],
+    row_counts: List[int],
     limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    if limit and rows_counter.value >= limit:
+    if limit and sum(row_counts) >= limit:
         return None
 
-    _, path = PyArrowFileIO.parse_location(task.file.file_path)
+    _, _, path = PyArrowFileIO.parse_location(task.file.file_path)
     arrow_format = ds.ParquetFileFormat(pre_buffer=True, buffer_size=(ONE_MEGABYTE * 8))
     with fs.open_input_file(path) as fin:
         fragment = arrow_format.make_fragment(fin)
@@ -705,7 +822,7 @@ def _file_to_table(
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
         #  see https://github.com/apache/iceberg/issues/7451
-        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
+        file_schema = Schema.model_validate_json(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
         if bound_row_filter is not AlwaysTrue():
@@ -721,24 +838,66 @@ def _file_to_table(
         fragment_scanner = ds.Scanner.from_fragment(
             fragment=fragment,
             schema=physical_schema,
-            filter=pyarrow_filter,
+            # This will push down the query to Arrow.
+            # But in case there are positional deletes, we have to apply them first
+            filter=pyarrow_filter if not positional_deletes else None,
             columns=[col.name for col in file_project_schema.columns],
         )
 
-        if limit:
-            arrow_table = fragment_scanner.head(limit)
-            with rows_counter.get_lock():
-                if rows_counter.value >= limit:
-                    return None
-                rows_counter.value += len(arrow_table)
-        else:
-            arrow_table = fragment_scanner.to_table()
+        if positional_deletes:
+            # Create the mask of indices that we're interested in
+            indices = _combine_positional_deletes(positional_deletes, fragment.count_rows())
 
-        # If there is no data, we don't have to go through the schema
-        if len(arrow_table) > 0:
-            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+            if limit:
+                if pyarrow_filter is not None:
+                    # In case of the filter, we don't exactly know how many rows
+                    # we need to fetch upfront, can be optimized in the future:
+                    # https://github.com/apache/arrow/issues/35301
+                    arrow_table = fragment_scanner.take(indices)
+                    arrow_table = arrow_table.filter(pyarrow_filter)
+                    arrow_table = arrow_table.slice(0, limit)
+                else:
+                    arrow_table = fragment_scanner.take(indices[0:limit])
+            else:
+                arrow_table = fragment_scanner.take(indices)
+                # Apply the user filter
+                if pyarrow_filter is not None:
+                    arrow_table = arrow_table.filter(pyarrow_filter)
         else:
+            # If there are no deletes, we can just take the head
+            # and the user-filter is already applied
+            if limit:
+                arrow_table = fragment_scanner.head(limit)
+            else:
+                arrow_table = fragment_scanner.to_table()
+
+        if len(arrow_table) < 1:
             return None
+
+        if limit is not None and sum(row_counts) >= limit:
+            return None
+
+        row_counts.append(len(arrow_table))
+
+        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+
+
+def _read_all_delete_files(fs: FileSystem, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+    deletes_per_file: Dict[str, List[ChunkedArray]] = {}
+    unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
+    if len(unique_deletes) > 0:
+        executor = ExecutorFactory.get_or_create()
+        deletes_per_files: Iterator[Dict[str, ChunkedArray]] = executor.map(
+            lambda args: _read_deletes(*args), [(fs, delete) for delete in unique_deletes]
+        )
+        for delete in deletes_per_files:
+            for file, arr in delete.items():
+                if file in deletes_per_file:
+                    deletes_per_file[file].append(arr)
+                else:
+                    deletes_per_file[file] = [arr]
+
+    return deletes_per_file
 
 
 def project_table(
@@ -746,30 +905,32 @@ def project_table(
     table: Table,
     row_filter: BooleanExpression,
     projected_schema: Schema,
-    case_sensitive: bool,
+    case_sensitive: bool = True,
     limit: Optional[int] = None,
 ) -> pa.Table:
-    """Resolves the right columns based on the identifier
+    """Resolve the right columns based on the identifier.
 
     Args:
-        tasks (Iterable[FileScanTask]): A URI or a path to a local file
-        table (Table): The table that's being queried
-        row_filter (BooleanExpression): The expression for filtering rows
-        projected_schema (Schema): The output schema
-        case_sensitive (bool): Case sensitivity when looking up column names
+        tasks (Iterable[FileScanTask]): A URI or a path to a local file.
+        table (Table): The table that's being queried.
+        row_filter (BooleanExpression): The expression for filtering rows.
+        projected_schema (Schema): The output schema.
+        case_sensitive (bool): Case sensitivity when looking up column names.
+        limit (Optional[int]): Limit the number of records.
 
     Raises:
-        ResolveError: When an incompatible query is done
+        ResolveError: When an incompatible query is done.
     """
-
-    scheme, _ = PyArrowFileIO.parse_location(table.location())
+    scheme, netloc, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        fs = table.io.get_fs(scheme)
+        fs = table.io.fs_by_scheme(scheme, netloc)
     else:
         try:
             from pyiceberg.io.fsspec import FsspecFileIO
 
             if isinstance(table.io, FsspecFileIO):
+                from pyarrow.fs import PyFileSystem
+
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
@@ -783,30 +944,50 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
-    rows_counter = multiprocessing.Value("i", 0)
+    row_counts: List[int] = []
+    deletes_per_file = _read_all_delete_files(fs, tasks)
+    executor = ExecutorFactory.get_or_create()
+    futures = [
+        executor.submit(
+            _task_to_table,
+            fs,
+            task,
+            bound_row_filter,
+            projected_schema,
+            projected_field_ids,
+            deletes_per_file.get(task.file.file_path),
+            case_sensitive,
+            row_counts,
+            limit,
+        )
+        for task in tasks
+    ]
 
-    with ThreadPool() as pool:
-        tables = [
-            table
-            for table in pool.starmap(
-                func=_file_to_table,
-                iterable=[
-                    (fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive, rows_counter, limit)
-                    for task in tasks
-                ],
-                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
-            )
-            if table is not None
-        ]
+    # for consistent ordering, we need to maintain future order
+    futures_index = {f: i for i, f in enumerate(futures)}
+    completed_futures: SortedList[Future[pa.Table]] = SortedList(iterable=[], key=lambda f: futures_index[f])
+    for future in concurrent.futures.as_completed(futures):
+        completed_futures.add(future)
 
-    if len(tables) > 1:
-        final_table = pa.concat_tables(tables)
-    elif len(tables) == 1:
-        final_table = tables[0]
-    else:
-        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+        # stop early if limit is satisfied
+        if limit is not None and sum(row_counts) >= limit:
+            break
 
-    return final_table.slice(0, limit)
+    # by now, we've either completed all tasks or satisfied the limit
+    if limit is not None:
+        _ = [f.cancel() for f in futures if not f.done()]
+
+    tables = [f.result() for f in completed_futures if f.result()]
+
+    if len(tables) < 1:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+
+    result = pa.concat_tables(tables)
+
+    if limit is not None:
+        return result.slice(0, limit)
+
+    return result
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
@@ -916,3 +1097,432 @@ class ArrowAccessor(PartnerAccessor[pa.Array]):
 
     def map_value_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
         return partner_map.items if isinstance(partner_map, pa.MapArray) else None
+
+
+_PRIMITIVE_TO_PHYSICAL = {
+    BooleanType(): "BOOLEAN",
+    IntegerType(): "INT32",
+    LongType(): "INT64",
+    FloatType(): "FLOAT",
+    DoubleType(): "DOUBLE",
+    DateType(): "INT32",
+    TimeType(): "INT64",
+    TimestampType(): "INT64",
+    TimestamptzType(): "INT64",
+    StringType(): "BYTE_ARRAY",
+    UUIDType(): "FIXED_LEN_BYTE_ARRAY",
+    BinaryType(): "BYTE_ARRAY",
+}
+_PHYSICAL_TYPES = set(_PRIMITIVE_TO_PHYSICAL.values()).union({"INT96"})
+
+
+class StatsAggregator:
+    current_min: Any
+    current_max: Any
+    trunc_length: Optional[int]
+
+    def __init__(self, iceberg_type: PrimitiveType, physical_type_string: str, trunc_length: Optional[int] = None) -> None:
+        self.current_min = None
+        self.current_max = None
+        self.trunc_length = trunc_length
+
+        if physical_type_string not in _PHYSICAL_TYPES:
+            raise ValueError(f"Unknown physical type {physical_type_string}")
+
+        if physical_type_string == "INT96":
+            raise NotImplementedError("Statistics not implemented for INT96 physical type")
+
+        expected_physical_type = _PRIMITIVE_TO_PHYSICAL[iceberg_type]
+        if expected_physical_type != physical_type_string:
+            raise ValueError(
+                f"Unexpected physical type {physical_type_string} for {iceberg_type}, expected {expected_physical_type}"
+            )
+
+        self.primitive_type = iceberg_type
+
+    def serialize(self, value: Any) -> bytes:
+        return to_bytes(self.primitive_type, value)
+
+    def update_min(self, val: Any) -> None:
+        self.current_min = val if self.current_min is None else min(val, self.current_min)
+
+    def update_max(self, val: Any) -> None:
+        self.current_max = val if self.current_max is None else max(val, self.current_max)
+
+    def min_as_bytes(self) -> bytes:
+        return self.serialize(
+            self.current_min
+            if self.trunc_length is None
+            else TruncateTransform(width=self.trunc_length).transform(self.primitive_type)(self.current_min)
+        )
+
+    def max_as_bytes(self) -> Optional[bytes]:
+        if self.current_max is None:
+            return None
+
+        if self.primitive_type == StringType():
+            if not isinstance(self.current_max, str):
+                raise ValueError("Expected the current_max to be a string")
+            s_result = truncate_upper_bound_text_string(self.current_max, self.trunc_length)
+            return self.serialize(s_result) if s_result is not None else None
+        elif self.primitive_type == BinaryType():
+            if not isinstance(self.current_max, bytes):
+                raise ValueError("Expected the current_max to be bytes")
+            b_result = truncate_upper_bound_binary_string(self.current_max, self.trunc_length)
+            return self.serialize(b_result) if b_result is not None else None
+        else:
+            if self.trunc_length is not None:
+                raise ValueError(f"{self.primitive_type} cannot be truncated")
+            return self.serialize(self.current_max)
+
+
+DEFAULT_TRUNCATION_LENGTH = 16
+TRUNCATION_EXPR = r"^truncate\((\d+)\)$"
+
+
+class MetricModeTypes(Enum):
+    TRUNCATE = "truncate"
+    NONE = "none"
+    COUNTS = "counts"
+    FULL = "full"
+
+
+DEFAULT_METRICS_MODE_KEY = "write.metadata.metrics.default"
+COLUMN_METRICS_MODE_KEY_PREFIX = "write.metadata.metrics.column"
+
+
+@dataclass(frozen=True)
+class MetricsMode(Singleton):
+    type: MetricModeTypes
+    length: Optional[int] = None
+
+
+_DEFAULT_METRICS_MODE = MetricsMode(MetricModeTypes.TRUNCATE, DEFAULT_TRUNCATION_LENGTH)
+
+
+def match_metrics_mode(mode: str) -> MetricsMode:
+    sanitized_mode = mode.strip().lower()
+    if sanitized_mode.startswith("truncate"):
+        m = re.match(TRUNCATION_EXPR, sanitized_mode)
+        if m:
+            length = int(m[1])
+            if length < 1:
+                raise ValueError("Truncation length must be larger than 0")
+            return MetricsMode(MetricModeTypes.TRUNCATE, int(m[1]))
+        else:
+            raise ValueError(f"Malformed truncate: {mode}")
+    elif sanitized_mode == "none":
+        return MetricsMode(MetricModeTypes.NONE)
+    elif sanitized_mode == "counts":
+        return MetricsMode(MetricModeTypes.COUNTS)
+    elif sanitized_mode == "full":
+        return MetricsMode(MetricModeTypes.FULL)
+    else:
+        raise ValueError(f"Unsupported metrics mode: {mode}")
+
+
+@dataclass(frozen=True)
+class StatisticsCollector:
+    field_id: int
+    iceberg_type: PrimitiveType
+    mode: MetricsMode
+    column_name: str
+
+
+class PyArrowStatisticsCollector(PreOrderSchemaVisitor[List[StatisticsCollector]]):
+    _field_id: int = 0
+    _schema: Schema
+    _properties: Dict[str, str]
+    _default_mode: Optional[str]
+
+    def __init__(self, schema: Schema, properties: Dict[str, str]):
+        self._schema = schema
+        self._properties = properties
+        self._default_mode = self._properties.get(DEFAULT_METRICS_MODE_KEY)
+
+    def schema(self, schema: Schema, struct_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
+        return struct_result()
+
+    def struct(
+        self, struct: StructType, field_results: List[Callable[[], List[StatisticsCollector]]]
+    ) -> List[StatisticsCollector]:
+        return list(chain(*[result() for result in field_results]))
+
+    def field(self, field: NestedField, field_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
+        self._field_id = field.field_id
+        return field_result()
+
+    def list(self, list_type: ListType, element_result: Callable[[], List[StatisticsCollector]]) -> List[StatisticsCollector]:
+        self._field_id = list_type.element_id
+        return element_result()
+
+    def map(
+        self,
+        map_type: MapType,
+        key_result: Callable[[], List[StatisticsCollector]],
+        value_result: Callable[[], List[StatisticsCollector]],
+    ) -> List[StatisticsCollector]:
+        self._field_id = map_type.key_id
+        k = key_result()
+        self._field_id = map_type.value_id
+        v = value_result()
+        return k + v
+
+    def primitive(self, primitive: PrimitiveType) -> List[StatisticsCollector]:
+        column_name = self._schema.find_column_name(self._field_id)
+        if column_name is None:
+            return []
+
+        metrics_mode = _DEFAULT_METRICS_MODE
+
+        if self._default_mode:
+            metrics_mode = match_metrics_mode(self._default_mode)
+
+        col_mode = self._properties.get(f"{COLUMN_METRICS_MODE_KEY_PREFIX}.{column_name}")
+        if col_mode:
+            metrics_mode = match_metrics_mode(col_mode)
+
+        if (
+            not (isinstance(primitive, StringType) or isinstance(primitive, BinaryType))
+            and metrics_mode.type == MetricModeTypes.TRUNCATE
+        ):
+            metrics_mode = MetricsMode(MetricModeTypes.FULL)
+
+        is_nested = column_name.find(".") >= 0
+
+        if is_nested and metrics_mode.type in [MetricModeTypes.TRUNCATE, MetricModeTypes.FULL]:
+            metrics_mode = MetricsMode(MetricModeTypes.COUNTS)
+
+        return [StatisticsCollector(field_id=self._field_id, iceberg_type=primitive, mode=metrics_mode, column_name=column_name)]
+
+
+def compute_statistics_plan(
+    schema: Schema,
+    table_properties: Dict[str, str],
+) -> Dict[int, StatisticsCollector]:
+    """
+    Compute the statistics plan for all columns.
+
+    The resulting list is assumed to have the same length and same order as the columns in the pyarrow table.
+    This allows the list to map from the column index to the Iceberg column ID.
+    For each element, the desired metrics collection that was provided by the user in the configuration
+    is computed and then adjusted according to the data type of the column. For nested columns the minimum
+    and maximum values are not computed. And truncation is only applied to text of binary strings.
+
+    Args:
+        table_properties (from pyiceberg.table.metadata.TableMetadata): The Iceberg table metadata properties.
+            They are required to compute the mapping of column position to iceberg schema type id. It's also
+            used to set the mode for column metrics collection
+    """
+    stats_cols = pre_order_visit(schema, PyArrowStatisticsCollector(schema, table_properties))
+    result: Dict[int, StatisticsCollector] = {}
+    for stats_col in stats_cols:
+        result[stats_col.field_id] = stats_col
+    return result
+
+
+@dataclass(frozen=True)
+class ID2ParquetPath:
+    field_id: int
+    parquet_path: str
+
+
+class ID2ParquetPathVisitor(PreOrderSchemaVisitor[List[ID2ParquetPath]]):
+    _field_id: int = 0
+    _path: List[str]
+
+    def __init__(self) -> None:
+        self._path = []
+
+    def schema(self, schema: Schema, struct_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        return struct_result()
+
+    def struct(self, struct: StructType, field_results: List[Callable[[], List[ID2ParquetPath]]]) -> List[ID2ParquetPath]:
+        return list(chain(*[result() for result in field_results]))
+
+    def field(self, field: NestedField, field_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        self._field_id = field.field_id
+        self._path.append(field.name)
+        result = field_result()
+        self._path.pop()
+        return result
+
+    def list(self, list_type: ListType, element_result: Callable[[], List[ID2ParquetPath]]) -> List[ID2ParquetPath]:
+        self._field_id = list_type.element_id
+        self._path.append("list.element")
+        result = element_result()
+        self._path.pop()
+        return result
+
+    def map(
+        self,
+        map_type: MapType,
+        key_result: Callable[[], List[ID2ParquetPath]],
+        value_result: Callable[[], List[ID2ParquetPath]],
+    ) -> List[ID2ParquetPath]:
+        self._field_id = map_type.key_id
+        self._path.append("key_value.key")
+        k = key_result()
+        self._path.pop()
+        self._field_id = map_type.value_id
+        self._path.append("key_value.value")
+        v = value_result()
+        self._path.pop()
+        return k + v
+
+    def primitive(self, primitive: PrimitiveType) -> List[ID2ParquetPath]:
+        return [ID2ParquetPath(field_id=self._field_id, parquet_path=".".join(self._path))]
+
+
+def parquet_path_to_id_mapping(
+    schema: Schema,
+) -> Dict[str, int]:
+    """
+    Compute the mapping of parquet column path to Iceberg ID.
+
+    For each column, the parquet file metadata has a path_in_schema attribute that follows
+    a specific naming scheme for nested columnds. This function computes a mapping of
+    the full paths to the corresponding Iceberg IDs.
+
+    Args:
+        schema (pyiceberg.schema.Schema): The current table schema.
+    """
+    result: Dict[str, int] = {}
+    for pair in pre_order_visit(schema, ID2ParquetPathVisitor()):
+        result[pair.parquet_path] = pair.field_id
+    return result
+
+
+def fill_parquet_file_metadata(
+    df: DataFile,
+    parquet_metadata: pq.FileMetaData,
+    file_size: int,
+    stats_columns: Dict[int, StatisticsCollector],
+    parquet_column_mapping: Dict[str, int],
+) -> None:
+    """
+    Compute and fill the following fields of the DataFile object.
+
+    - file_format
+    - record_count
+    - file_size_in_bytes
+    - column_sizes
+    - value_counts
+    - null_value_counts
+    - nan_value_counts
+    - lower_bounds
+    - upper_bounds
+    - split_offsets
+
+    Args:
+        df (DataFile): A DataFile object representing the Parquet file for which metadata is to be filled.
+        parquet_metadata (pyarrow.parquet.FileMetaData): A pyarrow metadata object.
+        file_size (int): The total compressed file size cannot be retrieved from the metadata and hence has to
+            be passed here. Depending on the kind of file system and pyarrow library call used, different
+            ways to obtain this value might be appropriate.
+        stats_columns (Dict[int, StatisticsCollector]): The statistics gathering plan. It is required to
+            set the mode for column metrics collection
+    """
+    if parquet_metadata.num_columns != len(stats_columns):
+        raise ValueError(
+            f"Number of columns in statistics configuration ({len(stats_columns)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+        )
+
+    if parquet_metadata.num_columns != len(parquet_column_mapping):
+        raise ValueError(
+            f"Number of columns in column mapping ({len(parquet_column_mapping)}) is different from the number of columns in pyarrow table ({parquet_metadata.num_columns})"
+        )
+
+    column_sizes: Dict[int, int] = {}
+    value_counts: Dict[int, int] = {}
+    split_offsets: List[int] = []
+
+    null_value_counts: Dict[int, int] = {}
+    nan_value_counts: Dict[int, int] = {}
+
+    col_aggs = {}
+
+    for r in range(parquet_metadata.num_row_groups):
+        # References:
+        # https://github.com/apache/iceberg/blob/fc381a81a1fdb8f51a0637ca27cd30673bd7aad3/parquet/src/main/java/org/apache/iceberg/parquet/ParquetUtil.java#L232
+        # https://github.com/apache/parquet-mr/blob/ac29db4611f86a07cc6877b416aa4b183e09b353/parquet-hadoop/src/main/java/org/apache/parquet/hadoop/metadata/ColumnChunkMetaData.java#L184
+
+        row_group = parquet_metadata.row_group(r)
+
+        data_offset = row_group.column(0).data_page_offset
+        dictionary_offset = row_group.column(0).dictionary_page_offset
+
+        if row_group.column(0).has_dictionary_page and dictionary_offset < data_offset:
+            split_offsets.append(dictionary_offset)
+        else:
+            split_offsets.append(data_offset)
+
+        invalidate_col: Set[int] = set()
+
+        for pos in range(0, parquet_metadata.num_columns):
+            column = row_group.column(pos)
+            field_id = parquet_column_mapping[column.path_in_schema]
+
+            stats_col = stats_columns[field_id]
+
+            column_sizes.setdefault(field_id, 0)
+            column_sizes[field_id] += column.total_compressed_size
+
+            if stats_col.mode == MetricsMode(MetricModeTypes.NONE):
+                continue
+
+            value_counts[field_id] = value_counts.get(field_id, 0) + column.num_values
+
+            if column.is_stats_set:
+                try:
+                    statistics = column.statistics
+
+                    if statistics.has_null_count:
+                        null_value_counts[field_id] = null_value_counts.get(field_id, 0) + statistics.null_count
+
+                    if stats_col.mode == MetricsMode(MetricModeTypes.COUNTS):
+                        continue
+
+                    if field_id not in col_aggs:
+                        col_aggs[field_id] = StatsAggregator(
+                            stats_col.iceberg_type, statistics.physical_type, stats_col.mode.length
+                        )
+
+                    col_aggs[field_id].update_min(statistics.min)
+                    col_aggs[field_id].update_max(statistics.max)
+
+                except pyarrow.lib.ArrowNotImplementedError as e:
+                    invalidate_col.add(field_id)
+                    logger.warning(e)
+            else:
+                invalidate_col.add(field_id)
+                logger.warning("PyArrow statistics missing for column %d when writing file", pos)
+
+    split_offsets.sort()
+
+    lower_bounds = {}
+    upper_bounds = {}
+
+    for k, agg in col_aggs.items():
+        _min = agg.min_as_bytes()
+        if _min is not None:
+            lower_bounds[k] = _min
+        _max = agg.max_as_bytes()
+        if _max is not None:
+            upper_bounds[k] = _max
+
+    for field_id in invalidate_col:
+        del lower_bounds[field_id]
+        del upper_bounds[field_id]
+        del null_value_counts[field_id]
+
+    df.file_format = FileFormat.PARQUET
+    df.record_count = parquet_metadata.num_rows
+    df.file_size_in_bytes = file_size
+    df.column_sizes = column_sizes
+    df.value_counts = value_counts
+    df.null_value_counts = null_value_counts
+    df.nan_value_counts = nan_value_counts
+    df.lower_bounds = lower_bounds
+    df.upper_bounds = upper_bounds
+    df.split_offsets = split_offsets

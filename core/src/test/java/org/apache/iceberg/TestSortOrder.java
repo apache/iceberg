@@ -100,16 +100,14 @@ public class TestSortOrder {
         SortOrder.unsorted(),
         SortOrder.builderFor(SCHEMA).withOrderId(0).build());
 
-    AssertHelpers.assertThrows(
-        "Should not allow sort orders ID 0",
-        IllegalArgumentException.class,
-        "order ID 0 is reserved for unsorted order",
-        () -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build());
-    AssertHelpers.assertThrows(
-        "Should not allow unsorted orders with arbitrary IDs",
-        IllegalArgumentException.class,
-        "order ID must be 0",
-        () -> SortOrder.builderFor(SCHEMA).withOrderId(1).build());
+    Assertions.assertThatThrownBy(
+            () -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Sort order ID 0 is reserved for unsorted order");
+
+    Assertions.assertThatThrownBy(() -> SortOrder.builderFor(SCHEMA).withOrderId(1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsorted order ID must be 0");
   }
 
   @Test
@@ -335,11 +333,9 @@ public class TestSortOrder {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
 
-    AssertHelpers.assertThrows(
-        "Should reject deletion of sort columns",
-        ValidationException.class,
-        "Cannot find source column",
-        () -> table.updateSchema().deleteColumn("s.id").commit());
+    Assertions.assertThatThrownBy(() -> table.updateSchema().deleteColumn("s.id").commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find source column for sort field");
   }
 
   @Test

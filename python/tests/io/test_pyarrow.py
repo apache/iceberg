@@ -20,13 +20,15 @@ import os
 import tempfile
 from typing import Any, List, Optional
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from pyarrow.fs import FileType
+from pyarrow.fs import FileType, LocalFileSystem
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -57,11 +59,12 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    _read_deletes,
     expression_to_pyarrow,
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
@@ -276,7 +279,7 @@ def test_deleting_s3_file_no_permission() -> None:
     s3fs_mock = MagicMock()
     s3fs_mock.delete_file.side_effect = OSError("AWS Error [code 15]")
 
-    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
         submocked.return_value = s3fs_mock
 
         with pytest.raises(PermissionError) as exc_info:
@@ -291,11 +294,26 @@ def test_deleting_s3_file_not_found() -> None:
     s3fs_mock = MagicMock()
     s3fs_mock.delete_file.side_effect = OSError("Path does not exist")
 
-    with patch.object(PyArrowFileIO, "_get_fs") as submocked:
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
         submocked.return_value = s3fs_mock
 
         with pytest.raises(FileNotFoundError) as exc_info:
             PyArrowFileIO().delete("s3://foo/bar.txt")
+
+        assert "Cannot delete file, does not exist:" in str(exc_info.value)
+
+
+def test_deleting_hdfs_file_not_found() -> None:
+    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'No such file or directory'"""
+
+    hdfs_mock = MagicMock()
+    hdfs_mock.delete_file.side_effect = OSError("Path does not exist")
+
+    with patch.object(PyArrowFileIO, "_initialize_fs") as submocked:
+        submocked.return_value = hdfs_mock
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            PyArrowFileIO().delete("hdfs://foo/bar.txt")
 
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
@@ -472,7 +490,7 @@ def bound_double_reference() -> BoundReference[float]:
     schema = Schema(
         NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
         schema_id=1,
-        identifier_field_ids=[2],
+        identifier_field_ids=[],
     )
     return BoundReference(schema.find_field(1), schema.accessor_for_field(1))
 
@@ -690,7 +708,7 @@ def _write_table_to_file(filepath: str, schema: pa.Schema, table: pa.Table) -> s
 
 @pytest.fixture
 def file_int(schema_int: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/a.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
     )
@@ -698,7 +716,7 @@ def file_int(schema_int: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/a.parquet",
         pyarrow_schema,
@@ -708,7 +726,7 @@ def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_string(schema_str: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/b.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
     )
@@ -716,7 +734,7 @@ def file_string(schema_str: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_long(schema_long: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/c.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
     )
@@ -724,7 +742,7 @@ def file_long(schema_long: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_struct(schema_struct: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/d.parquet",
         pyarrow_schema,
@@ -741,7 +759,7 @@ def file_struct(schema_struct: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_list(schema_list: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
         pyarrow_schema,
@@ -759,7 +777,7 @@ def file_list(schema_list: Schema, tmpdir: str) -> str:
 @pytest.fixture
 def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(
-        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.json()}
+        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.model_dump_json()}
     )
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
@@ -777,7 +795,7 @@ def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
 
 @pytest.fixture
 def file_map(schema_map: Schema, tmpdir: str) -> str:
-    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.json()})
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.model_dump_json()})
     return _write_table_to_file(
         f"file:{tmpdir}/e.parquet",
         pyarrow_schema,
@@ -798,7 +816,14 @@ def project(
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    content=DataFileContent.DATA,
+                    file_path=file,
+                    file_format=FileFormat.PARQUET,
+                    partition={},
+                    record_count=3,
+                    file_size_in_bytes=3,
+                )
             )
             for file in files
         ],
@@ -813,6 +838,7 @@ def project(
             ),
             metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         expr or AlwaysTrue(),
         schema,
@@ -1186,6 +1212,106 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
 
 
+@pytest.fixture
+def deletes_file(tmp_path: str, example_task: FileScanTask) -> str:
+    path = example_task.file.file_path
+    table = pa.table({"file_path": [path, path, path], "pos": [1, 3, 5]})
+
+    deletes_file_path = f"{tmp_path}/deletes.parquet"
+    pq.write_table(table, deletes_file_path)
+
+    return deletes_file_path
+
+
+def test_read_deletes(deletes_file: str, example_task: FileScanTask) -> None:
+    deletes = _read_deletes(LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET))
+    assert set(deletes.keys()) == {example_task.file.file_path}
+    assert list(deletes.values())[0] == pa.chunked_array([[1, 3, 5]])
+
+
+def test_delete(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET)},
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
+def test_delete_duplicates(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+            DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET),
+        },
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+            catalog=NoopCatalog("noop"),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
+
 def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
     metadata_location = "file://a/b/c.json"
     projection = project_table(
@@ -1202,6 +1328,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
             ),
             metadata_location=metadata_location,
             io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,
         projected_schema=table_schema_simple,
@@ -1219,3 +1346,199 @@ foo: [["a","b","c"]]
 bar: [[1,2,3]]
 baz: [[true,false,null]]"""
     )
+
+
+@pytest.mark.gcs
+def test_new_input_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test creating a new input file from a fsspec file-io"""
+    filename = str(uuid4())
+
+    input_file = pyarrow_fileio_gcs.new_input(f"gs://warehouse/{filename}")
+
+    assert isinstance(input_file, PyArrowFile)
+    assert input_file.location == f"gs://warehouse/{filename}"
+
+
+@pytest.mark.gcs
+def test_new_output_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test creating a new output file from an fsspec file-io"""
+    filename = str(uuid4())
+
+    output_file = pyarrow_fileio_gcs.new_output(f"gs://warehouse/{filename}")
+
+    assert isinstance(output_file, PyArrowFile)
+    assert output_file.location == f"gs://warehouse/{filename}"
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_write_and_read_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test writing and reading a file using FsspecInputFile and FsspecOutputFile"""
+    location = f"gs://warehouse/{uuid4()}.txt"
+    output_file = pyarrow_fileio_gcs.new_output(location=location)
+    with output_file.create() as f:
+        assert f.write(b"foo") == 3
+
+    assert output_file.exists()
+
+    input_file = pyarrow_fileio_gcs.new_input(location=location)
+    with input_file.open() as f:
+        assert f.read() == b"foo"
+
+    pyarrow_fileio_gcs.delete(input_file)
+
+
+@pytest.mark.gcs
+def test_getting_length_of_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test getting the length of an FsspecInputFile and FsspecOutputFile"""
+    filename = str(uuid4())
+
+    output_file = pyarrow_fileio_gcs.new_output(location=f"gs://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foobar")
+
+    assert len(output_file) == 6
+
+    input_file = pyarrow_fileio_gcs.new_input(location=f"gs://warehouse/{filename}")
+    assert len(input_file) == 6
+
+    pyarrow_fileio_gcs.delete(output_file)
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_file_tell_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    location = f"gs://warehouse/{uuid4()}"
+
+    output_file = pyarrow_fileio_gcs.new_output(location=location)
+    with output_file.create() as write_file:
+        write_file.write(b"foobar")
+
+    input_file = pyarrow_fileio_gcs.new_input(location=location)
+    with input_file.open() as f:
+        f.seek(0)
+        assert f.tell() == 0
+        f.seek(1)
+        assert f.tell() == 1
+        f.seek(3)
+        assert f.tell() == 3
+        f.seek(0)
+        assert f.tell() == 0
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_read_specified_bytes_for_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    location = f"gs://warehouse/{uuid4()}"
+
+    output_file = pyarrow_fileio_gcs.new_output(location=location)
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+
+    input_file = pyarrow_fileio_gcs.new_input(location=location)
+    with input_file.open() as f:
+        f.seek(0)
+        assert b"f" == f.read(1)
+        f.seek(0)
+        assert b"fo" == f.read(2)
+        f.seek(1)
+        assert b"o" == f.read(1)
+        f.seek(1)
+        assert b"oo" == f.read(2)
+        f.seek(0)
+        assert b"foo" == f.read(999)  # test reading amount larger than entire content length
+
+    pyarrow_fileio_gcs.delete(input_file)
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_raise_on_opening_file_not_found_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test that an fsspec input file raises appropriately when the gcs file is not found"""
+
+    filename = str(uuid4())
+    input_file = pyarrow_fileio_gcs.new_input(location=f"gs://warehouse/{filename}")
+    with pytest.raises(FileNotFoundError) as exc_info:
+        input_file.open().read()
+
+    assert filename in str(exc_info.value)
+
+
+@pytest.mark.gcs
+def test_checking_if_a_file_exists_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test checking if a file exists"""
+    non_existent_file = pyarrow_fileio_gcs.new_input(location="gs://warehouse/does-not-exist.txt")
+    assert not non_existent_file.exists()
+
+    location = f"gs://warehouse/{uuid4()}"
+    output_file = pyarrow_fileio_gcs.new_output(location=location)
+    assert not output_file.exists()
+    with output_file.create() as f:
+        f.write(b"foo")
+
+    existing_input_file = pyarrow_fileio_gcs.new_input(location=location)
+    assert existing_input_file.exists()
+
+    existing_output_file = pyarrow_fileio_gcs.new_output(location=location)
+    assert existing_output_file.exists()
+
+    pyarrow_fileio_gcs.delete(existing_output_file)
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_closing_a_file_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test closing an output file and input file"""
+    filename = str(uuid4())
+    output_file = pyarrow_fileio_gcs.new_output(location=f"gs://warehouse/{filename}")
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+        assert not write_file.closed  # type: ignore
+    assert write_file.closed  # type: ignore
+
+    input_file = pyarrow_fileio_gcs.new_input(location=f"gs://warehouse/{filename}")
+    with input_file.open() as f:
+        assert not f.closed  # type: ignore
+    assert f.closed  # type: ignore
+
+    pyarrow_fileio_gcs.delete(f"gs://warehouse/{filename}")
+
+
+@pytest.mark.gcs
+def test_converting_an_outputfile_to_an_inputfile_gcs(pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test converting an output file to an input file"""
+    filename = str(uuid4())
+    output_file = pyarrow_fileio_gcs.new_output(location=f"gs://warehouse/{filename}")
+    input_file = output_file.to_input_file()
+    assert input_file.location == output_file.location
+
+
+@pytest.mark.gcs
+@pytest.mark.skip(reason="Open issue on Arrow: https://github.com/apache/arrow/issues/36993")
+def test_writing_avro_file_gcs(generated_manifest_entry_file: str, pyarrow_fileio_gcs: PyArrowFileIO) -> None:
+    """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
+    filename = str(uuid4())
+    with PyArrowFileIO().new_input(location=generated_manifest_entry_file).open() as f:
+        b1 = f.read()
+        with pyarrow_fileio_gcs.new_output(location=f"gs://warehouse/{filename}").create() as out_f:
+            out_f.write(b1)
+        with pyarrow_fileio_gcs.new_input(location=f"gs://warehouse/{filename}").open() as in_f:
+            b2 = in_f.read()
+            assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3
+
+    pyarrow_fileio_gcs.delete(f"gs://warehouse/{filename}")
+
+
+def test_parse_location() -> None:
+    def check_results(location: str, expected_schema: str, expected_netloc: str, expected_uri: str) -> None:
+        schema, netloc, uri = PyArrowFileIO.parse_location(location)
+        assert schema == expected_schema
+        assert netloc == expected_netloc
+        assert uri == expected_uri
+
+    check_results("hdfs://127.0.0.1:9000/root/foo.txt", "hdfs", "127.0.0.1:9000", "hdfs://127.0.0.1:9000/root/foo.txt")
+    check_results("hdfs://127.0.0.1/root/foo.txt", "hdfs", "127.0.0.1", "hdfs://127.0.0.1/root/foo.txt")
+    check_results("hdfs://clusterA/root/foo.txt", "hdfs", "clusterA", "hdfs://clusterA/root/foo.txt")
+
+    check_results("/root/foo.txt", "file", "", "/root/foo.txt")
+    check_results("/root/tmp/foo.txt", "file", "", "/root/tmp/foo.txt")

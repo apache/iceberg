@@ -28,9 +28,11 @@ import os
 import re
 import string
 import uuid
+from datetime import datetime
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -49,20 +51,27 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
-import pyarrow as pa
 import pytest
 from moto import mock_dynamodb, mock_glue, mock_s3
-from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
-from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.catalog.noop import NoopCatalog
+from pyiceberg.io import (
+    GCS_ENDPOINT,
+    GCS_PROJECT_ID,
+    GCS_TOKEN,
+    GCS_TOKEN_EXPIRES_AT_MS,
+    OutputFile,
+    OutputStream,
+    fsspec,
+    load_file_io,
+)
 from pyiceberg.io.fsspec import FsspecFileIO
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import FileScanTask
+from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
@@ -78,6 +87,10 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from pyiceberg.utils.datetime import datetime_to_millis
+
+if TYPE_CHECKING:
+    from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
@@ -113,6 +126,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
         help="The ADLS secret account key for tests marked as adlfs",
     )
+    parser.addoption(
+        "--gcs.endpoint", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+    )
+    parser.addoption(
+        "--gcs.oauth2.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs"
+    )
+    parser.addoption("--gcs.project-id", action="store", default="test", help="The GCP project for tests marked gcs")
 
 
 @pytest.fixture(scope="session")
@@ -172,6 +192,78 @@ def table_schema_nested() -> Schema:
             ),
             required=False,
         ),
+        schema_id=1,
+        identifier_field_ids=[2],
+    )
+
+
+@pytest.fixture(scope="session")
+def table_schema_nested_with_struct_key_map() -> Schema:
+    return schema.Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=True),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=11,
+            name="location",
+            field_type=MapType(
+                key_id=18,
+                value_id=19,
+                key_type=StructType(
+                    NestedField(field_id=21, name="address", field_type=StringType(), required=True),
+                    NestedField(field_id=22, name="city", field_type=StringType(), required=True),
+                    NestedField(field_id=23, name="zip", field_type=IntegerType(), required=True),
+                ),
+                value_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=True),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=True),
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+            ),
+            required=False,
+        ),
+        NestedField(
+            field_id=24,
+            name="points",
+            field_type=ListType(
+                element_id=25,
+                element_type=StructType(
+                    NestedField(field_id=26, name="x", field_type=LongType(), required=True),
+                    NestedField(field_id=27, name="y", field_type=LongType(), required=True),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+        NestedField(field_id=28, name="float", field_type=FloatType(), required=True),
+        NestedField(field_id=29, name="double", field_type=DoubleType(), required=True),
         schema_id=1,
         identifier_field_ids=[1],
     )
@@ -294,7 +386,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
             ],
         }
     ],
-    "properties": {"read.split.target.size": 134217728},
+    "properties": {"read.split.target.size": "134217728"},
     "current-snapshot-id": 3055729675574597004,
     "snapshots": [
         {
@@ -330,7 +422,19 @@ def example_table_metadata_v2() -> Dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
     metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
+    metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
+    return metadata_location
+
+
+@pytest.fixture(scope="session")
+def metadata_location_gz(tmp_path_factory: pytest.TempPathFactory) -> str:
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
+    metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.gz.metadata.json")
     metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
     return metadata_location
@@ -613,8 +717,8 @@ manifest_file_records_v2 = [
         "manifest_length": 7989,
         "partition_spec_id": 0,
         "content": 1,
-        "sequence_number": None,  # To be inherited
-        "min_sequence_number": None,  # To be inherited
+        "sequence_number": 3,
+        "min_sequence_number": 3,
         "added_snapshot_id": 9182715666859759686,
         "added_files_count": 3,
         "existing_files_count": 0,
@@ -1026,7 +1130,7 @@ def simple_map() -> MapType:
 
 
 class LocalOutputFile(OutputFile):
-    """An OutputFile implementation for local files (for test use only)"""
+    """An OutputFile implementation for local files (for test use only)."""
 
     def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
@@ -1041,12 +1145,15 @@ class LocalOutputFile(OutputFile):
         self._path = parsed_location.path
 
     def __len__(self) -> int:
+        """Return the length of an instance of the LocalOutputFile class."""
         return os.path.getsize(self._path)
 
     def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self) -> PyArrowFile:
+    def to_input_file(self) -> "PyArrowFile":
+        from pyiceberg.io.pyarrow import PyArrowFileIO
+
         return PyArrowFileIO().new_input(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -1288,10 +1395,33 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     return fsspec.FsspecFileIO(properties=properties)
 
 
+@pytest.fixture
+def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)
+
+
+@pytest.fixture
+def pyarrow_fileio_gcs(request: pytest.FixtureRequest) -> "PyArrowFileIO":
+    from pyiceberg.io.pyarrow import PyArrowFileIO
+
+    properties = {
+        GCS_ENDPOINT: request.config.getoption("--gcs.endpoint"),
+        GCS_TOKEN: request.config.getoption("--gcs.oauth2.token"),
+        GCS_PROJECT_ID: request.config.getoption("--gcs.project-id"),
+        GCS_TOKEN_EXPIRES_AT_MS: datetime_to_millis(datetime.now()) + 60 * 1000,
+    }
+    return PyArrowFileIO(properties=properties)
+
+
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
-    """
-    A mocked aws response implementation (for test use only)
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    """A mocked aws response implementation (for test use only).
+
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
@@ -1308,9 +1438,9 @@ class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
 
 
 class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
-    """
-    A mocked http client response implementation (for test use only)
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    """A mocked http client response implementation (for test use only).
+
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
@@ -1329,9 +1459,9 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
 
 
 def patch_aiobotocore() -> None:
-    """
-    Patch aiobotocore to work with moto
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    """Patch aiobotocore to work with moto.
+
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def factory(original: Callable) -> Callable:  # type: ignore
@@ -1347,9 +1477,9 @@ def patch_aiobotocore() -> None:
 
 @pytest.fixture(name="_patch_aiobotocore")
 def fixture_aiobotocore():  # type: ignore
-    """
-    Patch aiobotocore to work with moto
-    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
+    """Patch aiobotocore to work with moto.
+
+    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755.
     """
     stored_method = aiobotocore.endpoint.convert_to_response_dict
     yield patch_aiobotocore()
@@ -1367,7 +1497,7 @@ def aws_credentials() -> None:
 
 @pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials() -> Generator[None, None, None]:
-    """Mocked AWS Credentials for moto."""
+    """Yield a mocked AWS Credentials for moto."""
     yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
@@ -1378,21 +1508,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client"""
+    """Yield a mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client"""
+    """Yield a mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client"""
+    """Yield a mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
@@ -1465,9 +1595,7 @@ def fixture_s3_bucket(_s3) -> None:  # type: ignore
 
 
 def get_bucket_name() -> str:
-    """
-    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
-    """
+    """Set the environment variable AWS_TEST_BUCKET for a default bucket to test."""
     bucket_name = os.getenv("AWS_TEST_BUCKET")
     if bucket_name is None:
         raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
@@ -1490,7 +1618,7 @@ def fixture_s3_client() -> boto3.client:
 
 
 def clean_up(test_catalog: Catalog) -> None:
-    """Clean all databases and tables created during the integration test"""
+    """Clean all databases and tables created during the integration test."""
     for database_tuple in test_catalog.list_namespaces():
         database_name = database_tuple[0]
         if "my_iceberg_database-" in database_name:
@@ -1501,9 +1629,12 @@ def clean_up(test_catalog: Catalog) -> None:
 
 @pytest.fixture
 def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
+    import pyarrow as pa
+    from pyarrow import parquet as pq
+
     table = pa.table(
         {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
-        metadata={"iceberg.schema": table_schema_simple.json()},
+        metadata={"iceberg.schema": table_schema_simple.model_dump_json()},
     )
 
     file_path = f"{tmp_path}/0000-data.parquet"
@@ -1515,4 +1646,16 @@ def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
 def example_task(data_file: str) -> FileScanTask:
     return FileScanTask(
         data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )
+
+
+@pytest.fixture
+def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
+    return Table(
+        identifier=("database", "table"),
+        metadata=table_metadata,
+        metadata_location=f"{table_metadata.location}/uuid.metadata.json",
+        io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )

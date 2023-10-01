@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.IOException;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
@@ -69,7 +70,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   public void testWithReferenceAfterRecreatingBranch()
       throws NessieConflictException, NessieNotFoundException {
     String branch = "branchToBeDropped";
-    createBranch(branch, null);
+    createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
 
     // just create a new commit on the branch and then delete & re-create it
@@ -81,12 +82,24 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .deleteBranch()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
         .delete();
-    createBranch(branch, null);
+    createBranch(branch);
 
     // make sure the client uses the re-created branch
     Reference ref = client.getApi().getReference().refName(branch).get();
     Assertions.assertThat(client.withReference(branch, null).getRef().getReference())
         .isEqualTo(ref);
     Assertions.assertThat(client.withReference(branch, null)).isNotEqualTo(client);
+  }
+
+  @Test
+  public void testInvalidClientApiVersion() throws IOException {
+    try (NessieCatalog newCatalog = new NessieCatalog()) {
+      newCatalog.setConf(hadoopConfig);
+      ImmutableMap.Builder<String, String> options =
+          ImmutableMap.<String, String>builder().put("client-api-version", "3");
+      Assertions.assertThatThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
+    }
   }
 }

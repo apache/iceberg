@@ -40,6 +40,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -222,6 +224,21 @@ public class CatalogHandlers {
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
+  public static LoadTableResponse registerTable(
+      Catalog catalog, Namespace namespace, RegisterTableRequest request) {
+    request.validate();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
+    Table table = catalog.registerTable(identifier, request.metadataLocation());
+    if (table instanceof BaseTable) {
+      return LoadTableResponse.builder()
+          .withTableMetadata(((BaseTable) table).operations().current())
+          .build();
+    }
+
+    throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+  }
+
   public static void dropTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, false);
     if (!dropped) {
@@ -286,16 +303,12 @@ public class CatalogHandlers {
   private static boolean isCreate(UpdateTableRequest request) {
     boolean isCreate =
         request.requirements().stream()
-            .anyMatch(
-                UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
+            .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
 
     if (isCreate) {
-      List<UpdateTableRequest.UpdateRequirement> invalidRequirements =
+      List<UpdateRequirement> invalidRequirements =
           request.requirements().stream()
-              .filter(
-                  req ->
-                      !(req
-                          instanceof UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist))
+              .filter(req -> !(req instanceof UpdateRequirement.AssertTableDoesNotExist))
               .collect(Collectors.toList());
       Preconditions.checkArgument(
           invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);
@@ -317,7 +330,7 @@ public class CatalogHandlers {
     return ops.current();
   }
 
-  private static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
+  static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
     AtomicBoolean isRetry = new AtomicBoolean(false);
     try {
       Tasks.foreach(ops)

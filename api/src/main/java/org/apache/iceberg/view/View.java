@@ -83,4 +83,13 @@ public interface View {
    * @return a new {@link UpdateViewProperties}
    */
   UpdateViewProperties updateProperties();
+
+  /**
+   * Create a new {@link ReplaceViewVersion} to replace the view's current version.
+   *
+   * @return a new {@link ReplaceViewVersion}
+   */
+  default ReplaceViewVersion replaceVersion() {
+    throw new UnsupportedOperationException("Replacing a view's version is not supported");
+  }
 }

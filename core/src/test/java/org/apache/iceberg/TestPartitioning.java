@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -167,11 +168,9 @@ public class TestPartitioning {
 
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
-    AssertHelpers.assertThrows(
-        "Should complain about incompatible specs",
-        ValidationException.class,
-        "Conflicting partition fields",
-        () -> Partitioning.partitionType(table));
+    Assertions.assertThatThrownBy(() -> Partitioning.partitionType(table))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Conflicting partition fields");
   }
 
   @Test
@@ -380,11 +379,10 @@ public class TestPartitioning {
 
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
-    AssertHelpers.assertThrows(
-        "Should complain about incompatible specs",
-        ValidationException.class,
-        "Conflicting partition fields",
-        () -> Partitioning.groupingKeyType(table.schema(), table.specs().values()));
+    Assertions.assertThatThrownBy(
+            () -> Partitioning.groupingKeyType(table.schema(), table.specs().values()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Conflicting partition fields");
   }
 
   @Test

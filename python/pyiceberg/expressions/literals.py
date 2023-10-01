@@ -50,16 +50,18 @@ from pyiceberg.types import (
 from pyiceberg.utils.datetime import (
     date_str_to_days,
     micros_to_days,
-    time_to_micros,
+    time_str_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
 from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
+UUID_BYTES_LENGTH = 16
+
 
 class Literal(Generic[L], ABC):
-    """Literal which has a value and can be converted between types"""
+    """Literal which has a value and can be converted between types."""
 
     _value: L
 
@@ -80,44 +82,53 @@ class Literal(Generic[L], ABC):
         ...  # pragma: no cover
 
     def __repr__(self) -> str:
+        """Return the string representation of the Literal class."""
         return f"{type(self).__name__}({self.value!r})"
 
     def __str__(self) -> str:
+        """Return the string representation of the Literal class."""
         return str(self.value)
 
     def __hash__(self) -> int:
+        """Return a hashed representation of the Literal class."""
         return hash(self.value)
 
     def __eq__(self, other: Any) -> bool:
+        """Return the equality of two instances of the Literal class."""
         if not isinstance(other, Literal):
             return False
         return self.value == other.value
 
     def __ne__(self, other: Any) -> bool:
+        """Return the inequality of two instances of the Literal class."""
         return not self.__eq__(other)
 
     def __lt__(self, other: Any) -> bool:
+        """Return if one instance of the Literal class is less than another instance."""
         return self.value < other.value
 
     def __gt__(self, other: Any) -> bool:
+        """Return if one instance of the Literal class is greater than another instance."""
         return self.value > other.value
 
     def __le__(self, other: Any) -> bool:
+        """Return if one instance of the Literal class is less than or equal to another instance."""
         return self.value <= other.value
 
     def __ge__(self, other: Any) -> bool:
+        """Return if one instance of the Literal class is greater than or equal to another instance."""
         return self.value >= other.value
 
 
 def literal(value: L) -> Literal[L]:
     """
-    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
+    Construct an Iceberg Literal based on Python primitive data type.
 
     Args:
-        value (Python primitive type): the value to be associated with literal
+        value (Python primitive type): the value to be associated with literal.
 
     Example:
-        from pyiceberg.expressions.literals import literal
+        from pyiceberg.expressions.literals import literal.
         >>> literal(123)
         LongLiteral(123)
     """
@@ -130,7 +141,7 @@ def literal(value: L) -> Literal[L]:
     elif isinstance(value, str):
         return StringLiteral(value)
     elif isinstance(value, UUID):
-        return UUIDLiteral(value)
+        return UUIDLiteral(value.bytes)  # type: ignore
     elif isinstance(value, bytes):
         return BinaryLiteral(value)
     elif isinstance(value, Decimal):
@@ -141,17 +152,21 @@ def literal(value: L) -> Literal[L]:
 
 class AboveMax(Literal[L]):
     def __repr__(self) -> str:
+        """Return the string representation of the AboveMax class."""
         return f"{self.__class__.__name__}()"
 
     def __str__(self) -> str:
+        """Return the string representation of the AboveMax class."""
         return self.__class__.__name__
 
 
 class BelowMin(Literal[L]):
     def __repr__(self) -> str:
+        """Return the string representation of the BelowMin class."""
         return f"{self.__class__.__name__}()"
 
     def __str__(self) -> str:
+        """Return the string representation of the BelowMin class."""
         return self.__class__.__name__
 
 
@@ -314,21 +329,27 @@ class FloatLiteral(Literal[float]):
         self._value32 = struct.unpack("<f", struct.pack("<f", value))[0]
 
     def __eq__(self, other: Any) -> bool:
+        """Return the equality of two instances of the FloatLiteral class."""
         return self._value32 == other
 
     def __lt__(self, other: Any) -> bool:
+        """Return if one instance of the FloatLiteral class is less than another instance."""
         return self._value32 < other
 
     def __gt__(self, other: Any) -> bool:
+        """Return if one instance of the FloatLiteral class is greater than another instance."""
         return self._value32 > other
 
     def __le__(self, other: Any) -> bool:
+        """Return if one instance of the FloatLiteral class is less than or equal to another instance."""
         return self._value32 <= other
 
     def __ge__(self, other: Any) -> bool:
+        """Return if one instance of the FloatLiteral class is greater than or equal to another instance."""
         return self._value32 >= other
 
     def __hash__(self) -> int:
+        """Return a hashed representation of the FloatLiteral class."""
         return hash(self._value32)
 
     @singledispatchmethod
@@ -539,7 +560,7 @@ class StringLiteral(Literal[str]):
     @to.register(TimeType)
     def _(self, type_var: TimeType) -> Literal[int]:
         try:
-            return TimeLiteral(time_to_micros(self.value))
+            return TimeLiteral(time_str_to_micros(self.value))
         except (TypeError, ValueError) as e:
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
@@ -552,8 +573,8 @@ class StringLiteral(Literal[str]):
         return TimestampLiteral(timestamptz_to_micros(self.value))
 
     @to.register(UUIDType)
-    def _(self, _: UUIDType) -> Literal[UUID]:
-        return UUIDLiteral(UUID(self.value))
+    def _(self, _: UUIDType) -> Literal[bytes]:
+        return UUIDLiteral(UUID(self.value).bytes)
 
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> Literal[Decimal]:
@@ -573,19 +594,20 @@ class StringLiteral(Literal[str]):
             raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
     def __repr__(self) -> str:
+        """Return the string representation of the StringLiteral class."""
         return f"literal({repr(self.value)})"
 
 
-class UUIDLiteral(Literal[UUID]):
-    def __init__(self, value: UUID) -> None:
-        super().__init__(value, UUID)
+class UUIDLiteral(Literal[bytes]):
+    def __init__(self, value: bytes) -> None:
+        super().__init__(value, bytes)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert UUIDLiteral into {type_var}")
 
     @to.register(UUIDType)
-    def _(self, _: UUIDType) -> Literal[UUID]:
+    def _(self, _: UUIDType) -> Literal[bytes]:
         return self
 
 
@@ -610,6 +632,15 @@ class FixedLiteral(Literal[bytes]):
     def _(self, _: BinaryType) -> Literal[bytes]:
         return BinaryLiteral(self.value)
 
+    @to.register(UUIDType)
+    def _(self, type_var: UUIDType) -> Literal[bytes]:
+        if len(self.value) == UUID_BYTES_LENGTH:
+            return UUIDLiteral(self.value)
+        else:
+            raise TypeError(
+                f"Could not convert {self.value!r} into a {type_var}, lengths differ {len(self.value)} <> {UUID_BYTES_LENGTH}"
+            )
+
 
 class BinaryLiteral(Literal[bytes]):
     def __init__(self, value: bytes) -> None:
@@ -630,4 +661,13 @@ class BinaryLiteral(Literal[bytes]):
         else:
             raise TypeError(
                 f"Cannot convert BinaryLiteral into {type_var}, different length: {len(type_var)} <> {len(self.value)}"
+            )
+
+    @to.register(UUIDType)
+    def _(self, type_var: UUIDType) -> Literal[bytes]:
+        if len(self.value) == UUID_BYTES_LENGTH:
+            return UUIDLiteral(self.value)
+        else:
+            raise TypeError(
+                f"Cannot convert BinaryLiteral into {type_var}, different length: {UUID_BYTES_LENGTH} <> {len(self.value)}"
             )

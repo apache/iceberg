@@ -27,12 +27,12 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,12 +43,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -92,7 +93,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       Boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(
         catalogName,
         implementation,
@@ -101,7 +103,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         vectorized,
         distributionMode,
         fanoutEnabled,
-        branch);
+        branch,
+        planningMode);
   }
 
   @BeforeClass
@@ -115,6 +118,36 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
     sql("DROP TABLE IF EXISTS parquet_table");
+  }
+
+  @Test
+  public void testDeleteWithVectorizedReads() throws NoSuchTableException {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    SparkPlan plan = executeAndKeepPlan("DELETE FROM %s WHERE id = 2", commitTarget());
+    assertAllBatchScansVectorized(plan);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+    }
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(3, "hardware"), row(4, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
   }
 
   @Test
@@ -288,11 +321,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 
@@ -522,11 +555,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic expressions",
-        AnalysisException.class,
-        "nondeterministic expressions are only allowed",
-        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("nondeterministic expressions are only allowed");
   }
 
   @Test
@@ -813,11 +845,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("CREATE TABLE parquet_table (c1 INT, c2 INT) USING parquet");
 
-    AssertHelpers.assertThrows(
-        "Delete is supported only for Iceberg tables",
-        AnalysisException.class,
-        "does not support DELETE",
-        () -> sql("DELETE FROM parquet_table WHERE c1 = -100"));
+    Assertions.assertThatThrownBy(() -> sql("DELETE FROM parquet_table WHERE c1 = -100"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("does not support DELETE");
   }
 
   @Test
@@ -951,6 +981,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1039,6 +1072,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1190,10 +1226,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution
-      // behavior
-      // that's why the number of changed partitions is 4 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }
@@ -1269,6 +1302,42 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
+  }
+
+  @Test
+  public void testDeleteToCustomWapBranchWithoutWhereClause() throws NoSuchTableException {
+    assumeThat(branch)
+        .as("Run only if custom WAP branch is not main")
+        .isNotNull()
+        .isNotEqualTo(SnapshotRef.MAIN_BRANCH);
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t WHERE id=1", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
   }
 
   // TODO: multiple stripes for ORC

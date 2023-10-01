@@ -19,7 +19,7 @@
 package org.apache.iceberg.catalog;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNamespace {
 
@@ -37,8 +37,8 @@ public class TestNamespace {
     String[] levels = {"a", "b", "c", "d"};
     Namespace namespace = Namespace.of(levels);
     Assertions.assertThat(namespace).isNotNull();
-    Assertions.assertThat(namespace.levels()).isNotNull().hasSize(4);
-    Assertions.assertThat(namespace.toString()).isEqualTo("a.b.c.d");
+    Assertions.assertThat(namespace.levels()).hasSize(4);
+    Assertions.assertThat(namespace).hasToString("a.b.c.d");
     for (int i = 0; i < levels.length; i++) {
       Assertions.assertThat(namespace.level(i)).isEqualTo(levels[i]);
     }

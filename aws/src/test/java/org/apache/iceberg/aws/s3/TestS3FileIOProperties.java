@@ -58,6 +58,7 @@ public class TestS3FileIOProperties {
     Assertions.assertThat(s3FileIOProperties.sessionToken()).isNull();
     Assertions.assertThat(s3FileIOProperties.acl()).isNull();
     Assertions.assertThat(s3FileIOProperties.endpoint()).isNull();
+    Assertions.assertThat(s3FileIOProperties.writeStorageClass()).isNull();
 
     Assertions.assertThat(S3FileIOProperties.PRELOAD_CLIENT_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isPreloadClientEnabled());
@@ -254,6 +255,9 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             String.valueOf(s3FileIOProperties.isRemoteSigningEnabled()));
+
+    Assertions.assertThat(map)
+        .containsEntry(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
   }
 
   @Test
@@ -399,6 +403,7 @@ public class TestS3FileIOProperties {
         S3FileIOProperties.ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME, S3_TEST_BUCKET_ACCESS_POINT);
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
+    map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
     return map;
   }
 

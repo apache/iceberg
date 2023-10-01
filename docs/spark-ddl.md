@@ -79,14 +79,16 @@ PARTITIONED BY (bucket(16, id), days(ts), category)
 
 Supported transformations are:
 
-* `years(ts)`: partition by year
-* `months(ts)`: partition by month
-* `days(ts)` or `date(ts)`: equivalent to dateint partitioning
-* `hours(ts)` or `date_hour(ts)`: equivalent to dateint and hour partitioning
+* `year(ts)`: partition by year
+* `month(ts)`: partition by month
+* `day(ts)` or `date(ts)`: equivalent to dateint partitioning
+* `hour(ts)` or `date_hour(ts)`: equivalent to dateint and hour partitioning
 * `bucket(N, col)`: partition by hashed value mod N buckets
 * `truncate(L, col)`: partition by value truncated to L
     * Strings are truncated to the given length
     * Integers and longs truncate to bins: `truncate(10, i)` produces partitions 0, 10, 20, 30, ...
+
+Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility. 
 
 ## `CREATE TABLE ... AS SELECT`
 
@@ -306,11 +308,16 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col
 ```
 
-Nullability can be changed using `SET NOT NULL` and `DROP NOT NULL`:
+Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
 ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL
 ```
+
+{{< hint info >}}
+It is not possible to change a nullable column to a non-nullable column with `SET NOT NULL` because Iceberg doesn't know whether there is existing data with null values.
+{{< /hint >}}
+
 
 {{< hint info >}}
 `ALTER COLUMN` is not used to update `struct` types. Use `ADD COLUMN` and `DROP COLUMN` to add or remove struct fields.
@@ -343,7 +350,7 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 ```sql
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD year(ts)
 -- use optional AS keyword to specify a custom name for the partition field 
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
 ```
@@ -369,7 +376,7 @@ Partition fields can be removed using `DROP PARTITION FIELD`:
 ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
 ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD year(ts)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
 
@@ -391,9 +398,9 @@ Be careful when dropping a partition field because it will change the schema of 
 A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts)
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts)
 -- use optional AS keyword to specify a custom name for the new partition field 
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts) AS day_of_ts
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts) AS day_of_ts
 ```
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
@@ -472,43 +479,77 @@ Note that although the identifier is removed, the column will still exist in the
 
 #### `ALTER TABLE ... CREATE BRANCH`
 
-Branches can be created via the `CREATE BRANCH` statement, which includes 
-the snapshot to create the branch at and an optional retention clause.
+Branches can be created via the `CREATE BRANCH` statement with the following options:
+* Do not fail if the branch already exists with `IF NOT EXISTS`
+* Update the branch if it already exists with `CREATE OR REPLACE`
+* Create at a snapshot
+* Create with retention
 
 ```sql
+-- CREATE audit-branch at current snapshot with default retention.
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
+
+-- CREATE audit-branch at current snapshot with default retention if it doesn't exist.
+ALTER TABLE prod.db.sample CREATE BRANCH IF NOT EXISTS `audit-branch`
+
+-- CREATE audit-branch at current snapshot with default retention or REPLACE it if it already exists.
+ALTER TABLE prod.db.sample CREATE OR REPLACE BRANCH `audit-branch`
+
 -- CREATE audit-branch at snapshot 1234 with default retention.
-ALTER TABLE prod.db.sample CREATE BRANCH audit-branch
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
 AS OF VERSION 1234
 
--- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots 
-ALTER TABLE prod.db.sample CREATE BRANCH audit-branch
+-- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots. 
+ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
 AS OF VERSION 1234 RETAIN 30 DAYS 
-WITH RETENTION 3 SNAPSHOTS 2 DAYS
+WITH SNAPSHOT RETENTION 3 SNAPSHOTS 2 DAYS
 ```
-
 
 #### `ALTER TABLE ... CREATE TAG`
 
-Tags can be created via the `CREATE TAG` statement, which includes 
-the snapshot to create the branch at and an optional retention clause.
+Tags can be created via the `CREATE TAG` statement with the following options:
+* Do not fail if the tag already exists with `IF NOT EXISTS`
+* Update the tag if it already exists with `CREATE OR REPLACE`
+* Create at a snapshot
+* Create with retention
 
 ```sql
+-- CREATE historical-tag at current snapshot with default retention.
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag`
+
+-- CREATE historical-tag at current snapshot with default retention if it doesn't exist.
+ALTER TABLE prod.db.sample CREATE TAG IF NOT EXISTS `historical-tag`
+
+-- CREATE historical-tag at current snapshot with default retention or REPLACE it if it already exists.
+ALTER TABLE prod.db.sample CREATE OR REPLACE TAG `historical-tag`
+
 -- CREATE historical-tag at snapshot 1234 with default retention.
-ALTER TABLE prod.db.sample CREATE TAG historical-tag AS OF VERSION 1234
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag` AS OF VERSION 1234
 
 -- CREATE historical-tag at snapshot 1234 and retain it for 1 year. 
-ALTER TABLE prod.db.sample CREATE TAG historical-tag 
+ALTER TABLE prod.db.sample CREATE TAG `historical-tag` 
 AS OF VERSION 1234 RETAIN 365 DAYS
 ```
 
-### `ALTER TABLE ... REPLACE BRANCH`
+#### `ALTER TABLE ... REPLACE BRANCH`
 
 The snapshot which a branch references can be updated via
 the `REPLACE BRANCH` sql. Retention can also be updated in this statement. 
 
 ```sql
--- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days
-ALTER TABLE prod.db.sample REPLACE BRANCH audit-branch
+-- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days.
+ALTER TABLE prod.db.sample REPLACE BRANCH `audit-branch`
+AS OF VERSION 4567 RETAIN 60 DAYS
+```
+
+#### `ALTER TABLE ... REPLACE TAG`
+
+The snapshot which a tag references can be updated via
+the `REPLACE TAG` sql. Retention can also be updated in this statement.
+
+```sql
+-- REPLACE historical-tag to reference snapshot 4567 and update the retention to 60 days.
+ALTER TABLE prod.db.sample REPLACE TAG `historical-tag`
 AS OF VERSION 4567 RETAIN 60 DAYS
 ```
 
@@ -517,7 +558,7 @@ AS OF VERSION 4567 RETAIN 60 DAYS
 Branches can be removed via the `DROP BRANCH` sql
 
 ```sql
-ALTER TABLE prod.db.sample DROP BRANCH audit-branch
+ALTER TABLE prod.db.sample DROP BRANCH `audit-branch`
 ```
 
 #### `ALTER TABLE ... DROP TAG`
@@ -525,5 +566,5 @@ ALTER TABLE prod.db.sample DROP BRANCH audit-branch
 Tags can be removed via the `DROP TAG` sql
 
 ```sql
-ALTER TABLE prod.db.sample DROP TAG historical-tag
+ALTER TABLE prod.db.sample DROP TAG `historical-tag`
 ```

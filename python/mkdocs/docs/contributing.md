@@ -107,6 +107,22 @@ make test PYTEST_ARGS="--pdb"
 
 To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.
 
+### Integration tests
+
+PyIceberg has integration tests with Apache Spark. Spark will create a new database and provision some tables that PyIceberg can query against.
+
+```sh
+make test-integration
+```
+
+This will restart the containers, to get to a clean state, and then run the PyTest suite. In case something changed in the Dockerfile or the provision script, you can run:
+
+```sh
+make test-integration-rebuild
+```
+
+To rebuild the containers from scratch.
+
 ## Code standards
 
 Below are the formalized conventions that we adhere to in the PyIceberg project. The goal of this is to have a common agreement on how to evolve the codebase, but also using it as guidelines for newcomers to the project.
@@ -144,4 +160,4 @@ PyIceberg offers support from Python 3.8 onwards, we can't use the [type hints f
 
 ## Third party libraries
 
-PyIceberg naturally integrates into the rich Python ecosystem, however it is important to be hesistant to add third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `adlfs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.
+PyIceberg naturally integrates into the rich Python ecosystem, however it is important to be hesitant adding third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `adlfs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.

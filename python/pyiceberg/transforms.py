@@ -20,18 +20,12 @@ import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
-from typing import (
-    Any,
-    Callable,
-    Generator,
-    Generic,
-)
+from typing import Any, Callable, Generic, Optional, TypeVar
 from typing import Literal as LiteralType
-from typing import Optional, TypeVar
+from uuid import UUID
 
 import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
-from pydantic.typing import AnyCallable
 
 from pyiceberg.expressions import (
     BoundEqualTo,
@@ -64,7 +58,7 @@ from pyiceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from pyiceberg.typedef import IcebergBaseModel, L
+from pyiceberg.typedef import IcebergRootModel, L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -101,50 +95,41 @@ TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
 
 
 def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
-    """Small helper to upwrap the value from the literal, and wrap it again"""
+    """Small helper to upwrap the value from the literal, and wrap it again."""
     return literal(func(lit.value))
 
 
-class Transform(IcebergBaseModel, ABC, Generic[S, T]):
+def parse_transform(v: Any) -> Any:
+    if isinstance(v, str):
+        if v == IDENTITY:
+            return IdentityTransform()
+        elif v == VOID:
+            return VoidTransform()
+        elif v.startswith(BUCKET):
+            return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
+        elif v.startswith(TRUNCATE):
+            return TruncateTransform(width=TRUNCATE_PARSER.match(v))
+        elif v == YEAR:
+            return YearTransform()
+        elif v == MONTH:
+            return MonthTransform()
+        elif v == DAY:
+            return DayTransform()
+        elif v == HOUR:
+            return HourTransform()
+        else:
+            return UnknownTransform(transform=v)
+    return v
+
+
+class Transform(IcebergRootModel[str], ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
 
     A base class to transform values and project predicates on partition values.
     This class is not used directly. Instead, use one of module method to create the child classes.
     """
 
-    __root__: str = Field()
-
-    @classmethod
-    def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v: Any) -> IcebergBaseModel:
-        # When Pydantic is unable to determine the subtype
-        # In this case we'll help pydantic a bit by parsing the transform type ourselves
-        if isinstance(v, str):
-            if v == IDENTITY:
-                return IdentityTransform()
-            elif v == VOID:
-                return VoidTransform()
-            elif v.startswith(BUCKET):
-                return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
-            elif v.startswith(TRUNCATE):
-                return TruncateTransform(width=TRUNCATE_PARSER.match(v))
-            elif v == YEAR:
-                return YearTransform()
-            elif v == MONTH:
-                return MonthTransform()
-            elif v == DAY:
-                return DayTransform()
-            elif v == HOUR:
-                return HourTransform()
-            else:
-                return UnknownTransform(transform=v)
-        return v
+    root: str = Field()
 
     @abstractmethod
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
@@ -177,16 +162,18 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         return self.__str__()
 
     def __str__(self) -> str:
-        return self.__root__
+        """Return the string representation of the Transform class."""
+        return self.root
 
     def __eq__(self, other: Any) -> bool:
+        """Return the equality of two instances of the Transform class."""
         if isinstance(other, Transform):
-            return self.__root__ == other.__root__
+            return self.root == other.root
         return False
 
 
 class BucketTransform(Transform[S, int]):
-    """Base Transform class to transform a value into a bucket partition value
+    """Base Transform class to transform a value into a bucket partition value.
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
     hash of the source value to produce a positive value by mod the bucket number.
@@ -195,11 +182,12 @@ class BucketTransform(Transform[S, int]):
       num_buckets (int): The number of buckets.
     """
 
+    root: str = Field()
     _num_buckets: PositiveInt = PrivateAttr()
 
     def __init__(self, num_buckets: int, **data: Any) -> None:
-        super().__init__(__root__=f"bucket[{num_buckets}]", **data)
         self._num_buckets = num_buckets
+        super().__init__(f"bucket[{num_buckets}]", **data)
 
     @property
     def num_buckets(self) -> int:
@@ -266,13 +254,9 @@ class BucketTransform(Transform[S, int]):
         elif source_type == UUIDType:
 
             def hash_func(v: Any) -> int:
-                return mmh3.hash(
-                    struct.pack(
-                        ">QQ",
-                        (v.int >> 64) & 0xFFFFFFFFFFFFFFFF,
-                        v.int & 0xFFFFFFFFFFFFFFFF,
-                    )
-                )
+                if isinstance(v, UUID):
+                    return mmh3.hash(v.bytes)
+                return mmh3.hash(v)
 
         else:
             raise ValueError(f"Unknown type {source}")
@@ -282,6 +266,7 @@ class BucketTransform(Transform[S, int]):
         return hash_func
 
     def __repr__(self) -> str:
+        """Return the string representation of the BucketTransform class."""
         return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
@@ -295,7 +280,7 @@ class TimeResolution(IntEnum):
     SECOND = 0
 
 
-class TimeTransform(Transform[S, int], Singleton):
+class TimeTransform(Transform[S, int], Generic[S], Singleton):
     @property
     @abstractmethod
     def granularity(self) -> TimeResolution:
@@ -342,7 +327,7 @@ class YearTransform(TimeTransform[S]):
         47
     """
 
-    __root__: LiteralType["year"] = Field(default="year")  # noqa: F821
+    root: LiteralType["year"] = Field(default="year")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -376,6 +361,7 @@ class YearTransform(TimeTransform[S]):
         return datetime.to_human_year(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
+        """Return the string representation of the YearTransform class."""
         return "YearTransform()"
 
 
@@ -388,7 +374,7 @@ class MonthTransform(TimeTransform[S]):
         575
     """
 
-    __root__: LiteralType["month"] = Field(default="month")  # noqa: F821
+    root: LiteralType["month"] = Field(default="month")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -422,6 +408,7 @@ class MonthTransform(TimeTransform[S]):
         return datetime.to_human_month(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
+        """Return the string representation of the MonthTransform class."""
         return "MonthTransform()"
 
 
@@ -434,7 +421,7 @@ class DayTransform(TimeTransform[S]):
         17501
     """
 
-    __root__: LiteralType["day"] = Field(default="day")  # noqa: F821
+    root: LiteralType["day"] = Field(default="day")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -471,6 +458,7 @@ class DayTransform(TimeTransform[S]):
         return datetime.to_human_day(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
+        """Return the string representation of the DayTransform class."""
         return "DayTransform()"
 
 
@@ -483,7 +471,7 @@ class HourTransform(TimeTransform[S]):
         420042
     """
 
-    __root__: LiteralType["hour"] = Field(default="hour")  # noqa: F821
+    root: LiteralType["hour"] = Field(default="hour")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         if type(source) in {TimestampType, TimestamptzType}:
@@ -510,11 +498,12 @@ class HourTransform(TimeTransform[S]):
         return datetime.to_human_hour(value) if isinstance(value, int) else "null"
 
     def __repr__(self) -> str:
+        """Return the string representation of the HourTransform class."""
         return "HourTransform()"
 
 
 def _base64encode(buffer: bytes) -> str:
-    """Converts bytes to base64 string"""
+    """Convert bytes to base64 string."""
     return base64.b64encode(buffer).decode("ISO-8859-1")
 
 
@@ -527,7 +516,10 @@ class IdentityTransform(Transform[S, S]):
         'hello-world'
     """
 
-    __root__: LiteralType["identity"] = Field(default="identity")  # noqa: F821
+    root: LiteralType["identity"] = Field(default="identity")  # noqa: F821
+
+    def __init__(self) -> None:
+        super().__init__("identity")
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v
@@ -555,33 +547,36 @@ class IdentityTransform(Transform[S, S]):
         return True
 
     def satisfies_order_of(self, other: Transform[S, T]) -> bool:
-        """ordering by value is the same as long as the other preserves order"""
+        """Ordering by value is the same as long as the other preserves order."""
         return other.preserves_order
 
     def to_human_string(self, source_type: IcebergType, value: Optional[S]) -> str:
         return _human_string(value, source_type) if value is not None else "null"
 
     def __str__(self) -> str:
+        """Return the string representation of the IdentityTransform class."""
         return "identity"
 
     def __repr__(self) -> str:
+        """Return the string representation of the IdentityTransform class."""
         return "IdentityTransform()"
 
 
 class TruncateTransform(Transform[S, S]):
     """A transform for truncating a value to a specified width.
+
     Args:
-      width (int): The truncate width, should be positive
+      width (int): The truncate width, should be positive.
     Raises:
-      ValueError: If a type is provided that is incompatible with a Truncate transform
+      ValueError: If a type is provided that is incompatible with a Truncate transform.
     """
 
-    __root__: str = Field()
+    root: str = Field()
     _source_type: IcebergType = PrivateAttr()
     _width: PositiveInt = PrivateAttr()
 
     def __init__(self, width: int, **data: Any):
-        super().__init__(__root__=f"truncate[{width}]", **data)
+        super().__init__(root=f"truncate[{width}]", **data)
         self._width = width
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -663,6 +658,7 @@ class TruncateTransform(Transform[S, S]):
             return str(value)
 
     def __repr__(self) -> str:
+        """Return the string representation of the TruncateTransform class."""
         return f"TruncateTransform(width={self._width})"
 
 
@@ -707,15 +703,16 @@ def _(_type: IcebergType, value: int) -> str:
 
 
 class UnknownTransform(Transform[S, T]):
-    """A transform that represents when an unknown transform is provided
+    """A transform that represents when an unknown transform is provided.
+
     Args:
-      transform (str): A string name of a transform
+      transform (str): A string name of a transform.
 
     Keyword Args:
-      source_type (IcebergType): An Iceberg `Type`
+      source_type (IcebergType): An Iceberg `Type`.
     """
 
-    __root__: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821
+    root: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821
     _transform: str = PrivateAttr()
 
     def __init__(self, transform: str, **data: Any):
@@ -735,13 +732,14 @@ class UnknownTransform(Transform[S, T]):
         return None
 
     def __repr__(self) -> str:
+        """Return the string representation of the UnknownTransform class."""
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
 class VoidTransform(Transform[S, None], Singleton):
-    """A transform that always returns None"""
+    """A transform that always returns None."""
 
-    __root__ = "void"
+    root: str = "void"
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         return lambda v: None
@@ -759,6 +757,7 @@ class VoidTransform(Transform[S, None], Singleton):
         return "null"
 
     def __repr__(self) -> str:
+        """Return the string representation of the VoidTransform class."""
         return "VoidTransform()"
 
 
@@ -832,7 +831,7 @@ def _set_apply_transform(name: str, pred: BoundSetPredicate[L], transform: Calla
 
 
 class BoundTransform(BoundTerm[L]):
-    """A transform expression"""
+    """A transform expression."""
 
     transform: Transform[L, Any]
 

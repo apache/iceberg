@@ -14,59 +14,118 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import codecs
-import json
+import gzip
+from abc import ABC, abstractmethod
+from typing import Callable
 
 from pyiceberg.io import InputFile, InputStream, OutputFile
 from pyiceberg.table.metadata import TableMetadata, TableMetadataUtil
 
+GZIP = "gzip"
 
-class FromByteStream:
-    """A collection of methods that deserialize dictionaries into Iceberg objects"""
 
+class Compressor(ABC):
     @staticmethod
-    def table_metadata(byte_stream: InputStream, encoding: str = "utf-8") -> TableMetadata:
-        """Instantiate a TableMetadata object from a byte stream
+    def get_compressor(location: str) -> Compressor:
+        return GzipCompressor() if location.endswith(".gz.metadata.json") else NOOP_COMPRESSOR
+
+    @abstractmethod
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
+        """Return a stream decompressor.
 
         Args:
-            byte_stream: A file-like byte stream object
-            encoding (default "utf-8"): The byte encoder to use for the reader
+            inp: The input stream that needs decompressing.
+
+        Returns:
+            The wrapped stream
         """
-        reader = codecs.getreader(encoding)
-        metadata = json.load(reader(byte_stream))
-        return TableMetadataUtil.parse_obj(metadata)
+
+    @abstractmethod
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
+        """Return a function to compress bytes.
+
+        Returns:
+            A function that can be used to compress bytes.
+        """
+
+
+class NoopCompressor(Compressor):
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
+        return inp
+
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
+        return lambda b: b
+
+
+NOOP_COMPRESSOR = NoopCompressor()
+
+
+class GzipCompressor(Compressor):
+    def stream_decompressor(self, inp: InputStream) -> InputStream:
+        return gzip.open(inp)
+
+    def bytes_compressor(self) -> Callable[[bytes], bytes]:
+        return gzip.compress
+
+
+class FromByteStream:
+    """A collection of methods that deserialize dictionaries into Iceberg objects."""
+
+    @staticmethod
+    def table_metadata(
+        byte_stream: InputStream, encoding: str = "utf-8", compression: Compressor = NOOP_COMPRESSOR
+    ) -> TableMetadata:
+        """Instantiate a TableMetadata object from a byte stream.
+
+        Args:
+            byte_stream: A file-like byte stream object.
+            encoding (default "utf-8"): The byte encoder to use for the reader.
+            compression: Optional compression method
+        """
+        with compression.stream_decompressor(byte_stream) as byte_stream:
+            reader = codecs.getreader(encoding)
+            json_bytes = reader(byte_stream)
+            metadata = json_bytes.read()
+
+        return TableMetadataUtil.parse_raw(metadata)
 
 
 class FromInputFile:
-    """A collection of methods that deserialize InputFiles into Iceberg objects"""
+    """A collection of methods that deserialize InputFiles into Iceberg objects."""
 
     @staticmethod
     def table_metadata(input_file: InputFile, encoding: str = "utf-8") -> TableMetadata:
-        """Create a TableMetadata instance from an input file
+        """Create a TableMetadata instance from an input file.
 
         Args:
-            input_file (InputFile): A custom implementation of the iceberg.io.file.InputFile abstract base class
-            encoding (str): Encoding to use when loading bytestream
+            input_file (InputFile): A custom implementation of the iceberg.io.file.InputFile abstract base class.
+            encoding (str): Encoding to use when loading bytestream.
 
         Returns:
-            TableMetadata: A table metadata instance
+            TableMetadata: A table metadata instance.
 
         """
         with input_file.open() as input_stream:
-            return FromByteStream.table_metadata(byte_stream=input_stream, encoding=encoding)
+            return FromByteStream.table_metadata(
+                byte_stream=input_stream, encoding=encoding, compression=Compressor.get_compressor(location=input_file.location)
+            )
 
 
 class ToOutputFile:
-    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance"""
+    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance."""
 
     @staticmethod
     def table_metadata(metadata: TableMetadata, output_file: OutputFile, overwrite: bool = False) -> None:
-        """Write a TableMetadata instance to an output file
+        """Write a TableMetadata instance to an output file.
 
         Args:
-            output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class
+            output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class.
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
         with output_file.create(overwrite=overwrite) as output_stream:
-            output_stream.write(metadata.json().encode("utf-8"))
+            json_bytes = metadata.model_dump_json().encode("utf-8")
+            json_bytes = Compressor.get_compressor(output_file.location).bytes_compressor()(json_bytes)
+            output_stream.write(json_bytes)

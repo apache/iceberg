@@ -204,6 +204,44 @@ public abstract class TestWriterMetrics<T> {
   }
 
   @Test
+  public void testPositionDeleteMetricsCoveringMultipleDataFiles() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table);
+    EncryptedOutputFile outputFile = fileFactory.newOutputFile();
+    PositionDeleteWriter<T> deleteWriter =
+        writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
+
+    try {
+      PositionDelete<T> positionDelete = PositionDelete.create();
+
+      positionDelete.set("File A", 1, toRow(3, "3", true, 3L));
+      deleteWriter.write(positionDelete);
+
+      positionDelete.set("File B", 1, toRow(3, "3", true, 3L));
+      deleteWriter.write(positionDelete);
+
+    } finally {
+      deleteWriter.close();
+    }
+
+    DeleteFile deleteFile = deleteWriter.toDeleteFile();
+
+    // should have NO bounds for path and position as the file covers multiple data paths
+    Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
+    Assert.assertEquals(2, lowerBounds.size());
+    Assert.assertEquals(
+        3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
+    Assert.assertEquals(
+        3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)));
+
+    Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
+    Assert.assertEquals(2, upperBounds.size());
+    Assert.assertEquals(
+        3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
+    Assert.assertEquals(
+        3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)));
+  }
+
+  @Test
   public void testMaxColumns() throws IOException {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create

@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
+"""FileIO implementation for reading and writing table files that uses fsspec compatible filesystems."""
 import errno
+import json
 import logging
 import os
 from functools import lru_cache, partial
@@ -37,8 +38,19 @@ from requests import HTTPError
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
+    GCS_ACCESS,
+    GCS_CACHE_TIMEOUT,
+    GCS_CONSISTENCY,
+    GCS_DEFAULT_LOCATION,
+    GCS_ENDPOINT,
+    GCS_PROJECT_ID,
+    GCS_REQUESTER_PAYS,
+    GCS_SESSION_KWARGS,
+    GCS_TOKEN,
+    GCS_VERSION_AWARE,
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
+    S3_PROXY_URI,
     S3_REGION,
     S3_SECRET_ACCESS_KEY,
     S3_SESSION_TOKEN,
@@ -112,12 +124,33 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         else:
             raise ValueError(f"Signer not available: {signer}")
 
+    if proxy_uri := properties.get(S3_PROXY_URI):
+        config_kwargs["proxies"] = {"http": proxy_uri, "https": proxy_uri}
+
     fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 
     for event_name, event_function in register_events.items():
         fs.s3.meta.events.register_last(event_name, event_function, unique_id=1925)
 
     return fs
+
+
+def _gs(properties: Properties) -> AbstractFileSystem:
+    # https://gcsfs.readthedocs.io/en/latest/api.html#gcsfs.core.GCSFileSystem
+    from gcsfs import GCSFileSystem
+
+    return GCSFileSystem(
+        project=properties.get(GCS_PROJECT_ID),
+        access=properties.get(GCS_ACCESS, "full_control"),
+        token=properties.get(GCS_TOKEN),
+        consistency=properties.get(GCS_CONSISTENCY, "none"),
+        cache_timeout=properties.get(GCS_CACHE_TIMEOUT),
+        requester_pays=properties.get(GCS_REQUESTER_PAYS, False),
+        session_kwargs=json.loads(properties.get(GCS_SESSION_KWARGS, "{}")),
+        endpoint_url=properties.get(GCS_ENDPOINT),
+        default_location=properties.get(GCS_DEFAULT_LOCATION),
+        version_aware=properties.get(GCS_VERSION_AWARE, "false").lower() == "true",
+    )
 
 
 def _adlfs(properties: Properties) -> AbstractFileSystem:
@@ -141,15 +174,17 @@ SCHEME_TO_FS = {
     "s3n": _s3,
     "abfs": _adlfs,
     "abfss": _adlfs,
+    "gs": _gs,
+    "gcs": _gs,
 }
 
 
 class FsspecInputFile(InputFile):
-    """An input file implementation for the FsspecFileIO
+    """An input file implementation for the FsspecFileIO.
 
     Args:
-        location (str): A URI to a file location
-        fs (AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location.
+        fs (AbstractFileSystem): An fsspec filesystem instance.
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -157,7 +192,7 @@ class FsspecInputFile(InputFile):
         super().__init__(location=location)
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Return the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
         if size := object_info.get("Size"):
             return size
@@ -166,20 +201,20 @@ class FsspecInputFile(InputFile):
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Check whether the location exists."""
         return self._fs.lexists(self.location)
 
     def open(self, seekable: bool = True) -> InputStream:
-        """Create an input stream for reading the contents of the file
+        """Create an input stream for reading the contents of the file.
 
         Args:
-            seekable: If the stream should support seek, or if it is consumed sequential
+            seekable: If the stream should support seek, or if it is consumed sequential.
 
         Returns:
-            OpenFile: An fsspec compliant file-like object
+            OpenFile: An fsspec compliant file-like object.
 
         Raises:
-            FileNotFoundError: If the file does not exist
+            FileNotFoundError: If the file does not exist.
         """
         try:
             return self._fs.open(self.location, "rb")
@@ -189,11 +224,11 @@ class FsspecInputFile(InputFile):
 
 
 class FsspecOutputFile(OutputFile):
-    """An output file implementation for the FsspecFileIO
+    """An output file implementation for the FsspecFileIO.
 
     Args:
-        location (str): A URI to a file location
-        fs (AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location.
+        fs (AbstractFileSystem): An fsspec filesystem instance.
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -201,7 +236,7 @@ class FsspecOutputFile(OutputFile):
         super().__init__(location=location)
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Return the total length of the file, in bytes."""
         object_info = self._fs.info(self.location)
         if size := object_info.get("Size"):
             return size
@@ -210,20 +245,20 @@ class FsspecOutputFile(OutputFile):
         raise RuntimeError(f"Cannot retrieve object info: {self.location}")
 
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Check whether the location exists."""
         return self._fs.lexists(self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Create an output stream for reading the contents of the file
+        """Create an output stream for reading the contents of the file.
 
         Args:
-            overwrite (bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists.
 
         Returns:
-            OpenFile: An fsspec compliant file-like object
+            OpenFile: An fsspec compliant file-like object.
 
         Raises:
-            FileExistsError: If the file already exists at the location and overwrite is set to False
+            FileExistsError: If the file already exists at the location and overwrite is set to False.
 
         Note:
             If overwrite is set to False, a check is first performed to verify that the file does not exist.
@@ -236,12 +271,12 @@ class FsspecOutputFile(OutputFile):
         return self._fs.open(self.location, "wb")
 
     def to_input_file(self) -> FsspecInputFile:
-        """Returns a new FsspecInputFile for the location at `self.location`"""
+        """Return a new FsspecInputFile for the location at `self.location`."""
         return FsspecInputFile(location=self.location, fs=self._fs)
 
 
 class FsspecFileIO(FileIO):
-    """A FileIO implementation that uses fsspec"""
+    """A FileIO implementation that uses fsspec."""
 
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
@@ -250,38 +285,38 @@ class FsspecFileIO(FileIO):
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:
-        """Get an FsspecInputFile instance to read bytes from the file at the given location
+        """Get an FsspecInputFile instance to read bytes from the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            FsspecInputFile: An FsspecInputFile instance for the given location
+            FsspecInputFile: An FsspecInputFile instance for the given location.
         """
         uri = urlparse(location)
         fs = self.get_fs(uri.scheme)
         return FsspecInputFile(location=location, fs=fs)
 
     def new_output(self, location: str) -> FsspecOutputFile:
-        """Get an FsspecOutputFile instance to write bytes to the file at the given location
+        """Get an FsspecOutputFile instance to write bytes to the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            FsspecOutputFile: An FsspecOutputFile instance for the given location
+            FsspecOutputFile: An FsspecOutputFile instance for the given location.
         """
         uri = urlparse(location)
         fs = self.get_fs(uri.scheme)
         return FsspecOutputFile(location=location, fs=fs)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given location
+        """Delete the file at the given location.
 
         Args:
             location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an
                 OutputFile instance is provided, the location attribute for that instance is used as the location
-                to delete
+                to delete.
         """
         if isinstance(location, (InputFile, OutputFile)):
             str_location = location.location  # Use InputFile or OutputFile location
@@ -293,7 +328,7 @@ class FsspecFileIO(FileIO):
         fs.rm(str_location)
 
     def _get_fs(self, scheme: str) -> AbstractFileSystem:
-        """Get a filesystem for a specific scheme"""
+        """Get a filesystem for a specific scheme."""
         if scheme not in self._scheme_to_fs:
             raise ValueError(f"No registered filesystem for scheme: {scheme}")
         return self._scheme_to_fs[scheme](self.properties)

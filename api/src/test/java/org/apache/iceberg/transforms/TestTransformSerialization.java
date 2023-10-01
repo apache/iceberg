@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.transforms;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTransformSerialization {
   @Test
@@ -59,11 +60,11 @@ public class TestTransformSerialization {
 
     for (Type type : types) {
       for (Transform<?, ?> transform : transforms) {
-        Assert.assertEquals(transform, TestHelpers.roundTripSerialize(transform));
+        assertThat(TestHelpers.roundTripSerialize(transform)).isEqualTo(transform);
 
         if (transform.canTransform(type)) {
           SerializableFunction<?, ?> func = transform.bind(type);
-          Assert.assertTrue(func.getClass().isInstance(TestHelpers.roundTripSerialize(func)));
+          assertThat(func).isInstanceOf(TestHelpers.roundTripSerialize(func).getClass());
         }
       }
     }

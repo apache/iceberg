@@ -19,9 +19,9 @@
 package org.apache.iceberg.mr;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -126,7 +126,7 @@ public class TestCatalogs {
     Assert.assertEquals(properties.getProperty("location"), table.location());
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
-    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+    assertThat(table.properties()).containsEntry("dummy", "test");
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
         .isInstanceOf(NullPointerException.class)
@@ -178,7 +178,7 @@ public class TestCatalogs {
 
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
-    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+    assertThat(table.properties()).containsEntry("dummy", "test");
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
         .isInstanceOf(NullPointerException.class)

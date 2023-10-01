@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPuffinReader {
   @Test

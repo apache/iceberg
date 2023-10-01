@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -284,15 +285,14 @@ public class TestDeleteFiles extends TableTestBase {
 
     commit(table, table.newFastAppend().appendFile(dataFile), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject as not all rows match filter",
-        ValidationException.class,
-        "Cannot delete file where some, but not all, rows match filter",
-        () ->
-            commit(
-                table,
-                table.newDelete().deleteFromRowFilter(Expressions.equal("data", "aa")),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newDelete().deleteFromRowFilter(Expressions.equal("data", "aa")),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot delete file where some, but not all, rows match filter");
   }
 
   @Test
@@ -301,21 +301,19 @@ public class TestDeleteFiles extends TableTestBase {
 
     Expression rowFilter = Expressions.lessThan("iD", 5);
 
-    AssertHelpers.assertThrows(
-        "Should use case sensitive binding by default",
-        ValidationException.class,
-        "Cannot find field 'iD'",
-        () -> commit(table, table.newDelete().deleteFromRowFilter(rowFilter), branch));
+    Assertions.assertThatThrownBy(
+            () -> commit(table, table.newDelete().deleteFromRowFilter(rowFilter), branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'iD'");
 
-    AssertHelpers.assertThrows(
-        "Should fail with case sensitive binding",
-        ValidationException.class,
-        "Cannot find field 'iD'",
-        () ->
-            commit(
-                table,
-                table.newDelete().deleteFromRowFilter(rowFilter).caseSensitive(true),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table.newDelete().deleteFromRowFilter(rowFilter).caseSensitive(true),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'iD'");
 
     Snapshot deleteSnapshot =
         commit(
@@ -412,6 +410,37 @@ public class TestDeleteFiles extends TableTestBase {
         "We should have deleted partitionTwo",
         ImmutableList.of(partitionOne),
         afterDeletePartitions);
+  }
+
+  @Test
+  public void testDeleteValidateFileExistence() {
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot delete =
+        commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch);
+    validateManifestEntries(
+        Iterables.getOnlyElement(delete.allManifests(FILE_IO)),
+        ids(delete.snapshotId()),
+        files(FILE_B),
+        statuses(Status.DELETED));
+
+    Assertions.assertThatThrownBy(
+            () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
+        .isInstanceOf(ValidationException.class);
+  }
+
+  @Test
+  public void testDeleteFilesNoValidation() {
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot delete1 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    validateManifestEntries(
+        Iterables.getOnlyElement(delete1.allManifests(FILE_IO)),
+        ids(delete1.snapshotId()),
+        files(FILE_B),
+        statuses(Status.DELETED));
+
+    Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    Assertions.assertThat(delete2.allManifests(FILE_IO).isEmpty()).isTrue();
+    Assertions.assertThat(delete2.removedDataFiles(FILE_IO).iterator().hasNext()).isFalse();
   }
 
   private static ByteBuffer longToBuffer(long value) {

@@ -31,6 +31,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.List;
@@ -47,6 +48,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -86,7 +88,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(
         catalogName,
         implementation,
@@ -95,7 +98,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         vectorized,
         distributionMode,
         fanoutEnabled,
-        branch);
+        branch,
+        planningMode);
   }
 
   @BeforeClass
@@ -109,6 +113,25 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS updated_id");
     sql("DROP TABLE IF EXISTS updated_dep");
     sql("DROP TABLE IF EXISTS deleted_employee");
+  }
+
+  @Test
+  public void testUpdateWithVectorizedReads() {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitTable(
+        "id INT, value INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"value\": 100, \"dep\": \"hr\" }");
+
+    SparkPlan plan = executeAndKeepPlan("UPDATE %s SET value = -1 WHERE id = 1", commitTarget());
+
+    assertAllBatchScansVectorized(plan);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, -1, "hr")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -600,6 +623,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public synchronized void testUpdateWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
 
@@ -687,6 +713,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitTable("id INT, dep STRING");
 

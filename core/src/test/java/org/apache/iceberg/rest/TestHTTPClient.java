@@ -44,10 +44,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -68,7 +67,7 @@ public class TestHTTPClient {
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
     restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
@@ -76,7 +75,7 @@ public class TestHTTPClient {
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopServer() throws IOException {
     mockServer.stop();
     restClient.close();
@@ -147,10 +146,9 @@ public class TestHTTPClient {
         doExecuteRequest(method, path, body, onError, h -> assertThat(h).isNotEmpty());
 
     if (method.usesRequestBody()) {
-      Assert.assertEquals(
-          "On a successful " + method + ", the correct response body should be returned",
-          successResponse,
-          body);
+      Assertions.assertThat(body)
+          .as("On a successful " + method + ", the correct response body should be returned")
+          .isEqualTo(successResponse);
     }
 
     verify(onError, never()).accept(any());

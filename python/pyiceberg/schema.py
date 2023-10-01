@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0511
+from __future__ import annotations
+
 import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -33,7 +35,7 @@ from typing import (
     Union,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_validator
 
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, StructProtocol
@@ -67,7 +69,7 @@ INITIAL_SCHEMA_ID = 0
 
 
 class Schema(IcebergBaseModel):
-    """A table Schema
+    """A table Schema.
 
     Example:
         >>> from pyiceberg import schema
@@ -88,15 +90,19 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self) -> str:
+        """Return the string representation of the Schema class."""
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
     def __repr__(self) -> str:
+        """Return the string representation of the Schema class."""
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __len__(self) -> int:
+        """Return the length of an instance of the Literal class."""
         return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
+        """Return the equality of two instances of the Schema class."""
         if not other:
             return False
 
@@ -111,22 +117,38 @@ class Schema(IcebergBaseModel):
 
         return identifier_field_ids_is_equal and schema_is_equal
 
+    @model_validator(mode="after")
+    def check_schema(self) -> Schema:
+        if self.identifier_field_ids:
+            for field_id in self.identifier_field_ids:
+                self._validate_identifier_field(field_id)
+
+        return self
+
     @property
     def columns(self) -> Tuple[NestedField, ...]:
-        """A tuple of the top-level fields"""
+        """A tuple of the top-level fields."""
         return self.fields
 
     @cached_property
     def _lazy_id_to_field(self) -> Dict[int, NestedField]:
-        """Returns an index of field ID to NestedField instance
+        """Return an index of field ID to NestedField instance.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return index_by_id(self)
 
     @cached_property
+    def _lazy_id_to_parent(self) -> Dict[int, int]:
+        """Returns an index of field ID to parent field IDs.
+
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
+        """
+        return _index_parents(self)
+
+    @cached_property
     def _lazy_name_to_id_lower(self) -> Dict[str, int]:
-        """Returns an index of lower-case field names to field IDs
+        """Return an index of lower-case field names to field IDs.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
@@ -134,36 +156,36 @@ class Schema(IcebergBaseModel):
 
     @cached_property
     def _lazy_id_to_name(self) -> Dict[int, str]:
-        """Returns an index of field ID to full name
+        """Return an index of field ID to full name.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return index_name_by_id(self)
 
     @cached_property
-    def _lazy_id_to_accessor(self) -> Dict[int, "Accessor"]:
-        """Returns an index of field ID to accessor
+    def _lazy_id_to_accessor(self) -> Dict[int, Accessor]:
+        """Return an index of field ID to accessor.
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         return build_position_accessors(self)
 
     def as_struct(self) -> StructType:
-        """Returns the schema as a struct"""
+        """Return the schema as a struct."""
         return StructType(*self.fields)
 
     def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
-        """Find a field using a field name or field ID
+        """Find a field using a field name or field ID.
 
         Args:
-            name_or_id (Union[str, int]): Either a field name or a field ID
+            name_or_id (Union[str, int]): Either a field name or a field ID.
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Raises:
-            ValueError: When the value cannot be found
+            ValueError: When the value cannot be found.
 
         Returns:
-            NestedField: The matched NestedField
+            NestedField: The matched NestedField.
         """
         if isinstance(name_or_id, int):
             if name_or_id not in self._lazy_id_to_field:
@@ -181,14 +203,14 @@ class Schema(IcebergBaseModel):
         return self._lazy_id_to_field[field_id]
 
     def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
-        """Find a field type using a field name or field ID
+        """Find a field type using a field name or field ID.
 
         Args:
-            name_or_id (Union[str, int]): Either a field name or a field ID
+            name_or_id (Union[str, int]): Either a field name or a field ID.
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
-            NestedField: The type of the matched NestedField
+            NestedField: The type of the matched NestedField.
         """
         field = self.find_field(name_or_id=name_or_id, case_sensitive=case_sensitive)
         if not field:
@@ -197,63 +219,76 @@ class Schema(IcebergBaseModel):
 
     @property
     def highest_field_id(self) -> int:
-        return visit(self.as_struct(), _FindLastFieldId())
+        return max(self._lazy_id_to_name.keys(), default=0)
 
     def find_column_name(self, column_id: int) -> Optional[str]:
-        """Find a column name given a column ID
+        """Find a column name given a column ID.
 
         Args:
-            column_id (int): The ID of the column
+            column_id (int): The ID of the column.
 
         Returns:
-            str: The column name (or None if the column ID cannot be found)
+            str: The column name (or None if the column ID cannot be found).
         """
         return self._lazy_id_to_name.get(column_id)
 
     @property
     def column_names(self) -> List[str]:
         """
-        Returns a list of all the column names, including nested fields
+        Return a list of all the column names, including nested fields.
 
-        Excludes short names
+        Excludes short names.
 
         Returns:
-            List[str]: The column names
+            List[str]: The column names.
         """
         return list(self._lazy_id_to_name.values())
 
-    def accessor_for_field(self, field_id: int) -> "Accessor":
-        """Find a schema position accessor given a field ID
+    def accessor_for_field(self, field_id: int) -> Accessor:
+        """Find a schema position accessor given a field ID.
 
         Args:
-            field_id (int): The ID of the field
+            field_id (int): The ID of the field.
 
         Raises:
-            ValueError: When the value cannot be found
+            ValueError: When the value cannot be found.
 
         Returns:
-            Accessor: An accessor for the given field ID
+            Accessor: An accessor for the given field ID.
         """
-
         if field_id not in self._lazy_id_to_accessor:
             raise ValueError(f"Could not find accessor for field with id: {field_id}")
 
         return self._lazy_id_to_accessor[field_id]
 
-    def select(self, *names: str, case_sensitive: bool = True) -> "Schema":
-        """Return a new schema instance pruned to a subset of columns
+    def identifier_field_names(self) -> Set[str]:
+        """Return the names of the identifier fields.
+
+        Returns:
+            Set of names of the identifier fields
+        """
+        ids = set()
+        for field_id in self.identifier_field_ids:
+            column_name = self.find_column_name(field_id)
+            if column_name is None:
+                raise ValueError(f"Could not find identifier column id: {field_id}")
+            ids.add(column_name)
+
+        return ids
+
+    def select(self, *names: str, case_sensitive: bool = True) -> Schema:
+        """Return a new schema instance pruned to a subset of columns.
 
         Args:
-            names (List[str]): A list of column names
+            names (List[str]): A list of column names.
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup for each column name. Defaults to True.
 
         Returns:
-            Schema: A new schema with pruned columns
+            Schema: A new schema with pruned columns.
 
         Raises:
-            ValueError: If a column is selected that doesn't exist
+            ValueError: If a column is selected that doesn't exist.
         """
-
         try:
             if case_sensitive:
                 ids = {self._name_to_id[name] for name in names}
@@ -266,151 +301,188 @@ class Schema(IcebergBaseModel):
 
     @property
     def field_ids(self) -> Set[int]:
-        """Returns the IDs of the current schema"""
+        """Return the IDs of the current schema."""
         return set(self._name_to_id.values())
+
+    def _validate_identifier_field(self, field_id: int) -> None:
+        """Validate that the field with the given ID is a valid identifier field.
+
+        Args:
+          field_id: The ID of the field to validate.
+
+        Raises:
+          ValueError: If the field is not valid.
+        """
+        field = self.find_field(field_id)
+        if not field.field_type.is_primitive:
+            raise ValueError(f"Identifier field {field_id} invalid: not a primitive type field")
+
+        if not field.required:
+            raise ValueError(f"Identifier field {field_id} invalid: not a required field")
+
+        if isinstance(field.field_type, (DoubleType, FloatType)):
+            raise ValueError(f"Identifier field {field_id} invalid: must not be float or double field")
+
+        # Check whether the nested field is in a chain of required struct fields
+        # Exploring from root for better error message for list and map types
+        parent_id = self._lazy_id_to_parent.get(field.field_id)
+        fields: List[int] = []
+        while parent_id is not None:
+            fields.append(parent_id)
+            parent_id = self._lazy_id_to_parent.get(parent_id)
+
+        while fields:
+            parent = self.find_field(fields.pop())
+            if not parent.field_type.is_struct:
+                raise ValueError(f"Cannot add field {field.name} as an identifier field: must not be nested in {parent}")
+
+            if not parent.required:
+                raise ValueError(
+                    f"Cannot add field {field.name} as an identifier field: must not be nested in an optional field {parent}"
+                )
 
 
 class SchemaVisitor(Generic[T], ABC):
     def before_field(self, field: NestedField) -> None:
-        """Override this method to perform an action immediately before visiting a field"""
+        """Override this method to perform an action immediately before visiting a field."""
 
     def after_field(self, field: NestedField) -> None:
-        """Override this method to perform an action immediately after visiting a field"""
+        """Override this method to perform an action immediately after visiting a field."""
 
     def before_list_element(self, element: NestedField) -> None:
-        """Override this method to perform an action immediately before visiting an element within a ListType"""
+        """Override this method to perform an action immediately before visiting an element within a ListType."""
         self.before_field(element)
 
     def after_list_element(self, element: NestedField) -> None:
-        """Override this method to perform an action immediately after visiting an element within a ListType"""
+        """Override this method to perform an action immediately after visiting an element within a ListType."""
         self.after_field(element)
 
     def before_map_key(self, key: NestedField) -> None:
-        """Override this method to perform an action immediately before visiting a key within a MapType"""
+        """Override this method to perform an action immediately before visiting a key within a MapType."""
         self.before_field(key)
 
     def after_map_key(self, key: NestedField) -> None:
-        """Override this method to perform an action immediately after visiting a key within a MapType"""
+        """Override this method to perform an action immediately after visiting a key within a MapType."""
         self.after_field(key)
 
     def before_map_value(self, value: NestedField) -> None:
-        """Override this method to perform an action immediately before visiting a value within a MapType"""
+        """Override this method to perform an action immediately before visiting a value within a MapType."""
         self.before_field(value)
 
     def after_map_value(self, value: NestedField) -> None:
-        """Override this method to perform an action immediately after visiting a value within a MapType"""
+        """Override this method to perform an action immediately after visiting a value within a MapType."""
         self.after_field(value)
 
     @abstractmethod
     def schema(self, schema: Schema, struct_result: T) -> T:
-        """Visit a Schema"""
+        """Visit a Schema."""
 
     @abstractmethod
     def struct(self, struct: StructType, field_results: List[T]) -> T:
-        """Visit a StructType"""
+        """Visit a StructType."""
 
     @abstractmethod
     def field(self, field: NestedField, field_result: T) -> T:
-        """Visit a NestedField"""
+        """Visit a NestedField."""
 
     @abstractmethod
     def list(self, list_type: ListType, element_result: T) -> T:
-        """Visit a ListType"""
+        """Visit a ListType."""
 
     @abstractmethod
     def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
-        """Visit a MapType"""
+        """Visit a MapType."""
 
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
-        """Visit a PrimitiveType"""
+        """Visit a PrimitiveType."""
 
 
 class PreOrderSchemaVisitor(Generic[T], ABC):
     @abstractmethod
     def schema(self, schema: Schema, struct_result: Callable[[], T]) -> T:
-        """Visit a Schema"""
+        """Visit a Schema."""
 
     @abstractmethod
     def struct(self, struct: StructType, field_results: List[Callable[[], T]]) -> T:
-        """Visit a StructType"""
+        """Visit a StructType."""
 
     @abstractmethod
     def field(self, field: NestedField, field_result: Callable[[], T]) -> T:
-        """Visit a NestedField"""
+        """Visit a NestedField."""
 
     @abstractmethod
     def list(self, list_type: ListType, element_result: Callable[[], T]) -> T:
-        """Visit a ListType"""
+        """Visit a ListType."""
 
     @abstractmethod
     def map(self, map_type: MapType, key_result: Callable[[], T], value_result: Callable[[], T]) -> T:
-        """Visit a MapType"""
+        """Visit a MapType."""
 
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
-        """Visit a PrimitiveType"""
+        """Visit a PrimitiveType."""
 
 
 class SchemaWithPartnerVisitor(Generic[P, T], ABC):
     def before_field(self, field: NestedField, field_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately before visiting a field"""
+        """Override this method to perform an action immediately before visiting a field."""
 
     def after_field(self, field: NestedField, field_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately after visiting a field"""
+        """Override this method to perform an action immediately after visiting a field."""
 
     def before_list_element(self, element: NestedField, element_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately before visiting an element within a ListType"""
+        """Override this method to perform an action immediately before visiting an element within a ListType."""
         self.before_field(element, element_partner)
 
     def after_list_element(self, element: NestedField, element_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately after visiting an element within a ListType"""
+        """Override this method to perform an action immediately after visiting an element within a ListType."""
         self.after_field(element, element_partner)
 
     def before_map_key(self, key: NestedField, key_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately before visiting a key within a MapType"""
+        """Override this method to perform an action immediately before visiting a key within a MapType."""
         self.before_field(key, key_partner)
 
     def after_map_key(self, key: NestedField, key_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately after visiting a key within a MapType"""
+        """Override this method to perform an action immediately after visiting a key within a MapType."""
         self.after_field(key, key_partner)
 
     def before_map_value(self, value: NestedField, value_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately before visiting a value within a MapType"""
+        """Override this method to perform an action immediately before visiting a value within a MapType."""
         self.before_field(value, value_partner)
 
     def after_map_value(self, value: NestedField, value_partner: Optional[P]) -> None:
-        """Override this method to perform an action immediately after visiting a value within a MapType"""
+        """Override this method to perform an action immediately after visiting a value within a MapType."""
         self.after_field(value, value_partner)
 
     @abstractmethod
     def schema(self, schema: Schema, schema_partner: Optional[P], struct_result: T) -> T:
-        """Visit a schema with a partner"""
+        """Visit a schema with a partner."""
 
     @abstractmethod
     def struct(self, struct: StructType, struct_partner: Optional[P], field_results: List[T]) -> T:
-        """Visit a struct type with a partner"""
+        """Visit a struct type with a partner."""
 
     @abstractmethod
     def field(self, field: NestedField, field_partner: Optional[P], field_result: T) -> T:
-        """Visit a nested field with a partner"""
+        """Visit a nested field with a partner."""
 
     @abstractmethod
     def list(self, list_type: ListType, list_partner: Optional[P], element_result: T) -> T:
-        """Visit a list type with a partner"""
+        """Visit a list type with a partner."""
 
     @abstractmethod
     def map(self, map_type: MapType, map_partner: Optional[P], key_result: T, value_result: T) -> T:
-        """Visit a map type with a partner"""
+        """Visit a map type with a partner."""
 
     @abstractmethod
     def primitive(self, primitive: PrimitiveType, primitive_partner: Optional[P]) -> T:
-        """Visit a primitive type with a partner"""
+        """Visit a primitive type with a partner."""
 
 
 class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
     def primitive(self, primitive: PrimitiveType, primitive_partner: Optional[P]) -> T:
-        """Visit a PrimitiveType"""
+        """Visit a PrimitiveType."""
         if isinstance(primitive, BooleanType):
             return self.visit_boolean(primitive, primitive_partner)
         elif isinstance(primitive, IntegerType):
@@ -430,7 +502,7 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive, primitive_partner)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive, primitive_partner)
+            return self.visit_timestamptz(primitive, primitive_partner)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive, primitive_partner)
         elif isinstance(primitive, UUIDType):
@@ -444,81 +516,81 @@ class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
 
     @abstractmethod
     def visit_boolean(self, boolean_type: BooleanType, partner: Optional[P]) -> T:
-        """Visit a BooleanType"""
+        """Visit a BooleanType."""
 
     @abstractmethod
     def visit_integer(self, integer_type: IntegerType, partner: Optional[P]) -> T:
-        """Visit a IntegerType"""
+        """Visit a IntegerType."""
 
     @abstractmethod
     def visit_long(self, long_type: LongType, partner: Optional[P]) -> T:
-        """Visit a LongType"""
+        """Visit a LongType."""
 
     @abstractmethod
     def visit_float(self, float_type: FloatType, partner: Optional[P]) -> T:
-        """Visit a FloatType"""
+        """Visit a FloatType."""
 
     @abstractmethod
     def visit_double(self, double_type: DoubleType, partner: Optional[P]) -> T:
-        """Visit a DoubleType"""
+        """Visit a DoubleType."""
 
     @abstractmethod
     def visit_decimal(self, decimal_type: DecimalType, partner: Optional[P]) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_date(self, date_type: DateType, partner: Optional[P]) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_time(self, time_type: TimeType, partner: Optional[P]) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[P]) -> T:
-        """Visit a TimestampType"""
+        """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
-        """Visit a TimestamptzType"""
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
+        """Visit a TimestamptzType."""
 
     @abstractmethod
     def visit_string(self, string_type: StringType, partner: Optional[P]) -> T:
-        """Visit a StringType"""
+        """Visit a StringType."""
 
     @abstractmethod
     def visit_uuid(self, uuid_type: UUIDType, partner: Optional[P]) -> T:
-        """Visit a UUIDType"""
+        """Visit a UUIDType."""
 
     @abstractmethod
     def visit_fixed(self, fixed_type: FixedType, partner: Optional[P]) -> T:
-        """Visit a FixedType"""
+        """Visit a FixedType."""
 
     @abstractmethod
     def visit_binary(self, binary_type: BinaryType, partner: Optional[P]) -> T:
-        """Visit a BinaryType"""
+        """Visit a BinaryType."""
 
 
 class PartnerAccessor(Generic[P], ABC):
     @abstractmethod
     def schema_partner(self, partner: Optional[P]) -> Optional[P]:
-        """Returns the equivalent of the schema as a struct"""
+        """Return the equivalent of the schema as a struct."""
 
     @abstractmethod
     def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
-        """Returns the equivalent struct field by name or id in the partner struct"""
+        """Return the equivalent struct field by name or id in the partner struct."""
 
     @abstractmethod
     def list_element_partner(self, partner_list: Optional[P]) -> Optional[P]:
-        """Returns the equivalent list element in the partner list"""
+        """Return the equivalent list element in the partner list."""
 
     @abstractmethod
     def map_key_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map key in the partner map"""
+        """Return the equivalent map key in the partner map."""
 
     @abstractmethod
     def map_value_partner(self, partner_map: Optional[P]) -> Optional[P]:
-        """Returns the equivalent map value in the partner map"""
+        """Return the equivalent map value in the partner map."""
 
 
 @singledispatch
@@ -586,7 +658,7 @@ def _(primitive: PrimitiveType, partner: P, visitor: SchemaWithPartnerVisitor[P,
 
 class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
     def primitive(self, primitive: PrimitiveType) -> T:
-        """Visit a PrimitiveType"""
+        """Visit a PrimitiveType."""
         if isinstance(primitive, FixedType):
             return self.visit_fixed(primitive)
         elif isinstance(primitive, DecimalType):
@@ -608,7 +680,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         elif isinstance(primitive, TimestampType):
             return self.visit_timestamp(primitive)
         elif isinstance(primitive, TimestamptzType):
-            return self.visit_timestampz(primitive)
+            return self.visit_timestamptz(primitive)
         elif isinstance(primitive, StringType):
             return self.visit_string(primitive)
         elif isinstance(primitive, UUIDType):
@@ -620,82 +692,84 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
 
     @abstractmethod
     def visit_fixed(self, fixed_type: FixedType) -> T:
-        """Visit a FixedType"""
+        """Visit a FixedType."""
 
     @abstractmethod
     def visit_decimal(self, decimal_type: DecimalType) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_boolean(self, boolean_type: BooleanType) -> T:
-        """Visit a BooleanType"""
+        """Visit a BooleanType."""
 
     @abstractmethod
     def visit_integer(self, integer_type: IntegerType) -> T:
-        """Visit a IntegerType"""
+        """Visit a IntegerType."""
 
     @abstractmethod
     def visit_long(self, long_type: LongType) -> T:
-        """Visit a LongType"""
+        """Visit a LongType."""
 
     @abstractmethod
     def visit_float(self, float_type: FloatType) -> T:
-        """Visit a FloatType"""
+        """Visit a FloatType."""
 
     @abstractmethod
     def visit_double(self, double_type: DoubleType) -> T:
-        """Visit a DoubleType"""
+        """Visit a DoubleType."""
 
     @abstractmethod
     def visit_date(self, date_type: DateType) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_time(self, time_type: TimeType) -> T:
-        """Visit a DecimalType"""
+        """Visit a DecimalType."""
 
     @abstractmethod
     def visit_timestamp(self, timestamp_type: TimestampType) -> T:
-        """Visit a TimestampType"""
+        """Visit a TimestampType."""
 
     @abstractmethod
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> T:
-        """Visit a TimestamptzType"""
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType) -> T:
+        """Visit a TimestamptzType."""
 
     @abstractmethod
     def visit_string(self, string_type: StringType) -> T:
-        """Visit a StringType"""
+        """Visit a StringType."""
 
     @abstractmethod
     def visit_uuid(self, uuid_type: UUIDType) -> T:
-        """Visit a UUIDType"""
+        """Visit a UUIDType."""
 
     @abstractmethod
     def visit_binary(self, binary_type: BinaryType) -> T:
-        """Visit a BinaryType"""
+        """Visit a BinaryType."""
 
 
 @dataclass(init=True, eq=True, frozen=True)
 class Accessor:
-    """An accessor for a specific position in a container that implements the StructProtocol"""
+    """An accessor for a specific position in a container that implements the StructProtocol."""
 
     position: int
-    inner: Optional["Accessor"] = None
+    inner: Optional[Accessor] = None
 
     def __str__(self) -> str:
+        """Return the string representation of the Accessor class."""
         return f"Accessor(position={self.position},inner={self.inner})"
 
     def __repr__(self) -> str:
+        """Return the string representation of the Accessor class."""
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:
-        """Returns the value at self.position in `container`
+        """Return the value at self.position in `container`.
 
         Args:
-            container (StructProtocol): A container to access at position `self.position`
+            container (StructProtocol): A container to access at position `self.position`.
 
         Returns:
-            Any: The value at position `self.position` in the container
+            Any: The value at position `self.position` in the container.
         """
         pos = self.position
         val = container[pos]
@@ -709,29 +783,29 @@ class Accessor:
 
 @singledispatch
 def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema
+    """Apply a schema visitor to any point within a schema.
 
-    The function traverses the schema in post-order fashion
+    The function traverses the schema in post-order fashion.
 
     Args:
-        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType
-        visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
+        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType.
+        visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class.
 
     Raises:
-        NotImplementedError: If attempting to visit an unrecognized object type
+        NotImplementedError: If attempting to visit an unrecognized object type.
     """
     raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
 
 @visit.register(Schema)
 def _(obj: Schema, visitor: SchemaVisitor[T]) -> T:
-    """Visit a Schema with a concrete SchemaVisitor"""
+    """Visit a Schema with a concrete SchemaVisitor."""
     return visitor.schema(obj, visit(obj.as_struct(), visitor))
 
 
 @visit.register(StructType)
 def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
-    """Visit a StructType with a concrete SchemaVisitor"""
+    """Visit a StructType with a concrete SchemaVisitor."""
     results = []
 
     for field in obj.fields:
@@ -745,8 +819,7 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
 
 @visit.register(ListType)
 def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
-    """Visit a ListType with a concrete SchemaVisitor"""
-
+    """Visit a ListType with a concrete SchemaVisitor."""
     visitor.before_list_element(obj.element_field)
     result = visit(obj.element_type, visitor)
     visitor.after_list_element(obj.element_field)
@@ -756,51 +829,51 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
 
 @visit.register(MapType)
 def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
-    """Visit a MapType with a concrete SchemaVisitor"""
+    """Visit a MapType with a concrete SchemaVisitor."""
     visitor.before_map_key(obj.key_field)
     key_result = visit(obj.key_type, visitor)
     visitor.after_map_key(obj.key_field)
 
     visitor.before_map_value(obj.value_field)
     value_result = visit(obj.value_type, visitor)
-    visitor.after_list_element(obj.value_field)
+    visitor.after_map_value(obj.value_field)
 
     return visitor.map(obj, key_result, value_result)
 
 
 @visit.register(PrimitiveType)
 def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
-    """Visit a PrimitiveType with a concrete SchemaVisitor"""
+    """Visit a PrimitiveType with a concrete SchemaVisitor."""
     return visitor.primitive(obj)
 
 
 @singledispatch
 def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisitor[T]) -> T:
-    """A generic function for applying a schema visitor to any point within a schema
+    """Apply a schema visitor to any point within a schema.
 
     The function traverses the schema in pre-order fashion. This is a slimmed down version
     compared to the post-order traversal (missing before and after methods), mostly
     because we don't use the pre-order traversal much.
 
     Args:
-        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType
-        visitor (PreOrderSchemaVisitor[T]): An instance of an implementation of the generic PreOrderSchemaVisitor base class
+        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType.
+        visitor (PreOrderSchemaVisitor[T]): An instance of an implementation of the generic PreOrderSchemaVisitor base class.
 
     Raises:
-        NotImplementedError: If attempting to visit an unrecognized object type
+        NotImplementedError: If attempting to visit an unrecognized object type.
     """
     raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
 
 @pre_order_visit.register(Schema)
 def _(obj: Schema, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a Schema with a concrete PreOrderSchemaVisitor"""
+    """Visit a Schema with a concrete PreOrderSchemaVisitor."""
     return visitor.schema(obj, lambda: pre_order_visit(obj.as_struct(), visitor))
 
 
 @pre_order_visit.register(StructType)
 def _(obj: StructType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a StructType with a concrete PreOrderSchemaVisitor"""
+    """Visit a StructType with a concrete PreOrderSchemaVisitor."""
     return visitor.struct(
         obj,
         [
@@ -815,24 +888,24 @@ def _(obj: StructType, visitor: PreOrderSchemaVisitor[T]) -> T:
 
 @pre_order_visit.register(ListType)
 def _(obj: ListType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a ListType with a concrete PreOrderSchemaVisitor"""
+    """Visit a ListType with a concrete PreOrderSchemaVisitor."""
     return visitor.list(obj, lambda: pre_order_visit(obj.element_type, visitor))
 
 
 @pre_order_visit.register(MapType)
 def _(obj: MapType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a MapType with a concrete PreOrderSchemaVisitor"""
+    """Visit a MapType with a concrete PreOrderSchemaVisitor."""
     return visitor.map(obj, lambda: pre_order_visit(obj.key_type, visitor), lambda: pre_order_visit(obj.value_type, visitor))
 
 
 @pre_order_visit.register(PrimitiveType)
 def _(obj: PrimitiveType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a PrimitiveType with a concrete PreOrderSchemaVisitor"""
+    """Visit a PrimitiveType with a concrete PreOrderSchemaVisitor."""
     return visitor.primitive(obj)
 
 
 class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
-    """A schema visitor for generating a field ID to NestedField index"""
+    """A schema visitor for generating a field ID to NestedField index."""
 
     def __init__(self) -> None:
         self._index: Dict[int, NestedField] = {}
@@ -844,19 +917,19 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
         return self._index
 
     def field(self, field: NestedField, field_result: Dict[int, NestedField]) -> Dict[int, NestedField]:
-        """Add the field ID to the index"""
+        """Add the field ID to the index."""
         self._index[field.field_id] = field
         return self._index
 
     def list(self, list_type: ListType, element_result: Dict[int, NestedField]) -> Dict[int, NestedField]:
-        """Add the list element ID to the index"""
+        """Add the list element ID to the index."""
         self._index[list_type.element_field.field_id] = list_type.element_field
         return self._index
 
     def map(
         self, map_type: MapType, key_result: Dict[int, NestedField], value_result: Dict[int, NestedField]
     ) -> Dict[int, NestedField]:
-        """Add the key ID and value ID as individual items in the index"""
+        """Add the key ID and value ID as individual items in the index."""
         self._index[map_type.key_field.field_id] = map_type.key_field
         self._index[map_type.value_field.field_id] = map_type.value_field
         return self._index
@@ -866,19 +939,70 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
 
 
 def index_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, NestedField]:
-    """Generate an index of field IDs to NestedField instances
+    """Generate an index of field IDs to NestedField instances.
 
     Args:
-        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
 
     Returns:
-        Dict[int, NestedField]: An index of field IDs to NestedField instances
+        Dict[int, NestedField]: An index of field IDs to NestedField instances.
     """
     return visit(schema_or_type, _IndexById())
 
 
+class _IndexParents(SchemaVisitor[Dict[int, int]]):
+    def __init__(self) -> None:
+        self.id_to_parent: Dict[int, int] = {}
+        self.id_stack: List[int] = []
+
+    def before_field(self, field: NestedField) -> None:
+        self.id_stack.append(field.field_id)
+
+    def after_field(self, field: NestedField) -> None:
+        self.id_stack.pop()
+
+    def schema(self, schema: Schema, struct_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def struct(self, struct: StructType, field_results: List[Dict[int, int]]) -> Dict[int, int]:
+        for field in struct.fields:
+            parent_id = self.id_stack[-1] if self.id_stack else None
+            if parent_id is not None:
+                # fields in the root struct are not added
+                self.id_to_parent[field.field_id] = parent_id
+
+        return self.id_to_parent
+
+    def field(self, field: NestedField, field_result: Dict[int, int]) -> Dict[int, int]:
+        return self.id_to_parent
+
+    def list(self, list_type: ListType, element_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[list_type.element_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def map(self, map_type: MapType, key_result: Dict[int, int], value_result: Dict[int, int]) -> Dict[int, int]:
+        self.id_to_parent[map_type.key_id] = self.id_stack[-1]
+        self.id_to_parent[map_type.value_id] = self.id_stack[-1]
+        return self.id_to_parent
+
+    def primitive(self, primitive: PrimitiveType) -> Dict[int, int]:
+        return self.id_to_parent
+
+
+def _index_parents(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, int]:
+    """Generate an index of field IDs to their parent field IDs.
+
+    Args:
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
+
+    Returns:
+        Dict[int, int]: An index of field IDs to their parent field IDs.
+    """
+    return visit(schema_or_type, _IndexParents())
+
+
 class _IndexByName(SchemaVisitor[Dict[str, int]]):
-    """A schema visitor for generating a field name to field ID index"""
+    """A schema visitor for generating a field name to field ID index."""
 
     def __init__(self) -> None:
         self._index: Dict[str, int] = {}
@@ -887,8 +1011,18 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._field_names: List[str] = []
         self._short_field_names: List[str] = []
 
+    def before_map_value(self, value: NestedField) -> None:
+        if not isinstance(value.field_type, StructType):
+            self._short_field_names.append(value.name)
+        self._field_names.append(value.name)
+
+    def after_map_value(self, value: NestedField) -> None:
+        if not isinstance(value.field_type, StructType):
+            self._short_field_names.pop()
+        self._field_names.pop()
+
     def before_list_element(self, element: NestedField) -> None:
-        """Short field names omit element when the element is a StructType"""
+        """Short field names omit element when the element is a StructType."""
         if not isinstance(element.field_type, StructType):
             self._short_field_names.append(element.name)
         self._field_names.append(element.name)
@@ -899,12 +1033,12 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._field_names.pop()
 
     def before_field(self, field: NestedField) -> None:
-        """Store the field name"""
+        """Store the field name."""
         self._field_names.append(field.name)
         self._short_field_names.append(field.name)
 
     def after_field(self, field: NestedField) -> None:
-        """Remove the last field name stored"""
+        """Remove the last field name stored."""
         self._field_names.pop()
         self._short_field_names.pop()
 
@@ -915,30 +1049,30 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return self._index
 
     def field(self, field: NestedField, field_result: Dict[str, int]) -> Dict[str, int]:
-        """Add the field name to the index"""
+        """Add the field name to the index."""
         self._add_field(field.name, field.field_id)
         return self._index
 
     def list(self, list_type: ListType, element_result: Dict[str, int]) -> Dict[str, int]:
-        """Add the list element name to the index"""
+        """Add the list element name to the index."""
         self._add_field(list_type.element_field.name, list_type.element_field.field_id)
         return self._index
 
     def map(self, map_type: MapType, key_result: Dict[str, int], value_result: Dict[str, int]) -> Dict[str, int]:
-        """Add the key name and value name as individual items in the index"""
+        """Add the key name and value name as individual items in the index."""
         self._add_field(map_type.key_field.name, map_type.key_field.field_id)
         self._add_field(map_type.value_field.name, map_type.value_field.field_id)
         return self._index
 
     def _add_field(self, name: str, field_id: int) -> None:
-        """Add a field name to the index, mapping its full name to its field ID
+        """Add a field name to the index, mapping its full name to its field ID.
 
         Args:
-            name (str): The field name
-            field_id (int): The field ID
+            name (str): The field name.
+            field_id (int): The field ID.
 
         Raises:
-            ValueError: If the field name is already contained in the index
+            ValueError: If the field name is already contained in the index.
         """
         full_name = name
 
@@ -957,7 +1091,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return self._index
 
     def by_name(self) -> Dict[str, int]:
-        """Returns an index of combined full and short names
+        """Return an index of combined full and short names.
 
         Note: Only short names that do not conflict with full names are included.
         """
@@ -966,19 +1100,19 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return combined_index
 
     def by_id(self) -> Dict[int, str]:
-        """Returns an index of ID to full names"""
+        """Return an index of ID to full names."""
         id_to_full_name = {value: key for key, value in self._index.items()}
         return id_to_full_name
 
 
 def index_by_name(schema_or_type: Union[Schema, IcebergType]) -> Dict[str, int]:
-    """Generate an index of field names to field IDs
+    """Generate an index of field names to field IDs.
 
     Args:
-        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
 
     Returns:
-        Dict[str, int]: An index of field names to field IDs
+        Dict[str, int]: An index of field names to field IDs.
     """
     if len(schema_or_type.fields) > 0:
         indexer = _IndexByName()
@@ -989,13 +1123,13 @@ def index_by_name(schema_or_type: Union[Schema, IcebergType]) -> Dict[str, int]:
 
 
 def index_name_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, str]:
-    """Generate an index of field IDs full field names
+    """Generate an index of field IDs full field names.
 
     Args:
-        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
 
     Returns:
-        Dict[str, int]: An index of field IDs to full names
+        Dict[str, int]: An index of field IDs to full names.
     """
     indexer = _IndexByName()
     visit(schema_or_type, indexer)
@@ -1006,7 +1140,7 @@ Position = int
 
 
 class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
-    """A schema visitor for generating a field ID to accessor index
+    """A schema visitor for generating a field ID to accessor index.
 
     Example:
         >>> from pyiceberg.schema import Schema
@@ -1068,56 +1202,34 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
 
 
 def build_position_accessors(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, Accessor]:
-    """Generate an index of field IDs to schema position accessors
+    """Generate an index of field IDs to schema position accessors.
 
     Args:
-        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index.
 
     Returns:
-        Dict[int, Accessor]: An index of field IDs to accessors
+        Dict[int, Accessor]: An index of field IDs to accessors.
     """
     return visit(schema_or_type, _BuildPositionAccessors())
 
 
-class _FindLastFieldId(SchemaVisitor[int]):
-    """Traverses the schema to get the highest field-id"""
-
-    def schema(self, schema: Schema, struct_result: int) -> int:
-        return struct_result
-
-    def struct(self, struct: StructType, field_results: List[int]) -> int:
-        return max(field_results)
-
-    def field(self, field: NestedField, field_result: int) -> int:
-        return max(field.field_id, field_result)
-
-    def list(self, list_type: ListType, element_result: int) -> int:
-        return element_result
-
-    def map(self, map_type: MapType, key_result: int, value_result: int) -> int:
-        return max(key_result, value_result)
-
-    def primitive(self, primitive: PrimitiveType) -> int:
-        return 0
-
-
-def assign_fresh_schema_ids(schema: Schema) -> Schema:
-    """Traverses the schema, and sets new IDs"""
-    return pre_order_visit(schema, _SetFreshIDs())
+def assign_fresh_schema_ids(schema_or_type: Union[Schema, IcebergType], next_id: Optional[Callable[[], int]] = None) -> Schema:
+    """Traverses the schema, and sets new IDs."""
+    return pre_order_visit(schema_or_type, _SetFreshIDs(next_id_func=next_id))
 
 
 class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
-    """Traverses the schema and assigns monotonically increasing ids"""
+    """Traverses the schema and assigns monotonically increasing ids."""
 
-    counter: itertools.count  # type: ignore
     reserved_ids: Dict[int, int]
 
-    def __init__(self, start: int = 1) -> None:
-        self.counter = itertools.count(start)
+    def __init__(self, next_id_func: Optional[Callable[[], int]] = None) -> None:
         self.reserved_ids = {}
+        counter = itertools.count(1)
+        self.next_id_func = next_id_func if next_id_func is not None else lambda: next(counter)
 
     def _get_and_increment(self) -> int:
-        return next(self.counter)
+        return self.next_id_func()
 
     def schema(self, schema: Schema, struct_result: Callable[[], StructType]) -> Schema:
         # First we keep the original identifier_field_ids here, we remap afterwards
@@ -1162,6 +1274,16 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
 
 def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
+    """Prunes a column by only selecting a set of field-ids.
+
+    Args:
+        schema: The schema to be pruned.
+        selected: The field-ids to be included.
+        select_full_types: Return the full struct when a subset is recorded
+
+    Returns:
+        The pruned schema.
+    """
     result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
     return Schema(
         *(result or StructType()).fields,
@@ -1306,14 +1428,14 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
 
 @singledispatch
 def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
-    """Promotes reading a file type to a read type
+    """Promotes reading a file type to a read type.
 
     Args:
-        file_type (IcebergType): The type of the Avro file
-        read_type (IcebergType): The requested read type
+        file_type (IcebergType): The type of the Avro file.
+        read_type (IcebergType): The requested read type.
 
     Raises:
-        ResolveError: If attempting to resolve an unrecognized object type
+        ResolveError: If attempting to resolve an unrecognized object type.
     """
     if file_type == read_type:
         return file_type

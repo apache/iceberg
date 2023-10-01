@@ -239,6 +239,10 @@ public class SnapshotUtil {
                 return true;
               }
 
+              if (next == null) {
+                return false;
+              }
+
               Long parentId = next.parentId();
               if (parentId == null) {
                 return false;
@@ -333,6 +337,17 @@ public class SnapshotUtil {
    *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = nullableSnapshotIdAsOfTime(table, timestampMillis);
+
+    Preconditions.checkArgument(
+        snapshotId != null,
+        "Cannot find a snapshot older than %s",
+        DateTimeUtil.formatTimestampMillis(timestampMillis));
+
+    return snapshotId;
+  }
+
+  public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : table.history()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
@@ -340,10 +355,6 @@ public class SnapshotUtil {
       }
     }
 
-    Preconditions.checkArgument(
-        snapshotId != null,
-        "Cannot find a snapshot older than %s",
-        DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
