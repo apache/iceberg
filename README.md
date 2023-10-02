@@ -88,5 +88,5 @@ For other engines such as Presto or Trino, please visit their websites for Icebe
 This repository contains the Java implementation of Iceberg. Other implementations can be found at:
 
 * **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
-* **PyIceberg**: [iceberg-python](https://github.com/apache/iceberg-python)
+* **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
 * **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)
