@@ -150,7 +150,8 @@ public class AwsClientProperties implements Serializable {
       return credentialsProvider(this.clientCredentialsProvider);
     }
 
-    return DefaultCredentialsProvider.create();
+    // Create a new credential provider for each client
+    return DefaultCredentialsProvider.builder().build();
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
