@@ -40,6 +40,7 @@ include 'gcp-bundle'
 include 'dell'
 include 'snowflake'
 include 'delta-lake'
+include 'kafka-connect'
 
 project(':api').name = 'iceberg-api'
 project(':common').name = 'iceberg-common'
@@ -63,6 +64,7 @@ project(':gcp-bundle').name = 'iceberg-gcp-bundle'
 project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
+project(':kafka-connect').name = 'iceberg-kafka-connect'
 
 if (null != System.getProperty("allVersions")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
@@ -188,3 +190,6 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   }
 }
 
+include ":iceberg-kafka-connect:kafka-connect-events"
+project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
+project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
