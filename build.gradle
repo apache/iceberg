@@ -912,7 +912,6 @@ project(':iceberg-dell') {
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly libs.object.client.bundle
-    testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.5.0'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.jaxb.api
     testImplementation libs.activation
