@@ -637,7 +637,7 @@ project(':iceberg-gcp') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    
+
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.google.cloud.biglake.grpc
     testImplementation libs.google.cloud.nio
