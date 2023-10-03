@@ -47,7 +47,7 @@ import org.apache.iceberg.util.CharSequenceSet;
  * records, consider using {@link SortingPositionOnlyDeleteWriter} instead.
  */
 public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
-  private static final Set<Integer> SINGLE_REFERENCED_FILE_BOUNDS_ONLY =
+  private static final Set<Integer> FILE_AND_POS_FIELD_IDS =
       ImmutableSet.of(DELETE_FILE_PATH.fieldId(), DELETE_FILE_POS.fieldId());
 
   private final FileAppender<StructLike> appender;
@@ -121,9 +121,9 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private Metrics metrics() {
     Metrics metrics = appender.metrics();
     if (referencedDataFiles.size() > 1) {
-      return MetricsUtil.copyWithoutFieldBounds(metrics, SINGLE_REFERENCED_FILE_BOUNDS_ONLY);
+      return MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, FILE_AND_POS_FIELD_IDS);
     } else {
-      return metrics;
+      return MetricsUtil.copyWithoutFieldCounts(metrics, FILE_AND_POS_FIELD_IDS);
     }
   }
 }

@@ -20,9 +20,8 @@ import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
-from typing import Any, Callable, Generic
+from typing import Any, Callable, Generic, Optional, TypeVar
 from typing import Literal as LiteralType
-from typing import Optional, TypeVar
 from uuid import UUID
 
 import mmh3

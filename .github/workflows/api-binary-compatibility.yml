@@ -38,7 +38,7 @@ jobs:
   revapi:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
           # revapi depends on the tags, specifically the tag from git describe, to find the relevant override

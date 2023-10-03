@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -48,7 +50,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -121,12 +122,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
   @Test
@@ -176,7 +175,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT)");
 
     // Assert that table does exist.
-    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+    assertThat(table("tl")).isNotNull();
 
     sql("DROP TABLE tl");
     AssertHelpers.assertThrows(
@@ -186,15 +185,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         () -> table("tl"));
 
     sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
-    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+    assertThat(table("tl").properties()).doesNotContainKey("key");
 
-    final Map<String, String> expectedProperties = ImmutableMap.of("key", "value");
     table("tl").updateProperties().set("key", "value").commit();
-    Assert.assertEquals(expectedProperties, table("tl").properties());
+    assertThat(table("tl").properties()).containsEntry("key", "value");
 
     sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
-    Assert.assertEquals(
-        "Should still be the old table.", expectedProperties, table("tl").properties());
+    assertThat(table("tl").properties()).containsEntry("key", "value");
   }
 
   @Test
@@ -206,12 +203,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl2");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
   @Test
@@ -226,7 +221,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
     Assert.assertEquals("file:///tmp/location", table.location());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
   }
 
   @Test
@@ -242,7 +236,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(
         PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
-    Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
@@ -251,7 +244,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .field("dt", DataTypes.STRING())
             .build(),
         catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
   }
 
@@ -304,7 +296,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
   }
 
@@ -317,12 +308,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // new
     sql("ALTER TABLE tl SET('newK'='newV')");
     properties.put("newK", "newV");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // update old
     sql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // remove property
     CatalogTable catalogTable = catalogTable("tl");
@@ -331,7 +322,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .getCatalog(getTableEnv().getCurrentCatalog())
         .get()
         .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
   }
 
   @Test
@@ -343,12 +334,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // new
     sql("ALTER TABLE tl SET('newK'='newV')");
     properties.put("newK", "newV");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // update old
     sql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // remove property
     CatalogTable catalogTable = catalogTable("tl");
@@ -357,7 +348,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .getCatalog(getTableEnv().getCurrentCatalog())
         .get()
         .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
-    Assert.assertEquals(properties, table("tl").properties());
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
   }
 
   @Test

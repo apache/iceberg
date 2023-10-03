@@ -195,4 +195,5 @@ class Record(StructProtocol):
         return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"
 
     def record_fields(self) -> List[str]:
+        """Return values of all the fields of the Record class except those specified in skip_fields."""
         return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name]

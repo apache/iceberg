@@ -184,8 +184,6 @@ If the delete filter matches entire partitions of the table, Iceberg will perfor
 
 ### `UPDATE`
 
-Spark 3.1 added support for `UPDATE` queries that update matching rows in tables.
-
 Update queries accept a filter to match rows to update.
 
 ```sql
@@ -312,6 +310,33 @@ data.writeTo("prod.db.table")
     .tableProperty("location", "/path/to/location")
     .createOrReplace()
 ```
+
+### Schema Merge
+
+While inserting or updating Iceberg is capable of resolving schema mismatch at runtime. If configured, Iceberg will perform an automatic schema evolution as follows:
+
+
+* A new column is present in the source but not in the target table.
+    
+  The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
+
+* A column is present in the target but not in the source. 
+
+  The target column value is set to `NULL` when inserting or left unchanged when updating the row.
+
+The target table must be configured to accept any schema change by setting the property `write.spark.accept-any-schema` to `true`.
+
+```sql
+ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+  'write.spark.accept-any-schema'='true'
+)
+```
+The writer must enable the `mergeSchema` option.
+
+```scala
+data.writeTo("prod.db.sample").option("mergeSchema","true").append()
+```
+
 
 ## Writing Distribution Modes
 

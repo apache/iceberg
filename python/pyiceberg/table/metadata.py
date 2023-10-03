@@ -28,9 +28,8 @@ from typing import (
     Union,
 )
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic import ValidationError as PydanticValidationError
-from pydantic import model_validator
 from typing_extensions import Annotated
 
 from pyiceberg.exceptions import ValidationError

@@ -129,7 +129,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
-    this.writeProperties = writeConf.writeProperties(format);
+    this.writeProperties = writeConf.writeProperties();
   }
 
   @Override

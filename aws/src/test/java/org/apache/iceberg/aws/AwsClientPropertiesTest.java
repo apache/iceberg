@@ -62,6 +62,19 @@ public class AwsClientPropertiesTest {
   }
 
   @Test
+  public void testCreatesNewInstanceOfDefaultCredentialsConfiguration() {
+    AwsClientProperties awsClientProperties = new AwsClientProperties();
+    AwsCredentialsProvider credentialsProvider =
+        awsClientProperties.credentialsProvider(null, null, null);
+    AwsCredentialsProvider credentialsProvider2 =
+        awsClientProperties.credentialsProvider(null, null, null);
+
+    Assertions.assertThat(credentialsProvider)
+        .withFailMessage("Should create a new instance in each call")
+        .isNotSameAs(credentialsProvider2);
+  }
+
+  @Test
   public void testBasicCredentialsConfiguration() {
     AwsClientProperties awsClientProperties = new AwsClientProperties();
     // set access key id and secret access key

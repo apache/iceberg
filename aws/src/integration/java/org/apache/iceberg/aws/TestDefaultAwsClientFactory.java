@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Test;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -48,21 +49,21 @@ public class TestDefaultAwsClientFactory {
   @Test
   public void testS3FileIoEndpointOverride() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.S3FILEIO_ENDPOINT, "https://unknown:1234");
+    properties.put(S3FileIOProperties.ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
     AssertHelpers.assertThrowsCause(
         "Should refuse connection to unknown endpoint",
         SdkClientException.class,
-        "Unable to execute HTTP request: unknown",
+        "Unable to execute HTTP request: bucket.unknown",
         () -> s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()));
   }
 
   @Test
   public void testS3FileIoCredentialsOverride() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.S3FILEIO_ACCESS_KEY_ID, "unknown");
-    properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "unknown");
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "unknown");
+    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "unknown");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
     AssertHelpers.assertThrows(

@@ -313,6 +313,38 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a namespace exists
+      operationId: namespaceExists
+      description:
+        Check if a namespace exists. The response does not contain a body.
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NoSuchNamespaceExample:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
     delete:
       tags:
         - Catalog API
@@ -777,16 +809,26 @@ paths:
       summary: Check if a table exists
       operationId: tableExists
       description:
-        Check if a table exists within a given namespace. This request does not return a response body.
+        Check if a table exists within a given namespace. The response does not contain a body.
       responses:
         204:
           description: Success, no content
         400:
-          description: Bad Request
+          $ref: '#/components/responses/BadRequestErrorResponse'
         401:
-          description: Unauthorized
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found
+          description:
+            Not Found - NoSuchTableException, Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:

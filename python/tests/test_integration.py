@@ -25,7 +25,7 @@ import pytest
 from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.exceptions import CommitFailedException, NoSuchTableError
+from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import (
     And,
     EqualTo,
@@ -40,14 +40,10 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.types import (
     BooleanType,
-    DoubleType,
-    FixedType,
     IntegerType,
-    LongType,
     NestedField,
     StringType,
     TimestampType,
-    UUIDType,
 )
 
 
@@ -359,86 +355,12 @@ def test_unpartitioned_fixed_table(catalog: Catalog) -> None:
 
 
 @pytest.mark.integration
-def test_schema_evolution(catalog: Catalog) -> None:
-    try:
-        catalog.drop_table("default.test_schema_evolution")
-    except NoSuchTableError:
-        pass
-
-    schema = Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-    )
-
-    t = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
-
-    assert t.schema() == schema
-
-    with t.update_schema() as tx:
-        tx.add_column("col_string", StringType())
-
-    assert t.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        schema_id=1,
-    )
+def test_scan_tag(test_positional_mor_deletes: Table) -> None:
+    arrow_table = test_positional_mor_deletes.scan().use_ref("tag_12").to_arrow()
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 
 @pytest.mark.integration
-def test_schema_evolution_via_transaction(catalog: Catalog) -> None:
-    try:
-        catalog.drop_table("default.test_schema_evolution")
-    except NoSuchTableError:
-        pass
-
-    schema = Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-    )
-
-    tbl = catalog.create_table(identifier="default.test_schema_evolution", schema=schema)
-
-    assert tbl.schema() == schema
-
-    with tbl.transaction() as tx:
-        tx.update_schema().add_column("col_string", StringType()).commit()
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        schema_id=1,
-    )
-
-    tbl.update_schema().add_column("col_integer", IntegerType()).commit()
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
-        schema_id=1,
-    )
-
-    with pytest.raises(CommitFailedException) as exc_info:
-        with tbl.transaction() as tx:
-            # Start a new update
-            schema_update = tx.update_schema()
-
-            # Do a concurrent update
-            tbl.update_schema().add_column("col_long", LongType()).commit()
-
-            # stage another update in the transaction
-            schema_update.add_column("col_double", DoubleType()).commit()
-
-    assert "Requirement failed: current schema changed: expected id 2 != 3" in str(exc_info.value)
-
-    assert tbl.schema() == Schema(
-        NestedField(field_id=1, name="col_uuid", field_type=UUIDType(), required=False),
-        NestedField(field_id=2, name="col_fixed", field_type=FixedType(25), required=False),
-        NestedField(field_id=3, name="col_string", field_type=StringType(), required=False),
-        NestedField(field_id=4, name="col_integer", field_type=IntegerType(), required=False),
-        NestedField(field_id=5, name="col_long", field_type=LongType(), required=False),
-        schema_id=1,
-    )
+def test_scan_branch(test_positional_mor_deletes: Table) -> None:
+    arrow_table = test_positional_mor_deletes.scan().use_ref("without_5").to_arrow()
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12]

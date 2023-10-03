@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -1086,7 +1087,12 @@ public class TestTableMetadata {
     String location = "file://tmp/db/table";
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            ImmutableMap.of(),
+            1);
 
     Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
         .isInstanceOf(ValidationException.class)
@@ -1452,14 +1458,10 @@ public class TestTableMetadata {
             null,
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version in properties",
-        ImmutableMap.of("key", "val"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test
@@ -1481,14 +1483,11 @@ public class TestTableMetadata {
             meta.location(),
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version but should contain old and new properties",
-        ImmutableMap.of("key", "val", "key2", "val2"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .containsEntry("key2", "val2")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test

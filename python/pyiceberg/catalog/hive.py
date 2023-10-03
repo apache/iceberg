@@ -29,9 +29,8 @@ from typing import (
 from urllib.parse import urlparse
 
 from hive_metastore.ThriftHiveMetastore import Client
-from hive_metastore.ttypes import AlreadyExistsException
-from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import (
+    AlreadyExistsException,
     FieldSchema,
     InvalidOperationException,
     MetaException,
@@ -39,6 +38,7 @@ from hive_metastore.ttypes import (
     SerDeInfo,
     StorageDescriptor,
 )
+from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import Table as HiveTable
 from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
@@ -302,6 +302,21 @@ class HiveCatalog(Catalog):
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
         return self._convert_hive_into_iceberg(hive_table, io)
+
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        raise NotImplementedError
 
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
         """Update the table.

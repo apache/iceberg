@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
@@ -51,9 +52,10 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
   }
 
   @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+  public Table createTable(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties) {
     TestIcebergSourceHiveTables.currentIdentifier = ident;
-    return TestIcebergSourceHiveTables.catalog.createTable(ident, schema, spec);
+    return TestIcebergSourceHiveTables.catalog.createTable(ident, schema, spec, properties);
   }
 
   @Override

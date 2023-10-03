@@ -26,10 +26,16 @@ PyIceberg is a Python implementation for accessing Iceberg tables, without the n
 
 ## Install
 
+Before installing PyIceberg, make sure that you're on an up-to-date version of `pip`:
+
+```sh
+pip install --upgrade pip
+```
+
 You can install the latest release version from pypi:
 
 ```sh
-pip3 install "pyiceberg[s3fs,hive]"
+pip install "pyiceberg[s3fs,hive]"
 ```
 
 Install it directly for Github (not recommended), but sometimes handy:

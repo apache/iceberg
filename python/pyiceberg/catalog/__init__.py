@@ -315,6 +315,21 @@ class Catalog(ABC):
         """
 
     @abstractmethod
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+
+    @abstractmethod
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
 
@@ -585,3 +600,7 @@ class Catalog(ABC):
         )
 
         return properties_update_summary, updated_properties
+
+    def __repr__(self) -> str:
+        """Return the string representation of the Catalog class."""
+        return f"{self.name} ({self.__class__})"

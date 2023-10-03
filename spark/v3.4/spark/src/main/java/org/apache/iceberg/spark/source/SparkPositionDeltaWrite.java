@@ -127,7 +127,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
-    this.writeProperties = writeConf.writeProperties(context.dataFileFormat);
+    this.writeProperties = writeConf.writeProperties();
   }
 
   @Override

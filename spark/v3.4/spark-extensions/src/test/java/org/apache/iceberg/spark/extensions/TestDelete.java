@@ -46,6 +46,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -92,7 +93,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       Boolean vectorized,
       String distributionMode,
       boolean fanoutEnabled,
-      String branch) {
+      String branch,
+      PlanningMode planningMode) {
     super(
         catalogName,
         implementation,
@@ -101,7 +103,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         vectorized,
         distributionMode,
         fanoutEnabled,
-        branch);
+        branch,
+        planningMode);
   }
 
   @BeforeClass
@@ -115,6 +118,36 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
     sql("DROP TABLE IF EXISTS parquet_table");
+  }
+
+  @Test
+  public void testDeleteWithVectorizedReads() throws NoSuchTableException {
+    assumeThat(supportsVectorization()).isTrue();
+
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    SparkPlan plan = executeAndKeepPlan("DELETE FROM %s WHERE id = 2", commitTarget());
+    assertAllBatchScansVectorized(plan);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+    }
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(3, "hardware"), row(4, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
   }
 
   @Test
@@ -948,6 +981,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1036,6 +1072,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assume.assumeTrue(cachingCatalogEnabled());
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1187,10 +1226,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution
-      // behavior
-      // that's why the number of changed partitions is 4 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }

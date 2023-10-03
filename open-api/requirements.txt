@@ -16,4 +16,6 @@
 # under the License.
 
 openapi-spec-validator==0.5.2
-git+https://github.com/koxudaxi/datamodel-code-generator/
+datamodel-code-generator==0.22.0
+# Add the Pydantic constraint since 2.4.0 has a bug
+pydantic<2.4.0

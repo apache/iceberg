@@ -79,6 +79,7 @@ class Endpoints:
     update_namespace_properties: str = "namespaces/{namespace}/properties"
     list_tables: str = "namespaces/{namespace}/tables"
     create_table: str = "namespaces/{namespace}/tables"
+    register_table = "namespaces/{namespace}/register"
     load_table: str = "namespaces/{namespace}/tables/{table}"
     update_table: str = "namespaces/{namespace}/tables/{table}"
     drop_table: str = "namespaces/{namespace}/tables/{table}?purgeRequested={purge}"
@@ -125,6 +126,11 @@ class CreateTableRequest(IcebergBaseModel):
     write_order: Optional[SortOrder] = Field(alias="write-order")
     stage_create: bool = Field(alias="stage-create", default=False)
     properties: Properties = Field(default_factory=dict)
+
+
+class RegisterTableRequest(IcebergBaseModel):
+    name: str
+    metadata_location: str = Field(..., alias="metadata-location")
 
 
 class TokenResponse(IcebergBaseModel):
@@ -433,6 +439,37 @@ class RestCatalog(Catalog):
         serialized_json = request.model_dump_json().encode("utf-8")
         response = self._session.post(
             self.url(Endpoints.create_table, namespace=namespace_and_table["namespace"]),
+            data=serialized_json,
+        )
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
+
+        table_response = TableResponse(**response.json())
+        return self._response_to_table(self.identifier_to_tuple(identifier), table_response)
+
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        namespace_and_table = self._split_identifier_for_path(identifier)
+        request = RegisterTableRequest(
+            name=namespace_and_table["table"],
+            metadata_location=metadata_location,
+        )
+        serialized_json = request.model_dump_json().encode("utf-8")
+        response = self._session.post(
+            self.url(Endpoints.register_table, namespace=namespace_and_table["namespace"]),
             data=serialized_json,
         )
         try:
