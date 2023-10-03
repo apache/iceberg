@@ -204,6 +204,13 @@ class RestCatalog(Catalog):
         self.uri = properties[URI]
         self._fetch_config()
         self._session = self._create_session()
+        # Mount custom adapters
+        if session_adapters := properties.pop('session_adapters', None):
+            for prefix, adapter in session_adapters.items():
+                self._session.mount(prefix, adapter)        
+        # Add custom auth
+        if session_auth := properties.pop('session_auth', None):
+            self._session.auth = session_auth
 
     def _create_session(self) -> Session:
         """Create a request session with provided catalog configuration."""
