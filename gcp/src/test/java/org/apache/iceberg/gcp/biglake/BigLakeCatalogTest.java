@@ -46,6 +46,7 @@ import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -337,7 +338,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
     assertThatThrownBy(
             () -> bigLakeCatalogUsingMockClient.loadNamespaceMetadata(Namespace.of("n0", "n1")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: n0.n1");
+        .hasMessage("Invalid namespace (too long): n0.n1");
   }
 
   @Test
@@ -346,7 +347,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
             () ->
                 bigLakeCatalogUsingMockClient.newTableOps(
                     TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Invalid namespace: n0.n1");
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Invalid identifier: n0.n1.tbl");
   }
 }

@@ -52,7 +52,12 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 
-/** A client of Google BigLake service. */
+/**
+ * A client of Google BigLake service.
+ *
+ * <p>This client returns 403 (permission denied) for both 403 and 404 (not found). Therefore
+ * NoSuchTableException and NoSuchNamespaceException could be caused by permission denied.
+ */
 final class BigLakeClient implements Closeable {
 
   private final MetastoreServiceClient stub;
@@ -173,6 +178,8 @@ final class BigLakeClient implements Closeable {
   public Table createTable(TableName name, Table table) {
     return convertException(
         () -> {
+          // TODO: to capture 403 errors and check error message to determine whether it fails due
+          // to parent not found or permission denied, and return proper Iceberg errors.
           try {
             return stub.createTable(
                 CreateTableRequest.newBuilder()
