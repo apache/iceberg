@@ -383,7 +383,7 @@ SELECT * FROM prod.db.table.all_data_files;
 
 #### All Delete Files
 
-To show all of the table's delete files and each file's metadata:
+To show the table's delete files and each file's metadata from all the snapshots:
 
 ```sql
 SELECT * FROM prod.db.table.all_delete_files;
@@ -396,7 +396,7 @@ SELECT * FROM prod.db.table.all_delete_files;
 
 #### All Entries
 
-To show all of the table's manifest entries from all the snapshots for both data and delete files:
+To show the table's manifest entries from all the snapshots for both data and delete files:
 
 ```sql
 SELECT * FROM prod.db.table.all_entries;
