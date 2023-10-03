@@ -200,7 +200,7 @@ class V1Metadata {
     // this is used to build projection schemas
     return new Schema(
         ManifestEntry.STATUS,
-        ManifestEntry.SNAPSHOT_ID,
+        ManifestEntry.SNAPSHOT_ID.asRequired(),
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 

@@ -220,6 +220,22 @@ public class RewriteManifestsSparkAction
         .select("snapshot_id", "sequence_number", "file_sequence_number", "data_file");
   }
 
+  /**
+   * Creates a snapshot in case of a V1 metadata
+   *
+   * @return A fresh SnapshotId in case of V1 table
+   */
+  private Long getSnapshotId() {
+    TableOperations ops = ((HasTableOperations) table).operations();
+
+    Long snapshotId = null;
+    if (formatVersion == 1) {
+      snapshotId = ops.newSnapshotId();
+    }
+
+    return snapshotId;
+  }
+
   private List<ManifestFile> writeManifestsForUnpartitionedTable(
       Dataset<Row> manifestEntryDF, int numManifests) {
     Broadcast<Table> tableBroadcast = sparkContext().broadcast(SerializableTable.copyOf(table));
@@ -229,6 +245,7 @@ public class RewriteManifestsSparkAction
     // we rely only on the target number of manifests for unpartitioned tables
     // as we should not worry about having too much metadata per partition
     long maxNumManifestEntries = Long.MAX_VALUE;
+    final Long snapshotId = getSnapshotId();
 
     return manifestEntryDF
         .repartition(numManifests)
@@ -238,6 +255,7 @@ public class RewriteManifestsSparkAction
                 maxNumManifestEntries,
                 stagingLocation,
                 formatVersion,
+                snapshotId,
                 combinedPartitionType,
                 spec,
                 sparkType),
@@ -255,6 +273,7 @@ public class RewriteManifestsSparkAction
     // we allow the actual size of manifests to be 10% higher if the estimation is not precise
     // enough
     long maxNumManifestEntries = (long) (1.1 * targetNumManifestEntries);
+    final Long snapshotId = getSnapshotId();
 
     return withReusableDS(
         manifestEntryDF,
@@ -268,6 +287,7 @@ public class RewriteManifestsSparkAction
                       maxNumManifestEntries,
                       stagingLocation,
                       formatVersion,
+                      snapshotId,
                       combinedPartitionType,
                       spec,
                       sparkType),
@@ -367,6 +387,7 @@ public class RewriteManifestsSparkAction
       Broadcast<Table> tableBroadcast,
       String location,
       int format,
+      Long snapshotId,
       Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType)
@@ -384,19 +405,18 @@ public class RewriteManifestsSparkAction
     Types.StructType manifestFileType = DataFile.getType(spec.partitionType());
     SparkDataFile wrapper = new SparkDataFile(combinedFileType, manifestFileType, sparkType);
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, snapshotId);
 
-    try {
+    try (ManifestWriter<DataFile> writerRef = writer) {
       for (int index = startIndex; index < endIndex; index++) {
         Row row = rows.get(index);
-        long snapshotId = row.getLong(0);
+        long existingSnapshotId = row.getLong(0);
         long sequenceNumber = row.getLong(1);
         Long fileSequenceNumber = row.isNullAt(2) ? null : row.getLong(2);
         Row file = row.getStruct(3);
-        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber, fileSequenceNumber);
+        writerRef.existing(
+            wrapper.wrap(file), existingSnapshotId, sequenceNumber, fileSequenceNumber);
       }
-    } finally {
-      writer.close();
     }
 
     return writer.toManifestFile();
@@ -407,6 +427,7 @@ public class RewriteManifestsSparkAction
       long maxNumManifestEntries,
       String location,
       int format,
+      Long snapshotId,
       Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType) {
@@ -428,6 +449,7 @@ public class RewriteManifestsSparkAction
                 tableBroadcast,
                 location,
                 format,
+                snapshotId,
                 combinedPartitionType,
                 spec,
                 sparkType));
@@ -441,6 +463,7 @@ public class RewriteManifestsSparkAction
                 tableBroadcast,
                 location,
                 format,
+                snapshotId,
                 combinedPartitionType,
                 spec,
                 sparkType));
@@ -452,6 +475,7 @@ public class RewriteManifestsSparkAction
                 tableBroadcast,
                 location,
                 format,
+                snapshotId,
                 combinedPartitionType,
                 spec,
                 sparkType));

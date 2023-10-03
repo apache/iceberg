@@ -232,7 +232,12 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(DataFile... files) throws IOException {
-    return writeManifest(null, files);
+    Long snapshotId = null;
+    if (table.ops().current().formatVersion() == 1) {
+      snapshotId = table.ops().newSnapshotId();
+    }
+
+    return writeManifest(snapshotId, files);
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
@@ -242,19 +247,22 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
-    try {
+    try (ManifestWriter<DataFile> writerRef = writer) {
       for (DataFile file : files) {
-        writer.add(file);
+        writerRef.add(file);
       }
-    } finally {
-      writer.close();
     }
 
     return writer.toManifestFile();
   }
 
   ManifestFile writeManifest(String fileName, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(null, fileName, entries);
+    Long snapshotId = null;
+    if (table.ops().current().formatVersion() == 1) {
+      snapshotId = table.ops().newSnapshotId();
+    }
+
+    return writeManifest(snapshotId, fileName, entries);
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
@@ -279,12 +287,10 @@ public class TableTestBase {
               ManifestFiles.writeDeleteManifest(
                   formatVersion, table.spec(), outputFile, snapshotId);
     }
-    try {
+    try (ManifestWriter<F> writerRef = writer) {
       for (ManifestEntry<?> entry : entries) {
-        writer.addEntry((ManifestEntry<F>) entry);
+        writerRef.addEntry((ManifestEntry<F>) entry);
       }
-    } finally {
-      writer.close();
     }
 
     return writer.toManifestFile();
@@ -297,13 +303,12 @@ public class TableTestBase {
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
-    try {
+    try (ManifestWriter<DeleteFile> writerRef = writer) {
       for (DeleteFile deleteFile : deleteFiles) {
-        writer.add(deleteFile);
+        writerRef.add(deleteFile);
       }
-    } finally {
-      writer.close();
     }
+
     return writer.toManifestFile();
   }
 
@@ -312,14 +317,17 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
+    Long snapshotId = null;
+    if (formatVersion == 1) {
+      snapshotId = table.ops().newSnapshotId();
+    }
+
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
-    try {
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    try (ManifestWriter<DataFile> writerRef = writer) {
       for (DataFile file : files) {
-        writer.add(file);
+        writerRef.add(file);
       }
-    } finally {
-      writer.close();
     }
 
     return writer.toManifestFile();

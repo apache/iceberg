@@ -143,9 +143,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     Preconditions.checkArgument(
         !manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
     Preconditions.checkArgument(
-        manifest.snapshotId() == null || manifest.snapshotId() == -1,
-        "Snapshot id must be assigned during commit");
-    Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {

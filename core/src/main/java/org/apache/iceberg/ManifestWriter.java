@@ -39,7 +39,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final OutputFile file;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
-  private final Long snapshotId;
+  protected final Long snapshotId;
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
 
@@ -291,11 +291,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
+      Preconditions.checkNotNull(snapshotId, "SnapshotId cannot be null");
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
+      if (entry.snapshotId() == null && this.snapshotId != null) {
+        entry.setSnapshotId(this.snapshotId);
+      }
+
       return entryWrapper.wrap(entry);
     }
 

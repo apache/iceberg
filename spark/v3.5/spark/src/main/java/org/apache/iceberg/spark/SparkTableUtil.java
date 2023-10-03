@@ -34,6 +34,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -42,6 +43,7 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -332,7 +334,9 @@ public class SparkTableUtil {
       SerializableConfiguration conf,
       PartitionSpec spec,
       String basePath,
-      Iterator<Tuple2<String, DataFile>> fileTuples) {
+      Iterator<Tuple2<String, DataFile>> fileTuples,
+      int formatVersion,
+      Long snapshotId) {
     if (fileTuples.hasNext()) {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
@@ -343,7 +347,8 @@ public class SparkTableUtil {
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
+      ManifestWriter<DataFile> writer =
+          ManifestFiles.write(formatVersion, spec, outputFile, snapshotId);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -581,6 +586,19 @@ public class SparkTableUtil {
               DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
     }
 
+    TableOperations ops = ((HasTableOperations) targetTable).operations();
+
+    int formatVersion = ops.current().formatVersion();
+
+    final Long snapshotId;
+    if (formatVersion == 1) {
+      // Required for V1
+      snapshotId = ops.newSnapshotId();
+    } else {
+      // V2 uses inheritance
+      snapshotId = null;
+    }
+
     List<ManifestFile> manifests =
         filesToImport
             .repartition(numShufflePartitions)
@@ -591,7 +609,14 @@ public class SparkTableUtil {
             .orderBy(col("_1"))
             .mapPartitions(
                 (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
-                    fileTuple -> buildManifest(serializableConf, spec, stagingDir, fileTuple),
+                    fileTuple ->
+                        buildManifest(
+                            serializableConf,
+                            spec,
+                            stagingDir,
+                            fileTuple,
+                            formatVersion,
+                            snapshotId),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 

@@ -49,20 +49,29 @@ public class TestManifestWriter extends TableTestBase {
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 250;
   private static final long SMALL_FILE_SIZE = 10L;
 
+  private Long getSnapshotId() {
+    if (table.ops().current().formatVersion() == 1) {
+      return table.ops().newSnapshotId();
+    }
+    return null;
+  }
+
   @Test
   public void testManifestStats() throws IOException {
+    Long snapshotId = getSnapshotId();
+
     ManifestFile manifest =
         writeManifest(
             "manifest.avro",
-            manifestEntry(Status.ADDED, null, newFile(10)),
-            manifestEntry(Status.ADDED, null, newFile(20)),
-            manifestEntry(Status.ADDED, null, newFile(5)),
-            manifestEntry(Status.ADDED, null, newFile(5)),
-            manifestEntry(Status.EXISTING, null, newFile(15)),
-            manifestEntry(Status.EXISTING, null, newFile(10)),
-            manifestEntry(Status.EXISTING, null, newFile(1)),
-            manifestEntry(Status.DELETED, null, newFile(5)),
-            manifestEntry(Status.DELETED, null, newFile(2)));
+            manifestEntry(Status.ADDED, snapshotId, newFile(10)),
+            manifestEntry(Status.ADDED, snapshotId, newFile(20)),
+            manifestEntry(Status.ADDED, snapshotId, newFile(5)),
+            manifestEntry(Status.ADDED, snapshotId, newFile(5)),
+            manifestEntry(Status.EXISTING, snapshotId, newFile(15)),
+            manifestEntry(Status.EXISTING, snapshotId, newFile(10)),
+            manifestEntry(Status.EXISTING, snapshotId, newFile(1)),
+            manifestEntry(Status.DELETED, snapshotId, newFile(5)),
+            manifestEntry(Status.DELETED, snapshotId, newFile(2)));
 
     Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
     Assert.assertEquals("Added files count should match", 4, (int) manifest.addedFilesCount());
@@ -81,12 +90,14 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testManifestPartitionStats() throws IOException {
+    Long snapshotId = getSnapshotId();
+
     ManifestFile manifest =
         writeManifest(
             "manifest.avro",
-            manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
-            manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
-            manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
+            manifestEntry(Status.ADDED, snapshotId, newFile(10, TestHelpers.Row.of(1))),
+            manifestEntry(Status.EXISTING, snapshotId, newFile(15, TestHelpers.Row.of(2))),
+            manifestEntry(Status.DELETED, snapshotId, newFile(2, TestHelpers.Row.of(3))));
 
     List<ManifestFile.PartitionFieldSummary> partitions = manifest.partitions();
     Assert.assertEquals("Partition field summaries count should match", 1, partitions.size());
@@ -249,8 +260,6 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testRollingManifestWriterSplitFiles() throws IOException {
-    RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
-
     int[] addedFileCounts = new int[3];
     int[] existingFileCounts = new int[3];
     int[] deletedFileCounts = new int[3];
@@ -258,25 +267,28 @@ public class TestManifestWriter extends TableTestBase {
     long[] existingRowCounts = new long[3];
     long[] deletedRowCounts = new long[3];
 
-    for (int i = 0; i < FILE_SIZE_CHECK_ROWS_DIVISOR * 3; i++) {
-      int type = i % 3;
-      int fileIndex = i / FILE_SIZE_CHECK_ROWS_DIVISOR;
-      if (type == 0) {
-        writer.add(newFile(i));
-        addedFileCounts[fileIndex] += 1;
-        addedRowCounts[fileIndex] += i;
-      } else if (type == 1) {
-        writer.existing(newFile(i), 1, 1, null);
-        existingFileCounts[fileIndex] += 1;
-        existingRowCounts[fileIndex] += i;
-      } else {
-        writer.delete(newFile(i), 1, null);
-        deletedFileCounts[fileIndex] += 1;
-        deletedRowCounts[fileIndex] += i;
+    RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
+
+    try (RollingManifestWriter<DataFile> writerRef = writer) {
+      for (int i = 0; i < FILE_SIZE_CHECK_ROWS_DIVISOR * 3; i++) {
+        int type = i % 3;
+        int fileIndex = i / FILE_SIZE_CHECK_ROWS_DIVISOR;
+        if (type == 0) {
+          DataFile f = newFile(i);
+          writerRef.add(f);
+          addedFileCounts[fileIndex] += 1;
+          addedRowCounts[fileIndex] += i;
+        } else if (type == 1) {
+          writerRef.existing(newFile(i), 1, 1, null);
+          existingFileCounts[fileIndex] += 1;
+          existingRowCounts[fileIndex] += i;
+        } else {
+          writerRef.delete(newFile(i), 1, null);
+          deletedFileCounts[fileIndex] += 1;
+          deletedRowCounts[fileIndex] += i;
+        }
       }
     }
-
-    writer.close();
     List<ManifestFile> manifestFiles = writer.toManifestFiles();
     Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
 
@@ -414,7 +426,7 @@ public class TestManifestWriter extends TableTestBase {
     return new RollingManifestWriter<>(
         () -> {
           OutputFile newManifestFile = newManifestFile();
-          return ManifestFiles.write(formatVersion, SPEC, newManifestFile, null);
+          return ManifestFiles.write(formatVersion, SPEC, newManifestFile, getSnapshotId());
         },
         targetFileSize);
   }

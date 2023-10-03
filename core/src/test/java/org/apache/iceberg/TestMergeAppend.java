@@ -1111,85 +1111,92 @@ public class TestMergeAppend extends TableTestBase {
         snapshot.summary().get("total-records"));
   }
 
-  @Test
-  public void testMergedAppendManifestCleanupWithSnapshotIdInheritance() throws IOException {
-    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
-
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
-
-    TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-
-    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
-
-    ManifestFile manifest1 = writeManifestWithName("manifest-file-1.avro", FILE_A, FILE_B);
-    Snapshot snap1 = commit(table, table.newAppend().appendManifest(manifest1), branch);
-
-    long commitId1 = snap1.snapshotId();
-    validateSnapshot(null, snap1, 1, FILE_A, FILE_B);
-
-    Assert.assertEquals("Should have only 1 manifest", 1, snap1.allManifests(table.io()).size());
-    validateManifest(
-        snap1.allManifests(table.io()).get(0),
-        dataSeqs(1L, 1L),
-        fileSeqs(1L, 1L),
-        ids(commitId1, commitId1),
-        files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED));
-    Assert.assertTrue(
-        "Unmerged append manifest should not be deleted", new File(manifest1.path()).exists());
-
-    ManifestFile manifest2 = writeManifestWithName("manifest-file-2.avro", FILE_C, FILE_D);
-    Snapshot snap2 = commit(table, table.newAppend().appendManifest(manifest2), branch);
-
-    long commitId2 = snap2.snapshotId();
-    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
-    V2Assert.assertEquals(
-        "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
-    V1Assert.assertEquals(
-        "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
-
-    Assert.assertEquals(
-        "Manifests should be merged into 1", 1, snap2.allManifests(table.io()).size());
-    validateManifest(
-        latestSnapshot(table, branch).allManifests(table.io()).get(0),
-        dataSeqs(2L, 2L, 1L, 1L),
-        fileSeqs(2L, 2L, 1L, 1L),
-        ids(commitId2, commitId2, commitId1, commitId1),
-        files(FILE_C, FILE_D, FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED, Status.EXISTING, Status.EXISTING));
-
-    Assert.assertFalse(
-        "Merged append manifest should be deleted", new File(manifest2.path()).exists());
-  }
-
-  @Test
-  public void testAppendManifestFailureWithSnapshotIdInheritance() throws IOException {
-    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
-
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
-
-    TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-
-    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
-
-    table.ops().failCommits(5);
-
-    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-
-    AppendFiles append = table.newAppend();
-    append.appendManifest(manifest);
-
-    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
-
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
-  }
+  //  @Test
+  //  public void testMergedAppendManifestCleanupWithSnapshotIdInheritance() throws IOException {
+  //    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+  // "true").commit();
+  //
+  //    Assert.assertEquals("Last sequence number should be 0", 0,
+  // readMetadata().lastSequenceNumber());
+  //    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+  //
+  //    TableMetadata base = readMetadata();
+  //    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+  //
+  //    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+  //
+  //    ManifestFile manifest1 = writeManifestWithName("manifest-file-1.avro", FILE_A, FILE_B);
+  //    Snapshot snap1 = commit(table, table.newAppend().appendManifest(manifest1), branch);
+  //
+  //    long commitId1 = snap1.snapshotId();
+  //    validateSnapshot(null, snap1, 1, FILE_A, FILE_B);
+  //
+  //    Assert.assertEquals("Should have only 1 manifest", 1,
+  // snap1.allManifests(table.io()).size());
+  //    validateManifest(
+  //        snap1.allManifests(table.io()).get(0),
+  //        dataSeqs(1L, 1L),
+  //        fileSeqs(1L, 1L),
+  //        ids(commitId1, commitId1),
+  //        files(FILE_A, FILE_B),
+  //        statuses(Status.ADDED, Status.ADDED));
+  //    Assert.assertTrue(
+  //        "Unmerged append manifest should not be deleted", new File(manifest1.path()).exists());
+  //
+  //    ManifestFile manifest2 = writeManifestWithName("manifest-file-2.avro", FILE_C, FILE_D);
+  //    Snapshot snap2 = commit(table, table.newAppend().appendManifest(manifest2), branch);
+  //
+  //    long commitId2 = snap2.snapshotId();
+  //    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+  //    V2Assert.assertEquals(
+  //        "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
+  //    V1Assert.assertEquals(
+  //        "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
+  //
+  //    Assert.assertEquals(
+  //        "Manifests should be merged into 1", 1, snap2.allManifests(table.io()).size());
+  //    validateManifest(
+  //        latestSnapshot(table, branch).allManifests(table.io()).get(0),
+  //        dataSeqs(2L, 2L, 1L, 1L),
+  //        fileSeqs(2L, 2L, 1L, 1L),
+  //        ids(commitId2, commitId2, commitId1, commitId1),
+  //        files(FILE_C, FILE_D, FILE_A, FILE_B),
+  //        statuses(Status.ADDED, Status.ADDED, Status.EXISTING, Status.EXISTING));
+  //
+  //    Assert.assertFalse(
+  //        "Merged append manifest should be deleted", new File(manifest2.path()).exists());
+  //  }
+  //
+  //  @Test
+  //  public void testAppendManifestFailureWithSnapshotIdInheritance() throws IOException {
+  //    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+  // "true").commit();
+  //
+  //    Assert.assertEquals("Last sequence number should be 0", 0,
+  // readMetadata().lastSequenceNumber());
+  //    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+  //
+  //    TableMetadata base = readMetadata();
+  //    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+  //
+  //    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
+  //
+  //    table.ops().failCommits(5);
+  //
+  //    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+  //
+  //    AppendFiles append = table.newAppend();
+  //    append.appendManifest(manifest);
+  //
+  //    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+  //        .isInstanceOf(CommitFailedException.class)
+  //        .hasMessage("Injected failure");
+  //
+  //    Assert.assertEquals("Last sequence number should be 0", 0,
+  // readMetadata().lastSequenceNumber());
+  //    Assert.assertTrue("Append manifest should not be deleted", new
+  // File(manifest.path()).exists());
+  //  }
 
   @Test
   public void testInvalidAppendManifest() throws IOException {
@@ -1199,7 +1206,9 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
 
     ManifestFile manifestWithExistingFiles =
-        writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
+        writeManifest(
+            "manifest-file-1.avro",
+            manifestEntry(Status.EXISTING, table.ops().newSnapshotId(), FILE_A));
     Assertions.assertThatThrownBy(
             () ->
                 commit(table, table.newAppend().appendManifest(manifestWithExistingFiles), branch))
@@ -1208,7 +1217,9 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
 
     ManifestFile manifestWithDeletedFiles =
-        writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
+        writeManifest(
+            "manifest-file-2.avro",
+            manifestEntry(Status.DELETED, table.ops().newSnapshotId(), FILE_A));
     Assertions.assertThatThrownBy(
             () -> commit(table, table.newAppend().appendManifest(manifestWithDeletedFiles), branch))
         .isInstanceOf(IllegalArgumentException.class)

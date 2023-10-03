@@ -110,9 +110,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Preconditions.checkArgument(
         !manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
     Preconditions.checkArgument(
-        manifest.snapshotId() == null || manifest.snapshotId() == -1,
-        "Snapshot id must be assigned during commit");
-    Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence number must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {

@@ -387,14 +387,18 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
 
     ManifestFile manifestWithExistingFiles =
-        writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
+        writeManifest(
+            "manifest-file-1.avro",
+            manifestEntry(Status.EXISTING, table.ops().newSnapshotId(), FILE_A));
     Assertions.assertThatThrownBy(
             () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot append manifest with existing files");
 
     ManifestFile manifestWithDeletedFiles =
-        writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
+        writeManifest(
+            "manifest-file-2.avro",
+            manifestEntry(Status.DELETED, table.ops().newSnapshotId(), FILE_A));
     Assertions.assertThatThrownBy(
             () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit())
         .isInstanceOf(IllegalArgumentException.class)

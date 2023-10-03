@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -72,14 +71,6 @@ public class TestManifestReader extends TableTestBase {
           Lists.newArrayList(FILE_A.path(), FILE_B.path(), FILE_C.path()),
           files);
     }
-  }
-
-  @Test
-  public void testInvalidUsage() throws IOException {
-    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    Assertions.assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
   }
 
   @Test

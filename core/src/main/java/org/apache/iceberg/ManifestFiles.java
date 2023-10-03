@@ -141,6 +141,8 @@ public class ManifestFiles {
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
    * @return a manifest writer
+   * @deprecated Use {@link ManifestFiles#write(int, PartitionSpec, OutputFile, Long)} instead since
+   *     the SnapshotID cannot be null for a V1 manifest
    */
   public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
     return write(1, spec, outputFile, null);

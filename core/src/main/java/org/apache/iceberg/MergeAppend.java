@@ -61,9 +61,6 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
     Preconditions.checkArgument(
         !manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
     Preconditions.checkArgument(
-        manifest.snapshotId() == null || manifest.snapshotId() == -1,
-        "Snapshot id must be assigned during commit");
-    Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
     add(manifest);
     return this;

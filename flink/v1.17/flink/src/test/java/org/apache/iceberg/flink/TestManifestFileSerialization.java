@@ -154,15 +154,14 @@ public class TestManifestFileSerialization {
   private ManifestFile writeManifest(DataFile... files) throws IOException {
     File manifestFile = temp.newFile("input.m0.avro");
     Assert.assertTrue(manifestFile.delete());
+
     OutputFile outputFile = FILE_IO.newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile);
-    try {
+    ManifestWriter<DataFile> writer = ManifestFiles.write(1, SPEC, outputFile, 0L);
+    try (ManifestWriter<DataFile> writerRef = writer) {
       for (DataFile file : files) {
-        writer.add(file);
+        writerRef.add(file);
       }
-    } finally {
-      writer.close();
     }
 
     return writer.toManifestFile();
