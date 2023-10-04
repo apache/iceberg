@@ -194,7 +194,7 @@ CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_tabl
 
 ### `publish_changes`
 
-Publish changes from a Staged WAP id into the current table state.
+Publish changes from a staged WAP ID into the current table state.
 
 publish_changes creates a new snapshot from an existing snapshot without altering or removing the original.
 
@@ -206,21 +206,21 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 #### Usage
 
-| Argument Name | Required? | Type | Description                                     |
-|---------------|-----------|------|-------------------------------------------------|
-| `table`       | ✔️  | string | Name of the table to update                     |
-| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod. |
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod |
 
 #### Output
 
-| Output Name | Type | Description                                               |
-| ------------|------|-----------------------------------------------------------|
+| Output Name | Type | Description |
+| ------------|------|-------------|
 | `source_snapshot_id` | long | The table's current snapshot before publishing the change |
-| `current_snapshot_id` | long | The snapshot ID created by applying the change            |
+| `current_snapshot_id` | long | The snapshot ID created by applying the change |
 
 #### Examples
 
-publish_changes with wap_id 'wap_id_1'
+publish_changes with WAP ID 'wap_id_1'
 ```sql
 CALL catalog_name.system.publish_changes('my_table', 'wap_id_1')
 ```
