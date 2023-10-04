@@ -1,16 +1,16 @@
 [versions]
-assertj-ver = "3.23.1"
+assertj-ver = "3.24.2"
 avro-ver = "1.11.1"
 awaitility-ver = "4.2.0"
 hadoop-ver = "3.3.6"
 hive-ver = "2.3.9"
 http-client-ver = "5.2.1"
-iceberg-ver = "1.3.1-tabular.31"
+iceberg-ver = "1.4.0"
 jackson-ver = "2.14.2"
-junit-ver = "5.9.2"
+junit-ver = "5.10.0"
 kafka-ver = "3.5.1"
 slf4j-ver = "1.7.36"
-testcontainers-ver = "1.18.1"
+testcontainers-ver = "1.17.6"
 
 
 [libraries]

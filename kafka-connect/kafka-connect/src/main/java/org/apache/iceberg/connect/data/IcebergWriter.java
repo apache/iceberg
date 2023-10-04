@@ -52,7 +52,7 @@ public class IcebergWriter implements RecordWriter {
 
   private void initNewWriter() {
     this.writer = Utilities.createTableWriter(table, tableName, config);
-    this.recordConverter = new RecordConverter(table, config.getJsonConverter());
+    this.recordConverter = new RecordConverter(table, config.jsonConverter());
   }
 
   @Override
@@ -61,7 +61,7 @@ public class IcebergWriter implements RecordWriter {
       // TODO: config to handle tombstones instead of always ignoring?
       if (record.value() != null) {
         Record row = convertToRow(record);
-        String cdcField = config.getTablesCdcField();
+        String cdcField = config.tablesCdcField();
         if (cdcField == null) {
           writer.write(row);
         } else {
@@ -79,7 +79,7 @@ public class IcebergWriter implements RecordWriter {
   }
 
   private Record convertToRow(SinkRecord record) {
-    if (!config.isEvolveSchema()) {
+    if (!config.evolveSchemaEnabled()) {
       return recordConverter.convert(record.value());
     }
 

@@ -16,22 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.dell.ecs;
+package io.tabular.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class TestPropertiesSerDesUtil {
+public class OffsetTest {
 
   @Test
-  public void testPropertiesSerDes() {
-    Map<String, String> properties = ImmutableMap.of("a", "a", "b", "b");
-    byte[] byteValue = PropertiesSerDesUtil.toBytes(properties);
-    Map<String, String> result =
-        PropertiesSerDesUtil.read(byteValue, PropertiesSerDesUtil.currentVersion());
-    assertThat(properties).as("Ser/Des will return the same content.").isEqualTo(result);
+  public void testOffsetEquals() {
+    assertThat(new Offset(null, null).compareTo(new Offset(null, null))).isEqualTo(0);
+    assertThat(new Offset(1L, null).compareTo(new Offset(1L, null))).isEqualTo(0);
+  }
+
+  @Test
+  public void testOffsetLessThan() {
+    assertThat(new Offset(null, null).compareTo(new Offset(1L, null))).isEqualTo(-1);
+    assertThat(new Offset(1L, null).compareTo(new Offset(2L, null))).isEqualTo(-1);
+  }
+
+  @Test
+  public void testOffsetGreaterThan() {
+    assertThat(new Offset(1L, null).compareTo(new Offset(null, null))).isEqualTo(1);
+    assertThat(new Offset(2L, null).compareTo(new Offset(1L, null))).isEqualTo(1);
   }
 }

@@ -170,7 +170,7 @@ public class SchemaUtils {
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     Type inferIcebergType(Object value) {
       if (value == null) {
-        return StringType.get();
+        throw new UnsupportedOperationException("Cannot infer type from null value");
       } else if (value instanceof String) {
         return StringType.get();
       } else if (value instanceof Boolean) {
@@ -206,6 +206,7 @@ public class SchemaUtils {
         Map<?, ?> map = (Map<?, ?>) value;
         List<NestedField> structFields =
             map.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && entry.getValue() != null)
                 .map(
                     entry ->
                         NestedField.optional(

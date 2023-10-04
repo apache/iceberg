@@ -77,11 +77,11 @@ public class ChannelTestBase {
     when(catalog.loadTable(any())).thenReturn(table);
 
     config = mock(IcebergSinkConfig.class);
-    when(config.getControlTopic()).thenReturn(CTL_TOPIC_NAME);
-    when(config.getControlGroupId()).thenReturn("group");
-    when(config.getCommitThreads()).thenReturn(1);
-    when(config.getControlGroupId()).thenReturn("cg-connector");
-    when(config.getTableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.controlTopic()).thenReturn(CTL_TOPIC_NAME);
+    when(config.controlGroupId()).thenReturn("group");
+    when(config.commitThreads()).thenReturn(1);
+    when(config.controlGroupId()).thenReturn("cg-connector");
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
 
     TopicPartitionInfo partitionInfo = mock(TopicPartitionInfo.class);
     when(partitionInfo.partition()).thenReturn(0);

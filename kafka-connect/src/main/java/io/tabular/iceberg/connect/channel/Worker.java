@@ -78,19 +78,19 @@ public class Worker extends Channel {
     this.config = config;
     this.writerFactory = writerFactory;
     this.context = context;
-    this.controlGroupId = config.getControlGroupId();
+    this.controlGroupId = config.controlGroupId();
     this.writers = Maps.newHashMap();
     this.sourceOffsets = Maps.newHashMap();
   }
 
   public void syncCommitOffsets() {
     Map<TopicPartition, Long> offsets =
-        getCommitOffsets().entrySet().stream()
+        commitOffsets().entrySet().stream()
             .collect(toMap(Entry::getKey, entry -> entry.getValue().offset()));
     context.offset(offsets);
   }
 
-  public Map<TopicPartition, OffsetAndMetadata> getCommitOffsets() {
+  public Map<TopicPartition, OffsetAndMetadata> commitOffsets() {
     try {
       ListConsumerGroupOffsetsResult response = admin().listConsumerGroupOffsets(controlGroupId);
       return response.partitionsToOffsetAndMetadata().get().entrySet().stream()
@@ -107,8 +107,8 @@ public class Worker extends Channel {
 
   @Override
   protected boolean receive(Envelope envelope) {
-    Event event = envelope.getEvent();
-    if (event.getType() != EventType.COMMIT_REQUEST) {
+    Event event = envelope.event();
+    if (event.type() != EventType.COMMIT_REQUEST) {
       return false;
     }
 
@@ -131,30 +131,30 @@ public class Worker extends Channel {
                     offset = Offset.NULL_OFFSET;
                   }
                   return new TopicPartitionOffset(
-                      tp.topic(), tp.partition(), offset.getOffset(), offset.getTimestamp());
+                      tp.topic(), tp.partition(), offset.offset(), offset.timestamp());
                 })
             .collect(toList());
 
-    UUID commitId = ((CommitRequestPayload) event.getPayload()).getCommitId();
+    UUID commitId = ((CommitRequestPayload) event.payload()).commitId();
 
     List<Event> events =
         writeResults.stream()
             .map(
                 writeResult ->
                     new Event(
-                        config.getControlGroupId(),
+                        config.controlGroupId(),
                         EventType.COMMIT_RESPONSE,
                         new CommitResponsePayload(
-                            writeResult.getPartitionStruct(),
+                            writeResult.partitionStruct(),
                             commitId,
-                            TableName.of(writeResult.getTableIdentifier()),
-                            writeResult.getDataFiles(),
-                            writeResult.getDeleteFiles())))
+                            TableName.of(writeResult.tableIdentifier()),
+                            writeResult.dataFiles(),
+                            writeResult.deleteFiles())))
             .collect(toList());
 
     Event readyEvent =
         new Event(
-            config.getControlGroupId(),
+            config.controlGroupId(),
             EventType.COMMIT_READY,
             new CommitReadyPayload(commitId, assignments));
     events.add(readyEvent);
@@ -182,7 +182,7 @@ public class Worker extends Channel {
         new TopicPartition(record.topic(), record.kafkaPartition()),
         new Offset(record.kafkaOffset() + 1, record.timestamp()));
 
-    if (config.getDynamicTablesEnabled()) {
+    if (config.dynamicTablesEnabled()) {
       routeRecordDynamically(record);
     } else {
       routeRecordStatically(record);
@@ -190,31 +190,31 @@ public class Worker extends Channel {
   }
 
   private void routeRecordStatically(SinkRecord record) {
-    String routeField = config.getTablesRouteField();
+    String routeField = config.tablesRouteField();
 
     if (routeField == null) {
       // route to all tables
       config
-          .getTables()
+          .tables()
           .forEach(
               tableName -> {
-                getWriterForTable(tableName, record, false).write(record);
+                writerForTable(tableName, record, false).write(record);
               });
 
     } else {
       String routeValue = extractRouteValue(record.value(), routeField);
       if (routeValue != null) {
         config
-            .getTables()
+            .tables()
             .forEach(
                 tableName ->
                     config
-                        .getTableConfig(tableName)
+                        .tableConfig(tableName)
                         .routeRegex()
                         .ifPresent(
                             regex -> {
                               if (regex.matcher(routeValue).matches()) {
-                                getWriterForTable(tableName, record, false).write(record);
+                                writerForTable(tableName, record, false).write(record);
                               }
                             }));
       }
@@ -222,13 +222,13 @@ public class Worker extends Channel {
   }
 
   private void routeRecordDynamically(SinkRecord record) {
-    String routeField = config.getTablesRouteField();
+    String routeField = config.tablesRouteField();
     Preconditions.checkNotNull(routeField, "Route field cannot be null with dynamic routing");
 
     String routeValue = extractRouteValue(record.value(), routeField);
     if (routeValue != null) {
       String tableName = routeValue.toLowerCase();
-      getWriterForTable(tableName, record, true).write(record);
+      writerForTable(tableName, record, true).write(record);
     }
   }
 
@@ -240,7 +240,7 @@ public class Worker extends Channel {
     return routeValue == null ? null : routeValue.toString();
   }
 
-  private RecordWriter getWriterForTable(
+  private RecordWriter writerForTable(
       String tableName, SinkRecord sample, boolean ignoreMissingTable) {
     return writers.computeIfAbsent(
         tableName, notUsed -> writerFactory.createWriter(tableName, sample, ignoreMissingTable));

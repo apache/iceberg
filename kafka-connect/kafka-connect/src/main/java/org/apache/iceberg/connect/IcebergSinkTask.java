@@ -16,12 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect;
+package io.tabular.iceberg.connect;
 
+import io.tabular.iceberg.connect.channel.Coordinator;
+import io.tabular.iceberg.connect.channel.CoordinatorThread;
+import io.tabular.iceberg.connect.channel.KafkaClientFactory;
+import io.tabular.iceberg.connect.channel.NotRunningException;
+import io.tabular.iceberg.connect.channel.Worker;
+import io.tabular.iceberg.connect.data.IcebergWriterFactory;
+import io.tabular.iceberg.connect.data.Utilities;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -36,7 +43,8 @@ public class IcebergSinkTask extends SinkTask {
 
   private IcebergSinkConfig config;
   private Catalog catalog;
-  private Committer committer;
+  private CoordinatorThread coordinatorThread;
+  private Worker worker;
 
   @Override
   public String version() {
@@ -50,12 +58,31 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    Preconditions.checkArgument(catalog == null, "Catalog already open");
-    Preconditions.checkArgument(committer == null, "Committer already open");
+    catalog = Utilities.loadCatalog(config);
+    KafkaClientFactory clientFactory = new KafkaClientFactory(config.kafkaProps());
 
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(config);
-    committer.start(catalog, config, context);
+    if (isLeader(partitions)) {
+      LOG.info("Task elected leader, starting commit coordinator");
+      Coordinator coordinator = new Coordinator(catalog, config, clientFactory);
+      coordinatorThread = new CoordinatorThread(coordinator);
+      coordinatorThread.start();
+    }
+
+    LOG.info("Starting commit worker");
+    IcebergWriterFactory writerFactory = new IcebergWriterFactory(catalog, config);
+    worker = new Worker(catalog, config, clientFactory, writerFactory, context);
+    worker.syncCommitOffsets();
+    worker.start();
+  }
+
+  @VisibleForTesting
+  boolean isLeader(Collection<TopicPartition> partitions) {
+    // there should only be one worker assigned partition 0 of the first
+    // topic, so elect that one the leader
+    String firstTopic = config.topics().first();
+    return partitions.stream()
+        .filter(tp -> tp.topic().equals(firstTopic))
+        .anyMatch(tp -> tp.partition() == 0);
   }
 
   @Override
@@ -64,9 +91,14 @@ public class IcebergSinkTask extends SinkTask {
   }
 
   private void close() {
-    if (committer != null) {
-      committer.stop();
-      committer = null;
+    if (worker != null) {
+      worker.stop();
+      worker = null;
+    }
+
+    if (coordinatorThread != null) {
+      coordinatorThread.terminate();
+      coordinatorThread = null;
     }
 
     if (catalog != null) {
@@ -83,23 +115,33 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> sinkRecords) {
-    if (committer != null) {
-      committer.save(sinkRecords);
+    if (sinkRecords != null && !sinkRecords.isEmpty() && worker != null) {
+      worker.save(sinkRecords);
     }
+    processControlEvents();
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    if (committer != null) {
-      committer.save(null);
+    processControlEvents();
+  }
+
+  private void processControlEvents() {
+    if (coordinatorThread != null && coordinatorThread.isTerminated()) {
+      throw new NotRunningException("Coordinator unexpectedly terminated");
+    }
+    if (worker != null) {
+      worker.process();
     }
   }
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
       Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    // offset commit is handled by the worker
-    return ImmutableMap.of();
+    if (worker == null) {
+      return ImmutableMap.of();
+    }
+    return worker.commitOffsets();
   }
 
   @Override

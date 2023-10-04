@@ -21,7 +21,6 @@ package io.tabular.iceberg.connect;
 import static io.tabular.iceberg.connect.TestEvent.TEST_SCHEMA;
 import static io.tabular.iceberg.connect.TestEvent.TEST_SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Duration;
 import java.util.List;
@@ -71,14 +70,14 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
 
     runTest(branch);
 
-    List<DataFile> files = getDataFiles(TABLE_IDENTIFIER1, branch);
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
-    assertEquals(1, files.get(0).recordCount());
+    assertThat(files.get(0).recordCount()).isEqualTo(1);
     assertSnapshotProps(TABLE_IDENTIFIER1, branch);
 
-    files = getDataFiles(TABLE_IDENTIFIER2, branch);
+    files = dataFiles(TABLE_IDENTIFIER2, branch);
     assertThat(files).hasSize(1);
-    assertEquals(1, files.get(0).recordCount());
+    assertThat(files.get(0).recordCount()).isEqualTo(1);
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
@@ -97,16 +96,16 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
             .config(
                 "iceberg.tables",
                 String.format("%s.%s, %s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
-            .config("iceberg.tables.routeField", "type")
-            .config(String.format("iceberg.table.%s.%s.routeRegex", TEST_DB, TEST_TABLE1), "type1")
-            .config(String.format("iceberg.table.%s.%s.routeRegex", TEST_DB, TEST_TABLE2), "type2")
-            .config("iceberg.control.commitIntervalMs", 1000)
-            .config("iceberg.control.commitTimeoutMs", Integer.MAX_VALUE)
+            .config("iceberg.tables.route-field", "type")
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), "type1")
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), "type2")
+            .config("iceberg.control.commit.interval-ms", 1000)
+            .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
             .config("iceberg.kafka.auto.offset.reset", "earliest");
     connectorCatalogProperties().forEach(connectorConfig::config);
 
     if (branch != null) {
-      connectorConfig.config("iceberg.tables.defaultCommitBranch", branch);
+      connectorConfig.config("iceberg.tables.default-commit-branch", branch);
     }
 
     context.startKafkaConnector(connectorConfig);

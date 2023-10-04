@@ -26,7 +26,7 @@ public class CommitCompletePayload implements Payload {
 
   private UUID commitId;
   private Long vtts;
-  private Schema avroSchema;
+  private final Schema avroSchema;
 
   private static final Schema AVRO_SCHEMA =
       SchemaBuilder.builder()
@@ -44,6 +44,7 @@ public class CommitCompletePayload implements Payload {
           .noDefault()
           .endRecord();
 
+  // Used by Avro reflection to instantiate this class when reading events
   public CommitCompletePayload(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }
@@ -54,11 +55,11 @@ public class CommitCompletePayload implements Payload {
     this.avroSchema = AVRO_SCHEMA;
   }
 
-  public UUID getCommitId() {
+  public UUID commitId() {
     return commitId;
   }
 
-  public Long getVtts() {
+  public Long vtts() {
     return vtts;
   }
 

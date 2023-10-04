@@ -16,30 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.channel;
+package io.tabular.iceberg.connect.channel;
 
-import org.apache.iceberg.connect.events.Event;
+import io.tabular.iceberg.connect.events.Event;
 
-class Envelope {
+public class Envelope {
   private final Event event;
   private final int partition;
   private final long offset;
 
-  Envelope(Event event, int partition, long offset) {
+  public Envelope(Event event, int partition, long offset) {
     this.event = event;
     this.partition = partition;
     this.offset = offset;
   }
 
-  Event event() {
+  public Event event() {
     return event;
   }
 
-  int partition() {
+  public int partition() {
     return partition;
   }
 
-  long offset() {
+  public long offset() {
     return offset;
   }
 }

@@ -18,8 +18,7 @@
  */
 package io.tabular.iceberg.connect.transforms;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -37,7 +36,7 @@ public class CopyValueTest {
     try (CopyValue<SinkRecord> smt = new CopyValue<>()) {
       SinkRecord record = new SinkRecord("topic", 0, null, null, null, null, 0);
       SinkRecord result = smt.apply(record);
-      assertNull(result.value());
+      assertThat(result.value()).isNull();
     }
   }
 
@@ -57,8 +56,8 @@ public class CopyValueTest {
       SinkRecord record = new SinkRecord("topic", 0, null, null, null, value, 0);
       SinkRecord result = smt.apply(record);
       Map<String, Object> newValue = (Map<String, Object>) result.value();
-      assertEquals(3, newValue.size());
-      assertEquals("foobar", newValue.get("data_copy"));
+      assertThat(newValue).hasSize(3);
+      assertThat(newValue.get("data_copy")).isEqualTo("foobar");
     }
   }
 
@@ -80,11 +79,11 @@ public class CopyValueTest {
       SinkRecord result = smt.apply(record);
 
       Schema newSchema = result.valueSchema();
-      assertEquals(3, newSchema.fields().size());
-      assertEquals(Schema.STRING_SCHEMA, newSchema.field("data_copy").schema());
+      assertThat(newSchema.fields()).hasSize(3);
+      assertThat(newSchema.field("data_copy").schema()).isEqualTo(Schema.STRING_SCHEMA);
 
       Struct newValue = (Struct) result.value();
-      assertEquals("foobar", newValue.get("data_copy"));
+      assertThat(newValue.get("data_copy")).isEqualTo("foobar");
     }
   }
 }

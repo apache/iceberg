@@ -28,7 +28,7 @@ public class CommitTablePayload implements Payload {
   private TableName tableName;
   private Long snapshotId;
   private Long vtts;
-  private Schema avroSchema;
+  private final Schema avroSchema;
 
   private static final Schema AVRO_SCHEMA =
       SchemaBuilder.builder()
@@ -56,6 +56,7 @@ public class CommitTablePayload implements Payload {
           .noDefault()
           .endRecord();
 
+  // Used by Avro reflection to instantiate this class when reading events
   public CommitTablePayload(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }
@@ -68,19 +69,19 @@ public class CommitTablePayload implements Payload {
     this.avroSchema = AVRO_SCHEMA;
   }
 
-  public UUID getCommitId() {
+  public UUID commitId() {
     return commitId;
   }
 
-  public TableName getTableName() {
+  public TableName tableName() {
     return tableName;
   }
 
-  public Long getSnapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
-  public Long getVtts() {
+  public Long vtts() {
     return vtts;
   }
 
