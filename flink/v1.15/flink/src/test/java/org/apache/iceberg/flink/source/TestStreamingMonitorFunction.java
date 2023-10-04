@@ -17,7 +17,8 @@
  * under the License.
  */
 package org.apache.iceberg.flink.source;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
@@ -113,7 +114,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
       // Stop the stream task.
       function.close();
@@ -150,7 +151,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
       // Stop the stream task.
       function.close();
@@ -186,7 +187,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
       // Stop the stream task.
       function.close();
@@ -214,7 +215,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
       state = harness.snapshot(1, 1);
 
@@ -240,7 +241,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
       // Stop the stream task.
       newFunc.close();

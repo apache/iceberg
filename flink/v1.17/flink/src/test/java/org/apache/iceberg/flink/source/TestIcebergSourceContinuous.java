@@ -17,6 +17,9 @@
  * under the License.
  */
 package org.apache.iceberg.flink.source;
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -325,7 +328,7 @@ public class TestIcebergSourceContinuous {
     long snapshot0Timestamp = tableResource.table().currentSnapshot().timestampMillis();
 
     // sleep for 2 ms to make sure snapshot1 has a higher timestamp value
-    Thread.sleep(2);
+    Awaitility.await().atLeast(Duration.ofMillis(2)).until(() -> true);
 
     // snapshot1
     List<Record> batch1 =
@@ -403,7 +406,7 @@ public class TestIcebergSourceContinuous {
 
   public static void waitUntilJobIsRunning(ClusterClient<?> client) throws Exception {
     while (getRunningJobs(client).isEmpty()) {
-      Thread.sleep(10);
+        Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
     }
   }
 

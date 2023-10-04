@@ -17,7 +17,9 @@
  * under the License.
  */
 package org.apache.iceberg.flink.source;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -208,7 +210,7 @@ public class TestIcebergSourceFailover {
     JobID jobId = jobClient.getJobID();
 
     for (int i = 1; i < 5; i++) {
-      Thread.sleep(10);
+      Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
       dataAppender.appendToTable(records);

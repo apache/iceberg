@@ -17,7 +17,9 @@
  * under the License.
  */
 package org.apache.iceberg.aws.glue;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -141,7 +143,7 @@ public class TestGlueCatalogLock extends GlueTestBase {
               for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
                 while (barrier.get() < numCommittedFiles * 2) {
                   try {
-                    Thread.sleep(10);
+                    Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
                   } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                   }

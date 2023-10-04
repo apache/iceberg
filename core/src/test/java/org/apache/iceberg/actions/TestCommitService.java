@@ -21,7 +21,8 @@ package org.apache.iceberg.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -124,7 +125,7 @@ public class TestCommitService extends TableTestBase {
     protected void commitOrClean(Set<Integer> batch) {
       try {
         // Slightly longer than timeout
-        Thread.sleep(210);
+        Awaitility.await().atLeast(Duration.ofMillis(210)).until(() -> true);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }

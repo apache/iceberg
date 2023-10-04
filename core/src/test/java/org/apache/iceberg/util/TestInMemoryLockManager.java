@@ -19,7 +19,9 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -112,7 +114,7 @@ public class TestInMemoryLockManager {
     CompletableFuture.supplyAsync(
         () -> {
           try {
-            Thread.sleep(200);
+            Awaitility.await().atLeast(Duration.ofMillis(200)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -141,7 +143,7 @@ public class TestInMemoryLockManager {
                   boolean succeeded = lockManager.acquire(lockEntityId, owner);
                   if (succeeded) {
                     try {
-                      Thread.sleep(1000);
+                      Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
                     } catch (InterruptedException e) {
                       throw new RuntimeException(e);
                     }

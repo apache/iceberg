@@ -17,7 +17,9 @@
  * under the License.
  */
 package org.apache.iceberg.aws.dynamodb;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -142,7 +144,7 @@ public class TestDynamoDbLockManager {
     CompletableFuture.supplyAsync(
         () -> {
           try {
-            Thread.sleep(5000);
+            Awaitility.await().atLeast(Duration.ofSeconds(5)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -177,7 +179,7 @@ public class TestDynamoDbLockManager {
                               boolean succeeded = threadLocalLockManager.acquire(entityId, owner);
                               if (succeeded) {
                                 try {
-                                  Thread.sleep(1000);
+                                  Awaitility.await().atLeast(Duration.ofSeconds(1)).until(() -> true);
                                 } catch (InterruptedException e) {
                                   throw new RuntimeException(e);
                                 }

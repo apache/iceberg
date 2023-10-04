@@ -17,7 +17,9 @@
  * under the License.
  */
 package org.apache.iceberg.util;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
+import java.util.concurrent.TimeUnit;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -165,7 +167,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
 
         try {
-          Thread.sleep(10);
+          Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
 
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();

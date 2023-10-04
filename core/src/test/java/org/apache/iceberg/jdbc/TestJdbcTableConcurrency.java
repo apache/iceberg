@@ -23,7 +23,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -94,7 +95,7 @@ public class TestJdbcTableConcurrency {
               for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
                 while (barrier.get() < numCommittedFiles * 2) {
                   try {
-                    Thread.sleep(10);
+                    Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
                   } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                   }

@@ -22,6 +22,7 @@ import static org.apache.iceberg.ManifestContent.DATA;
 import static org.apache.iceberg.ManifestContent.DELETES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.awaitility.Duration;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +37,8 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.concurrent.TimeUnit;
+import org.awaitility.Awaitility;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
@@ -1957,7 +1960,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     df.write().mode("append").parquet(table.location() + "/data");
 
     // sleep for 1 second to ensure files will be old enough
-    Thread.sleep(1000);
+    Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
 
     SparkActions actions = SparkActions.get();
 

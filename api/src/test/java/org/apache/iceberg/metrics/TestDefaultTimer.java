@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.awaitility.Awaitility;
+import static org.awaitility.Duration;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -104,7 +106,7 @@ public class TestDefaultTimer {
     Runnable runnable =
         () -> {
           try {
-            Thread.sleep(100);
+            Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -129,7 +131,7 @@ public class TestDefaultTimer {
     Callable<Boolean> callable =
         () -> {
           try {
-            Thread.sleep(100);
+            Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -155,7 +157,7 @@ public class TestDefaultTimer {
     Supplier<Boolean> supplier =
         () -> {
           try {
-            Thread.sleep(100);
+            Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -182,7 +184,7 @@ public class TestDefaultTimer {
     Runnable inner =
         () -> {
           try {
-            Thread.sleep(100);
+            Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -191,7 +193,7 @@ public class TestDefaultTimer {
     Runnable outer =
         () -> {
           try {
-            Thread.sleep(100);
+            Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
             innerTimer.time(inner);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
