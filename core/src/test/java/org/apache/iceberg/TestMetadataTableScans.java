@@ -53,22 +53,50 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     super(formatVersion);
   }
 
-  private void preparePartitionedTable() {
-    preparePartitionedTableData();
+  private void preparePartitionedTable(boolean transactional) {
+    preparePartitionedTableData(transactional);
 
     if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
+      if (transactional) {
+        table
+            .newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES)
+            .addDeletes(FILE_C2_DELETES)
+            .addDeletes(FILE_D2_DELETES)
+            .commit();
+      } else {
+        table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
+      }
+    }
+  }
+
+  private void preparePartitionedTable() {
+    preparePartitionedTable(false);
+  }
+
+  private void preparePartitionedTableData(boolean transactional) {
+    if (transactional) {
+      table
+          .newFastAppend()
+          .appendFile(FILE_A)
+          .appendFile(FILE_B)
+          .appendFile(FILE_C)
+          .appendFile(FILE_D)
+          .commit();
+    } else {
+      table.newFastAppend().appendFile(FILE_A).commit();
+      table.newFastAppend().appendFile(FILE_C).commit();
+      table.newFastAppend().appendFile(FILE_D).commit();
+      table.newFastAppend().appendFile(FILE_B).commit();
     }
   }
 
   private void preparePartitionedTableData() {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    table.newFastAppend().appendFile(FILE_C).commit();
-    table.newFastAppend().appendFile(FILE_D).commit();
-    table.newFastAppend().appendFile(FILE_B).commit();
+    preparePartitionedTableData(false);
   }
 
   @Test
@@ -317,18 +345,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
 
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
     if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(files.iterator()));
+      Assert.assertEquals(8, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
-    validateSingleFieldPartition(files, 1);
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 0);
+    validateSingleFieldPartition(entries, 1);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -342,18 +370,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanWithProjection);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
     if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(files.iterator()));
+      Assert.assertEquals(8, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
-    validateSingleFieldPartition(files, 1);
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 0);
+    validateSingleFieldPartition(entries, 1);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -361,14 +389,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 
     Table partitionsTable = new PartitionsTable(table);
-    CloseableIterable<ContentFile<?>> tasksAndEq =
-        PartitionsTable.planFiles((StaticTableScan) partitionsTable.newScan());
-    for (ContentFile<?> file : tasksAndEq) {
-      Assert.assertNull(file.columnSizes());
-      Assert.assertNull(file.valueCounts());
-      Assert.assertNull(file.nullValueCounts());
-      Assert.assertNull(file.lowerBounds());
-      Assert.assertNull(file.upperBounds());
+    CloseableIterable<ManifestEntry<?>> tasksAndEq =
+        PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan());
+    for (ManifestEntry<? extends ContentFile<?>> task : tasksAndEq) {
+      Assert.assertNull(task.file().columnSizes());
+      Assert.assertNull(task.file().valueCounts());
+      Assert.assertNull(task.file().nullValueCounts());
+      Assert.assertNull(task.file().nanValueCounts());
+      Assert.assertNull(task.file().lowerBounds());
+      Assert.assertNull(task.file().upperBounds());
     }
   }
 
@@ -383,15 +412,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanAndEq);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanAndEq);
     if (formatVersion == 2) {
-      Assert.assertEquals(2, Iterators.size(files.iterator()));
+      Assert.assertEquals(2, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(1, Iterators.size(files.iterator()));
+      Assert.assertEquals(1, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
+    validateSingleFieldPartition(entries, 0);
   }
 
   @Test
@@ -405,16 +434,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.lessThan("partition.data_bucket", 2),
             Expressions.greaterThan("record_count", 0));
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanLtAnd);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
     if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(2, Iterators.size(files.iterator()));
+      Assert.assertEquals(2, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
-    validateSingleFieldPartition(files, 1);
+    validateSingleFieldPartition(entries, 0);
+    validateSingleFieldPartition(entries, 1);
   }
 
   @Test
@@ -429,17 +458,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanOr = partitionsTable.newScan().filter(or);
 
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scanOr);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanOr);
     if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(files.iterator()));
+      Assert.assertEquals(8, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
-    validateSingleFieldPartition(files, 1);
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 0);
+    validateSingleFieldPartition(entries, 1);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -449,15 +479,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
     TableScan scanNot = partitionsTable.newScan().filter(not);
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scanNot);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanNot);
     if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(2, Iterators.size(files.iterator()));
+      Assert.assertEquals(2, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -468,15 +499,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scanSet);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanSet);
     if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(2, Iterators.size(files.iterator()));
+      Assert.assertEquals(2, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -487,18 +519,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression unary = Expressions.notNull("partition.data_bucket");
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanUnary);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanUnary);
     if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(files.iterator()));
+      Assert.assertEquals(8, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     }
 
-    validateSingleFieldPartition(files, 0);
-    validateSingleFieldPartition(files, 1);
-    validateSingleFieldPartition(files, 2);
-    validateSingleFieldPartition(files, 3);
+    validateSingleFieldPartition(entries, 0);
+    validateSingleFieldPartition(entries, 1);
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -788,13 +820,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scan);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scan);
     if (formatVersion == 2) {
       // Four data files and delete files of old spec, one new data file of new spec
-      Assert.assertEquals(9, Iterables.size(files));
+      Assert.assertEquals(9, Iterables.size(entries));
     } else {
       // Four data files of old spec, one new data file of new spec
-      Assert.assertEquals(5, Iterables.size(files));
+      Assert.assertEquals(5, Iterables.size(entries));
     }
 
     filter =
@@ -802,15 +835,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    files = PartitionsTable.planFiles((StaticTableScan) scan);
+    entries = PartitionsTable.planEntries((StaticTableScan) scan);
 
     if (formatVersion == 2) {
       // 1 original data file and delete file written by old spec, plus 1 new data file written by
       // new spec
-      Assert.assertEquals(3, Iterables.size(files));
+      Assert.assertEquals(3, Iterables.size(entries));
     } else {
       // 1 original data file written by old spec, plus 1 new data file written by new spec
-      Assert.assertEquals(2, Iterables.size(files));
+      Assert.assertEquals(2, Iterables.size(entries));
     }
   }
 
@@ -852,14 +885,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scan);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scan);
 
     if (formatVersion == 2) {
       // Four data and delete files of original spec, one data file written by new spec
-      Assert.assertEquals(9, Iterables.size(files));
+      Assert.assertEquals(9, Iterables.size(entries));
     } else {
       // Four data files of original spec, one data file written by new spec
-      Assert.assertEquals(5, Iterables.size(files));
+      Assert.assertEquals(5, Iterables.size(entries));
     }
 
     // Filter for a dropped partition spec field.  Correct behavior is that only old partitions are
@@ -869,11 +903,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    files = PartitionsTable.planFiles((StaticTableScan) scan);
+    entries = PartitionsTable.planEntries((StaticTableScan) scan);
 
     if (formatVersion == 1) {
       // 1 original data file written by old spec
-      Assert.assertEquals(1, Iterables.size(files));
+      Assert.assertEquals(1, Iterables.size(entries));
     } else {
       // 1 original data and 1 delete files written by old spec, plus both of new data file/delete
       // file written by new spec
@@ -888,7 +922,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       // schema.
       // The Partition table final schema is a union of fields of all specs, including dropped
       // fields.
-      Assert.assertEquals(4, Iterables.size(files));
+      Assert.assertEquals(4, Iterables.size(entries));
     }
   }
 
@@ -939,10 +973,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.partition", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanAndEq);
-    Assert.assertEquals(1, Iterators.size(files.iterator()));
-    validateSingleFieldPartition(files, 0);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanAndEq);
+    Assert.assertEquals(1, Iterators.size(entries.iterator()));
+    validateSingleFieldPartition(entries, 0);
   }
 
   @Test
@@ -1010,11 +1044,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    CloseableIterable<ContentFile<?>> files = PartitionsTable.planFiles((StaticTableScan) scan);
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scan);
     if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(files.iterator()));
+      Assert.assertEquals(8, Iterators.size(entries.iterator()));
     } else {
-      Assert.assertEquals(4, Iterators.size(files.iterator()));
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
     }
 
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
@@ -1251,6 +1286,163 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Assert.assertEquals(
         "Expected correct delete file on constant column",
         FILE_B_DELETES.path(),
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+  }
+
+  @Test
+  public void testPositionDeletesBaseTableFilterManifestLevel() {
+    testPositionDeletesBaseTableFilter(false);
+  }
+
+  @Test
+  public void testPositionDeletesBaseTableFilterEntriesLevel() {
+    testPositionDeletesBaseTableFilter(true);
+  }
+
+  private void testPositionDeletesBaseTableFilter(boolean transactional) {
+    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    preparePartitionedTable(transactional);
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    Expression expression =
+        Expressions.and(
+            Expressions.equal("data", "u"), // hashes to bucket 0
+            Expressions.greaterThan("id", 0));
+    BatchScan scan =
+        ((PositionDeletesTable.PositionDeletesBatchScan) positionDeletesTable.newBatchScan())
+            .baseTableFilter(expression);
+    assertThat(scan).isExactlyInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
+
+    Assert.assertEquals(
+        "Expected to scan one delete manifest",
+        1,
+        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    int expectedSkippedManifests = transactional ? 0 : 3;
+    Assert.assertEquals(
+        "Wrong number of manifests skipped",
+        expectedSkippedManifests,
+        deleteScan.scanMetrics().skippedDeleteManifests().value());
+
+    assertThat(tasks).hasSize(1);
+
+    ScanTask task = tasks.get(0);
+    assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
+
+    // base table filter should only be used to evaluate partitions
+    posDeleteTask.residual().isEquivalentTo(Expressions.alwaysTrue());
+
+    int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
+    StructLike taskPartitionStruct =
+        (StructLike)
+            constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
+    int taskPartition = taskPartitionStruct.get(0, Integer.class);
+    Assert.assertEquals("Expected correct partition on task's file", 0, filePartition);
+    Assert.assertEquals("Expected correct partition on task's column", 0, taskPartition);
+
+    Assert.assertEquals(
+        "Expected correct partition spec id on task", 0, posDeleteTask.file().specId());
+    Assert.assertEquals(
+        "Expected correct partition spec id on constant column",
+        0,
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+
+    Assert.assertEquals(
+        "Expected correct delete file on task", FILE_A_DELETES.path(), posDeleteTask.file().path());
+    Assert.assertEquals(
+        "Expected correct delete file on constant column",
+        FILE_A_DELETES.path(),
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+  }
+
+  @Test
+  public void testPositionDeletesWithBaseTableFilterNot() {
+    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+
+    // use identity rather than bucket partition spec,
+    // as bucket.project does not support projecting notEq
+    table.updateSpec().removeField("data_bucket").addField("id").commit();
+    PartitionSpec spec = table.spec();
+
+    String path0 = "/path/to/data-0-deletes.parquet";
+    PartitionData partitionData0 = new PartitionData(spec.partitionType());
+    partitionData0.set(0, 0);
+    DeleteFile deleteFileA =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath(path0)
+            .withFileSizeInBytes(10)
+            .withPartition(partitionData0)
+            .withRecordCount(1)
+            .build();
+
+    String path1 = "/path/to/data-1-deletes.parquet";
+    PartitionData partitionData1 = new PartitionData(spec.partitionType());
+    partitionData1.set(0, 1);
+    DeleteFile deleteFileB =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath(path1)
+            .withFileSizeInBytes(10)
+            .withPartition(partitionData1)
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(deleteFileA).addDeletes(deleteFileB).commit();
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    Expression expression = Expressions.not(Expressions.equal("id", 0));
+    BatchScan scan =
+        ((PositionDeletesTable.PositionDeletesBatchScan) positionDeletesTable.newBatchScan())
+            .baseTableFilter(expression);
+    assertThat(scan).isExactlyInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
+
+    Assert.assertEquals(
+        "Expected to scan one delete manifest",
+        1,
+        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    assertThat(tasks).hasSize(1);
+
+    ScanTask task = tasks.get(0);
+    assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
+
+    // base table filter should only be used to evaluate partitions
+    posDeleteTask.residual().isEquivalentTo(Expressions.alwaysTrue());
+
+    int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
+    StructLike taskPartitionStruct =
+        (StructLike)
+            constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
+    int taskPartition =
+        taskPartitionStruct.get(1, Integer.class); // new partition field in position 1
+    Assert.assertEquals("Expected correct partition on task's file", 1, filePartition);
+    Assert.assertEquals("Expected correct partition on task's column", 1, taskPartition);
+
+    Assert.assertEquals(
+        "Expected correct partition spec id on task", 1, posDeleteTask.file().specId());
+    Assert.assertEquals(
+        "Expected correct partition spec id on constant column",
+        1,
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+
+    Assert.assertEquals("Expected correct delete file on task", path1, posDeleteTask.file().path());
+    Assert.assertEquals(
+        "Expected correct delete file on constant column",
+        path1,
         constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
   }
 

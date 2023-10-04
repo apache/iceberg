@@ -26,10 +26,16 @@ PyIceberg is a Python implementation for accessing Iceberg tables, without the n
 
 ## Install
 
+Before installing PyIceberg, make sure that you're on an up-to-date version of `pip`:
+
+```sh
+pip install --upgrade pip
+```
+
 You can install the latest release version from pypi:
 
 ```sh
-pip3 install "pyiceberg[s3fs,hive]"
+pip install "pyiceberg[s3fs,hive]"
 ```
 
 Install it directly for Github (not recommended), but sometimes handy:
@@ -60,7 +66,8 @@ You can mix and match optional dependencies depending on your needs:
 | s3fs     | S3FS as a FileIO implementation to interact with the object store    |
 | adlfs    | ADLFS as a FileIO implementation to interact with the object store   |
 | snappy   | Support for snappy Avro compression                                  |
+| gcs      | GCS as the FileIO implementation to interact with the object store   |
 
-You either need to install `s3fs`, `adlfs` or `pyarrow` for fetching files.
+You either need to install `s3fs`, `adlfs`, `gcs`, or `pyarrow` for fetching files.
 
 There is both a [CLI](cli.md) and [Python API](api.md) available.

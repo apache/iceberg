@@ -30,12 +30,13 @@ INFRA:
   - dev/**/*
 BUILD:
   - "**/*gradle*"
-  - versions.props
 DOCS:
   - docs/**/*
   - "**/*CHANGELOG.md"
   - "**/*README.md"
   - "**/*CONTRIBUTING.md"
+SPECIFICATION:
+  - "format/*"
 EXAMPLES:
   - examples/**/*
 COMMON:
@@ -73,15 +74,20 @@ PIG:
   - pig/**/*
 AWS:
   - aws/**/*
+  - aws-bundle/**/*
 NESSIE:
   - nessie/**/*
 ALIYUN:
   - aliyun/**/*
 GCP:
   - gcp/**/*
+  - gcp-bundle/**/*
 DELL:
   - dell/**/*
 SNOWFLAKE:
   - snowflake/**/*
 OPENAPI:
   - open-api/**/*
+AZURE:
+  - azure/**/*
+  - azure-bundle/**/*

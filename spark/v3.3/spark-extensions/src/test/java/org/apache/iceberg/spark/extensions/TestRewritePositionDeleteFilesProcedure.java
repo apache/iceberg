@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Encoders;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -41,19 +42,36 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
   }
 
   private void createTable() throws Exception {
+    createTable(false);
+  }
+
+  private void createTable(boolean partitioned) throws Exception {
+    String partitionStmt = partitioned ? "PARTITIONED BY (id)" : "";
     sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+        "CREATE TABLE %s (id bigint, data string) USING iceberg %s TBLPROPERTIES"
             + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+        tableName, partitionStmt);
 
     List<SimpleRecord> records =
         Lists.newArrayList(
             new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b"),
-            new SimpleRecord(3, "c"),
-            new SimpleRecord(4, "d"),
-            new SimpleRecord(5, "e"),
-            new SimpleRecord(6, "f"));
+            new SimpleRecord(1, "b"),
+            new SimpleRecord(1, "c"),
+            new SimpleRecord(2, "d"),
+            new SimpleRecord(2, "e"),
+            new SimpleRecord(2, "f"),
+            new SimpleRecord(3, "g"),
+            new SimpleRecord(3, "h"),
+            new SimpleRecord(3, "i"),
+            new SimpleRecord(4, "j"),
+            new SimpleRecord(4, "k"),
+            new SimpleRecord(4, "l"),
+            new SimpleRecord(5, "m"),
+            new SimpleRecord(5, "n"),
+            new SimpleRecord(5, "o"),
+            new SimpleRecord(6, "p"),
+            new SimpleRecord(6, "q"),
+            new SimpleRecord(6, "r"));
     spark
         .createDataset(records, Encoders.bean(SimpleRecord.class))
         .coalesce(1)
@@ -131,6 +149,45 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
   }
 
   @Test
+  public void testExpireDeleteFilesFilter() throws Exception {
+    createTable(true);
+
+    sql("DELETE FROM %s WHERE id = 1 and data='a'", tableName);
+    sql("DELETE FROM %s WHERE id = 1 and data='b'", tableName);
+    sql("DELETE FROM %s WHERE id = 2 and data='d'", tableName);
+    sql("DELETE FROM %s WHERE id = 2 and data='e'", tableName);
+    sql("DELETE FROM %s WHERE id = 3 and data='g'", tableName);
+    sql("DELETE FROM %s WHERE id = 3 and data='h'", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals(6, TestHelpers.deleteFiles(table).size());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_position_delete_files("
+                + "table => '%s',"
+                // data filter is ignored as it cannot be applied to position deletes
+                + "where => 'id IN (1, 2) AND data=\"bar\"',"
+                + "options => map("
+                + "'rewrite-all','true'))",
+            catalogName, tableIdent);
+    table.refresh();
+
+    Map<String, String> snapshotSummary = snapshotSummary();
+    assertEquals(
+        "Should delete 4 delete files and add 2",
+        ImmutableList.of(
+            row(
+                4,
+                2,
+                Long.valueOf(snapshotSummary.get(REMOVED_FILE_SIZE_PROP)),
+                Long.valueOf(snapshotSummary.get(ADDED_FILE_SIZE_PROP)))),
+        output);
+
+    Assert.assertEquals(4, TestHelpers.deleteFiles(table).size());
+  }
+
+  @Test
   public void testInvalidOption() throws Exception {
     createTable();
 
@@ -144,6 +201,26 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                     + "options => map("
                     + "'foo', 'bar'))",
                 catalogName, tableIdent));
+  }
+
+  @Test
+  public void testRewriteWithUntranslatedOrUnconvertedFilter() throws Exception {
+    createTable();
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'lower(data) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot translate Spark expression");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'data like \"%%fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot convert Spark filter");
   }
 
   private Map<String, String> snapshotSummary() {

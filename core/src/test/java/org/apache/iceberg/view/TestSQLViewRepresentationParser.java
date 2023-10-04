@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.view;
 
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -39,20 +38,12 @@ public class TestSQLViewRepresentationParser {
         .isEqualTo(viewRepresentation);
 
     String requiredAndOptionalFields =
-        "{\"type\":\"sql\", \"sql\": \"select * from foo\", \"dialect\": \"spark-sql\", "
-            + "\"default-catalog\":\"cat\", "
-            + "\"default-namespace\":[\"part1\",\"part2\"], "
-            + "\"field-aliases\":[\"col1\", \"col2\"], "
-            + "\"field-comments\":[\"Comment col1\", \"Comment col2\"]}";
+        "{\"type\":\"sql\", \"sql\": \"select * from foo\", \"dialect\": \"spark-sql\"}";
 
     SQLViewRepresentation viewWithOptionalFields =
         ImmutableSQLViewRepresentation.builder()
             .sql("select * from foo")
             .dialect("spark-sql")
-            .defaultCatalog("cat")
-            .fieldAliases(ImmutableList.of("col1", "col2"))
-            .fieldComments(ImmutableList.of("Comment col1", "Comment col2"))
-            .defaultNamespace(Namespace.of("part1", "part2"))
             .build();
     Assertions.assertThat(SQLViewRepresentationParser.fromJson(requiredAndOptionalFields))
         .as("Should be able to parse valid SQL view representation")
@@ -74,8 +65,7 @@ public class TestSQLViewRepresentationParser {
 
   @Test
   public void testViewRepresentationSerialization() {
-    String requiredFields =
-        "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\"}";
+    String json = "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\"}";
     SQLViewRepresentation viewRepresentation =
         ImmutableSQLViewRepresentation.builder()
             .sql("select * from foo")
@@ -83,28 +73,10 @@ public class TestSQLViewRepresentationParser {
             .build();
     Assertions.assertThat(ViewRepresentationParser.toJson(viewRepresentation))
         .as("Should be able to serialize valid SQL view representation")
-        .isEqualTo(requiredFields);
-
-    String requiredAndOptionalFields =
-        "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\","
-            + "\"default-catalog\":\"cat\","
-            + "\"default-namespace\":[\"part1\",\"part2\"],"
-            + "\"field-aliases\":[\"col1\",\"col2\"],"
-            + "\"field-comments\":[\"Comment col1\",\"Comment col2\"]}";
-
-    SQLViewRepresentation viewWithOptionalFields =
-        ImmutableSQLViewRepresentation.builder()
-            .sql("select * from foo")
-            .dialect("spark-sql")
-            .defaultCatalog("cat")
-            .fieldAliases(ImmutableList.of("col1", "col2"))
-            .fieldComments(ImmutableList.of("Comment col1", "Comment col2"))
-            .defaultNamespace(Namespace.of("part1", "part2"))
-            .build();
-
-    Assertions.assertThat(ViewRepresentationParser.toJson(viewWithOptionalFields))
-        .as("Should be able to serialize valid SQL view representation")
-        .isEqualTo(requiredAndOptionalFields);
+        .isEqualTo(json);
+    Assertions.assertThat(
+            ViewRepresentationParser.fromJson(ViewRepresentationParser.toJson(viewRepresentation)))
+        .isEqualTo(viewRepresentation);
   }
 
   @Test
@@ -112,5 +84,9 @@ public class TestSQLViewRepresentationParser {
     Assertions.assertThatThrownBy(() -> SQLViewRepresentationParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid SQL view representation: null");
+
+    Assertions.assertThatThrownBy(() -> SQLViewRepresentationParser.fromJson((JsonNode) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse SQL view representation from null object");
   }
 }

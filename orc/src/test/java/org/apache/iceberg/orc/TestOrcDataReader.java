@@ -43,13 +43,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
 import org.assertj.core.api.WithAssertions;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcDataReader implements WithAssertions {
-  @ClassRule public static TemporaryFolder temp = new TemporaryFolder();
+
+  @TempDir private static File temp;
 
   private static final Schema SCHEMA =
       new Schema(
@@ -61,7 +61,7 @@ public class TestOrcDataReader implements WithAssertions {
   private static DataFile dataFile;
   private static OutputFile outputFile;
 
-  @BeforeClass
+  @BeforeAll
   public static void createDataFile() throws IOException {
     GenericRecord bufferRecord = GenericRecord.create(SCHEMA);
 
@@ -80,7 +80,7 @@ public class TestOrcDataReader implements WithAssertions {
         bufferRecord.copy(
             ImmutableMap.of("id", 5L, "data", "e", "array", Arrays.asList(5, 6, 7, 8, 9))));
 
-    outputFile = Files.localOutput(File.createTempFile("test", ".orc", temp.getRoot()));
+    outputFile = Files.localOutput(File.createTempFile("test", ".orc", new File(temp.getPath())));
 
     DataWriter<Record> dataWriter =
         ORC.writeData(outputFile)

@@ -23,6 +23,7 @@ import static org.apache.iceberg.Files.localOutput;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
@@ -33,29 +34,25 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.MessageType;
-import org.junit.rules.TemporaryFolder;
 
 /** Utilities for tests that need to write Parquet files. */
 class ParquetWritingTestUtils {
 
   private ParquetWritingTestUtils() {}
 
-  static File writeRecords(TemporaryFolder temp, Schema schema, GenericData.Record... records)
+  static File writeRecords(Path temp, Schema schema, GenericData.Record... records)
       throws IOException {
     return writeRecords(temp, schema, Collections.emptyMap(), null, records);
   }
 
   static File writeRecords(
-      TemporaryFolder temp,
-      Schema schema,
-      Map<String, String> properties,
-      GenericData.Record... records)
+      Path temp, Schema schema, Map<String, String> properties, GenericData.Record... records)
       throws IOException {
     return writeRecords(temp, schema, properties, null, records);
   }
 
   static File writeRecords(
-      TemporaryFolder temp,
+      Path temp,
       Schema schema,
       Map<String, String> properties,
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
@@ -97,8 +94,8 @@ class ParquetWritingTestUtils {
     return len;
   }
 
-  static File createTempFile(TemporaryFolder temp) throws IOException {
-    File tmpFolder = temp.newFolder("parquet");
+  static File createTempFile(Path temp) throws IOException {
+    File tmpFolder = temp.resolve("parquet").toFile();
     String filename = UUID.randomUUID().toString();
     return new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
   }

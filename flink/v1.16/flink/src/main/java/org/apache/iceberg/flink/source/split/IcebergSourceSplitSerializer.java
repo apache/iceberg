@@ -22,14 +22,15 @@ import java.io.IOException;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 
-/**
- * TODO: use Java serialization for now. Will switch to more stable serializer from <a
- * href="https://github.com/apache/iceberg/issues/1698">issue-1698</a>.
- */
 @Internal
 public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<IcebergSourceSplit> {
-  public static final IcebergSourceSplitSerializer INSTANCE = new IcebergSourceSplitSerializer();
-  private static final int VERSION = 1;
+  private static final int VERSION = 2;
+
+  private final boolean caseSensitive;
+
+  public IcebergSourceSplitSerializer(boolean caseSensitive) {
+    this.caseSensitive = caseSensitive;
+  }
 
   @Override
   public int getVersion() {
@@ -38,7 +39,7 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
-    return split.serializeV1();
+    return split.serializeV2();
   }
 
   @Override
@@ -46,6 +47,8 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
     switch (version) {
       case 1:
         return IcebergSourceSplit.deserializeV1(serialized);
+      case 2:
+        return IcebergSourceSplit.deserializeV2(serialized, caseSensitive);
       default:
         throw new IOException(
             String.format(

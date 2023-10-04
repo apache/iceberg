@@ -29,9 +29,8 @@ from typing import (
 from urllib.parse import urlparse
 
 from hive_metastore.ThriftHiveMetastore import Client
-from hive_metastore.ttypes import AlreadyExistsException
-from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import (
+    AlreadyExistsException,
     FieldSchema,
     InvalidOperationException,
     MetaException,
@@ -39,6 +38,7 @@ from hive_metastore.ttypes import (
     SerDeInfo,
     StorageDescriptor,
 )
+from hive_metastore.ttypes import Database as HiveDatabase
 from hive_metastore.ttypes import Table as HiveTable
 from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
@@ -239,7 +239,7 @@ class HiveCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(table.dbName, table.tableName),
+            identifier=(self.name, table.dbName, table.tableName),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
@@ -303,8 +303,23 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table, io)
 
+    def register_table(self, identifier: Union[str, Identifier], metadata_location: str) -> Table:
+        """Register a new table using existing metadata.
+
+        Args:
+            identifier Union[str, Identifier]: Table identifier for the table
+            metadata_location str: The location to the metadata
+
+        Returns:
+            Table: The newly registered table
+
+        Raises:
+            TableAlreadyExistsError: If the table already exists
+        """
+        raise NotImplementedError
+
     def _commit_table(self, table_request: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table.
+        """Update the table.
 
         Args:
             table_request (CommitTableRequest): The table requests to be carried out.
@@ -318,7 +333,7 @@ class HiveCatalog(Catalog):
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        """Loads the table's metadata and returns the table instance.
+        """Load the table's metadata and return the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
@@ -489,7 +504,7 @@ class HiveCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        """Removes provided property keys and updates properties for a namespace.
+        """Remove provided property keys and update properties for a namespace.
 
         Args:
             namespace: Namespace identifier.

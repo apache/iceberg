@@ -25,17 +25,20 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -51,6 +54,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -107,7 +111,9 @@ public class TestNessieTable extends BaseTestIceberg {
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
-      FileUtils.deleteDirectory(new File(tableLocation));
+      try (Stream<Path> walk = Files.walk(Paths.get(tableLocation))) {
+        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      }
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -542,7 +548,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
     IcebergTable table = getTable(BRANCH, KEY);
 
-    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, "cid");
+    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, table.getId());
     api.commitMultipleOperations()
         .branch(branch)
         .operation(Operation.Put.of(KEY, value))
@@ -569,12 +575,11 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testGCEnabled() {
+  public void testGCDisabled() {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    Assertions.assertThat(icebergTable.properties().get(TableProperties.GC_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "false");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -585,18 +590,43 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
+  public void testGCEnabled() {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+    icebergTable.updateProperties().set(TableProperties.GC_ENABLED, "true").commit();
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(TableProperties.GC_ENABLED, "true");
+
+    Assertions.assertThatCode(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testGCEnabledViaTableDefaultCatalogProperty() {
+    catalog.dropTable(TABLE_IDENTIFIER, false); // pre-created in @BeforeEach
+
+    catalog =
+        initCatalog(
+            branch,
+            null,
+            ImmutableMap.<String, String>builder()
+                .put(CatalogProperties.TABLE_DEFAULT_PREFIX + TableProperties.GC_ENABLED, "true")
+                .build());
+
+    // Create the table again using updated config defaults.
+    tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    // Forceful setting of property also should get override with false
-    icebergTable
-        .updateProperties()
-        .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
-        .commit();
-    Assertions.assertThat(
-            icebergTable.properties().get(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
+    Assertions.assertThatCode(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     icebergTable
         .updateProperties()

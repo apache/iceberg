@@ -85,8 +85,12 @@ public class NessieIcebergClient implements AutoCloseable {
     return api;
   }
 
-  public UpdateableReference getRef() {
+  UpdateableReference getRef() {
     return reference.get();
+  }
+
+  public Reference getReference() {
+    return reference.get().getReference();
   }
 
   public void refresh() throws NessieNotFoundException {
@@ -326,8 +330,8 @@ public class NessieIcebergClient implements AutoCloseable {
                 NessieUtil.buildCommitMetadata(
                     String.format("Iceberg rename table from '%s' to '%s'", from, to),
                     catalogOptions))
-            .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable, existingFromTable))
-            .operation(Operation.Delete.of(NessieUtil.toKey(from)));
+            .operation(Operation.Delete.of(NessieUtil.toKey(from)))
+            .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
 
     try {
       Tasks.foreach(operations)
@@ -509,6 +513,8 @@ public class NessieIcebergClient implements AutoCloseable {
           "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
     } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
       return String.format("Iceberg schema change against %s", tableName);
+    } else if (base == null) {
+      return String.format("Iceberg table created/registered with name %s", tableName);
     }
     return String.format("Iceberg commit against %s", tableName);
   }

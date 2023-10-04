@@ -16,9 +16,9 @@
 # under the License.
 [tool.poetry]
 name = "pyiceberg"
-version = "0.3.0"
+version = "0.5.0"
 readme = "README.md"
-homepage = "https://iceberg.apache.org/"
+homepage = "https://py.iceberg.apache.org/"
 repository = "https://github.com/apache/iceberg/"
 description = "Apache Iceberg is an open table format for huge analytic datasets"
 authors = ["Apache Software Foundation <dev@iceberg.apache.org>"]
@@ -39,7 +39,11 @@ packages = [
   { include = "Makefile", format = "sdist" },
   { include = "NOTICE", format = ["sdist", "wheel"] }
 ]
-include = [{ path = "dev", format = "sdist" }]
+include = [
+  { path = "dev", format = "sdist" },
+  { path = "pyiceberg/**/*.so", format = "wheel" },
+  { path = "pyiceberg/**/*.pyd", format = "wheel" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -48,37 +52,51 @@ requests = ">=2.20.0,<3.0.0"
 click = ">=7.1.1,<9.0.0"
 rich = ">=10.11.0,<14.0.0"
 strictyaml = ">=1.7.0,<2.0.0" # CVE-2020-14343 was fixed in 5.4.
-pydantic = ">=1.9.0,<2.0.0"
+pydantic = ">=2.0,<3.0"
 sortedcontainers = "2.4.0"
-fsspec = ">=2021.09.0,<2024.1.0" # `lexists()` was implemented in 2021.09.0. Upper bound set arbitrarily, to be reassessed in early 2024.
-pyparsing = ">=3.0.7,<4.0.0" # The `min` keyword argument for `delimited_list()` was added in 3.0.7.
+fsspec = ">=2023.1.0,<2024.1.0"
+pyparsing = ">=3.1.0,<4.0.0"
 zstandard = ">=0.13.0,<1.0.0"
-pyarrow = { version = ">=9.0.0,<13.0.0", optional = true }
+pyarrow = { version = ">=9.0.0,<14.0.0", optional = true }
 pandas = { version = ">=1.0.0,<3.0.0", optional = true }
 duckdb = { version = ">=0.5.0,<1.0.0", optional = true }
 ray = { version = ">=2.0.0,<3.0.0", optional = true }
 python-snappy = { version = ">=0.6.0,<1.0.0", optional = true }
 thrift = { version = ">=0.13.0,<1.0.0", optional = true }
-boto3 = { version = ">=1.17.106", optional = true }
-s3fs = { version = ">=2021.08.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
-adlfs = { version = ">=2021.07.0,<2024.1.0", optional = true } # Upper bound set arbitrarily, to be reassessed in early 2024.
+mypy-boto3-glue = { version = ">=1.28.18", optional = true }
+boto3 = { version = ">=1.24.59", optional = true }
+s3fs = { version = ">=2023.1.0,<2024.1.0", optional = true }
+adlfs = { version = ">=2023.1.0,<2024.1.0", optional = true }
+gcsfs = { version = ">=2023.1.0,<2024.1.0", optional = true }
+psycopg2-binary = { version = ">=2.9.6", optional = true }
+sqlalchemy = { version = "^2.0.18", optional = true }
 
 [tool.poetry.dev-dependencies]
-pytest = "7.3.2"
-pytest-checkdocs = "2.9.0"
-pre-commit = "3.3.3"
-fastavro = "1.7.4"
-coverage = { version = "^7.2.3", extras = ["toml"] }
+pytest = "7.4.2"
+pytest-checkdocs = "2.10.1"
+pre-commit = "3.4.0"
+fastavro = "1.8.3"
+coverage = { version = "^7.3.1", extras = ["toml"] }
 requests-mock = "1.11.0"
-moto = "^4.1.11"
-typing-extensions = "^4.6.3"
+moto = "^4.2.4"
+typing-extensions = "4.7.1"
+pytest-mock = "3.11.1"
+cython = "3.0.2"
+
+[[tool.mypy.overrides]]
+module = "pytest_mock.*"
+ignore_missing_imports = true
 
 [tool.poetry.scripts]
 pyiceberg = "pyiceberg.cli.console:run"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.0.0", "wheel", "Cython>=3.0.0", "setuptools"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.build]
+generate-setup-file = false
+script = "build-module.py"
 
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
@@ -88,33 +106,31 @@ ray = ["ray", "pyarrow", "pandas"]
 snappy = ["python-snappy"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
-glue = ["boto3"]
+glue = ["boto3", "mypy-boto3-glue"]
 adlfs = ["adlfs"]
 dynamodb = ["boto3"]
 zstandard = ["zstandard"]
+sql-postgres = ["sqlalchemy", "psycopg2-binary"]
+gcsfs = ["gcsfs"]
 
 [tool.pytest.ini_options]
 markers = [
-  "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint-url args)",
+  "unmarked: marks a test as a unittest",
+  "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint args)",
   "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)",
-  "integration: marks integration tests against Apache Spark"
+  "integration: marks integration tests against Apache Spark",
+  "gcs: marks a test as requiring access to gcs compliant storage (use with --gs.token, --gs.project, and --gs.endpoint)"
 ]
 
 [tool.black]
 line-length = 130
 target-version = ['py38']
 
-[tool.isort]
-src_paths = ["pyiceberg/", "tests/"]
-multi_line_output = 3
-profile = 'black'
-line_length = 130
-force_grid_wrap = 4
-
 [tool.pycln]
 all = true
 
 [tool.mypy]
+mypy_path = "python"
 no_implicit_optional = true
 namespace_packages = false
 warn_redundant_casts = true
@@ -141,6 +157,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pydantic.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pydantic_core.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -192,6 +212,10 @@ module = "adlfs.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "gcsfs.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "packaging.*"
 ignore_missing_imports = true
 
@@ -205,6 +229,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "botocore.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy_boto3_glue.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -247,5 +275,77 @@ ignore_missing_imports = true
 module = "numpy.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "Cython.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "setuptools.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ['pyiceberg/']
+
+[tool.ruff]
+src = ['pyiceberg','tests']
+extend-exclude = ["dev/provision.py"]
+select = [
+    "E", # pycodestyle
+    "W", # pycodestyle
+    "F", # Pyflakes
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "I", # isort
+    "UP", # pyupgrade
+]
+ignore = ["E501","E203","B024","B028"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+per-file-ignores = {}
+# Ignore _all_ violations.
+# Same as Black.
+line-length = 130
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
+
+[tool.ruff.isort]
+detect-same-package = true
+lines-between-types = 0
+known-first-party = ["pyiceberg", "tests"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]

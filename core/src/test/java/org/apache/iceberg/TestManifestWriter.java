@@ -20,12 +20,15 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -42,6 +45,9 @@ public class TestManifestWriter extends TableTestBase {
   public TestManifestWriter(int formatVersion) {
     super(formatVersion);
   }
+
+  private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 250;
+  private static final long SMALL_FILE_SIZE = 10L;
 
   @Test
   public void testManifestStats() throws IOException {
@@ -218,6 +224,166 @@ public class TestManifestWriter extends TableTestBase {
         statuses(Status.EXISTING, Status.EXISTING));
   }
 
+  @Test
+  public void testRollingManifestWriterNoRecords() throws IOException {
+    RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
+
+    writer.close();
+    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+
+    writer.close();
+    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+  }
+
+  @Test
+  public void testRollingDeleteManifestWriterNoRecords() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    RollingManifestWriter<DeleteFile> writer = newRollingWriteDeleteManifest(SMALL_FILE_SIZE);
+
+    writer.close();
+    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+
+    writer.close();
+    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+  }
+
+  @Test
+  public void testRollingManifestWriterSplitFiles() throws IOException {
+    RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
+
+    int[] addedFileCounts = new int[3];
+    int[] existingFileCounts = new int[3];
+    int[] deletedFileCounts = new int[3];
+    long[] addedRowCounts = new long[3];
+    long[] existingRowCounts = new long[3];
+    long[] deletedRowCounts = new long[3];
+
+    for (int i = 0; i < FILE_SIZE_CHECK_ROWS_DIVISOR * 3; i++) {
+      int type = i % 3;
+      int fileIndex = i / FILE_SIZE_CHECK_ROWS_DIVISOR;
+      if (type == 0) {
+        writer.add(newFile(i));
+        addedFileCounts[fileIndex] += 1;
+        addedRowCounts[fileIndex] += i;
+      } else if (type == 1) {
+        writer.existing(newFile(i), 1, 1, null);
+        existingFileCounts[fileIndex] += 1;
+        existingRowCounts[fileIndex] += i;
+      } else {
+        writer.delete(newFile(i), 1, null);
+        deletedFileCounts[fileIndex] += 1;
+        deletedRowCounts[fileIndex] += i;
+      }
+    }
+
+    writer.close();
+    List<ManifestFile> manifestFiles = writer.toManifestFiles();
+    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+
+    checkManifests(
+        manifestFiles,
+        addedFileCounts,
+        existingFileCounts,
+        deletedFileCounts,
+        addedRowCounts,
+        existingRowCounts,
+        deletedRowCounts);
+
+    writer.close();
+    manifestFiles = writer.toManifestFiles();
+    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+
+    checkManifests(
+        manifestFiles,
+        addedFileCounts,
+        existingFileCounts,
+        deletedFileCounts,
+        addedRowCounts,
+        existingRowCounts,
+        deletedRowCounts);
+  }
+
+  @Test
+  public void testRollingDeleteManifestWriterSplitFiles() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    RollingManifestWriter<DeleteFile> writer = newRollingWriteDeleteManifest(SMALL_FILE_SIZE);
+
+    int[] addedFileCounts = new int[3];
+    int[] existingFileCounts = new int[3];
+    int[] deletedFileCounts = new int[3];
+    long[] addedRowCounts = new long[3];
+    long[] existingRowCounts = new long[3];
+    long[] deletedRowCounts = new long[3];
+    for (int i = 0; i < 3 * FILE_SIZE_CHECK_ROWS_DIVISOR; i++) {
+      int type = i % 3;
+      int fileIndex = i / FILE_SIZE_CHECK_ROWS_DIVISOR;
+      if (type == 0) {
+        writer.add(newPosDeleteFile(i));
+        addedFileCounts[fileIndex] += 1;
+        addedRowCounts[fileIndex] += i;
+      } else if (type == 1) {
+        writer.existing(newPosDeleteFile(i), 1, 1, null);
+        existingFileCounts[fileIndex] += 1;
+        existingRowCounts[fileIndex] += i;
+      } else {
+        writer.delete(newPosDeleteFile(i), 1, null);
+        deletedFileCounts[fileIndex] += 1;
+        deletedRowCounts[fileIndex] += i;
+      }
+    }
+
+    writer.close();
+    List<ManifestFile> manifestFiles = writer.toManifestFiles();
+    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+
+    checkManifests(
+        manifestFiles,
+        addedFileCounts,
+        existingFileCounts,
+        deletedFileCounts,
+        addedRowCounts,
+        existingRowCounts,
+        deletedRowCounts);
+
+    writer.close();
+    manifestFiles = writer.toManifestFiles();
+    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+
+    checkManifests(
+        manifestFiles,
+        addedFileCounts,
+        existingFileCounts,
+        deletedFileCounts,
+        addedRowCounts,
+        existingRowCounts,
+        deletedRowCounts);
+  }
+
+  private void checkManifests(
+      List<ManifestFile> manifests,
+      int[] addedFileCounts,
+      int[] existingFileCounts,
+      int[] deletedFileCounts,
+      long[] addedRowCounts,
+      long[] existingRowCounts,
+      long[] deletedRowCounts) {
+    for (int i = 0; i < manifests.size(); i++) {
+      ManifestFile manifest = manifests.get(i);
+
+      Assertions.assertThat(manifest.hasAddedFiles()).isTrue();
+      Assertions.assertThat(manifest.addedFilesCount()).isEqualTo(addedFileCounts[i]);
+      Assertions.assertThat(manifest.addedRowsCount()).isEqualTo(addedRowCounts[i]);
+
+      Assertions.assertThat(manifest.hasExistingFiles()).isTrue();
+      Assertions.assertThat(manifest.existingFilesCount()).isEqualTo(existingFileCounts[i]);
+      Assertions.assertThat(manifest.existingRowsCount()).isEqualTo(existingRowCounts[i]);
+
+      Assertions.assertThat(manifest.hasDeletedFiles()).isTrue();
+      Assertions.assertThat(manifest.deletedFilesCount()).isEqualTo(deletedFileCounts[i]);
+      Assertions.assertThat(manifest.deletedRowsCount()).isEqualTo(deletedRowCounts[i]);
+    }
+  }
+
   private DataFile newFile(long recordCount) {
     return newFile(recordCount, null);
   }
@@ -233,5 +399,40 @@ public class TestManifestWriter extends TableTestBase {
       builder.withPartition(partition);
     }
     return builder.build();
+  }
+
+  private DeleteFile newPosDeleteFile(long recordCount) {
+    return FileMetadata.deleteFileBuilder(SPEC)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(recordCount)
+        .build();
+  }
+
+  private RollingManifestWriter<DataFile> newRollingWriteManifest(long targetFileSize) {
+    return new RollingManifestWriter<>(
+        () -> {
+          OutputFile newManifestFile = newManifestFile();
+          return ManifestFiles.write(formatVersion, SPEC, newManifestFile, null);
+        },
+        targetFileSize);
+  }
+
+  private RollingManifestWriter<DeleteFile> newRollingWriteDeleteManifest(long targetFileSize) {
+    return new RollingManifestWriter<>(
+        () -> {
+          OutputFile newManifestFile = newManifestFile();
+          return ManifestFiles.writeDeleteManifest(formatVersion, SPEC, newManifestFile, null);
+        },
+        targetFileSize);
+  }
+
+  private OutputFile newManifestFile() {
+    try {
+      return Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

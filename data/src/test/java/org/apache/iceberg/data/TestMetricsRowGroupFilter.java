@@ -35,6 +35,8 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
@@ -47,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -691,5 +694,80 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+  }
+
+  @Test
+  public void testTransformFilter() {
+    Assumptions.assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    boolean shouldRead =
+        new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
+            .shouldRead(parquetSchema, rowGroupMetadata);
+    Assertions.assertThat(shouldRead)
+        .as("Should read: filter contains non-reference evaluate as True")
+        .isTrue();
+  }
+
+  private boolean shouldRead(Expression expression) {
+    return shouldRead(expression, true);
+  }
+
+  private boolean shouldRead(Expression expression, boolean caseSensitive) {
+    switch (format) {
+      case ORC:
+        return shouldReadOrc(expression, caseSensitive);
+      case PARQUET:
+        return shouldReadParquet(expression, caseSensitive, parquetSchema, rowGroupMetadata);
+      default:
+        throw new UnsupportedOperationException(
+            "Row group filter tests not supported for " + format);
+    }
+  }
+
+  private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
+    try (CloseableIterable<org.apache.iceberg.data.Record> reader =
+        ORC.read(Files.localInput(orcFile))
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .filter(expression)
+            .caseSensitive(caseSensitive)
+            .build()) {
+      return Lists.newArrayList(reader).size() > 0;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private boolean shouldReadParquet(
+      Expression expression,
+      boolean caseSensitive,
+      MessageType messageType,
+      BlockMetaData blockMetaData) {
+    return new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive)
+        .shouldRead(messageType, blockMetaData);
+  }
+
+  private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
+    return new org.apache.parquet.io.InputFile() {
+      @Override
+      public long getLength() throws IOException {
+        return inFile.getLength();
+      }
+
+      @Override
+      public org.apache.parquet.io.SeekableInputStream newStream() throws IOException {
+        SeekableInputStream stream = inFile.newStream();
+        return new DelegatingSeekableInputStream(stream) {
+          @Override
+          public long getPos() throws IOException {
+            return stream.getPos();
+          }
+
+          @Override
+          public void seek(long newPos) throws IOException {
+            stream.seek(newPos);
+          }
+        };
+      }
+    };
   }
 }

@@ -30,16 +30,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestAvroReadProjection extends TestReadProjection {
   @Override
   protected GenericData.Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
-    File file = temp.newFile(desc + ".avro");
-    file.delete();
+    File file = temp.resolve(desc + ".avro").toFile();
 
     try (FileAppender<GenericData.Record> appender =
         Avro.write(Files.localOutput(file)).schema(writeSchema).build()) {
@@ -73,13 +72,11 @@ public class TestAvroReadProjection extends TestReadProjection {
 
     GenericData.Record projected =
         writeAndRead("full_projection", writeSchema, writeSchema, record);
-    Assert.assertEquals(
-        "Should contain correct value list",
-        values1,
-        ((Map<Long, List<Long>>) projected.get("map")).get(100L));
-    Assert.assertEquals(
-        "Should contain correct value list",
-        values2,
-        ((Map<Long, List<Long>>) projected.get("map")).get(200L));
+    Assertions.assertThat(((Map<Long, List<Long>>) projected.get("map")).get(100L))
+        .as("Should contain correct value list")
+        .isEqualTo(values1);
+    Assertions.assertThat(((Map<Long, List<Long>>) projected.get("map")).get(200L))
+        .as("Should contain correct value list")
+        .isEqualTo(values2);
   }
 }

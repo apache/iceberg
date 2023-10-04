@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
@@ -35,9 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LockManagers;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -72,7 +72,7 @@ public class TestGlueCatalog {
   private GlueClient glue;
   private GlueCatalog glueCatalog;
 
-  @Before
+  @BeforeEach
   public void before() {
     glue = Mockito.mock(GlueClient.class);
     glueCatalog = new GlueCatalog();
@@ -80,9 +80,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
   }
 
@@ -93,9 +93,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         null,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
@@ -118,16 +118,16 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assert.assertEquals(WAREHOUSE_PATH + "/db.db/table", location);
+    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
@@ -137,7 +137,7 @@ public class TestGlueCatalog {
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assert.assertEquals(WAREHOUSE_PATH + "/db.db/table", location);
+    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
@@ -149,7 +149,7 @@ public class TestGlueCatalog {
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assert.assertEquals("s3://bucket2/db/table", location);
+    Assertions.assertThat(location).isEqualTo("s3://bucket2/db/table");
   }
 
   @Test
@@ -157,14 +157,15 @@ public class TestGlueCatalog {
     GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
     String catalogId = "myCatalogId";
     AwsProperties awsProperties = new AwsProperties();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     awsProperties.setGlueCatalogId(catalogId);
     catalogWithCustomCatalogId.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
         awsProperties,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
 
     Mockito.doReturn(
@@ -225,9 +226,9 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getTables(Mockito.any(GetTablesRequest.class));
-    Assert.assertEquals(
-        Lists.newArrayList(TableIdentifier.of("db1", "t1"), TableIdentifier.of("db1", "t2")),
-        glueCatalog.listTables(Namespace.of("db1")));
+    Assertions.assertThat(glueCatalog.listTables(Namespace.of("db1")))
+        .isEqualTo(
+            Lists.newArrayList(TableIdentifier.of("db1", "t1"), TableIdentifier.of("db1", "t2")));
   }
 
   @Test
@@ -271,7 +272,7 @@ public class TestGlueCatalog {
             })
         .when(glue)
         .getTables(Mockito.any(GetTablesRequest.class));
-    Assert.assertEquals(10, glueCatalog.listTables(Namespace.of("db1")).size());
+    Assertions.assertThat(glueCatalog.listTables(Namespace.of("db1"))).hasSize(10);
   }
 
   @Test
@@ -329,7 +330,7 @@ public class TestGlueCatalog {
         .when(glue)
         .deleteTable(Mockito.any(DeleteTableRequest.class));
     glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
-    Assert.assertEquals(0, counter.get());
+    Assertions.assertThat(counter.get()).isEqualTo(0);
   }
 
   @Test
@@ -383,7 +384,7 @@ public class TestGlueCatalog {
         .createTable(Mockito.any(CreateTableRequest.class));
 
     glueCatalog.renameTable(TableIdentifier.of("db", "t"), TableIdentifier.of("db", "x_renamed"));
-    Assert.assertEquals(0, counter.get());
+    Assertions.assertThat(counter.get()).isEqualTo(0);
   }
 
   @Test
@@ -421,8 +422,8 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getDatabases(Mockito.any(GetDatabasesRequest.class));
-    Assert.assertEquals(
-        Lists.newArrayList(Namespace.of("db1"), Namespace.of("db2")), glueCatalog.listNamespaces());
+    Assertions.assertThat(glueCatalog.listNamespaces())
+        .isEqualTo(Lists.newArrayList(Namespace.of("db1"), Namespace.of("db2")));
   }
 
   @Test
@@ -449,7 +450,7 @@ public class TestGlueCatalog {
             })
         .when(glue)
         .getDatabases(Mockito.any(GetDatabasesRequest.class));
-    Assert.assertEquals(10, glueCatalog.listNamespaces().size());
+    Assertions.assertThat(glueCatalog.listNamespaces()).hasSize(10);
   }
 
   @Test
@@ -458,10 +459,9 @@ public class TestGlueCatalog {
             GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assert.assertEquals(
-        "list self should return empty list",
-        Lists.newArrayList(),
-        glueCatalog.listNamespaces(Namespace.of("db1")));
+    Assertions.assertThat(glueCatalog.listNamespaces(Namespace.of("db1")))
+        .as("list self should return empty list")
+        .isEmpty();
   }
 
   @Test
@@ -484,7 +484,8 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assert.assertEquals(parameters, glueCatalog.loadNamespaceMetadata(Namespace.of("db1")));
+    Assertions.assertThat(glueCatalog.loadNamespaceMetadata(Namespace.of("db1")))
+        .isEqualTo(parameters);
   }
 
   @Test
@@ -597,74 +598,67 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         catalogProps);
     Map<String, String> properties = glueCatalog.properties();
-    Assert.assertFalse(properties.isEmpty());
-    Assert.assertTrue(properties.containsKey("table-default.key1"));
-    Assert.assertEquals("catalog-default-key1", properties.get("table-default.key1"));
-    Assert.assertTrue(properties.containsKey("table-default.key2"));
-    Assert.assertEquals("catalog-default-key2", properties.get("table-default.key2"));
-    Assert.assertTrue(properties.containsKey("table-default.key3"));
-    Assert.assertEquals("catalog-default-key3", properties.get("table-default.key3"));
-    Assert.assertTrue(properties.containsKey("table-override.key3"));
-    Assert.assertEquals("catalog-override-key3", properties.get("table-override.key3"));
-    Assert.assertTrue(properties.containsKey("table-override.key4"));
-    Assert.assertEquals("catalog-override-key4", properties.get("table-override.key4"));
+    Assertions.assertThat(properties)
+        .isNotEmpty()
+        .containsEntry("table-default.key1", "catalog-default-key1")
+        .containsEntry("table-default.key2", "catalog-default-key2")
+        .containsEntry("table-default.key3", "catalog-default-key3")
+        .containsEntry("table-override.key3", "catalog-override-key3")
+        .containsEntry("table-override.key4", "catalog-override-key4");
   }
 
   @Test
   public void testValidateIdentifierSkipNameValidation() {
     AwsProperties props = new AwsProperties();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     props.setGlueCatalogSkipNameValidation(true);
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
         props,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
-    Assert.assertEquals(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")), true);
+    Assertions.assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")))
+        .isEqualTo(true);
   }
 
   @Test
   public void testTableLevelS3TagProperties() {
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
             "true",
-            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
     AwsProperties awsProperties = new AwsProperties(properties);
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
         awsProperties,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         properties);
     GlueTableOperations glueTableOperations =
         (GlueTableOperations)
             glueCatalog.newTableOps(TableIdentifier.of(Namespace.of("db"), "table"));
     Map<String, String> tableCatalogProperties = glueTableOperations.tableCatalogProperties();
 
-    Assert.assertTrue(
-        tableCatalogProperties.containsKey(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE)));
-    Assert.assertEquals(
-        "table",
-        tableCatalogProperties.get(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE)));
-    Assert.assertTrue(
-        tableCatalogProperties.containsKey(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)));
-    Assert.assertEquals(
-        "db",
-        tableCatalogProperties.get(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)));
+    Assertions.assertThat(tableCatalogProperties)
+        .containsEntry(
+            S3FileIOProperties.WRITE_TAGS_PREFIX.concat(S3FileIOProperties.S3_TAG_ICEBERG_TABLE),
+            "table")
+        .containsEntry(
+            S3FileIOProperties.WRITE_TAGS_PREFIX.concat(
+                S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE),
+            "db");
   }
 }

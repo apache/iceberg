@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -70,6 +71,8 @@ public class HTTPClient implements RESTClient {
   @VisibleForTesting
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
+  private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
@@ -78,7 +81,8 @@ public class HTTPClient implements RESTClient {
       String uri,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
-      HttpRequestInterceptor requestInterceptor) {
+      HttpRequestInterceptor requestInterceptor,
+      Map<String, String> properties) {
     this.uri = uri;
     this.mapper = objectMapper;
 
@@ -95,6 +99,9 @@ public class HTTPClient implements RESTClient {
       clientBuilder.addRequestInterceptorLast(requestInterceptor);
     }
 
+    int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
+    clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
     this.httpClient = clientBuilder.build();
   }
 
@@ -105,7 +112,7 @@ public class HTTPClient implements RESTClient {
       }
 
       // EntityUtils.toString returns null when HttpEntity.getContent returns null.
-      return EntityUtils.toString(response.getEntity(), "UTF-8");
+      return EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
     } catch (IOException | ParseException e) {
       throw new RESTException(e, "Failed to convert HTTP response body to string");
     }
@@ -465,19 +472,19 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      return new HTTPClient(uri, baseHeaders, mapper, interceptor);
+      return new HTTPClient(uri, baseHeaders, mapper, interceptor, properties);
     }
   }
 
   private StringEntity toJson(Object requestBody) {
     try {
-      return new StringEntity(mapper.writeValueAsString(requestBody));
+      return new StringEntity(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8);
     } catch (JsonProcessingException e) {
       throw new RESTException(e, "Failed to write request body: %s", requestBody);
     }
   }
 
   private StringEntity toFormEncoding(Map<?, ?> formData) {
-    return new StringEntity(RESTUtil.encodeFormData(formData));
+    return new StringEntity(RESTUtil.encodeFormData(formData), StandardCharsets.UTF_8);
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -43,11 +44,9 @@ public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
   }
 
   @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
-    if (spec.equals(PartitionSpec.unpartitioned())) {
-      return TABLES.create(schema, tableLocation);
-    }
-    return TABLES.create(schema, spec, tableLocation);
+  public Table createTable(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties) {
+    return TABLES.create(schema, spec, properties, tableLocation);
   }
 
   @Override

@@ -27,6 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile>
     implements FileScanTask {
   private final DeleteFile[] deletes;
+  private transient volatile List<DeleteFile> deleteList = null;
+  private transient volatile long deletesSizeBytes = 0L;
 
   public BaseFileScanTask(
       DataFile file,
@@ -50,7 +52,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
 
   @Override
   protected FileScanTask newSplitTask(FileScanTask parentTask, long offset, long length) {
-    return new SplitScanTask(offset, length, parentTask);
+    return new SplitScanTask(offset, length, parentTask, deletesSizeBytes());
   }
 
   public BaseFileScanTask addFilter(Expression newNonPartitionFilter) {
@@ -60,7 +62,39 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
 
   @Override
   public List<DeleteFile> deletes() {
-    return ImmutableList.copyOf(deletes);
+    if (deleteList == null) {
+      this.deleteList = ImmutableList.copyOf(deletes);
+    }
+
+    return deleteList;
+  }
+
+  @Override
+  public long sizeBytes() {
+    return length() + deletesSizeBytes();
+  }
+
+  @Override
+  public int filesCount() {
+    return 1 + deletes.length;
+  }
+
+  @Override
+  public Schema schema() {
+    return super.schema();
+  }
+
+  // lazily cache the size of deletes to reuse in all split tasks
+  private long deletesSizeBytes() {
+    if (deletesSizeBytes == 0L && deletes.length > 0) {
+      long size = 0L;
+      for (DeleteFile deleteFile : deletes) {
+        size += deleteFile.fileSizeInBytes();
+      }
+      this.deletesSizeBytes = size;
+    }
+
+    return deletesSizeBytes;
   }
 
   @VisibleForTesting
@@ -68,11 +102,19 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     private final long len;
     private final long offset;
     private final FileScanTask fileScanTask;
+    private transient volatile long deletesSizeBytes = 0L;
 
     SplitScanTask(long offset, long len, FileScanTask fileScanTask) {
       this.offset = offset;
       this.len = len;
       this.fileScanTask = fileScanTask;
+    }
+
+    SplitScanTask(long offset, long len, FileScanTask fileScanTask, long deletesSizeBytes) {
+      this.offset = offset;
+      this.len = len;
+      this.fileScanTask = fileScanTask;
+      this.deletesSizeBytes = deletesSizeBytes;
     }
 
     @Override
@@ -83,6 +125,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public List<DeleteFile> deletes() {
       return fileScanTask.deletes();
+    }
+
+    @Override
+    public Schema schema() {
+      return fileScanTask.schema();
     }
 
     @Override
@@ -98,6 +145,21 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public long length() {
       return len;
+    }
+
+    @Override
+    public long estimatedRowsCount() {
+      return BaseContentScanTask.estimateRowsCount(len, fileScanTask.file());
+    }
+
+    @Override
+    public long sizeBytes() {
+      return len + deletesSizeBytes();
+    }
+
+    @Override
+    public int filesCount() {
+      return fileScanTask.filesCount();
     }
 
     @Override
@@ -123,7 +185,19 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public SplitScanTask merge(ScanTask other) {
       SplitScanTask that = (SplitScanTask) other;
-      return new SplitScanTask(offset, len + that.length(), fileScanTask);
+      return new SplitScanTask(offset, len + that.length(), fileScanTask, deletesSizeBytes);
+    }
+
+    private long deletesSizeBytes() {
+      if (deletesSizeBytes == 0L && fileScanTask.filesCount() > 1) {
+        long size = 0L;
+        for (DeleteFile deleteFile : fileScanTask.deletes()) {
+          size += deleteFile.fileSizeInBytes();
+        }
+        this.deletesSizeBytes = size;
+      }
+
+      return deletesSizeBytes;
     }
   }
 }

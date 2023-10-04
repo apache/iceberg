@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.UpdateLocation;
 
 /** Interface for view definition. */
 public interface View {
@@ -78,9 +79,36 @@ public interface View {
   Map<String, String> properties();
 
   /**
+   * Return the view's base location.
+   *
+   * @return this view's location
+   */
+  default String location() {
+    throw new UnsupportedOperationException("Retrieving a view's location is not supported");
+  }
+
+  /**
    * Create a new {@link UpdateViewProperties} to update view properties.
    *
    * @return a new {@link UpdateViewProperties}
    */
   UpdateViewProperties updateProperties();
+
+  /**
+   * Create a new {@link ReplaceViewVersion} to replace the view's current version.
+   *
+   * @return a new {@link ReplaceViewVersion}
+   */
+  default ReplaceViewVersion replaceVersion() {
+    throw new UnsupportedOperationException("Replacing a view's version is not supported");
+  }
+
+  /**
+   * Create a new {@link UpdateLocation} to set the view's location.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  default UpdateLocation updateLocation() {
+    throw new UnsupportedOperationException("Updating a view's location is not supported");
+  }
 }
