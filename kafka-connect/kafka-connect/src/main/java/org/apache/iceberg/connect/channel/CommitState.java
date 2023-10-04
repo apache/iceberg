@@ -16,65 +16,59 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.channel;
+package io.tabular.iceberg.connect.channel;
 
-import java.time.OffsetDateTime;
-import java.util.Comparator;
+import static java.util.stream.Collectors.groupingBy;
+
+import io.tabular.iceberg.connect.IcebergSinkConfig;
+import io.tabular.iceberg.connect.events.CommitReadyPayload;
+import io.tabular.iceberg.connect.events.CommitResponsePayload;
+import io.tabular.iceberg.connect.events.TopicPartitionOffset;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.events.DataComplete;
-import org.apache.iceberg.connect.events.DataWritten;
-import org.apache.iceberg.connect.events.TableReference;
-import org.apache.iceberg.connect.events.TopicPartitionOffset;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class CommitState {
+public class CommitState {
   private static final Logger LOG = LoggerFactory.getLogger(CommitState.class);
 
-  private final List<Envelope> commitBuffer = Lists.newArrayList();
-  private final List<DataComplete> readyBuffer = Lists.newArrayList();
+  private final List<Envelope> commitBuffer = new LinkedList<>();
+  private final List<CommitReadyPayload> readyBuffer = new LinkedList<>();
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
 
-  CommitState(IcebergSinkConfig config) {
+  public CommitState(IcebergSinkConfig config) {
     this.config = config;
   }
 
-  void addResponse(Envelope envelope) {
+  public void addResponse(Envelope envelope) {
     commitBuffer.add(envelope);
     if (!isCommitInProgress()) {
-      DataWritten dataWritten = (DataWritten) envelope.event().payload();
       LOG.warn(
-          "Received commit response when no commit in progress, this can happen during recovery. Commit ID: {}",
-          dataWritten.commitId());
+          "Received commit response when no commit in progress, this can happen during recovery");
     }
   }
 
-  void addReady(Envelope envelope) {
-    DataComplete dataComplete = (DataComplete) envelope.event().payload();
-    readyBuffer.add(dataComplete);
+  public void addReady(Envelope envelope) {
+    readyBuffer.add((CommitReadyPayload) envelope.event().payload());
     if (!isCommitInProgress()) {
-      LOG.warn(
-          "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
-          dataComplete.commitId());
+      LOG.warn("Received commit ready when no commit in progress, this can happen during recovery");
     }
   }
 
-  UUID currentCommitId() {
+  public UUID currentCommitId() {
     return currentCommitId;
   }
 
-  boolean isCommitInProgress() {
+  public boolean isCommitInProgress() {
     return currentCommitId != null;
   }
 
-  boolean isCommitIntervalReached() {
+  public boolean isCommitIntervalReached() {
     if (startTime == 0) {
       startTime = System.currentTimeMillis();
     }
@@ -83,33 +77,33 @@ class CommitState {
         && System.currentTimeMillis() - startTime >= config.commitIntervalMs());
   }
 
-  void startNewCommit() {
+  public void startNewCommit() {
     currentCommitId = UUID.randomUUID();
     startTime = System.currentTimeMillis();
   }
 
-  void endCurrentCommit() {
+  public void endCurrentCommit() {
     readyBuffer.clear();
     currentCommitId = null;
   }
 
-  void clearResponses() {
+  public void clearResponses() {
     commitBuffer.clear();
   }
 
-  boolean isCommitTimedOut() {
+  public boolean isCommitTimedOut() {
     if (!isCommitInProgress()) {
       return false;
     }
 
     if (System.currentTimeMillis() - startTime > config.commitTimeoutMs()) {
-      LOG.info("Commit timeout reached. Commit ID: {}", currentCommitId);
+      LOG.info("Commit timeout reached");
       return true;
     }
     return false;
   }
 
-  boolean isCommitReady(int expectedPartitionCount) {
+  public boolean isCommitReady(int expectedPartitionCount) {
     if (!isCommitInProgress()) {
       return false;
     }
@@ -137,28 +131,31 @@ class CommitState {
     return false;
   }
 
-  Map<TableReference, List<Envelope>> tableCommitMap() {
+  public Map<TableIdentifier, List<Envelope>> tableCommitMap() {
     return commitBuffer.stream()
         .collect(
-            Collectors.groupingBy(
-                envelope -> ((DataWritten) envelope.event().payload()).tableReference()));
+            groupingBy(
+                envelope ->
+                    ((CommitResponsePayload) envelope.event().payload())
+                        .tableName()
+                        .toIdentifier()));
   }
 
-  OffsetDateTime validThroughTs(boolean partialCommit) {
-    boolean hasValidThroughTs =
+  public Long vtts(boolean partialCommit) {
+    boolean validVtts =
         !partialCommit
             && readyBuffer.stream()
                 .flatMap(event -> event.assignments().stream())
                 .allMatch(offset -> offset.timestamp() != null);
 
-    OffsetDateTime result;
-    if (hasValidThroughTs) {
+    Long result;
+    if (validVtts) {
       result =
           readyBuffer.stream()
               .flatMap(event -> event.assignments().stream())
-              .map(TopicPartitionOffset::timestamp)
-              .min(Comparator.naturalOrder())
-              .orElse(null);
+              .mapToLong(TopicPartitionOffset::timestamp)
+              .min()
+              .getAsLong();
     } else {
       result = null;
     }

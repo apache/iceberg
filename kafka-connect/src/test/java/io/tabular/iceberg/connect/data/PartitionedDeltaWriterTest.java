@@ -31,11 +31,12 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
-public class PartitionedAppendWriterTest extends BaseWriterTest {
+public class PartitionedDeltaWriterTest extends BaseWriterTest {
 
   @Test
-  public void testPartitionedAppendWriter() {
+  public void testPartitionedDeltaWriter() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.upsertModeEnabled()).thenReturn(true);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
 
     when(table.spec()).thenReturn(SPEC);
@@ -51,10 +52,11 @@ public class PartitionedAppendWriterTest extends BaseWriterTest {
     row2.setField("id2", 234L);
 
     WriteResult result =
-        writeTest(ImmutableList.of(row1, row2), config, PartitionedAppendWriter.class);
+        writeTest(ImmutableList.of(row1, row2), config, PartitionedDeltaWriter.class);
 
-    // 1 data file for each partition (2 total)
+    // in upsert mode, each write is a delete + append, so we'll have 1 data file
+    // and 1 delete file for each partition (2 total)
     assertThat(result.dataFiles()).hasSize(2);
-    assertThat(result.deleteFiles()).hasSize(0);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 }

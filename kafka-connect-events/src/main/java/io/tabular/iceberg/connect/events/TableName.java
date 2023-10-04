@@ -32,7 +32,7 @@ public class TableName implements Element {
 
   private List<String> namespace;
   private String name;
-  private Schema avroSchema;
+  private final Schema avroSchema;
 
   public static final Schema AVRO_SCHEMA =
       SchemaBuilder.builder()
@@ -57,6 +57,7 @@ public class TableName implements Element {
         Arrays.asList(tableIdentifier.namespace().levels()), tableIdentifier.name());
   }
 
+  // Used by Avro reflection to instantiate this class when reading events
   public TableName(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }

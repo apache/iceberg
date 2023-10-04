@@ -59,11 +59,11 @@ public abstract class Channel {
       String consumerGroupId,
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory) {
-    this.controlTopic = config.getControlTopic();
-    this.controlGroupId = config.getControlGroupId();
-    this.groupId = config.getControlGroupId();
+    this.controlTopic = config.controlTopic();
+    this.controlGroupId = config.controlGroupId();
+    this.groupId = config.controlGroupId();
 
-    String transactionalId = name + config.getTransactionalSuffix();
+    String transactionalId = name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
@@ -77,13 +77,13 @@ public abstract class Channel {
 
   protected void send(List<Event> events, Map<TopicPartition, Offset> sourceOffsets) {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
-    sourceOffsets.forEach((k, v) -> offsetsToCommit.put(k, new OffsetAndMetadata(v.getOffset())));
+    sourceOffsets.forEach((k, v) -> offsetsToCommit.put(k, new OffsetAndMetadata(v.offset())));
 
     List<ProducerRecord<String, byte[]>> recordList =
         events.stream()
             .map(
                 event -> {
-                  LOG.info("Sending event of type: {}", event.getType().name());
+                  LOG.info("Sending event of type: {}", event.type().name());
                   byte[] data = Event.encode(event);
                   // key by producer ID to keep event order
                   return new ProducerRecord<>(controlTopic, producerId, data);
@@ -124,10 +124,10 @@ public abstract class Channel {
 
             Event event = Event.decode(record.value());
 
-            if (event.getGroupId().equals(groupId)) {
-              LOG.debug("Received event of type: {}", event.getType().name());
+            if (event.groupId().equals(groupId)) {
+              LOG.debug("Received event of type: {}", event.type().name());
               if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                LOG.info("Handled event of type: {}", event.getType().name());
+                LOG.info("Handled event of type: {}", event.type().name());
               }
             }
           });
@@ -135,13 +135,13 @@ public abstract class Channel {
     }
   }
 
-  protected Map<Integer, Long> getControlTopicOffsets() {
+  protected Map<Integer, Long> controlTopicOffsets() {
     return controlTopicOffsets;
   }
 
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
-    getControlTopicOffsets()
+    controlTopicOffsets()
         .forEach(
             (k, v) ->
                 offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));

@@ -46,6 +46,7 @@ public class KafkaConnectContainer extends GenericContainer<KafkaConnectContaine
   private static final HttpClient HTTP = HttpClients.createDefault();
   private static final int PORT = 8083;
 
+  // JavaBean-style for serialization
   public static class Config {
 
     private final String name;

@@ -47,6 +47,7 @@ public class EventTestUtil {
                 Metrics.class,
                 ByteBuffer.class,
                 List.class,
+                int[].class,
                 Integer.class)
             .build();
 
@@ -68,6 +69,7 @@ public class EventTestUtil {
         1L,
         metrics,
         ByteBuffer.wrap(new byte[] {0}),
+        null,
         null,
         1);
   }

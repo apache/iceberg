@@ -19,8 +19,6 @@
 package io.tabular.iceberg.connect.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
 import java.util.Map;
@@ -41,9 +39,9 @@ public class DmsTransformTest {
       assertThat(result.value()).isInstanceOf(Map.class);
       Map<String, Object> value = (Map<String, Object>) result.value();
 
-      assertEquals(value.get("account_id"), 1);
-      assertEquals(value.get("_cdc_table"), "db.tbl");
-      assertEquals(value.get("_cdc_op"), "U");
+      assertThat(value.get("account_id")).isEqualTo(1);
+      assertThat(value.get("_cdc_table")).isEqualTo("db.tbl");
+      assertThat(value.get("_cdc_op")).isEqualTo("U");
     }
   }
 
@@ -52,7 +50,7 @@ public class DmsTransformTest {
     try (DmsTransform<SinkRecord> smt = new DmsTransform<>()) {
       SinkRecord record = new SinkRecord("topic", 0, null, null, null, null, 0);
       SinkRecord result = smt.apply(record);
-      assertNull(result.value());
+      assertThat(result.value()).isNull();
     }
   }
 

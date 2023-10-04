@@ -21,8 +21,7 @@ package io.tabular.iceberg.connect;
 import static io.tabular.iceberg.connect.TestEvent.TEST_SCHEMA;
 import static io.tabular.iceberg.connect.TestEvent.TEST_SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.time.Duration;
 import java.util.List;
@@ -74,11 +73,11 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
 
     runTest(branch);
 
-    List<DataFile> files = getDataFiles(TABLE_IDENTIFIER, branch);
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // partition may involve 1 or 2 workers
     assertThat(files).hasSizeBetween(1, 2);
-    assertEquals(1, files.get(0).recordCount());
-    assertEquals(1, files.get(1).recordCount());
+    assertThat(files.get(0).recordCount()).isEqualTo(1);
+    assertThat(files.get(1).recordCount()).isEqualTo(1);
     assertSnapshotProps(TABLE_IDENTIFIER, branch);
   }
 
@@ -90,10 +89,10 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
 
     runTest(branch);
 
-    List<DataFile> files = getDataFiles(TABLE_IDENTIFIER, branch);
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
     assertThat(files).hasSizeBetween(1, 2);
-    assertEquals(2, files.stream().mapToLong(DataFile::recordCount).sum());
+    assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
     assertSnapshotProps(TABLE_IDENTIFIER, branch);
   }
 
@@ -105,12 +104,12 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
         new Schema(ImmutableList.of(Types.NestedField.required(1, "id", Types.LongType.get())));
     catalog.createTable(TABLE_IDENTIFIER, initialSchema);
 
-    runTest(branch, ImmutableMap.of("iceberg.tables.evolveSchemaEnabled", "true"));
+    runTest(branch, ImmutableMap.of("iceberg.tables.evolve-schema-enabled", "true"));
 
-    List<DataFile> files = getDataFiles(TABLE_IDENTIFIER, branch);
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
     assertThat(files).hasSizeBetween(1, 2);
-    assertEquals(2, files.stream().mapToLong(DataFile::recordCount).sum());
+    assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
     assertSnapshotProps(TABLE_IDENTIFIER, branch);
 
     assertGeneratedSchema();
@@ -120,12 +119,12 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
   @NullSource
   @ValueSource(strings = "test_branch")
   public void testIcebergSinkAutoCreate(String branch) {
-    runTest(branch, ImmutableMap.of("iceberg.tables.autoCreateEnabled", "true"));
+    runTest(branch, ImmutableMap.of("iceberg.tables.auto-create-enabled", "true"));
 
-    List<DataFile> files = getDataFiles(TABLE_IDENTIFIER, branch);
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
     assertThat(files).hasSizeBetween(1, 2);
-    assertEquals(2, files.stream().mapToLong(DataFile::recordCount).sum());
+    assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
     assertSnapshotProps(TABLE_IDENTIFIER, branch);
 
     assertGeneratedSchema();
@@ -137,6 +136,9 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
     assertThat(tableSchema.findField("type").type()).isInstanceOf(StringType.class);
     assertThat(tableSchema.findField("ts").type()).isInstanceOf(LongType.class);
     assertThat(tableSchema.findField("payload").type()).isInstanceOf(StringType.class);
+
+    // null values should be ignored when not using a value schema
+    assertThat(tableSchema.findField("op")).isNull();
   }
 
   private void runTest(String branch) {
@@ -156,13 +158,13 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
             .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
             .config("value.converter.schemas.enable", false)
             .config("iceberg.tables", String.format("%s.%s", TEST_DB, TEST_TABLE))
-            .config("iceberg.control.commitIntervalMs", 1000)
-            .config("iceberg.control.commitTimeoutMs", Integer.MAX_VALUE)
+            .config("iceberg.control.commit.interval-ms", 1000)
+            .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
             .config("iceberg.kafka.auto.offset.reset", "earliest");
     connectorCatalogProperties().forEach(connectorConfig::config);
 
     if (branch != null) {
-      connectorConfig.config("iceberg.tables.defaultCommitBranch", branch);
+      connectorConfig.config("iceberg.tables.default-commit-branch", branch);
     }
 
     extraConfig.forEach(connectorConfig::config);
@@ -189,7 +191,7 @@ public abstract class AbstractIntegrationTest extends IntegrationTestBase {
       Table table = catalog.loadTable(TABLE_IDENTIFIER);
       assertThat(table.snapshots()).hasSize(1);
     } catch (NoSuchTableException e) {
-      fail();
+      fail("Table should exist");
     }
   }
 }

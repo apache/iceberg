@@ -58,7 +58,7 @@ public class Coordinator extends Channel {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String OFFSETS_SNAPSHOT_PROP_FMT = "kafka.connect.offsets.%s.%s";
-  private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commitId";
+  private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
   private static final String VTTS_SNAPSHOT_PROP = "kafka.connect.vtts";
   private static final Duration POLL_DURATION = Duration.ofMillis(1000);
 
@@ -71,15 +71,14 @@ public class Coordinator extends Channel {
 
   public Coordinator(Catalog catalog, IcebergSinkConfig config, KafkaClientFactory clientFactory) {
     // pass consumer group ID to which we commit low watermark offsets
-    super("coordinator", config.getControlGroupId() + "-coord", config, clientFactory);
+    super("coordinator", config.controlGroupId() + "-coord", config, clientFactory);
 
     this.catalog = catalog;
     this.config = config;
-    this.totalPartitionCount = getTotalPartitionCount();
+    this.totalPartitionCount = totalPartitionCount();
     this.snapshotOffsetsProp =
-        String.format(
-            OFFSETS_SNAPSHOT_PROP_FMT, config.getControlTopic(), config.getControlGroupId());
-    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.getCommitThreads());
+        String.format(OFFSETS_SNAPSHOT_PROP_FMT, config.controlTopic(), config.controlGroupId());
+    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.commitThreads());
     this.commitState = new CommitState(config);
   }
 
@@ -89,9 +88,9 @@ public class Coordinator extends Channel {
       commitState.startNewCommit();
       Event event =
           new Event(
-              config.getControlGroupId(),
+              config.controlGroupId(),
               EventType.COMMIT_REQUEST,
-              new CommitRequestPayload(commitState.getCurrentCommitId()));
+              new CommitRequestPayload(commitState.currentCommitId()));
       send(event);
     }
 
@@ -104,7 +103,7 @@ public class Coordinator extends Channel {
 
   @Override
   protected boolean receive(Envelope envelope) {
-    switch (envelope.getEvent().getType()) {
+    switch (envelope.event().type()) {
       case COMMIT_RESPONSE:
         commitState.addResponse(envelope);
         return true;
@@ -119,9 +118,9 @@ public class Coordinator extends Channel {
   }
 
   @SuppressWarnings("deprecation")
-  private int getTotalPartitionCount() {
+  private int totalPartitionCount() {
     // use deprecated values() for backwards compatibility
-    return admin().describeTopics(config.getTopics()).values().values().stream()
+    return admin().describeTopics(config.topics()).values().values().stream()
         .mapToInt(
             value -> {
               try {
@@ -144,10 +143,10 @@ public class Coordinator extends Channel {
   }
 
   private void doCommit(boolean partialCommit) {
-    Map<TableIdentifier, List<Envelope>> commitMap = commitState.getTableCommitMap();
+    Map<TableIdentifier, List<Envelope>> commitMap = commitState.tableCommitMap();
 
-    String offsetsJson = getOffsetsJson();
-    Long vtts = commitState.getVtts(partialCommit);
+    String offsetsJson = offsetsJson();
+    Long vtts = commitState.vtts(partialCommit);
 
     Tasks.foreach(commitMap.entrySet())
         .executeWith(exec)
@@ -163,21 +162,21 @@ public class Coordinator extends Channel {
 
     Event event =
         new Event(
-            config.getControlGroupId(),
+            config.controlGroupId(),
             EventType.COMMIT_COMPLETE,
-            new CommitCompletePayload(commitState.getCurrentCommitId(), vtts));
+            new CommitCompletePayload(commitState.currentCommitId(), vtts));
     send(event);
 
     LOG.info(
         "Commit {} complete, committed to {} table(s), vtts {}",
-        commitState.getCurrentCommitId(),
+        commitState.currentCommitId(),
         commitMap.size(),
         vtts);
   }
 
-  private String getOffsetsJson() {
+  private String offsetsJson() {
     try {
-      return MAPPER.writeValueAsString(getControlTopicOffsets());
+      return MAPPER.writeValueAsString(controlTopicOffsets());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -193,32 +192,31 @@ public class Coordinator extends Channel {
       return;
     }
 
-    Optional<String> branch = config.getTableConfig(tableIdentifier.toString()).commitBranch();
+    Optional<String> branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
-    Map<Integer, Long> committedOffsets =
-        getLastCommittedOffsetsForTable(table, branch.orElse(null));
+    Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch.orElse(null));
 
     List<CommitResponsePayload> payloads =
         envelopeList.stream()
             .filter(
                 envelope -> {
-                  Long minOffset = committedOffsets.get(envelope.getPartition());
-                  return minOffset == null || envelope.getOffset() >= minOffset;
+                  Long minOffset = committedOffsets.get(envelope.partition());
+                  return minOffset == null || envelope.offset() >= minOffset;
                 })
-            .map(envelope -> (CommitResponsePayload) envelope.getEvent().getPayload())
+            .map(envelope -> (CommitResponsePayload) envelope.event().payload())
             .collect(toList());
 
     List<DataFile> dataFiles =
         payloads.stream()
-            .filter(payload -> payload.getDataFiles() != null)
-            .flatMap(payload -> payload.getDataFiles().stream())
+            .filter(payload -> payload.dataFiles() != null)
+            .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
             .collect(toList());
 
     List<DeleteFile> deleteFiles =
         payloads.stream()
-            .filter(payload -> payload.getDeleteFiles() != null)
-            .flatMap(payload -> payload.getDeleteFiles().stream())
+            .filter(payload -> payload.deleteFiles() != null)
+            .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
             .collect(toList());
 
@@ -229,7 +227,7 @@ public class Coordinator extends Channel {
         AppendFiles appendOp = table.newAppend();
         branch.ifPresent(appendOp::toBranch);
         appendOp.set(snapshotOffsetsProp, offsetsJson);
-        appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.getCurrentCommitId().toString());
+        appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         if (vtts != null) {
           appendOp.set(VTTS_SNAPSHOT_PROP, Long.toString(vtts));
         }
@@ -239,7 +237,7 @@ public class Coordinator extends Channel {
         RowDelta deltaOp = table.newRowDelta();
         branch.ifPresent(deltaOp::toBranch);
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
-        deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.getCurrentCommitId().toString());
+        deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         if (vtts != null) {
           deltaOp.set(VTTS_SNAPSHOT_PROP, Long.toString(vtts));
         }
@@ -251,20 +249,17 @@ public class Coordinator extends Channel {
       Long snapshotId = latestSnapshot(table, branch.orElse(null)).snapshotId();
       Event event =
           new Event(
-              config.getControlGroupId(),
+              config.controlGroupId(),
               EventType.COMMIT_TABLE,
               new CommitTablePayload(
-                  commitState.getCurrentCommitId(),
-                  TableName.of(tableIdentifier),
-                  snapshotId,
-                  vtts));
+                  commitState.currentCommitId(), TableName.of(tableIdentifier), snapshotId, vtts));
       send(event);
 
       LOG.info(
           "Commit complete to table {}, snapshot {}, commit ID {}, vtts {}",
           tableIdentifier,
           snapshotId,
-          commitState.getCurrentCommitId(),
+          commitState.currentCommitId(),
           vtts);
     }
   }
@@ -276,7 +271,7 @@ public class Coordinator extends Channel {
     return table.snapshot(branch);
   }
 
-  private Map<Integer, Long> getLastCommittedOffsetsForTable(Table table, String branch) {
+  private Map<Integer, Long> lastCommittedOffsetsForTable(Table table, String branch) {
     Snapshot snapshot = latestSnapshot(table, branch);
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();

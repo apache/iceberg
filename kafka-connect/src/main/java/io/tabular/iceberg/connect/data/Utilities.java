@@ -65,11 +65,11 @@ public class Utilities {
 
   public static Catalog loadCatalog(IcebergSinkConfig config) {
     return CatalogUtil.buildIcebergCatalog(
-        config.getCatalogName(), config.getCatalogProps(), getHadoopConfig(config));
+        config.catalogName(), config.catalogProps(), loadHadoopConfig(config));
   }
 
   // use reflection here to avoid requiring Hadoop as a dependency
-  private static Object getHadoopConfig(IcebergSinkConfig config) {
+  private static Object loadHadoopConfig(IcebergSinkConfig config) {
     Class<?> configClass =
         DynClasses.builder().impl("org.apache.hadoop.hdfs.HdfsConfiguration").orNull().build();
     if (configClass == null) {
@@ -90,7 +90,7 @@ public class Utilities {
           DynMethods.builder("set").impl(configClass, String.class, String.class).build(result);
 
       //  load any config files in the specified config directory
-      String hadoopConfDir = config.getHadoopConfDir();
+      String hadoopConfDir = config.hadoopConfDir();
       if (hadoopConfDir != null) {
         HADOOP_CONF_FILES.forEach(
             confFile -> {
@@ -106,7 +106,7 @@ public class Utilities {
       }
 
       // set any Hadoop properties specified in the sink config
-      config.getHadoopProps().forEach(setMethod::invoke);
+      config.hadoopProps().forEach(setMethod::invoke);
 
       LOG.info("Hadoop config initialized: {}", configClass.getName());
       return result;
@@ -144,7 +144,7 @@ public class Utilities {
     Set<Integer> equalityFieldIds = table.schema().identifierFieldIds();
 
     // override the identifier fields if the config is set
-    List<String> idCols = config.getTableConfig(tableName).idColumns();
+    List<String> idCols = config.tableConfig(tableName).idColumns();
     if (!idCols.isEmpty()) {
       equalityFieldIds =
           idCols.stream()
@@ -178,7 +178,7 @@ public class Utilities {
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
-      if (config.getTablesCdcField() == null && !config.isUpsertMode()) {
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
         writer =
             new UnpartitionedWriter<>(
                 table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
@@ -192,10 +192,10 @@ public class Utilities {
                 table.io(),
                 targetFileSize,
                 table.schema(),
-                config.isUpsertMode());
+                config.upsertModeEnabled());
       }
     } else {
-      if (config.getTablesCdcField() == null && !config.isUpsertMode()) {
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
         writer =
             new PartitionedAppendWriter(
                 table.spec(),
@@ -215,7 +215,7 @@ public class Utilities {
                 table.io(),
                 targetFileSize,
                 table.schema(),
-                config.isUpsertMode());
+                config.upsertModeEnabled());
       }
     }
     return writer;

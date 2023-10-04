@@ -18,7 +18,7 @@
  */
 package io.tabular.iceberg.connect.channel;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -53,15 +53,15 @@ public class WorkerTest extends ChannelTestBase {
 
   @Test
   public void testStaticRoute() {
-    when(config.getTables()).thenReturn(ImmutableList.of(TABLE_NAME));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_NAME));
     Map<String, Object> value = ImmutableMap.of(FIELD_NAME, "val");
     workerTest(value);
   }
 
   @Test
   public void testDynamicRoute() {
-    when(config.getDynamicTablesEnabled()).thenReturn(true);
-    when(config.getTablesRouteField()).thenReturn(FIELD_NAME);
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn(FIELD_NAME);
     when(catalog.tableExists(any())).thenReturn(true);
     Map<String, Object> value = ImmutableMap.of(FIELD_NAME, TABLE_NAME);
     workerTest(value);
@@ -96,27 +96,25 @@ public class WorkerTest extends ChannelTestBase {
     UUID commitId = UUID.randomUUID();
     Event commitRequest =
         new Event(
-            config.getControlGroupId(),
-            EventType.COMMIT_REQUEST,
-            new CommitRequestPayload(commitId));
+            config.controlGroupId(), EventType.COMMIT_REQUEST, new CommitRequestPayload(commitId));
     byte[] bytes = Event.encode(commitRequest);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
     worker.process();
 
-    assertEquals(2, producer.history().size());
+    assertThat(producer.history()).hasSize(2);
 
     Event event = Event.decode(producer.history().get(0).value());
-    assertEquals(EventType.COMMIT_RESPONSE, event.getType());
-    CommitResponsePayload responsePayload = (CommitResponsePayload) event.getPayload();
-    assertEquals(commitId, responsePayload.getCommitId());
+    assertThat(event.type()).isEqualTo(EventType.COMMIT_RESPONSE);
+    CommitResponsePayload responsePayload = (CommitResponsePayload) event.payload();
+    assertThat(responsePayload.commitId()).isEqualTo(commitId);
 
     event = Event.decode(producer.history().get(1).value());
-    assertEquals(EventType.COMMIT_READY, event.getType());
-    CommitReadyPayload readyPayload = (CommitReadyPayload) event.getPayload();
-    assertEquals(commitId, readyPayload.getCommitId());
-    assertEquals(1, readyPayload.getAssignments().size());
+    assertThat(event.type()).isEqualTo(EventType.COMMIT_READY);
+    CommitReadyPayload readyPayload = (CommitReadyPayload) event.payload();
+    assertThat(readyPayload.commitId()).isEqualTo(commitId);
+    assertThat(readyPayload.assignments()).hasSize(1);
     // offset should be one more than the record offset
-    assertEquals(1L, readyPayload.getAssignments().get(0).getOffset());
+    assertThat(readyPayload.assignments().get(0).offset()).isEqualTo(1L);
   }
 }

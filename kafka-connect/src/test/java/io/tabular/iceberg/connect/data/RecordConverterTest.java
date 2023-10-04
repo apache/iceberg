@@ -19,7 +19,6 @@
 package io.tabular.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -192,7 +191,7 @@ public class RecordConverterTest {
 
     String str = (String) record.getField("st");
     Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
-    assertEquals(MAPPED_CNT, map.size());
+    assertThat(map).hasSize(MAPPED_CNT);
   }
 
   @Test
@@ -229,7 +228,7 @@ public class RecordConverterTest {
 
     String str = (String) record.getField("st");
     Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
-    assertEquals(MAPPED_CNT, map.size());
+    assertThat(map).hasSize(MAPPED_CNT);
   }
 
   @Test
@@ -247,7 +246,7 @@ public class RecordConverterTest {
 
     Map<String, Object> data = ImmutableMap.of("renamed_ii", 123);
     Record record = converter.convert(data);
-    assertEquals(123, record.getField("ii"));
+    assertThat(record.getField("ii")).isEqualTo(123);
   }
 
   @Test
@@ -262,7 +261,7 @@ public class RecordConverterTest {
         .forEach(
             input -> {
               BigDecimal decimal = converter.convertDecimal(input, DecimalType.of(10, 2));
-              assertEquals(expected, decimal);
+              assertThat(decimal).isEqualTo(expected);
             });
 
     BigDecimal expected2 = new BigDecimal(123);
@@ -271,7 +270,7 @@ public class RecordConverterTest {
         .forEach(
             input -> {
               BigDecimal decimal = converter.convertDecimal(input, DecimalType.of(10, 0));
-              assertEquals(expected2, decimal);
+              assertThat(decimal).isEqualTo(expected2);
             });
   }
 
@@ -293,7 +292,7 @@ public class RecordConverterTest {
     inputList.forEach(
         input -> {
           Temporal ts = converter.convertDateValue(input);
-          assertEquals(expected, ts);
+          assertThat(ts).isEqualTo(expected);
         });
   }
 
@@ -315,7 +314,7 @@ public class RecordConverterTest {
     inputList.forEach(
         input -> {
           Temporal ts = converter.convertTimeValue(input);
-          assertEquals(expected, ts);
+          assertThat(ts).isEqualTo(expected);
         });
   }
 
@@ -358,7 +357,7 @@ public class RecordConverterTest {
     inputList.forEach(
         input -> {
           Temporal ts = converter.convertTimestampValue(input, type);
-          assertEquals(expected, ts);
+          assertThat(ts).isEqualTo(expected);
         });
   }
 
@@ -368,7 +367,9 @@ public class RecordConverterTest {
     when(table.schema()).thenReturn(ID_SCHEMA);
     RecordConverter converter = new RecordConverter(table, JSON_CONVERTER);
 
-    Map<String, Object> data = createMapData();
+    Map<String, Object> data = Maps.newHashMap(createMapData());
+    data.put("null", null);
+
     List<AddColumn> addCols = Lists.newArrayList();
     converter.convert(data, addCols::add);
 
@@ -392,6 +393,9 @@ public class RecordConverterTest {
     assertThat(newColMap.get("b").type()).isInstanceOf(StringType.class);
     assertThat(newColMap.get("li").type()).isInstanceOf(ListType.class);
     assertThat(newColMap.get("ma").type()).isInstanceOf(StructType.class);
+
+    // null values should be ignored
+    assertThat(newColMap).doesNotContainKey("null");
   }
 
   @Test
@@ -412,7 +416,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType addedType = addCol.type().asStructType();
-    assertThat(addedType.fields().size()).isEqualTo(15);
+    assertThat(addedType.fields()).hasSize(15);
     assertThat(addedType.field("i").type()).isInstanceOf(LongType.class);
     assertThat(addedType.field("l").type()).isInstanceOf(LongType.class);
     assertThat(addedType.field("d").type()).isInstanceOf(StringType.class);
@@ -478,7 +482,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType addedType = addCol.type().asStructType();
-    assertThat(addedType.fields().size()).isEqualTo(15);
+    assertThat(addedType.fields()).hasSize(15);
     assertThat(addedType.field("i").type()).isInstanceOf(IntegerType.class);
     assertThat(addedType.field("l").type()).isInstanceOf(LongType.class);
     assertThat(addedType.field("d").type()).isInstanceOf(StringType.class);
@@ -545,26 +549,26 @@ public class RecordConverterTest {
 
   private void assertRecordValues(Record record) {
     GenericRecord rec = (GenericRecord) record;
-    assertEquals(1, rec.getField("i"));
-    assertEquals(2L, rec.getField("l"));
-    assertEquals(DATE_VAL, rec.getField("d"));
-    assertEquals(TIME_VAL, rec.getField("t"));
-    assertEquals(TS_VAL, rec.getField("ts"));
-    assertEquals(TSZ_VAL, rec.getField("tsz"));
-    assertEquals(1.1f, rec.getField("fl"));
-    assertEquals(2.2d, rec.getField("do"));
-    assertEquals(DEC_VAL, rec.getField("dec"));
-    assertEquals(STR_VAL, rec.getField("s"));
-    assertEquals(UUID_VAL, rec.getField("u"));
-    assertEquals(BYTES_VAL, rec.getField("f"));
-    assertEquals(BYTES_VAL, rec.getField("b"));
-    assertEquals(LIST_VAL, rec.getField("li"));
-    assertEquals(MAP_VAL, rec.getField("ma"));
+    assertThat(rec.getField("i")).isEqualTo(1);
+    assertThat(rec.getField("l")).isEqualTo(2L);
+    assertThat(rec.getField("d")).isEqualTo(DATE_VAL);
+    assertThat(rec.getField("t")).isEqualTo(TIME_VAL);
+    assertThat(rec.getField("ts")).isEqualTo(TS_VAL);
+    assertThat(rec.getField("tsz")).isEqualTo(TSZ_VAL);
+    assertThat(rec.getField("fl")).isEqualTo(1.1f);
+    assertThat(rec.getField("do")).isEqualTo(2.2d);
+    assertThat(rec.getField("dec")).isEqualTo(DEC_VAL);
+    assertThat(rec.getField("s")).isEqualTo(STR_VAL);
+    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
+    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("b")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
+    assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
   }
 
   private void assertNestedRecordValues(Record record) {
     GenericRecord rec = (GenericRecord) record;
-    assertEquals(11, rec.getField("ii"));
+    assertThat(rec.getField("ii")).isEqualTo(11);
     assertRecordValues((GenericRecord) rec.getField("st"));
   }
 }

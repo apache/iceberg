@@ -27,7 +27,7 @@ public class CommitReadyPayload implements Payload {
 
   private UUID commitId;
   private List<TopicPartitionOffset> assignments;
-  private Schema avroSchema;
+  private final Schema avroSchema;
 
   private static final Schema AVRO_SCHEMA =
       SchemaBuilder.builder()
@@ -46,6 +46,7 @@ public class CommitReadyPayload implements Payload {
           .noDefault()
           .endRecord();
 
+  // Used by Avro reflection to instantiate this class when reading events
   public CommitReadyPayload(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }
@@ -56,11 +57,11 @@ public class CommitReadyPayload implements Payload {
     this.avroSchema = AVRO_SCHEMA;
   }
 
-  public UUID getCommitId() {
+  public UUID commitId() {
     return commitId;
   }
 
-  public List<TopicPartitionOffset> getAssignments() {
+  public List<TopicPartitionOffset> assignments() {
     return assignments;
   }
 

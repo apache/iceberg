@@ -35,7 +35,7 @@ public class IcebergSinkConnector extends SinkConnector {
 
   @Override
   public String version() {
-    return IcebergSinkConfig.getVersion();
+    return IcebergSinkConfig.version();
   }
 
   @Override

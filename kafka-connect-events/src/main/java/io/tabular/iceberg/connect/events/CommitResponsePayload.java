@@ -35,8 +35,9 @@ public class CommitResponsePayload implements Payload {
   private TableName tableName;
   private List<DataFile> dataFiles;
   private List<DeleteFile> deleteFiles;
-  private Schema avroSchema;
+  private final Schema avroSchema;
 
+  // Used by Avro reflection to instantiate this class when reading events
   public CommitResponsePayload(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }
@@ -93,19 +94,19 @@ public class CommitResponsePayload implements Payload {
             .endRecord();
   }
 
-  public UUID getCommitId() {
+  public UUID commitId() {
     return commitId;
   }
 
-  public TableName getTableName() {
+  public TableName tableName() {
     return tableName;
   }
 
-  public List<DataFile> getDataFiles() {
+  public List<DataFile> dataFiles() {
     return dataFiles;
   }
 
-  public List<DeleteFile> getDeleteFiles() {
+  public List<DeleteFile> deleteFiles() {
     return deleteFiles;
   }
 
