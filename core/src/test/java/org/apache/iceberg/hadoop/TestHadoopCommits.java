@@ -25,8 +25,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.util.concurrent.TimeUnit;
 import java.io.File;
 import java.io.IOException;
@@ -439,7 +438,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
                   numCommittedFiles++) {
                 while (barrier.get() < numCommittedFiles * threadsCount) {
                   try {
-                    Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
+                    Thread.sleep(10);
                   } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                   }

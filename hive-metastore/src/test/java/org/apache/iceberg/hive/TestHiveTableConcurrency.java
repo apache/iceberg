@@ -22,8 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.assertj.core.api.Assertions.assertThat;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,7 +65,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
               for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
                 while (barrier.get() < numCommittedFiles * 2) {
                   try {
-                    Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
+                   Thread.sleep(100);
                   } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                   }

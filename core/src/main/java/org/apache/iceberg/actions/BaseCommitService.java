@@ -17,8 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.actions;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.io.Closeable;
 import java.util.List;
 import java.util.Set;
@@ -122,7 +121,7 @@ abstract class BaseCommitService<T> implements Closeable {
             try {
               if (completedRewrites.size() == 0 && inProgressCommits.size() == 0) {
                 // give other threads a chance to make progress
-                Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
+                Thread.sleep(100);
               }
             } catch (InterruptedException e) {
               Thread.currentThread().interrupt();

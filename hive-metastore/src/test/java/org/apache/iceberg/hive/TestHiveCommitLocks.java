@@ -35,8 +35,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -453,7 +452,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .doAnswer(
             invocation -> {
               Thread.currentThread().interrupt();
-              Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
+              Thread.sleep(10);
               return waitLockResponse;
             })
         .when(spyClient)

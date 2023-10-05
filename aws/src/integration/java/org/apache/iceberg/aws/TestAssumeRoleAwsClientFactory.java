@@ -17,8 +17,6 @@
  * under the License.
  */
 package org.apache.iceberg.aws;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.aws.glue.GlueCatalog;
@@ -191,6 +189,6 @@ public class TestAssumeRoleAwsClientFactory {
   }
 
   private void waitForIamConsistency() throws Exception {
-    Awaitility.await().atLeast(Duration.ofSeconds(10)).until(() -> true); // sleep to make sure IAM up to date
+    Thread.sleep(10000); // sleep to make sure IAM up to date
   }
 }

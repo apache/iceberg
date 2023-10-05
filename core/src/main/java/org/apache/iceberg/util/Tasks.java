@@ -17,8 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.util;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -516,7 +515,7 @@ public class Tasks {
 
       } else {
         try {
-          Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
+          Thread.sleep(10);
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while waiting for tasks to finish", e);
 

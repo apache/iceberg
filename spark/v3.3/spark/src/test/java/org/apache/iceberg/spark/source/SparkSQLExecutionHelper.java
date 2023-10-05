@@ -24,9 +24,6 @@ import org.apache.spark.sql.execution.ui.SQLExecutionUIData;
 import org.apache.spark.sql.execution.ui.SQLPlanMetric;
 import org.junit.Assert;
 import scala.Option;
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
-import java.util.concurrent.TimeUnit;
 
 public class SparkSQLExecutionHelper {
 
@@ -55,7 +52,7 @@ public class SparkSQLExecutionHelper {
     int attempts = 3;
     while (lastExecution.metricValues() == null && attempts > 0) {
       try {
-        Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
+       Thread.sleep(100);
         attempts--;
       } catch (InterruptedException e) {
         throw new RuntimeException(e);

@@ -112,9 +112,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+      Awaitility.await()
+      .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
+      .pollInterval(100, TimeUnit.MILLISECONDS)
+      .until(() -> latch.getCount() == 0);
 
       // Stop the stream task.
       function.close();
@@ -149,9 +150,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+      Awaitility.await()
+      .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
+      .pollInterval(100, TimeUnit.MILLISECONDS)
+      .until(() -> latch.getCount() == 0);
 
       // Stop the stream task.
       function.close();
@@ -185,9 +187,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+      Awaitility.await()
+      .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
+      .pollInterval(100, TimeUnit.MILLISECONDS)
+      .until(() -> latch.getCount() == 0);
 
       // Stop the stream task.
       function.close();
@@ -213,9 +216,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, func);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+      Awaitility.await()
+        .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
+        .pollInterval(100, TimeUnit.MILLISECONDS)
+        .until(() -> latch.getCount() == 0);
 
       state = harness.snapshot(1, 1);
 
@@ -239,9 +243,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, newFunc);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-          Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+      Awaitility.await()
+        .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
+        .pollInterval(100, TimeUnit.MILLISECONDS)
+        .until(() -> latch.getCount() == 0);
 
       // Stop the stream task.
       newFunc.close();

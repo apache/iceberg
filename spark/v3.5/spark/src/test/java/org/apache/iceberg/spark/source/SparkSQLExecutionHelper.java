@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.awaitility.Awaitility;
-import static org.awaitility.Duration;
+
 import java.util.concurrent.TimeUnit;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.ui.SQLAppStatusStore;
@@ -55,7 +54,7 @@ public class SparkSQLExecutionHelper {
     int attempts = 3;
     while (lastExecution.metricValues() == null && attempts > 0) {
       try {
-        Awaitility.await().atLeast(Duration.ofMillis(100)).until(() -> true);
+       Thread.sleep(100);
         attempts--;
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
