@@ -114,7 +114,7 @@ public class TestInMemoryLockManager {
     CompletableFuture.supplyAsync(
         () -> {
           try {
-            Awaitility.await().atLeast(Duration.ofMillis(200)).until(() -> true);
+            Thread.sleep(200);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
@@ -143,7 +143,7 @@ public class TestInMemoryLockManager {
                   boolean succeeded = lockManager.acquire(lockEntityId, owner);
                   if (succeeded) {
                     try {
-                      Awaitility.await().atLeast(Duration.ofMillis(1000)).until(() -> true);
+                      Thread.sleep(1000);
                     } catch (InterruptedException e) {
                       throw new RuntimeException(e);
                     }

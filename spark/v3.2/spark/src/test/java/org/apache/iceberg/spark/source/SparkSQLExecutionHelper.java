@@ -52,7 +52,7 @@ public class SparkSQLExecutionHelper {
     int attempts = 3;
     while (lastExecution.metricValues() == null && attempts > 0) {
       try {
-       Thread.sleep(100);
+        Thread.sleep(100);
         attempts--;
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
