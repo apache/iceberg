@@ -182,6 +182,28 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  public void testReadOptionalAsRequired() throws Exception {
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    record.put("data", "test");
+
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.StringType.get()));
+
+    Record projected = writeAndRead("read_optional_as_required", writeSchema, readSchema, record);
+
+    int cmp = Comparators.charSequences().compare("test", (CharSequence) projected.get("data"));
+    Assertions.assertThat(cmp).as("Should contain the correct data/renamed value").isEqualTo(0);
+  }
+
+  @Test
   public void testNestedStructProjection() throws Exception {
     Schema writeSchema =
         new Schema(
