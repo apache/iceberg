@@ -102,9 +102,9 @@ public class TestDefaultTimer {
   public void measureRunnable() {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Runnable runnable =
-        () -> {
+        () -
           try {
-           Thread.sleep(100);
+            Thread.sleep(100);
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
