@@ -19,7 +19,8 @@
 package org.apache.iceberg.schema;
 
 import java.util.List;
-import java.util.stream.IntStream;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,7 +29,9 @@ import org.apache.iceberg.types.Types;
 
 /**
  * Visitor class that accumulates the set of changes needed to evolve an existing schema into the
- * union of the existing and a new schema. Changes are added to an {@link UpdateSchema} operation.
+ * union of the existing and a new schema. If all old elements of the schema are present in the
+ * new schema in the same order as the existing schema, places new elements in the same places as
+ * they exist in the new schema. Changes are added to an {@link UpdateSchema} operation.
  */
 public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolean> {
 
@@ -83,21 +86,28 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
     List<Types.NestedField> fields = struct.fields();
     Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
-    IntStream.range(0, missingPositions.size())
-        .forEach(
-            pos -> {
-              Boolean isMissing = missingPositions.get(pos);
-              Types.NestedField field = fields.get(pos);
-              if (isMissing) {
-                addColumn(partnerId, field);
-              } else {
-                Types.NestedField nestedField =
-                    caseSensitive
+
+    int lastPartnerField = 0;
+    boolean handleOrdering = nonMissingElementsInOrder(partnerStruct, struct);
+
+    for (int pos = 0; pos < missingPositions.size(); pos++) {
+      Boolean isMissing = missingPositions.get(pos);
+      Types.NestedField field = fields.get(pos);
+      if (isMissing) {
+        if (!handleOrdering || lastPartnerField == partnerStruct.fields().size()) {
+          addColumnToEnd(partnerId, field);
+        } else {
+          addColumnBefore(partnerId, field, partnerStruct.fields().get(lastPartnerField));
+        }
+      } else {
+        lastPartnerField += 1;
+        Types.NestedField nestedField =
+                caseSensitive
                         ? partnerStruct.field(field.name())
                         : partnerStruct.caseInsensitiveField(field.name());
-                updateColumn(field, nestedField);
-              }
-            });
+        updateColumn(field, nestedField);
+      }
+    }
 
     return false;
   }
@@ -154,9 +164,26 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private void addColumn(int parentId, Types.NestedField field) {
+  private boolean nonMissingElementsInOrder(Types.StructType oldStruct, Types.StructType newStruct) {
+    List<String> oldFields =
+        oldStruct.fields().stream().map(Types.NestedField::name).collect(Collectors.toList());
+    List<String> newFields = newStruct.fields().stream().map(Types.NestedField::name).collect(Collectors.toList());
+
+    newFields.retainAll(oldFields);
+
+    return newFields.equals(oldFields);
+  }
+
+  private void addColumnToEnd(int parentId, Types.NestedField field) {
+    addColumnBefore(parentId, field, null);
+  }
+
+  private void addColumnBefore(int parentId, Types.NestedField field, Types.NestedField nextField) {
     String parentName = partnerSchema.findColumnName(parentId);
     api.addColumn(parentName, field.name(), field.type(), field.doc());
+    if (nextField != null) {
+      api.moveBefore(parentName + "." + field.name(), parentName + "." + nextField.name());
+    }
   }
 
   private void updateColumn(Types.NestedField field, Types.NestedField existingField) {

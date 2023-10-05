@@ -43,6 +43,7 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.assertj.core.api.Assertions;
+import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 public class TestSchemaUnionByFieldName {
@@ -577,4 +578,52 @@ public class TestSchemaUnionByFieldName {
 
     Assertions.assertThat(union.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  @Test
+  public void testInsertNestedPrimitiveIntoMiddleOfStruct() {
+    Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
+            optional(2, "string", Types.StringType.get()),
+            optional(3, "long", Types.StringType.get()),
+            optional( 4, "substruct", Types.StructType.of(
+                    optional(5, "deepint", Types.IntegerType.get()))))));
+
+    Schema newSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
+            optional(2, "string", Types.StringType.get()),
+            optional(8, "string2", Types.StringType.get()),
+            optional(9, "string3", Types.StringType.get()),
+            optional(3, "long", Types.StringType.get()),
+            optional( 4, "substruct", Types.StructType.of(
+                    optional( 6, "firstnewdeepInt", Types.IntegerType.get()),
+                    optional( 7, "newdeepInt", Types.IntegerType.get()),
+                    optional(5, "deepint", Types.IntegerType.get()))),
+            optional(10, "lastint", Types.IntegerType.get()))));
+
+    Schema applied = new SchemaUpdate(currentSchema, 5).unionByNameWith(newSchema).apply();
+    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+  }
+
+  @Test
+  public void testInsertNestedPrimitiveOriginalFieldsOOOrder() {
+    Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
+            optional(2, "field1", Types.StringType.get()),
+            optional(3, "field2", Types.StringType.get()),
+            optional( 4, "field3", Types.StringType.get()))));
+
+    Schema newSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
+            optional(5, "field4", Types.StringType.get()),
+            optional(3, "field2", Types.StringType.get()),
+            optional(4, "field3", Types.StringType.get()),
+            optional(2, "field1", Types.StringType.get()))));
+
+    Schema expectedSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
+            optional(2, "field1", Types.StringType.get()),
+            optional(3, "field2", Types.StringType.get()),
+            optional(4, "field3", Types.StringType.get()),
+            optional(5, "field4", Types.StringType.get()))));
+
+
+    Schema applied = new SchemaUpdate(currentSchema, 4).unionByNameWith(newSchema).apply();
+    Assert.assertEquals(expectedSchema.asStruct(), applied.asStruct());
+  }
+
 }
