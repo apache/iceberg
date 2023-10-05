@@ -239,7 +239,7 @@ public class TestIcebergSourceContinuous {
         createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       // we want to make sure job is running first so that enumerator can
       // start from the latest snapshot before inserting the next batch2 below.
-      waitUntilJobIsRunning(MINI_CLUSTER_RESOURCE.getClusterClient());
+      Awaitility.await().pollDelay(10, TimeUnit.MILLISECONDS).until(() -> !getRunningJobs(MINI_CLUSTER_RESOURCE.getClusterClient()).isEmpty());
 
       // inclusive behavior for starting snapshot
       List<Row> result1 = waitForResult(iter, 2);
@@ -402,11 +402,7 @@ public class TestIcebergSourceContinuous {
     return results;
   }
 
-  public static void waitUntilJobIsRunning(ClusterClient<?> client) throws Exception {
-    while (getRunningJobs(client).isEmpty()) {
-        Awaitility.await().atLeast(Duration.ofMillis(10)).until(() -> true);
-    }
-  }
+  
 
   public static List<JobID> getRunningJobs(ClusterClient<?> client) throws Exception {
     Collection<JobStatusMessage> statusMessages = client.listJobs().get();
