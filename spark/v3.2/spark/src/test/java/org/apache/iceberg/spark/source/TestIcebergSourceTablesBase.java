@@ -1954,8 +1954,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     df.write().mode("append").parquet(table.location() + "/data");
 
     // sleep for 1 second to ensure files will be old enough
-   Thread.sleep(1000);
-
+    Thread.sleep(1000);
+    
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result1 =
