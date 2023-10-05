@@ -405,7 +405,7 @@ public class TestIcebergSourceContinuous {
     return results;
   }
 
-  
+
 
   public static List<JobID> getRunningJobs(ClusterClient<?> client) throws Exception {
     Collection<JobStatusMessage> statusMessages = client.listJobs().get();
