@@ -85,8 +85,8 @@ public class GenericManifestFile
   }
 
   /**
-   * @deprecated since 1.5.0, will be removed in 1.6.0.
-   * Use {@link GenericManifestFile(InputFile, int, Long)} with a snapshot-id
+   * @deprecated since 1.5.0, will be removed in 1.6.0. Use {@link
+   *     GenericManifestFile#GenericManifestFile(InputFile, int, Long)} with a snapshot-id
    */
   @Deprecated
   GenericManifestFile(InputFile file, int specId) {
