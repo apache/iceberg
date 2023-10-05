@@ -211,7 +211,7 @@ public class TestIcebergSourceFailover {
     JobID jobId = jobClient.getJobID();
 
     for (int i = 1; i < 5; i++) {
-     Thread.sleep(10);
+      Thread.sleep(10);
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
       dataAppender.appendToTable(records);
