@@ -112,10 +112,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Awaitility.await()
-      .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .until(() -> latch.getCount() == 0);
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
+      
       // Stop the stream task.
       function.close();
 
@@ -184,10 +184,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Awaitility.await()
-        .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
-        .pollInterval(100, TimeUnit.MILLISECONDS)
-        .until(() -> latch.getCount() == 0);
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
+      
       // Stop the stream task.
       function.close();
 
@@ -212,10 +212,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, func);
 
-      Awaitility.await()
-        .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
-        .pollInterval(100, TimeUnit.MILLISECONDS)
-        .until(() -> latch.getCount() == 0);
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
+      
       state = harness.snapshot(1, 1);
 
       // Stop the stream task.
@@ -238,10 +238,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, newFunc);
 
-      Awaitility.await()
-        .atMost(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS)
-        .pollInterval(100, TimeUnit.MILLISECONDS)
-        .until(() -> latch.getCount() == 0);
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
+      
       // Stop the stream task.
       newFunc.close();
 
