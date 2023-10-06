@@ -147,7 +147,7 @@ public class GenericManifestFile
   private GenericManifestFile(GenericManifestFile toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
-    this.length = toCopy.length;
+    this.length = toCopy.length();
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
