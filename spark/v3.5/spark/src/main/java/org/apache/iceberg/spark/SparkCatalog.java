@@ -570,8 +570,6 @@ public class SparkCatalog extends BaseCatalog {
       }
     }
 
-    SparkUtil.validateTimestampWithoutTimezoneConfig(sparkSession.conf());
-
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
     EnvironmentContext.put(
         EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());

@@ -192,6 +192,44 @@ Cherry-pick snapshot 1 with named args
 CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' )
 ```
 
+### `publish_changes`
+
+Publish changes from a staged WAP ID into the current table state.
+
+publish_changes creates a new snapshot from an existing snapshot without altering or removing the original.
+
+Only append and dynamic overwrite snapshots can be successfully published.
+
+{{< hint info >}}
+This procedure invalidates all cached Spark plans that reference the affected table.
+{{< /hint >}}
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `source_snapshot_id` | long | The table's current snapshot before publishing the change |
+| `current_snapshot_id` | long | The snapshot ID created by applying the change |
+
+#### Examples
+
+publish_changes with WAP ID 'wap_id_1'
+```sql
+CALL catalog_name.system.publish_changes('my_table', 'wap_id_1')
+```
+
+publish_changes with named args
+```sql
+CALL catalog_name.system.publish_changes(wap_id => 'wap_id_2', table => 'my_table')
+```
+
 ### `fast_forward`
 
 Fast-forward the current snapshot of one branch to the latest snapshot of another.

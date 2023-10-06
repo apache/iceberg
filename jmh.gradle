@@ -25,10 +25,6 @@ def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getPro
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 def jmhProjects = [project(":iceberg-core")]
 
-if (sparkVersions.contains("3.1")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.1_2.12"))
-}
-
 if (sparkVersions.contains("3.2")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
 }

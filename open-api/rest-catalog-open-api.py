@@ -211,6 +211,7 @@ class MetadataLog(BaseModel):
 
 class BaseUpdate(BaseModel):
     action: Literal[
+        'assign-uuid',
         'upgrade-format-version',
         'add-schema',
         'set-current-schema',
@@ -226,6 +227,10 @@ class BaseUpdate(BaseModel):
         'set-properties',
         'remove-properties',
     ]
+
+
+class AssignUUIDUpdate(BaseUpdate):
+    uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
@@ -632,6 +637,7 @@ class AddSchemaUpdate(BaseUpdate):
 
 class TableUpdate(BaseModel):
     __root__: Union[
+        AssignUUIDUpdate,
         UpgradeFormatVersionUpdate,
         AddSchemaUpdate,
         SetCurrentSchemaUpdate,

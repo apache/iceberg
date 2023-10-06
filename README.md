@@ -82,3 +82,11 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 
 See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to know about Iceberg compatibility with different Spark, Flink and Hive versions.
 For other engines such as Presto or Trino, please visit their websites for Iceberg integration details.
+
+### Implementations
+
+This repository contains the Java implementation of Iceberg. Other implementations can be found at:
+
+* **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
+* **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
+* **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)
