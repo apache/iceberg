@@ -443,13 +443,13 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`            | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
 |            | _optional_ | **`135  equality_ids`**           | `list<136: int>`             | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
 | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                        | ID representing sort order for this file [3]. |
-
+| _optional_ | _optional_ | **`141  spec_id`**                | `int`                        | ID representing partition spec for this file [4]. |
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
 2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
-4. The following field ids are reserved on `data_file`: 141.
+4. Field ID 141 is reserved in `data_file` for `spec_id`` representing the partition spec. Note that in practice spec_id is not written in the data file and is inherited from the manifest file.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
