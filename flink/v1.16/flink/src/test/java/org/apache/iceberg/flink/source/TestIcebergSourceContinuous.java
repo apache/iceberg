@@ -326,8 +326,7 @@ public class TestIcebergSourceContinuous {
     long snapshot0Timestamp = tableResource.table().currentSnapshot().timestampMillis();
 
     // sleep for 2 ms to make sure snapshot1 has a higher timestamp value
-    Awaitility.await().pollDelay(2, TimeUnit.MILLISECONDS).until(() -> System.currentTimeMillis()-snapshot0Timestamp>2);
-
+    waitUntil1ms();
     // snapshot1
     List<Record> batch1 =
         RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
@@ -400,6 +399,14 @@ public class TestIcebergSourceContinuous {
       }
     }
     return results;
+  }
+  public static long waitUntil1ms() {
+    long previous = System.currentTimeMillis();
+    long current = System.currentTimeMillis(); 
+    while (current <= previous) { 
+      current = System.currentTimeMillis(); 
+    } 
+    return current; 
   }
 
   public static List<JobID> getRunningJobs(ClusterClient<?> client) throws Exception {
