@@ -20,11 +20,17 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
@@ -76,6 +82,44 @@ public class TestTableSerialization {
     Assert.assertTrue(tableLocation.delete());
 
     this.table = TABLES.create(SCHEMA, SPEC, SORT_ORDER, props, tableLocation.toString());
+  }
+
+  @Test
+  public void testCloseSerializableTableKryoSerialization() throws Exception {
+    Table spyTable = spy(table);
+    FileIO spyIO = spy(table.io());
+    when(spyTable.io()).thenReturn(spyIO);
+
+    Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+    Table serializableTableCopy = spy(KryoHelpers.roundTripSerialize(serializableTable));
+    FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+    when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+    ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+    ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+    verify(spyIO, never()).close();
+    verify(spyFileIOCopy, times(1)).close();
+  }
+
+  @Test
+  public void testCloseSerializableTableJavaSerialization() throws Exception {
+    Table spyTable = spy(table);
+    FileIO spyIO = spy(table.io());
+    when(spyTable.io()).thenReturn(spyIO);
+
+    Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+    Table serializableTableCopy = spy(TestHelpers.roundTripSerialize(serializableTable));
+    FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+    when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+    ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+    ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+    verify(spyIO, never()).close();
+    verify(spyFileIOCopy, times(1)).close();
   }
 
   @Test
