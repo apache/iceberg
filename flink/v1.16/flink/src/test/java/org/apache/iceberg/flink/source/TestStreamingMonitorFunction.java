@@ -112,7 +112,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-     Assert.assertTrue(
+      Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
       // Stop the stream task.
@@ -239,7 +239,6 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       Assert.assertTrue(
           "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Awaitility.await().atLeast(1, TimeUnit.SECONDS).until(() -> true);
-      
       // Stop the stream task.
       newFunc.close();
 
