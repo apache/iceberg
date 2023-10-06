@@ -63,7 +63,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
 
   @Override
   public void configure(Map<String, ?> props) {
-    final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
+    SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
     sourceField = config.getString(ConfigName.SOURCE_FIELD);
     targetField = config.getString(ConfigName.TARGET_FIELD);
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<>(16));
@@ -81,16 +81,16 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   }
 
   private R applySchemaless(R record) {
-    final Map<String, Object> value = Requirements.requireMap(record.value(), "copy value");
+    Map<String, Object> value = Requirements.requireMap(record.value(), "copy value");
 
-    final Map<String, Object> updatedValue = Maps.newHashMap(value);
+    Map<String, Object> updatedValue = Maps.newHashMap(value);
     updatedValue.put(targetField, value.get(sourceField));
 
     return newRecord(record, null, updatedValue);
   }
 
   private R applyWithSchema(R record) {
-    final Struct value = Requirements.requireStruct(record.value(), "copy value");
+    Struct value = Requirements.requireStruct(record.value(), "copy value");
 
     Schema updatedSchema = schemaUpdateCache.get(value.schema());
     if (updatedSchema == null) {
@@ -98,7 +98,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
       schemaUpdateCache.put(value.schema(), updatedSchema);
     }
 
-    final Struct updatedValue = new Struct(updatedSchema);
+    Struct updatedValue = new Struct(updatedSchema);
 
     for (Field field : value.schema().fields()) {
       updatedValue.put(field.name(), value.get(field));
@@ -109,7 +109,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   }
 
   private Schema makeUpdatedSchema(Schema schema) {
-    final SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
+    SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
     for (Field field : schema.fields()) {
       builder.field(field.name(), field.schema());
