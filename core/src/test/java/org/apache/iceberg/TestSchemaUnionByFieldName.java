@@ -580,7 +580,7 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
-  public void testInsertNestedPrimitiveIntoMiddleOfStruct() {
+  public void testMaintainOrdering() {
     Schema currentSchema =
         new Schema(
             optional(
@@ -619,7 +619,7 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
-  public void testInsertNestedPrimitiveOriginalFieldsOOOrder() {
+  public void testIgnoreOutOfOrder() {
     Schema currentSchema =
         new Schema(
             optional(
