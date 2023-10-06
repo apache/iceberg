@@ -47,17 +47,17 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
 
   @SuppressWarnings("unchecked")
   private R applySchemaless(R record) {
-    final Map<String, Object> value = Requirements.requireMap(record.value(), "DMS transform");
+    Map<String, Object> value = Requirements.requireMap(record.value(), "DMS transform");
 
     // promote fields under "data"
     Object dataObj = value.get("data");
     Object metadataObj = value.get("metadata");
     if (!(dataObj instanceof Map) || !(metadataObj instanceof Map)) {
-      LOG.warn("Unable to transform DMS record, leaving as-is...");
-      return record;
+      LOG.debug("Unable to transform DMS record, skipping...");
+      return null;
     }
 
-    final Map<String, Object> result = Maps.newHashMap((Map<String, Object>) dataObj);
+    Map<String, Object> result = Maps.newHashMap((Map<String, Object>) dataObj);
 
     Map<String, Object> metadata = (Map<String, Object>) metadataObj;
 
@@ -65,20 +65,20 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
     String op;
     switch (dmsOp) {
       case "update":
-        op = "U";
+        op = CdcConstants.OP_UPDATE;
         break;
       case "delete":
-        op = "D";
+        op = CdcConstants.OP_DELETE;
         break;
       default:
-        op = "I";
+        op = CdcConstants.OP_INSERT;
     }
 
-    result.put("_cdc_op", op);
+    result.put(CdcConstants.COL_CDC_OP, op);
     result.put(
-        "_cdc_table",
+        CdcConstants.COL_CDC_TABLE,
         String.format("%s.%s", metadata.get("schema-name"), metadata.get("table-name")));
-    result.put("_cdc_ts", metadata.get("timestamp"));
+    result.put(CdcConstants.COL_CDC_TS, metadata.get("timestamp"));
 
     return record.newRecord(
         record.topic(),
