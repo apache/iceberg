@@ -1585,7 +1585,10 @@ public class TestTableMetadata {
         ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
       writer.addAll(
           ImmutableList.of(
-              GenericManifestFile.copyOf(new GenericManifestFile(localInput(manifestFile), SPEC_5.specId())).withSnapshotId(snapshotId).build()));
+              GenericManifestFile.copyOf(
+                      new GenericManifestFile(localInput(manifestFile), SPEC_5.specId()))
+                  .withSnapshotId(snapshotId)
+                  .build()));
     }
 
     return localInput(manifestList).location();
