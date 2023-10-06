@@ -805,10 +805,6 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.view.ViewVersion::check()"
       justification: "Acceptable break due to updating View APIs"
     org.apache.iceberg:iceberg-core:
-    - code: "java.class.defaultSerializationChanged"
-      old: "class org.apache.iceberg.GenericManifestFile"
-      new: "class org.apache.iceberg.GenericManifestFile"
-      justification: "This should be serialized with Avro"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult"
       justification: "Removing deprecated code"

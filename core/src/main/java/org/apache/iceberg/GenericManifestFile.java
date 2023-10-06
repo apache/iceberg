@@ -84,16 +84,7 @@ public class GenericManifestFile
     }
   }
 
-  /**
-   * @deprecated since 1.5.0, will be removed in 1.6.0. Use {@link
-   *     GenericManifestFile#GenericManifestFile(InputFile, int, Long)} with a snapshot-id
-   */
-  @Deprecated
   GenericManifestFile(InputFile file, int specId) {
-    this(file, specId, null);
-  }
-
-  GenericManifestFile(InputFile file, int specId, Long snapshotId) {
     this.avroSchema = AVRO_SCHEMA;
     this.file = file;
     this.manifestPath = file.location();
@@ -101,7 +92,7 @@ public class GenericManifestFile
     this.specId = specId;
     this.sequenceNumber = 0;
     this.minSequenceNumber = 0;
-    this.snapshotId = snapshotId;
+    this.snapshotId = null;
     this.addedFilesCount = null;
     this.addedRowsCount = null;
     this.existingFilesCount = null;
