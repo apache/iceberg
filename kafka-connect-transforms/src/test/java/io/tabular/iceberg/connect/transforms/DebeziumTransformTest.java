@@ -33,6 +33,9 @@ import org.junit.jupiter.api.Test;
 
 public class DebeziumTransformTest {
 
+  private static final Schema KEY_SCHEMA =
+      SchemaBuilder.struct().field("account_id", Schema.INT64_SCHEMA).build();
+
   private static final Schema ROW_SCHEMA =
       SchemaBuilder.struct()
           .field("account_id", Schema.INT64_SCHEMA)
@@ -71,7 +74,8 @@ public class DebeziumTransformTest {
   public void testDebeziumTransformSchemaless() {
     try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
       Map<String, Object> event = createDebeziumEventMap("u");
-      SinkRecord record = new SinkRecord("topic", 0, null, null, null, event, 0);
+      Map<String, Object> key = ImmutableMap.of("account_id", 1L);
+      SinkRecord record = new SinkRecord("topic", 0, null, key, null, event, 0);
 
       SinkRecord result = smt.apply(record);
       assertThat(result.value()).isInstanceOf(Map.class);
@@ -80,15 +84,16 @@ public class DebeziumTransformTest {
       assertThat(value.get("account_id")).isEqualTo(1);
       assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
       assertThat(value.get("_cdc_op")).isEqualTo("U");
+      assertThat(value.get("_cdc_key")).isInstanceOf(Map.class);
     }
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testDebeziumTransformWithSchema() {
     try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
       Struct event = createDebeziumEventStruct("u");
-      SinkRecord record = new SinkRecord("topic", 0, null, null, VALUE_SCHEMA, event, 0);
+      Struct key = new Struct(KEY_SCHEMA).put("account_id", 1L);
+      SinkRecord record = new SinkRecord("topic", 0, KEY_SCHEMA, key, VALUE_SCHEMA, event, 0);
 
       SinkRecord result = smt.apply(record);
       assertThat(result.value()).isInstanceOf(Struct.class);
@@ -97,6 +102,7 @@ public class DebeziumTransformTest {
       assertThat(value.get("account_id")).isEqualTo(1L);
       assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
       assertThat(value.get("_cdc_op")).isEqualTo("U");
+      assertThat(value.get("_cdc_key")).isInstanceOf(Struct.class);
     }
   }
 
