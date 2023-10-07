@@ -66,15 +66,20 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
       payloadSchema = value.schema().field("after").schema();
     }
 
-    Schema newValueSchema = makeUpdatedSchema(payloadSchema);
+    Schema newValueSchema = makeUpdatedSchema(payloadSchema, record.keySchema());
     Struct newValue = new Struct(newValueSchema);
 
     for (Field field : payloadSchema.fields()) {
       newValue.put(field.name(), payload.get(field));
     }
+
     newValue.put(CdcConstants.COL_CDC_OP, op);
     newValue.put(CdcConstants.COL_CDC_TS, new java.util.Date(value.getInt64("ts_ms")));
     newValue.put(CdcConstants.COL_CDC_TABLE, tableNameFromSourceStruct(value.getStruct("source")));
+
+    if (record.keySchema() != null) {
+      newValue.put(CdcConstants.COL_CDC_KEY, record.key());
+    }
 
     return record.newRecord(
         record.topic(),
@@ -108,6 +113,10 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     newValue.put(CdcConstants.COL_CDC_OP, op);
     newValue.put(CdcConstants.COL_CDC_TS, value.get("ts_ms"));
     newValue.put(CdcConstants.COL_CDC_TABLE, tableNameFromSourceMap(value.get("source")));
+
+    if (record.key() instanceof Map) {
+      newValue.put(CdcConstants.COL_CDC_KEY, record.key());
+    }
 
     return record.newRecord(
         record.topic(),
@@ -157,15 +166,21 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     return db + "." + table;
   }
 
-  private Schema makeUpdatedSchema(Schema schema) {
+  private Schema makeUpdatedSchema(Schema schema, Schema keySchema) {
     SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
     for (Field field : schema.fields()) {
       builder.field(field.name(), field.schema());
     }
-    builder.field(CdcConstants.COL_CDC_OP, Schema.STRING_SCHEMA);
-    builder.field(CdcConstants.COL_CDC_TS, Timestamp.SCHEMA);
-    builder.field(CdcConstants.COL_CDC_TABLE, Schema.STRING_SCHEMA);
+
+    builder
+        .field(CdcConstants.COL_CDC_OP, Schema.STRING_SCHEMA)
+        .field(CdcConstants.COL_CDC_TS, Timestamp.SCHEMA)
+        .field(CdcConstants.COL_CDC_TABLE, Schema.STRING_SCHEMA);
+
+    if (keySchema != null) {
+      builder.field(CdcConstants.COL_CDC_KEY, keySchema);
+    }
 
     return builder.build();
   }
