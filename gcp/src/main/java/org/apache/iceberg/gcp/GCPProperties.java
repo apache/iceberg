@@ -25,6 +25,7 @@ import java.util.Optional;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
+  // For Google Cloud Storage (GCS).
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
@@ -48,6 +49,17 @@ public class GCPProperties implements Serializable {
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
+
+  // The GCP project ID. Required.
+  public static final String PROJECT_ID = "project-id";
+
+  // The GCP region (https://cloud.google.com/bigquery/docs/locations). Required.
+  public static final String REGION = "region";
+
+  // The BigLake Metastore catalog ID. It is the container resource of databases and tables.
+  // It links a BLMS catalog with this Iceberg catalog.
+  // Optional, default to the Spark catalog plugin name.
+  public static final String BIGLAKE_CATALOG_ID = "catalog-id";
 
   private String projectId;
   private String clientLibToken;
