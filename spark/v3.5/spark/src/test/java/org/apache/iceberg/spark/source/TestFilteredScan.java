@@ -207,6 +207,31 @@ public class TestFilteredScan {
   }
 
   @Test
+  public void testUnpartitionedIDFiltersUsingRangeIn() {
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    Filter filter =
+        In.apply(
+            "id",
+            new Object[] {
+              new DummyBroadcastedJoinKeysWrapper(
+                  IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1)
+            });
+    pushFilters(builder, filter);
+    Batch scan = builder.build().toBatch();
+
+    InputPartition[] partitions = scan.planInputPartitions();
+    Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
+
+    // validate row filtering
+    assertEqualsSafe(
+        SCHEMA.asStruct(), expected(9), read(unpartitioned.toString(), vectorized, "id = " + 9));
+  }
+
+  @Test
   public void testUnpartitionedCaseInsensitiveIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));

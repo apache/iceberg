@@ -81,6 +81,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   // lazy variables
   private StructType readSchema;
 
+  private volatile Broadcast<Table> tableBroadcast = null;
+
   SparkScan(
       SparkSession spark,
       Table table,
@@ -118,7 +120,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected List<Expression> filterExpressions() {
-    return filterExpressions;
+    return Collections.unmodifiableList(filterExpressions);
   }
 
   protected Types.StructType groupingKeyType() {
@@ -129,12 +131,31 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
+    Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema,
+        hashCode(), tableBroadcast);
+  }
+
+  private Broadcast<Table> initTableMetadataBroadcast() {
+    Broadcast<Table> tableBroadcast = this.tableBroadcast;
+    if (tableBroadcast == null) {
+      synchronized (this) {
+        if (this.tableBroadcast == null) {
+          // broadcast the table metadata as input partitions will be sent to executors
+          tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+          this.tableBroadcast = tableBroadcast;
+        } else {
+          tableBroadcast = this.tableBroadcast;
+        }
+      }
+    }
+    return tableBroadcast;
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
     return new SparkMicroBatchStream(
         sparkContext, table, readConf, expectedSchema, checkpointLocation);
   }
@@ -150,6 +171,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Statistics estimateStatistics() {
     return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
+  }
+
+  protected void addFilterExpression(Expression filter) {
+    this.filterExpressions.add(filter);
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {

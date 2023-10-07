@@ -101,8 +101,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Preconditions.checkState(
         !overwriteFiles, "Cannot overwrite individual files and using filters");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
-
-    this.overwriteExpr = SparkFilters.convert(filters);
+    this.overwriteExpr = SparkFilters.convert(filters).getElement2();
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;

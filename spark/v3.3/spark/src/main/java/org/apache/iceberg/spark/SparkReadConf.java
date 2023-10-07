@@ -72,7 +72,7 @@ public class SparkReadConf {
     return SparkUtil.caseSensitive(spark);
   }
 
-  private static boolean initLocalityEnabled(Table table, Map<String, String> readOptions) {
+  public boolean localityEnabled() {
     boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
     return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
   }

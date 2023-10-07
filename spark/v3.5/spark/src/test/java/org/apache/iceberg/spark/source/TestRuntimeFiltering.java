@@ -49,7 +49,23 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
+  @Rule public TestName name = new TestName();
 
+  private final Map<String, Expression> runtimeFilterExpressions = Maps.newHashMap();
+
+  @Before
+  public void populateFilterMap() {
+    spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "false");
+    spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "false");
+    runtimeFilterExpressions.put("testIdentityPartitionedTable", Expressions.equal("date", 1));
+    runtimeFilterExpressions.put("testBucketedTable", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testRenamedSourceColumnTable", Expressions.equal("row_id", 1));
+    runtimeFilterExpressions.put("testMultipleRuntimeFilters", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testCaseSensitivityOfRuntimeFilters", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testBucketedTableWithMultipleSpecs", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testSourceColumnWithDots", Expressions.equal("i.d", 1));
+    runtimeFilterExpressions.put("testSourceColumnWithBackticks", Expressions.equal("i`d", 1));
+  }
   @Parameterized.Parameters(name = "planningMode = {0}")
   public static Object[] parameters() {
     return new Object[] {LOCAL, DISTRIBUTED};
@@ -65,6 +81,8 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS dim");
+    spark.conf().unset(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key());
+    spark.conf().unset(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key());
   }
 
   @Test
@@ -98,7 +116,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("date", 1), 3);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 3);
 
     assertEquals(
         "Should have expected rows",
@@ -137,7 +155,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("id", 1), 7);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 7);
 
     assertEquals(
         "Should have expected rows",
@@ -178,7 +196,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("row_id", 1), 7);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 7);
 
     assertEquals(
         "Should have expected rows",
@@ -221,7 +239,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilters(query, 2, "Query should have 2 runtime filters");
 
-    deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 31);
 
     assertEquals(
         "Should have expected rows",
@@ -265,7 +283,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     assertQueryContainsRuntimeFilters(
         caseInsensitiveQuery, 2, "Query should have 2 runtime filters");
 
-    deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 31);
 
     assertEquals(
         "Should have expected rows",
@@ -317,7 +335,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("id", 1), 7);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 7);
 
     assertEquals(
         "Should have expected rows",
@@ -359,7 +377,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("i.d", 1), 7);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 7);
 
     sql(query);
 
@@ -402,7 +420,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
     assertQueryContainsRuntimeFilter(query);
 
-    deleteNotMatchingFiles(Expressions.equal("i`d", 1), 7);
+    deleteNotMatchingFiles(getFileDeletionFilter(), 7);
 
     assertEquals(
         "Should have expected rows",
@@ -437,7 +455,12 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02' ORDER BY date",
             tableName);
 
-    assertQueryContainsNoRuntimeFilter(query);
+    if (isBroadcastVarPushDownTest()) {
+      assertQueryContainsNoRuntimeFilter(query);
+      assertQueryContainsDataFilter(query);
+    } else {
+      assertQueryContainsNoRuntimeFilter(query);
+    }
 
     assertEquals(
         "Should have expected rows",
@@ -453,7 +476,11 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     assertQueryContainsRuntimeFilters(query, 0, "Query should have no runtime filters");
   }
 
-  private void assertQueryContainsRuntimeFilters(
+  private void assertQueryContainsDataFilter(String query) {
+    assertQueryContainsDataFilters(query, 1, "Query should have 1 runtime filter");
+  }
+
+  void assertQueryContainsRuntimeFilters(
       String query, int expectedFilterCount, String errorMessage) {
     List<Row> output = spark.sql("EXPLAIN EXTENDED " + query).collectAsList();
     String plan = output.get(0).getString(0);
@@ -461,8 +488,19 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     Assert.assertEquals(errorMessage, expectedFilterCount, actualFilterCount);
   }
 
+  void assertQueryContainsDataFilters(String query, int expectedFilterCount, String errorMessage) {}
+
+  Expression getFileDeletionFilter() {
+    return this.runtimeFilterExpressions.get(name.getMethodName());
+  }
+
+  boolean isBroadcastVarPushDownTest() {
+    return false;
+  }
+
   // delete files that don't match the filter to ensure dynamic filtering works and only required
   // files are read
+
   private void deleteNotMatchingFiles(Expression filter, int expectedDeletedFileCount) {
     Table table = validationCatalog.loadTable(tableIdent);
     FileIO io = table.io();

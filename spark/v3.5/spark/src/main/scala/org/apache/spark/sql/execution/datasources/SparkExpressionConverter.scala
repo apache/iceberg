@@ -38,12 +38,12 @@ object SparkExpressionConverter {
     // But these two conversions already exist and well tested. So, we are going with this approach.
     DataSourceV2Strategy.translateFilterV2(sparkExpression) match {
       case Some(filter) =>
-        val converted = SparkV2Filters.convert(filter)
-        if (converted == null) {
+        val convertedExprTuple = SparkV2Filters.convert(filter)
+        if (convertedExprTuple == null) {
           throw new IllegalArgumentException(s"Cannot convert Spark filter: $filter to Iceberg expression")
         }
 
-        converted
+        convertedExprTuple.getElement2
       case _ =>
         throw new IllegalArgumentException(s"Cannot translate Spark expression: $sparkExpression to data source filter")
     }

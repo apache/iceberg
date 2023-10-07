@@ -61,7 +61,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
 
-  private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
+  private volatile Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
@@ -113,6 +113,48 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
   }
+
+  protected List<T> addAsDataFilters(
+      List<Expression> partitionBasedBroadcastVar, List<Expression> nonPartitionBasedBroadcastVar) {
+    Set<Integer> specIds = Sets.newHashSet();
+
+    for (PartitionSpec spec : specs()) {
+      specIds.add(spec.specId());
+    }
+    List<Expression> netBroadcastDataFiltersToAdd = new LinkedList<>(nonPartitionBasedBroadcastVar);
+    boolean shouldAddPartitionBroadcastVar = false;
+    if (!partitionBasedBroadcastVar.isEmpty()) {
+      shouldAddPartitionBroadcastVar =
+          specIds.stream()
+              .anyMatch(
+                  id ->
+                      table().specs().get(id).fields().stream()
+                          .anyMatch(pf -> !pf.transform().isIdentity()));
+    }
+    if (shouldAddPartitionBroadcastVar) {
+      netBroadcastDataFiltersToAdd.addAll(partitionBasedBroadcastVar);
+    }
+    if (!netBroadcastDataFiltersToAdd.isEmpty()) {
+      // No point adding the non broadcast partition filters as data filters as their data is not
+      // sorted
+      Expression newCombinedDataFilters =
+          netBroadcastDataFiltersToAdd.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+      // re-evaluate the scan so that new data filters are added
+      this.addFilterExpression(newCombinedDataFilters);
+      this.scan =
+          (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
+              this.scan.filter(newCombinedDataFilters);
+      // add the new data filters to existing file tasks
+      return tasks().stream()
+          .parallel()
+          .map(fs -> (T) ((BaseFileScanTask) fs).addFilter(newCombinedDataFilters))
+          .collect(Collectors.toList());
+    } else {
+      return tasks();
+    }
+  }
+
+  protected void incrementTaskCreationVersion() {}
 
   @Override
   protected StructType groupingKeyType() {
