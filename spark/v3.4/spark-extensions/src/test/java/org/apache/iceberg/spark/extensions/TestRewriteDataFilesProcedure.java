@@ -828,6 +828,26 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
+  @Test
+  public void testRewriteWithUntranslatedOrUnconvertedFilter() {
+    createTable();
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(encode(c2, \"utf-8\"), 2) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot translate Spark expression");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(c2, 2) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot convert Spark filter");
+  }
+
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
   }

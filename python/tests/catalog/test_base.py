@@ -598,3 +598,8 @@ def test_add_column_with_statement(catalog: InMemoryCatalog) -> None:
         schema_id=0,
         identifier_field_ids=[],
     )
+
+
+def test_catalog_repr(catalog: InMemoryCatalog) -> None:
+    s = repr(catalog)
+    assert s == "test.in.memory.catalog (<class 'test_base.InMemoryCatalog'>)"

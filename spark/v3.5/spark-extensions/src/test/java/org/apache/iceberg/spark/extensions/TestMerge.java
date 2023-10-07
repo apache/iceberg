@@ -112,6 +112,105 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithAllClauses() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n"
+            + "{ \"id\": 2, \"dep\": \"emp-id-two\" }\n"
+            + "{ \"id\": 3, \"dep\": \"emp-id-3\" }\n"
+            + "{ \"id\": 4, \"dep\": \"emp-id-4\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+            + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+            + "{ \"id\": 5, \"dep\": \"emp-id-5\" }");
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED AND t.id = 1 THEN "
+            + "  UPDATE SET * "
+            + "WHEN MATCHED AND t.id = 2 THEN "
+            + "  DELETE "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT * "
+            + "WHEN NOT MATCHED BY SOURCE AND t.id = 3 THEN "
+            + "  UPDATE SET dep = 'invalid' "
+            + "WHEN NOT MATCHED BY SOURCE AND t.id = 4 THEN "
+            + "  DELETE ",
+        commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, "emp-id-1"), // updated (matched)
+            // row(2, "emp-id-two) // deleted (matched)
+            row(3, "invalid"), // updated (not matched by source)
+            // row(4, "emp-id-4) // deleted (not matched by source)
+            row(5, "emp-id-5")), // new
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeWithOneNotMatchedBySourceClause() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+            + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+            + "{ \"id\": 3, \"dep\": \"emp-id-3\" }\n"
+            + "{ \"id\": 4, \"dep\": \"emp-id-4\" }");
+
+    createOrReplaceView("source", ImmutableList.of(1, 4), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value "
+            + "WHEN NOT MATCHED BY SOURCE THEN "
+            + "  DELETE ",
+        commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, "emp-id-1"), // existing
+            // row(2, "emp-id-2) // deleted (not matched by source)
+            // row(3, "emp-id-3") // deleted (not matched by source)
+            row(4, "emp-id-4")), // existing
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeNotMatchedBySourceClausesPartitionedTable() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 2, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 3, \"dep\": \"support\" }");
+
+    createOrReplaceView("source", ImmutableList.of(1, 2), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value AND t.dep = 'hr' "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET dep = 'support' "
+            + "WHEN NOT MATCHED BY SOURCE THEN "
+            + "  UPDATE SET dep = 'invalid' ",
+        commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, "support"), // updated (matched)
+            row(2, "support"), // updated (matched)
+            row(3, "invalid")), // updated (not matched by source)
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
   public void testMergeWithVectorizedReads() {
     assumeThat(supportsVectorization()).isTrue();
 
@@ -183,13 +282,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     // enable AQE and set the advisory partition big enough to trigger combining
     // set the number of shuffle partitions to 200 to distribute the work across reducers
     // disable broadcast joins to make sure the join triggers a shuffle
+    // set the advisory partition size for shuffles small enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "200",
-            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(), "-1",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.COALESCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "256MB"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(),
+            "-1",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.COALESCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "100",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            String.valueOf(256 * 1024 * 1024)),
         () -> {
           sql(
               "MERGE INTO %s t USING source "
@@ -253,13 +360,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     // enable AQE and set the advisory partition size small enough to trigger a split
     // set the number of shuffle partitions to 2 to only have 2 reducers
     // set the min coalesce partition size small enough to avoid coalescing
+    // set the advisory partition size for shuffles big enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "4",
-            SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(), "100",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "4",
+            SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(),
+            "100",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "256MB",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            "100"),
         () -> {
           SparkPlan plan =
               executeAndKeepPlan(
@@ -558,7 +673,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
-  public void testMergeWithAllCauses() {
+  public void testMergeWithMatchedAndNotMatchedClauses() {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");

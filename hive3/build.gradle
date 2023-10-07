@@ -50,10 +50,7 @@ project(':iceberg-hive3') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    compileOnly(libs.hive3.exec) {
-      artifact {
-        classifier = 'core'
-      }
+    compileOnly("${libs.hive3.exec.get().module}:${libs.hive3.exec.get().getVersion()}:core") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
@@ -65,10 +62,7 @@ project(':iceberg-hive3') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    compileOnly(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    compileOnly("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar

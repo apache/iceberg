@@ -35,6 +35,8 @@ DOCS:
   - "**/*CHANGELOG.md"
   - "**/*README.md"
   - "**/*CONTRIBUTING.md"
+SPECIFICATION:
+  - "format/*"
 EXAMPLES:
   - examples/**/*
 COMMON:

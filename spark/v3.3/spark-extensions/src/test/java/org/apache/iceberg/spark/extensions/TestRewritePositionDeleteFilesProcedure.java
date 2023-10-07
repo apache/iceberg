@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Encoders;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -200,6 +201,26 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
                     + "options => map("
                     + "'foo', 'bar'))",
                 catalogName, tableIdent));
+  }
+
+  @Test
+  public void testRewriteWithUntranslatedOrUnconvertedFilter() throws Exception {
+    createTable();
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'lower(data) = \"fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot translate Spark expression");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'data like \"%%fo\"')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot convert Spark filter");
   }
 
   private Map<String, String> snapshotSummary() {

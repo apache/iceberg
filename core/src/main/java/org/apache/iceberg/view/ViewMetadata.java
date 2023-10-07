@@ -22,9 +22,12 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -32,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.ImplementationVisibility;
@@ -45,6 +49,8 @@ public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
   int DEFAULT_VIEW_FORMAT_VERSION = 1;
+
+  String uuid();
 
   int formatVersion();
 
@@ -74,6 +80,9 @@ public interface ViewMetadata extends Serializable {
   Map<String, String> properties();
 
   List<MetadataUpdate> changes();
+
+  @Nullable
+  String metadataFileLocation();
 
   default ViewVersion version(int versionId) {
     return versionsById().get(versionId);
@@ -132,6 +141,7 @@ public interface ViewMetadata extends Serializable {
   }
 
   class Builder {
+    private static final int INITIAL_SCHEMA_ID = 0;
     private static final int LAST_ADDED = -1;
     private final List<ViewVersion> versions;
     private final List<Schema> schemas;
@@ -141,6 +151,8 @@ public interface ViewMetadata extends Serializable {
     private int formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
     private int currentVersionId;
     private String location;
+    private String uuid;
+    private String metadataLocation;
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
@@ -157,6 +169,7 @@ public interface ViewMetadata extends Serializable {
       this.history = Lists.newArrayList();
       this.properties = Maps.newHashMap();
       this.changes = Lists.newArrayList();
+      this.uuid = null;
     }
 
     private Builder(ViewMetadata base) {
@@ -170,6 +183,8 @@ public interface ViewMetadata extends Serializable {
       this.formatVersion = base.formatVersion();
       this.currentVersionId = base.currentVersionId();
       this.location = base.location();
+      this.uuid = base.uuid();
+      this.metadataLocation = null;
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
@@ -196,6 +211,11 @@ public interface ViewMetadata extends Serializable {
 
       this.location = newLocation;
       changes.add(new MetadataUpdate.SetLocation(newLocation));
+      return this;
+    }
+
+    public Builder setMetadataLocation(String newMetadataLocation) {
+      this.metadataLocation = newMetadataLocation;
       return this;
     }
 
@@ -253,6 +273,17 @@ public interface ViewMetadata extends Serializable {
           "Cannot add version with unknown schema: %s",
           version.schemaId());
 
+      Set<String> dialects = Sets.newHashSet();
+      for (ViewRepresentation repr : version.representations()) {
+        if (repr instanceof SQLViewRepresentation) {
+          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+          Preconditions.checkArgument(
+              dialects.add(sql.dialect()),
+              "Invalid view version: Cannot add multiple queries for dialect %s",
+              sql.dialect());
+        }
+      }
+
       ViewVersion newVersion;
       if (newVersionId != version.versionId()) {
         newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
@@ -278,14 +309,29 @@ public interface ViewMetadata extends Serializable {
       // if the view version already exists, use its id; otherwise use the highest id + 1
       int newVersionId = viewVersion.versionId();
       for (ViewVersion version : versions) {
-        if (version.equals(viewVersion)) {
+        if (sameViewVersion(version, viewVersion)) {
           return version.versionId();
         } else if (version.versionId() >= newVersionId) {
-          newVersionId = viewVersion.versionId() + 1;
+          newVersionId = version.versionId() + 1;
         }
       }
 
       return newVersionId;
+    }
+
+    /**
+     * Checks whether the given view versions would behave the same while ignoring the view version
+     * id, the creation timestamp, and the summary.
+     *
+     * @param one the view version to compare
+     * @param two the view version to compare
+     * @return true if the given view versions would behave the same
+     */
+    private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
+      return Objects.equals(one.representations(), two.representations())
+          && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
+          && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
+          && one.schemaId() == two.schemaId();
     }
 
     public Builder addSchema(Schema schema) {
@@ -321,7 +367,7 @@ public interface ViewMetadata extends Serializable {
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
       // if the schema already exists, use its id; otherwise use the highest id + 1
-      int newSchemaId = newSchema.schemaId();
+      int newSchemaId = INITIAL_SCHEMA_ID;
       for (Schema schema : schemas) {
         if (schema.sameSchema(newSchema)) {
           return schema.schemaId();
@@ -353,9 +399,28 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
+    public ViewMetadata.Builder assignUUID(String newUUID) {
+      Preconditions.checkArgument(newUUID != null, "Cannot set uuid to null");
+      Preconditions.checkArgument(uuid == null || newUUID.equals(uuid), "Cannot reassign uuid");
+
+      if (!newUUID.equals(uuid)) {
+        this.uuid = newUUID;
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+
+      // when associated with a metadata file, metadata must have no changes so that the metadata
+      // matches exactly what is in the metadata file, which does not store changes. metadata
+      // location with changes is inconsistent.
+      Preconditions.checkArgument(
+          metadataLocation == null || changes.isEmpty(),
+          "Cannot create view metadata with a metadata location and changes");
 
       int historySize =
           PropertyUtil.propertyAsInt(
@@ -386,6 +451,7 @@ public interface ViewMetadata extends Serializable {
       }
 
       return ImmutableViewMetadata.of(
+          null == uuid ? UUID.randomUUID().toString() : uuid,
           formatVersion,
           location,
           schemas,
@@ -393,7 +459,8 @@ public interface ViewMetadata extends Serializable {
           retainedVersions,
           retainedHistory,
           properties,
-          changes);
+          changes,
+          metadataLocation);
     }
 
     static List<ViewVersion> expireVersions(

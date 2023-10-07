@@ -124,6 +124,7 @@ def test_write_manifest_entry_with_iceberg_read_with_fastavro() -> None:
         partition=Record(),
         record_count=131327,
         file_size_in_bytes=220669226,
+        block_size_in_bytes=67108864,
         column_sizes={1: 220661854},
         value_counts={1: 131327},
         null_value_counts={1: 0},

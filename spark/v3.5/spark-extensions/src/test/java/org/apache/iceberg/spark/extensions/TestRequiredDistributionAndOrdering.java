@@ -195,6 +195,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
             inputDF
                 .writeTo(tableName)
                 .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                .option(SparkWriteOptions.FANOUT_ENABLED, "false")
                 .append();
           } catch (NoSuchTableException e) {
             throw new RuntimeException(e);

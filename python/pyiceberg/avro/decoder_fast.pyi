@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Tuple, Dict
-
 from pyiceberg.avro.decoder import BinaryDecoder
 
 class CythonBinaryDecoder(BinaryDecoder):
@@ -30,9 +28,9 @@ class CythonBinaryDecoder(BinaryDecoder):
         pass
     def read_int(self) -> int:
         pass
-    def read_ints(self, count: int) -> Tuple[int, ...]:
+    def read_ints(self, count: int) -> tuple[int, ...]:
         pass
-    def read_int_bytes_dict(self, count: int, dest: Dict[int, bytes]) -> None:
+    def read_int_bytes_dict(self, count: int, dest: dict[int, bytes]) -> None:
         pass
     def read_bytes(self) -> bytes:
         pass

@@ -66,11 +66,11 @@ public class SparkWriteUtil {
 
   /** Builds requirements for batch and micro-batch writes such as append or overwrite. */
   public static SparkWriteRequirements writeRequirements(
-      Table table, DistributionMode mode, boolean fanoutEnabled) {
+      Table table, DistributionMode mode, boolean fanoutEnabled, long advisoryPartitionSize) {
 
     Distribution distribution = writeDistribution(table, mode);
     SortOrder[] ordering = writeOrdering(table, fanoutEnabled);
-    return new SparkWriteRequirements(distribution, ordering);
+    return new SparkWriteRequirements(distribution, ordering, advisoryPartitionSize);
   }
 
   private static Distribution writeDistribution(Table table, DistributionMode mode) {
@@ -91,14 +91,18 @@ public class SparkWriteUtil {
 
   /** Builds requirements for copy-on-write DELETE, UPDATE, MERGE operations. */
   public static SparkWriteRequirements copyOnWriteRequirements(
-      Table table, Command command, DistributionMode mode, boolean fanoutEnabled) {
+      Table table,
+      Command command,
+      DistributionMode mode,
+      boolean fanoutEnabled,
+      long advisoryPartitionSize) {
 
     if (command == DELETE || command == UPDATE) {
       Distribution distribution = copyOnWriteDeleteUpdateDistribution(table, mode);
       SortOrder[] ordering = writeOrdering(table, fanoutEnabled);
-      return new SparkWriteRequirements(distribution, ordering);
+      return new SparkWriteRequirements(distribution, ordering, advisoryPartitionSize);
     } else {
-      return writeRequirements(table, mode, fanoutEnabled);
+      return writeRequirements(table, mode, fanoutEnabled, advisoryPartitionSize);
     }
   }
 
@@ -130,16 +134,20 @@ public class SparkWriteUtil {
 
   /** Builds requirements for merge-on-read DELETE, UPDATE, MERGE operations. */
   public static SparkWriteRequirements positionDeltaRequirements(
-      Table table, Command command, DistributionMode mode, boolean fanoutEnabled) {
+      Table table,
+      Command command,
+      DistributionMode mode,
+      boolean fanoutEnabled,
+      long advisoryPartitionSize) {
 
     if (command == UPDATE || command == MERGE) {
       Distribution distribution = positionDeltaUpdateMergeDistribution(table, mode);
       SortOrder[] ordering = positionDeltaUpdateMergeOrdering(table, fanoutEnabled);
-      return new SparkWriteRequirements(distribution, ordering);
+      return new SparkWriteRequirements(distribution, ordering, advisoryPartitionSize);
     } else {
       Distribution distribution = positionDeltaDeleteDistribution(table, mode);
       SortOrder[] ordering = fanoutEnabled ? EMPTY_ORDERING : POSITION_DELETE_ORDERING;
-      return new SparkWriteRequirements(distribution, ordering);
+      return new SparkWriteRequirements(distribution, ordering, advisoryPartitionSize);
     }
   }
 

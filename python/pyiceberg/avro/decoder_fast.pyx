@@ -23,6 +23,7 @@ from libc.stdint cimport uint64_t, int64_t
 
 import array
 
+
 cdef extern from "decoder_basic.c":
   void decode_zigzag_ints(const unsigned char **buffer, const uint64_t count, uint64_t *result);
   void skip_zigzag_int(const unsigned char **buffer);

@@ -16,5 +16,8 @@
 # under the License.
 import struct
 
+STRUCT_BOOL = struct.Struct("?")
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
 STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double
+STRUCT_INT32 = struct.Struct("<i")
+STRUCT_INT64 = struct.Struct("<q")

@@ -28,6 +28,7 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -45,6 +46,8 @@ import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.NessieApiV2;
+import org.projectnessie.client.config.NessieClientConfigSource;
+import org.projectnessie.client.config.NessieClientConfigSources;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
@@ -58,12 +61,22 @@ public class NessieCatalog extends BaseMetastoreCatalog
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final String NAMESPACE_LOCATION_PROPS = "location";
+
+  private static final Map<String, String> DEFAULT_CATALOG_OPTIONS =
+      ImmutableMap.<String, String>builder()
+          .put(CatalogProperties.TABLE_DEFAULT_PREFIX + TableProperties.GC_ENABLED, "false")
+          .put(
+              CatalogProperties.TABLE_DEFAULT_PREFIX
+                  + TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+              "false") // just in case METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT changes
+          .build();
+
   private NessieIcebergClient client;
   private String warehouseLocation;
   private Object config;
   private String name;
   private FileIO fileIO;
-  private Map<String, String> catalogOptions;
+  private Map<String, String> catalogOptions = DEFAULT_CATALOG_OPTIONS;
   private CloseableGroup closeableGroup;
 
   public NessieCatalog() {}
@@ -83,10 +96,11 @@ public class NessieCatalog extends BaseMetastoreCatalog
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
 
-    NessieClientBuilder<?> nessieClientBuilder =
-        createNessieClientBuilder(
-                options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-            .fromConfig(x -> options.get(removePrefix.apply(x)));
+    NessieClientConfigSource configSource =
+        NessieClientConfigSources.mapConfigSource(options)
+            .fallbackTo(x -> options.get(removePrefix.apply(x)));
+    NessieClientBuilder nessieClientBuilder =
+        NessieClientBuilder.createClientBuilderFromSystemSettings(configSource);
     // default version is set to v1.
     final String apiVersion =
         options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
@@ -128,7 +142,10 @@ public class NessieCatalog extends BaseMetastoreCatalog
     this.client = Preconditions.checkNotNull(client, "client must be non-null");
     this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
     this.catalogOptions =
-        Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
+        ImmutableMap.<String, String>builder()
+            .putAll(DEFAULT_CATALOG_OPTIONS)
+            .putAll(Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null"))
+            .buildKeepingLast();
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
@@ -168,8 +185,8 @@ public class NessieCatalog extends BaseMetastoreCatalog
     return warehouseLocation;
   }
 
-  private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
-    NessieClientBuilder<?> clientBuilder;
+  private static NessieClientBuilder createNessieClientBuilder(String customBuilder) {
+    NessieClientBuilder clientBuilder;
     if (customBuilder != null) {
       try {
         clientBuilder =
@@ -346,6 +363,6 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @Override
   protected Map<String, String> properties() {
-    return catalogOptions == null ? ImmutableMap.of() : catalogOptions;
+    return catalogOptions;
   }
 }

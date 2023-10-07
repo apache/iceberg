@@ -63,6 +63,7 @@ duckdb = { version = ">=0.5.0,<1.0.0", optional = true }
 ray = { version = ">=2.0.0,<3.0.0", optional = true }
 python-snappy = { version = ">=0.6.0,<1.0.0", optional = true }
 thrift = { version = ">=0.13.0,<1.0.0", optional = true }
+mypy-boto3-glue = { version = ">=1.28.18", optional = true }
 boto3 = { version = ">=1.24.59", optional = true }
 s3fs = { version = ">=2023.1.0,<2024.1.0", optional = true }
 adlfs = { version = ">=2023.1.0,<2024.1.0", optional = true }
@@ -71,13 +72,13 @@ psycopg2-binary = { version = ">=2.9.6", optional = true }
 sqlalchemy = { version = "^2.0.18", optional = true }
 
 [tool.poetry.dev-dependencies]
-pytest = "7.4.1"
+pytest = "7.4.2"
 pytest-checkdocs = "2.10.1"
 pre-commit = "3.4.0"
 fastavro = "1.8.3"
 coverage = { version = "^7.3.1", extras = ["toml"] }
 requests-mock = "1.11.0"
-moto = "^4.2.3"
+moto = "^4.2.4"
 typing-extensions = "4.7.1"
 pytest-mock = "3.11.1"
 cython = "3.0.2"
@@ -105,7 +106,7 @@ ray = ["ray", "pyarrow", "pandas"]
 snappy = ["python-snappy"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
-glue = ["boto3"]
+glue = ["boto3", "mypy-boto3-glue"]
 adlfs = ["adlfs"]
 dynamodb = ["boto3"]
 zstandard = ["zstandard"]
@@ -125,17 +126,11 @@ markers = [
 line-length = 130
 target-version = ['py38']
 
-[tool.isort]
-src_paths = ["pyiceberg/", "tests/"]
-multi_line_output = 3
-profile = 'black'
-line_length = 130
-force_grid_wrap = 4
-
 [tool.pycln]
 all = true
 
 [tool.mypy]
+mypy_path = "python"
 no_implicit_optional = true
 namespace_packages = false
 warn_redundant_casts = true
@@ -237,6 +232,10 @@ module = "botocore.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "mypy_boto3_glue.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "moto"
 ignore_missing_imports = true
 
@@ -290,3 +289,63 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ['pyiceberg/']
+
+[tool.ruff]
+src = ['pyiceberg','tests']
+extend-exclude = ["dev/provision.py"]
+select = [
+    "E", # pycodestyle
+    "W", # pycodestyle
+    "F", # Pyflakes
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "I", # isort
+    "UP", # pyupgrade
+]
+ignore = ["E501","E203","B024","B028"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+per-file-ignores = {}
+# Ignore _all_ violations.
+# Same as Black.
+line-length = 130
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
+
+[tool.ruff.isort]
+detect-same-package = true
+lines-between-types = 0
+known-first-party = ["pyiceberg", "tests"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
