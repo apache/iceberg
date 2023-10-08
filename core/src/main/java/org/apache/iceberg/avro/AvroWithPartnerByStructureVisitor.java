@@ -104,13 +104,26 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         }
       }
     } else {
-      List<Schema> nonNullTypes =
+      /*List<Schema> nonNullTypes =
           types.stream().filter(t -> t.getType() != Schema.Type.NULL).collect(Collectors.toList());
       for (int i = 0; i < nonNullTypes.size(); i++) {
         // In the case of complex union, the corresponding "type" is a struct. Non-null type i in
         // the union maps to struct field i + 1 because the first struct field is the "tag".
         options.add(
             visit(visitor.fieldNameAndType(type, i + 1).second(), nonNullTypes.get(i), visitor));
+      }*/
+      boolean encounteredNull = false;
+      for (int i = 0; i < types.size(); i++) {
+        // For a union-type (a, b, NULL, c) and the corresponding struct type (tag, a, b, c), the types
+        // match according to the following pattern:
+        // Before NULL, branch type i in the union maps to struct field i + 1.
+        // After NULL, branch type i in the union maps to struct field i.
+        int structFieldIndex = (encounteredNull) ? i : i + 1;
+        if (types.get(i).getType() == Schema.Type.NULL) {
+          visit(visitor.nullType(), types.get(i), visitor);
+          encounteredNull = true;
+        } else {
+          options.add(visit(visitor.fieldNameAndType(type, structFieldIndex).second(), types.get(i), visitor));        }
       }
     }
     return visitor.union(type, union, options);
