@@ -20,7 +20,6 @@ package org.apache.iceberg.avro;
 
 import java.util.Deque;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -114,7 +113,8 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       }*/
       boolean encounteredNull = false;
       for (int i = 0; i < types.size(); i++) {
-        // For a union-type (a, b, NULL, c) and the corresponding struct type (tag, a, b, c), the types
+        // For a union-type (a, b, NULL, c) and the corresponding struct type (tag, a, b, c), the
+        // types
         // match according to the following pattern:
         // Before NULL, branch type i in the union maps to struct field i + 1.
         // After NULL, branch type i in the union maps to struct field i.
@@ -123,7 +123,12 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
           visit(visitor.nullType(), types.get(i), visitor);
           encounteredNull = true;
         } else {
-          options.add(visit(visitor.fieldNameAndType(type, structFieldIndex).second(), types.get(i), visitor));        }
+          options.add(
+              visit(
+                  visitor.fieldNameAndType(type, structFieldIndex).second(),
+                  types.get(i),
+                  visitor));
+        }
       }
     }
     return visitor.union(type, union, options);
