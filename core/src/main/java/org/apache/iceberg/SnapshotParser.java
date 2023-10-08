@@ -186,7 +186,7 @@ public class SnapshotParser {
       return new InputFile() {
         @Override
         public long getLength() {
-          return 0L;
+          throw new UnsupportedOperationException();
         }
 
         @Override

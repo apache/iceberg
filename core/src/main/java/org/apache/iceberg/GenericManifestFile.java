@@ -147,7 +147,12 @@ public class GenericManifestFile
   private GenericManifestFile(GenericManifestFile toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
-    this.length = toCopy.length();
+    try {
+      this.length = toCopy.length();
+    } catch (UnsupportedOperationException e) {
+      // Can be removed with Iceberg 2.0 when embedded manifests are deprecated
+      this.length = null;
+    }
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
