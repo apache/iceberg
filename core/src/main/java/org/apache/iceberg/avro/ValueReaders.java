@@ -42,6 +42,7 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -598,6 +599,11 @@ public class ValueReaders {
       }
       this.defaultPositions = new int[0];
       this.defaultValues = new Object[0];
+    }
+
+    protected StructReader(
+        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      this(readers, struct, idToConstant, ImmutableMap.of());
     }
 
     protected StructReader(

@@ -30,7 +30,6 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
@@ -256,7 +255,7 @@ public class SparkValueReaders {
     protected StructReader(
         List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       // TODO: Support passing default value map
-      super(readers, struct, idToConstant, ImmutableMap.of());
+      super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
 

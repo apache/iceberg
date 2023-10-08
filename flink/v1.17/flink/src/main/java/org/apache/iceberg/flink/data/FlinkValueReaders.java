@@ -37,7 +37,6 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -289,7 +288,7 @@ public class FlinkValueReaders {
     private StructReader(
         List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       // TODO: Support passing default value map.
-      super(readers, struct, idToConstant, ImmutableMap.of());
+      super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
 
