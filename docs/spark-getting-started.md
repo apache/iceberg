@@ -69,7 +69,7 @@ To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark
 
 ```sql
 -- local is the path-based catalog defined above
-CREATE TABLE local.db.table (id bigint, data string) USING iceberg
+CREATE TABLE local.db.table (id bigint, data string) USING iceberg;
 ```
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
