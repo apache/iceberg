@@ -19,15 +19,13 @@
 package org.apache.iceberg.actions;
 
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.BuilderVisibility;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
     typeImmutableEnclosing = "ImmutableExpireSnapshots",
-    visibility = ImplementationVisibility.PUBLIC,
-    builderVisibility = BuilderVisibility.PUBLIC)
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseExpireSnapshots extends ExpireSnapshots {
 
   @Value.Immutable
