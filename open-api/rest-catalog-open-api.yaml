@@ -1170,7 +1170,6 @@ components:
             type: string
           example: [ "department", "access_group" ]
         updates:
-          uniqueItems: true
           type: object
           example: { "owner": "Hank Bendickson" }
           additionalProperties:
