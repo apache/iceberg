@@ -912,6 +912,7 @@ project(':iceberg-dell') {
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly libs.object.client.bundle
+
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.jaxb.api
     testImplementation libs.activation
@@ -987,4 +988,3 @@ apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
-
