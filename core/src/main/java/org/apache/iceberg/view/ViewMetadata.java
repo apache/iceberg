@@ -38,13 +38,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutablesStyle")
 @Value.Immutable(builder = false)
-@Value.Style(allParameters = true, visibility = ImplementationVisibility.PACKAGE)
+@Value.Style(allParameters = true, visibilityString = "PACKAGE")
 public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
