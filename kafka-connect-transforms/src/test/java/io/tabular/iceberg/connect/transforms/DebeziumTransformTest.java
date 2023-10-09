@@ -73,6 +73,8 @@ public class DebeziumTransformTest {
   @SuppressWarnings("unchecked")
   public void testDebeziumTransformSchemaless() {
     try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
+      smt.configure(ImmutableMap.of("cdc.target.pattern", "{db}_x.{table}_x"));
+
       Map<String, Object> event = createDebeziumEventMap("u");
       Map<String, Object> key = ImmutableMap.of("account_id", 1L);
       SinkRecord record = new SinkRecord("topic", 0, null, key, null, event, 0);
@@ -83,6 +85,7 @@ public class DebeziumTransformTest {
 
       assertThat(value.get("account_id")).isEqualTo(1);
       assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
+      assertThat(value.get("_cdc_target")).isEqualTo("schema_x.tbl_x");
       assertThat(value.get("_cdc_op")).isEqualTo("U");
       assertThat(value.get("_cdc_key")).isInstanceOf(Map.class);
     }
@@ -91,6 +94,8 @@ public class DebeziumTransformTest {
   @Test
   public void testDebeziumTransformWithSchema() {
     try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
+      smt.configure(ImmutableMap.of("cdc.target.pattern", "{db}_x.{table}_x"));
+
       Struct event = createDebeziumEventStruct("u");
       Struct key = new Struct(KEY_SCHEMA).put("account_id", 1L);
       SinkRecord record = new SinkRecord("topic", 0, KEY_SCHEMA, key, VALUE_SCHEMA, event, 0);
@@ -101,6 +106,7 @@ public class DebeziumTransformTest {
 
       assertThat(value.get("account_id")).isEqualTo(1L);
       assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
+      assertThat(value.get("_cdc_target")).isEqualTo("schema_x.tbl_x");
       assertThat(value.get("_cdc_op")).isEqualTo("U");
       assertThat(value.get("_cdc_key")).isInstanceOf(Struct.class);
     }

@@ -19,7 +19,6 @@
 package io.tabular.iceberg.connect.transforms;
 
 import java.util.Map;
-import jdk.jfr.Experimental;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.ConnectRecord;
@@ -28,7 +27,6 @@ import org.apache.kafka.connect.transforms.util.Requirements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Experimental
 public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<R> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DmsTransform.class.getName());
