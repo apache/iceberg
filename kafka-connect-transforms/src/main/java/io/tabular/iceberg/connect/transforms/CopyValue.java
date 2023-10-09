@@ -19,7 +19,6 @@
 package io.tabular.iceberg.connect.transforms;
 
 import java.util.Map;
-import jdk.jfr.Experimental;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.cache.Cache;
 import org.apache.kafka.common.cache.LRUCache;
@@ -35,27 +34,17 @@ import org.apache.kafka.connect.transforms.util.Requirements;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
-@Experimental
 public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> {
 
-  private interface ConfigName {
-
-    String SOURCE_FIELD = "source.field";
-    String TARGET_FIELD = "target.field";
-  }
+  private static final String SOURCE_FIELD = "source.field";
+  private static final String TARGET_FIELD = "target.field";
 
   public static final ConfigDef CONFIG_DEF =
       new ConfigDef()
           .define(
-              ConfigName.SOURCE_FIELD,
-              ConfigDef.Type.STRING,
-              ConfigDef.Importance.HIGH,
-              "Source field name.")
+              SOURCE_FIELD, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Source field name.")
           .define(
-              ConfigName.TARGET_FIELD,
-              ConfigDef.Type.STRING,
-              ConfigDef.Importance.HIGH,
-              "Target field name.");
+              TARGET_FIELD, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Target field name.");
 
   private String sourceField;
   private String targetField;
@@ -64,8 +53,8 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
   @Override
   public void configure(Map<String, ?> props) {
     SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-    sourceField = config.getString(ConfigName.SOURCE_FIELD);
-    targetField = config.getString(ConfigName.TARGET_FIELD);
+    sourceField = config.getString(SOURCE_FIELD);
+    targetField = config.getString(TARGET_FIELD);
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<>(16));
   }
 

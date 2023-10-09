@@ -33,21 +33,17 @@ It will promote the `data` element fields to top level and add the following met
 
 ## Configuration
 
-The SMT currently has no configuration. It can be used with the sink's CDC feature, e.g.
-```
-"iceberg.tables.cdcField": "_cdc_op",
-```
+The SMT currently has no configuration.
 
 # DebeziumTransform
 _(Experimental)_
 
 The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
 It will promote the `before` or `after` element fields to top level and add the following metadata fields:
-`_cdc_op`, `_cdc_ts`, and `_cdc_table`.
+`_cdc_op`, `_cdc_ts`, `_cdc_table`, `_cdc_key`, and `_cdc_target`.
 
 ## Configuration
 
-The SMT currently has no configuration. It can be used with the sink's CDC feature, e.g.
-```
-"iceberg.tables.cdcField": "_cdc_op",
-```
+| Property            | Description                                                                       |
+|---------------------|-----------------------------------------------------------------------------------|
+| cdc.target.pattern  | Pattern to use for setting the CDC target field value, default is `{db}.{table}`  |

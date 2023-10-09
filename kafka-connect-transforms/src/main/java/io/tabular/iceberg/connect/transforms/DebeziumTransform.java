@@ -19,9 +19,9 @@
 package io.tabular.iceberg.connect.transforms;
 
 import java.util.Map;
-import jdk.jfr.Experimental;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
@@ -31,14 +31,34 @@ import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.Requirements;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
+import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Experimental
 public class DebeziumTransform<R extends ConnectRecord<R>> implements Transformation<R> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DebeziumTransform.class.getName());
-  private static final ConfigDef EMPTY_CONFIG = new ConfigDef();
+
+  private static final String CDC_TARGET_PATTERN = "cdc.target.pattern";
+  private static final String DB_PLACEHOLDER = "{db}";
+  private static final String TABLE_PLACEHOLDER = "{table}";
+
+  public static final ConfigDef CONFIG_DEF =
+      new ConfigDef()
+          .define(
+              CDC_TARGET_PATTERN,
+              ConfigDef.Type.STRING,
+              null,
+              Importance.MEDIUM,
+              "Pattern to use for setting the CDC target field value.");
+
+  private String cdcTargetPattern;
+
+  @Override
+  public void configure(Map<String, ?> props) {
+    SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
+    cdcTargetPattern = config.getString(CDC_TARGET_PATTERN);
+  }
 
   @Override
   public R apply(R record) {
@@ -75,7 +95,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
 
     newValue.put(CdcConstants.COL_CDC_OP, op);
     newValue.put(CdcConstants.COL_CDC_TS, new java.util.Date(value.getInt64("ts_ms")));
-    newValue.put(CdcConstants.COL_CDC_TABLE, tableNameFromSourceStruct(value.getStruct("source")));
+    setTableAndTargetFromSourceStruct(value.getStruct("source"), newValue);
 
     if (record.keySchema() != null) {
       newValue.put(CdcConstants.COL_CDC_KEY, record.key());
@@ -112,7 +132,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     Map<String, Object> newValue = Maps.newHashMap((Map<String, Object>) payload);
     newValue.put(CdcConstants.COL_CDC_OP, op);
     newValue.put(CdcConstants.COL_CDC_TS, value.get("ts_ms"));
-    newValue.put(CdcConstants.COL_CDC_TABLE, tableNameFromSourceMap(value.get("source")));
+    setTableAndTargetFromSourceMap(value.get("source"), newValue);
 
     if (record.key() instanceof Map) {
       newValue.put(CdcConstants.COL_CDC_KEY, record.key());
@@ -140,7 +160,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     }
   }
 
-  private String tableNameFromSourceStruct(Struct source) {
+  private void setTableAndTargetFromSourceStruct(Struct source, Struct value) {
     String db;
     if (source.schema().field("schema") != null) {
       // prefer schema if present, e.g. for Postgres
@@ -149,10 +169,12 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
       db = source.getString("db");
     }
     String table = source.getString("table");
-    return db + "." + table;
+
+    value.put(CdcConstants.COL_CDC_TABLE, db + "." + table);
+    value.put(CdcConstants.COL_CDC_TARGET, target(db, table));
   }
 
-  private String tableNameFromSourceMap(Object source) {
+  private void setTableAndTargetFromSourceMap(Object source, Map<String, Object> value) {
     Map<String, Object> map = Requirements.requireMap(source, "Debezium transform");
 
     String db;
@@ -163,7 +185,15 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
       db = map.get("db").toString();
     }
     String table = map.get("table").toString();
-    return db + "." + table;
+
+    value.put(CdcConstants.COL_CDC_TABLE, db + "." + table);
+    value.put(CdcConstants.COL_CDC_TARGET, target(db, table));
+  }
+
+  private String target(String db, String table) {
+    return cdcTargetPattern == null || cdcTargetPattern.isEmpty()
+        ? db + "." + table
+        : cdcTargetPattern.replace(DB_PLACEHOLDER, db).replace(TABLE_PLACEHOLDER, table);
   }
 
   private Schema makeUpdatedSchema(Schema schema, Schema keySchema) {
@@ -176,7 +206,8 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     builder
         .field(CdcConstants.COL_CDC_OP, Schema.STRING_SCHEMA)
         .field(CdcConstants.COL_CDC_TS, Timestamp.SCHEMA)
-        .field(CdcConstants.COL_CDC_TABLE, Schema.STRING_SCHEMA);
+        .field(CdcConstants.COL_CDC_TABLE, Schema.STRING_SCHEMA)
+        .field(CdcConstants.COL_CDC_TARGET, Schema.STRING_SCHEMA);
 
     if (keySchema != null) {
       builder.field(CdcConstants.COL_CDC_KEY, keySchema);
@@ -187,12 +218,9 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
 
   @Override
   public ConfigDef config() {
-    return EMPTY_CONFIG;
+    return CONFIG_DEF;
   }
 
   @Override
   public void close() {}
-
-  @Override
-  public void configure(Map<String, ?> configs) {}
 }
