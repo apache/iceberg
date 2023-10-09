@@ -166,13 +166,11 @@ public class EcsS3MockRule implements BeforeEachCallback, AfterEachCallback {
 
   @Override
   public void afterEach(ExtensionContext extensionContext) {
-    System.out.println("Bucket removed");
     cleanUp();
   }
 
   @Override
   public void beforeEach(ExtensionContext extensionContext) {
-    System.out.println("Bucket removed");
     initialize();
   }
 }
