@@ -38,7 +38,7 @@ import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
- * Mock rule of ECS S3 mock.
+ * Mock Extension of ECS S3 mock.
  *
  * <p>Use environment parameter to specify use mock client or real client.
  */
