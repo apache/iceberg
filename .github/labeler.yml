@@ -45,8 +45,6 @@ API:
   - api/**/*
 CORE:
   - core/**/*
-PYTHON:
-  - python/**/*
 PARQUET:
   - parquet/**/*
 ARROW:
