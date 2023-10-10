@@ -41,7 +41,7 @@ Procedures can be used from any configured Iceberg catalog with `CALL`. All proc
 All procedure arguments are named. When passing arguments by name, arguments can be in any order and any optional argument can be omitted.
 
 ```sql
-CALL catalog_name.system.procedure_name(arg_name_2 => arg_2, arg_name_1 => arg_1)
+CALL catalog_name.system.procedure_name(arg_name_2 => arg_2, arg_name_1 => arg_1);
 ```
 
 ### Positional arguments
@@ -49,7 +49,7 @@ CALL catalog_name.system.procedure_name(arg_name_2 => arg_2, arg_name_1 => arg_1
 When passing arguments by position, only the ending arguments may be omitted if they are optional.
 
 ```sql
-CALL catalog_name.system.procedure_name(arg_1, arg_2, ... arg_n)
+CALL catalog_name.system.procedure_name(arg_1, arg_2, ... arg_n);
 ```
 
 ## Snapshot management
@@ -83,7 +83,7 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 Roll back table `db.sample` to snapshot ID `1`:
 
 ```sql
-CALL catalog_name.system.rollback_to_snapshot('db.sample', 1)
+CALL catalog_name.system.rollback_to_snapshot('db.sample', 1);
 ```
 
 ### `rollback_to_timestamp`
@@ -112,7 +112,7 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 Roll back `db.sample` to a specific day and time.
 ```sql
-CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000')
+CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000');
 ```
 
 ### `set_current_snapshot`
@@ -146,7 +146,7 @@ Either `snapshot_id` or `ref` must be provided but not both.
 
 Set the current snapshot for `db.sample` to 1:
 ```sql
-CALL catalog_name.system.set_current_snapshot('db.sample', 1)
+CALL catalog_name.system.set_current_snapshot('db.sample', 1);
 ```
 
 Set the current snapshot for `db.sample` to tag `s1`:
@@ -184,12 +184,12 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 Cherry-pick snapshot 1
 ```sql
-CALL catalog_name.system.cherrypick_snapshot('my_table', 1)
+CALL catalog_name.system.cherrypick_snapshot('my_table', 1);
 ```
 
 Cherry-pick snapshot 1 with named args
 ```sql
-CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' )
+CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' );
 ```
 
 ### `publish_changes`
@@ -222,12 +222,12 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 publish_changes with WAP ID 'wap_id_1'
 ```sql
-CALL catalog_name.system.publish_changes('my_table', 'wap_id_1')
+CALL catalog_name.system.publish_changes('my_table', 'wap_id_1');
 ```
 
 publish_changes with named args
 ```sql
-CALL catalog_name.system.publish_changes(wap_id => 'wap_id_2', table => 'my_table')
+CALL catalog_name.system.publish_changes(wap_id => 'wap_id_2', table => 'my_table');
 ```
 
 ### `fast_forward`
@@ -254,7 +254,7 @@ Fast-forward the current snapshot of one branch to the latest snapshot of anothe
 
 Fast-forward the main branch to the head of `audit-branch`
 ```sql
-CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch')
+CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 ```
 
 
@@ -301,13 +301,13 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 Remove snapshots older than specific day and time, but retain the last 100 snapshots:
 
 ```sql
-CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
+CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100);
 ```
 
 Remove snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
 
 ```sql
-CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123))
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123));
 ```
 
 ### `remove_orphan_files`
@@ -334,12 +334,12 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 
 List all the files that are candidates for removal by performing a dry run of the `remove_orphan_files` command on this table without actually removing them:
 ```sql
-CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true)
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true);
 ```
 
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
 ```sql
-CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data');
 ```
 
 ### `rewrite_data_files`
@@ -405,29 +405,29 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 Rewrite the data files in table `db.sample` using the default rewrite algorithm of bin-packing to combine small files 
 and also split large files according to the default write size of the table.
 ```sql
-CALL catalog_name.system.rewrite_data_files('db.sample')
+CALL catalog_name.system.rewrite_data_files('db.sample');
 ```
 
 Rewrite the data files in table `db.sample` by sorting all the data on id and name 
 using the same defaults as bin-pack to determine which files to rewrite.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST')
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST');
 ```
 
 Rewrite the data files in table `db.sample` by zOrdering on column c1 and c2.
 Using the same defaults as bin-pack to determine which files to rewrite.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)')
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
 Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'))
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'));
 ```
 
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"')
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"');
 ```
 
 ### `rewrite_manifests`
@@ -458,12 +458,12 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 Rewrite the manifests in table `db.sample` and align manifest files with table partitioning.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample')
+CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
 Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false)
+CALL catalog_name.system.rewrite_manifests('db.sample', false);
 ```
 
 ### `rewrite_position_delete_files`
@@ -510,17 +510,17 @@ Dangling deletes are always filtered out during rewriting.
 
 Rewrite position delete files in table `db.sample`.  This selects position delete files that fit default rewrite criteria, and writes new files of target size `target-file-size-bytes`.  Dangling deletes are removed from rewritten delete files.
 ```sql
-CALL catalog_name.system.rewrite_position_delete_files('db.sample')
+CALL catalog_name.system.rewrite_position_delete_files('db.sample');
 ```
 
 Rewrite all position delete files in table `db.sample`, writing new files `target-file-size-bytes`.   Dangling deletes are removed from rewritten delete files.
 ```sql
-CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('rewrite-all', 'true'))
+CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('rewrite-all', 'true'));
 ```
 
 Rewrite position delete files in table `db.sample`.  This selects position delete files in partitions where 2 or more position delete files need to be rewritten based on size criteria.  Dangling deletes are removed from rewritten delete files.
 ```sql
-CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('min-input-files','2'))
+CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('min-input-files','2'));
 ```
 
 ## Table migration
@@ -567,13 +567,13 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 Make an isolated Iceberg table which references table `db.sample` named `db.snap` at the
 catalog's default location for `db.snap`.
 ```sql
-CALL catalog_name.system.snapshot('db.sample', 'db.snap')
+CALL catalog_name.system.snapshot('db.sample', 'db.snap');
 ```
 
 Migrate an isolated Iceberg table which references table `db.sample` named `db.snap` at
 a manually specified location `/tmp/temptable/`.
 ```sql
-CALL catalog_name.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/')
+CALL catalog_name.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/');
 ```
 
 ### `migrate`
@@ -609,12 +609,12 @@ By default, the original table is retained with the name `table_BACKUP_`.
 Migrate the table `db.sample` in Spark's default catalog to an Iceberg table and add a property 'foo' set to 'bar':
 
 ```sql
-CALL catalog_name.system.migrate('spark_catalog.db.sample', map('foo', 'bar'))
+CALL catalog_name.system.migrate('spark_catalog.db.sample', map('foo', 'bar'));
 ```
 
 Migrate `db.sample` in the current catalog to an Iceberg table without adding any additional properties:
 ```sql
-CALL catalog_name.system.migrate('db.sample')
+CALL catalog_name.system.migrate('db.sample');
 ```
 
 ### `add_files`
@@ -663,7 +663,7 @@ CALL spark_catalog.system.add_files(
 table => 'db.tbl',
 source_table => 'db.src_tbl',
 partition_filter => map('part_col_1', 'A')
-)
+);
 ```
 
 Add files from a `parquet` file based table at location `path/to/table` to the Iceberg table `db.tbl`. Add all
@@ -672,7 +672,7 @@ files regardless of what partition they belong to.
 CALL spark_catalog.system.add_files(
   table => 'db.tbl',
   source_table => '`parquet`.`path/to/table`'
-)
+);
 ```
 
 ### `register_table`
@@ -706,7 +706,7 @@ Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json fi
 CALL spark_catalog.system.register_table(
   table => 'db.tbl',
   metadata_file => 'path/to/metadata/file.json'
-)
+);
 ```
 
 ## Metadata information
@@ -743,13 +743,13 @@ Report the live snapshot IDs of parents of a specified snapshot
 
 Get all the snapshot ancestors of current snapshots(default)
 ```sql
-CALL spark_catalog.system.ancestors_of('db.tbl')
+CALL spark_catalog.system.ancestors_of('db.tbl');
 ```
 
 Get all the snapshot ancestors by a particular snapshot
 ```sql
-CALL spark_catalog.system.ancestors_of('db.tbl', 1)
-CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
+CALL spark_catalog.system.ancestors_of('db.tbl', 1);
+CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl');
 ```
 
 ## Change Data Capture 
@@ -788,7 +788,7 @@ Create a changelog view `tbl_changes` based on the changes that happened between
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2')
-)
+);
 ```
 
 Create a changelog view `my_changelog_view` based on the changes that happened between timestamp `1678335750489` (exclusive) and `1678992105265` (inclusive).
@@ -797,7 +797,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-timestamp','1678335750489','end-timestamp', '1678992105265'),
   changelog_view => 'my_changelog_view'
-)
+);
 ```
 
 Create a changelog view that computes updates based on the identifier columns `id` and `name`.
@@ -811,10 +811,10 @@ CALL spark_catalog.system.create_changelog_view(
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
 ```sql
-SELECT * FROM tbl_changes
+SELECT * FROM tbl_changes;
 ```
 ```sql
-SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _change_ordinal
+SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _change_ordinal;
 ``` 
 Please note that the changelog view includes Change Data Capture(CDC) metadata columns
 that provide additional information about the changes being tracked. These columns are:
@@ -837,7 +837,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('end-snapshot-id', '87647489814522183702'),
   net_changes => true
-)
+);
 ```
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
@@ -861,7 +861,7 @@ reports this as the following pair of rows, despite it not being an actual chang
 
 To see carry-over rows, query `SparkChangelogTable` as follows:
 ```sql
-SELECT * FROM spark_catalog.db.tbl.changes
+SELECT * FROM spark_catalog.db.tbl.changes;
 ```
 
 #### Pre/Post Update Images

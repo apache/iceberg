@@ -258,7 +258,7 @@ select
 from prod.db.table.history h
 join prod.db.table.snapshots s
   on h.snapshot_id = s.snapshot_id
-order by made_current_at
+order by made_current_at;
 ```
 
 | made_current_at | operation | snapshot_id | is_current_ancestor | summary[spark.app.id] |
