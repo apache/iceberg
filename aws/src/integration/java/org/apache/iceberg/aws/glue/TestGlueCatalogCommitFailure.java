@@ -319,6 +319,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
         ops.current().schema().columns().size());
   }
 
+  @SuppressWarnings("unchecked")
   private void concurrentCommitAndThrowException(
       GlueTableOperations realOps, GlueTableOperations spyOperations, Table table) {
     // Simulate a communication error after a successful commit
@@ -492,6 +493,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     return metadataV2;
   }
 
+  @SuppressWarnings("unchecked")
   private void commitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOps) {
     Mockito.doAnswer(
             i -> {
