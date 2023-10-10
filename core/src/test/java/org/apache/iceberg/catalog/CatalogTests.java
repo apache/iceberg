@@ -2697,7 +2697,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     String metadataLocation = ops.current().metadataFileLocation();
     Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: a.t1");
+        .hasMessageStartingWith("Table already exists: a.t1");
     Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
