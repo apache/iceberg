@@ -76,17 +76,20 @@ public class ErrorResponseParser {
         jsonNode != null && jsonNode.isObject(),
         "Cannot parse error response from non-object value: %s",
         jsonNode);
-    Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
-    JsonNode error = JsonUtil.get(ERROR, jsonNode);
-    String message = JsonUtil.getStringOrNull(MESSAGE, error);
-    String type = JsonUtil.getStringOrNull(TYPE, error);
-    Integer code = JsonUtil.getIntOrNull(CODE, error);
-    List<String> stack = JsonUtil.getStringListOrNull(STACK, error);
-    return ErrorResponse.builder()
-        .withMessage(message)
-        .withType(type)
-        .responseCode(code)
-        .withStackTrace(stack)
-        .build();
+    if (jsonNode.has(ERROR)) {
+      JsonNode error = JsonUtil.get(ERROR, jsonNode);
+      String message = JsonUtil.getStringOrNull(MESSAGE, error);
+      String type = JsonUtil.getStringOrNull(TYPE, error);
+      Integer code = JsonUtil.getIntOrNull(CODE, error);
+      List<String> stack = JsonUtil.getStringListOrNull(STACK, error);
+      return ErrorResponse.builder()
+          .withMessage(message)
+          .withType(type)
+          .responseCode(code)
+          .withStackTrace(stack)
+          .build();
+    } else {
+      return ErrorResponse.builder().build();
+    }
   }
 }

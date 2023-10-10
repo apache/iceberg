@@ -78,6 +78,13 @@ public class TestCatalogErrorResponseParser {
   }
 
   @Test
+  public void testErrorResponseFromJsonWithoutError() {
+    String json = "{}";
+    ErrorResponse expected = ErrorResponse.builder().build();
+    assertEquals(expected, ErrorResponseParser.fromJson(json));
+  }
+
+  @Test
   public void testErrorResponseFromJsonWithStack() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";

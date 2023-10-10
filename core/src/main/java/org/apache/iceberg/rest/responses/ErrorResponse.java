@@ -22,7 +22,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
 /** Standard response body for all API errors */
@@ -30,10 +29,10 @@ public class ErrorResponse implements RESTResponse {
 
   private String message;
   private String type;
-  private int code;
+  private Integer code;
   private List<String> stack;
 
-  private ErrorResponse(String message, String type, int code, List<String> stack) {
+  private ErrorResponse(String message, String type, Integer code, List<String> stack) {
     this.message = message;
     this.type = type;
     this.code = code;
@@ -127,7 +126,6 @@ public class ErrorResponse implements RESTResponse {
     }
 
     public ErrorResponse build() {
-      Preconditions.checkArgument(code != null, "Invalid response, missing field: code");
       return new ErrorResponse(message, type, code, stack);
     }
   }
