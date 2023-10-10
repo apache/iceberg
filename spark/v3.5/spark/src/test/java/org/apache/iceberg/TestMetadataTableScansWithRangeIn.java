@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.spark.broadcastvar.expressions.RangeInTestUtils;
@@ -57,8 +58,8 @@ public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase
 
     Expression set = RangeInTestUtils.createPredicate("partition.data_bucket", new Object[] {2, 3});
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    CloseableIterable<ContentFile<?>> tasksSet =
-        PartitionsTable.planFiles((StaticTableScan) scanSet);
+    CloseableIterable<ManifestEntry<?>> tasksSet =
+        PartitionsTable.planEntries((StaticTableScan) scanSet);
     Assert.assertEquals(2, Iterators.size(tasksSet.iterator()));
     validateSingleFieldPartition(tasksSet, 2);
     validateSingleFieldPartition(tasksSet, 3);

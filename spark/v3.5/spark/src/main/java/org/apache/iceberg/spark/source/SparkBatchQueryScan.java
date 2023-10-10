@@ -47,12 +47,12 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
@@ -356,8 +356,9 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
    * @param filters spark filters
    * @return A Tuple whose first element if not alwaysTrue, will contain the RangeIn filter ( those
    *     which have BroadcastVar) and the second element, if not alwaysTrue, will contain the Non
-   *     Broadcast Expressions. When invoked by {@link #filter(Filter[])} Filter}, the non broadcast
-   *     var ( i.e non RangeIn) expressions would always represent runtime filters ( i.e filters on
+   *     Broadcast Expressions. When invoked by {@link #filter(Predicate[])} Filter},
+   *     the non broadcast var ( i.e non RangeIn) expressions would always represent runtime
+   *     filters ( i.e filters on
    *     partition column, and they will not be added to data filters), as they cannot provide any
    *     benefit on executors for data filtering. While the broadcast var ( RangeIn) types of
    *     expression could be on both partitioned and non partitioned columns. Non Partitioned
@@ -487,7 +488,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         filterExpressions(),
         runtimeFilterExpressions,
         caseSensitive(),
-        broadcastVarMissed));
+        broadcastVarMissed);
   }
   private String getUnusedBroadcastVarString() {
     int taskVersionNum = this.taskCreationVersionNum;

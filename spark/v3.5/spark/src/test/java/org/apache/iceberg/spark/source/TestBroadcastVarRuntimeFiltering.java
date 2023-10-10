@@ -27,22 +27,28 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.expressions.Literal;
+import org.apache.spark.sql.catalyst.expressions.Literal$;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.dynamicpruning.PartitionPruning;
 import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.sources.Filter;
+
 import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.ObjectType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -50,7 +56,11 @@ import org.junit.Test;
 
 public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
 
-  private Map<String, Expression> runtimeFilterExpressions = new HashMap<String, Expression>();
+  private final Map<String, Expression> runtimeFilterExpressions = new HashMap<>();
+
+  public TestBroadcastVarRuntimeFiltering(PlanningMode planningMode) {
+    super(planningMode);
+  }
 
   @Before
   @Override
@@ -143,7 +153,7 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
       total.add(planStr.substring(startIndex, endIndex));
       startIndex = planStr.indexOf(start, endIndex);
     }
-    return total.stream().collect(Collectors.joining());
+    return String.join("", total);
   }
 
   private String getConcatenatedRuntimeFilterString(String planStr) {
@@ -157,7 +167,7 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
       total.add(planStr.substring(startIndex, endIndex));
       startIndex = planStr.indexOf(start, endIndex);
     }
-    return total.stream().collect(Collectors.joining());
+    return String.join("", total);
   }
 
   @Override
@@ -199,15 +209,14 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
     // executors
     // get number of FileScanTasks before pushdown
     int numFileScanTasksBefore = sbq.getNumFileScanTasks();
-    sbq.filter(
-        new Filter[] {
-          In.apply(
-              "testCol",
-              new Object[] {
-                new DummyBroadcastedJoinKeysWrapper(
-                    DataTypes.IntegerType, new Object[] {1, 25, 40}, 1L)
-              })
-        });
+
+    Object actualData = new DummyBroadcastedJoinKeysWrapper(
+        DataTypes.IntegerType, new Object[] {1, 25, 40}, 1L);
+    ObjectType dt = ObjectType.apply(BroadcastedJoinKeysWrapper.class);
+    Literal embedAsLiteral = Literal$.MODULE$.create(actualData, dt);
+    In filter = In.apply("testCol", new Object[]{embedAsLiteral});
+
+    ((SupportsRuntimeV2Filtering)sbq).filter(new Predicate[] {filter.toV2()});
     // after filter pushdown it should be 1
     int numFileScanTasksAfter = sbq.getNumFileScanTasks();
     assert (numFileScanTasksAfter < numFileScanTasksBefore);

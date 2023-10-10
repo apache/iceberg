@@ -75,8 +75,12 @@ import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkFilters {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkFilters.class);
 
   private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");
 
@@ -116,7 +120,7 @@ public class SparkFilters {
         expressionForOthers = Expressions.and(expressionForOthers, converted.getElement2());
       }
     }
-    return expression;
+    return new Tuple<>(expressionForRangeIn, expressionForOthers);
   }
 
   public static Tuple<Boolean, Expression> convert(Filter filter, Schema schema) {
@@ -175,13 +179,7 @@ public class SparkFilters {
           }
 
         case IN:
-          In inFilter = (In) filter;
-          return in(
-              unquote(inFilter.attribute()),
-              Stream.of(inFilter.values())
-                  .filter(Objects::nonNull)
-                  .map(SparkFilters::convertLiteral)
-                  .collect(Collectors.toList()));
+          return handleInFilter((In) filter, schema);
 
         case NOT:
           Not notFilter = (Not) filter;
@@ -241,7 +239,7 @@ public class SparkFilters {
     return null;
   }
 
-  @Nullable
+
   private static Tuple<Boolean, Expression> handleInFilter(In inFilter, Schema schema) {
     // TODO :Asif find a more graceful logic to identify rangeIn case
     if (inFilter.values()[0] instanceof BroadcastedJoinKeysWrapper) {

@@ -26,6 +26,7 @@ import static org.apache.spark.sql.functions.expr;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
@@ -35,15 +36,20 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -488,19 +494,8 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     Assert.assertEquals(errorMessage, expectedFilterCount, actualFilterCount);
   }
 
-  void assertQueryContainsDataFilters(String query, int expectedFilterCount, String errorMessage) {}
-
-  Expression getFileDeletionFilter() {
-    return this.runtimeFilterExpressions.get(name.getMethodName());
-  }
-
-  boolean isBroadcastVarPushDownTest() {
-    return false;
-  }
-
   // delete files that don't match the filter to ensure dynamic filtering works and only required
   // files are read
-
   private void deleteNotMatchingFiles(Expression filter, int expectedDeletedFileCount) {
     Table table = validationCatalog.loadTable(tableIdent);
     FileIO io = table.io();
@@ -532,5 +527,15 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         "Deleted unexpected number of files",
         expectedDeletedFileCount,
         deletedFileLocations.size());
+  }
+
+  void assertQueryContainsDataFilters(String query, int expectedFilterCount, String errorMessage) {}
+
+  Expression getFileDeletionFilter() {
+    return this.runtimeFilterExpressions.get(name.getMethodName());
+  }
+
+  boolean isBroadcastVarPushDownTest() {
+    return false;
   }
 }

@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -48,6 +49,8 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkFilters {
 
@@ -202,13 +205,14 @@ public class TestSparkFilters {
     long epochMicros =
         ChronoUnit.MICROS.between(LocalDateTime.ofInstant(Instant.EPOCH, ZoneId.of("UTC")), ldt);
 
-    Expression instantExpression = SparkFilters.convert(GreaterThan.apply("x", ldt));
+    Tuple<Boolean, Expression> instantExpressionTuple =
+        SparkFilters.convert(GreaterThan.apply("x", ldt));
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
     Assert.assertEquals(
         "Generated Instant expression should be correct",
         rawExpression.toString(),
-        instantExpression.toString());
+        instantExpressionTuple.getElement2().toString());
   }
 
   @Test

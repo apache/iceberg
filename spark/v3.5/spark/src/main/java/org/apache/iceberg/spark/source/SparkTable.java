@@ -302,7 +302,7 @@ public class SparkTable
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Predicate predicate : predicates) {
-      Tuple<Boolean, Expression> exprTuple = = SparkV2Filters.convert(predicate);
+      Tuple<Boolean, Expression> exprTuple = SparkV2Filters.convert(predicate);
       if (exprTuple != null) {
         deleteExpr = Expressions.and(deleteExpr, exprTuple.getElement2());
       } else {

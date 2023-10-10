@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,6 +65,7 @@ import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;

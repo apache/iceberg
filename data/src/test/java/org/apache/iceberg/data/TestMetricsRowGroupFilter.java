@@ -36,18 +36,27 @@ import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.io.DelegatingSeekableInputStream;
+import org.apache.parquet.schema.MessageType;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
@@ -707,11 +716,11 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
         .isTrue();
   }
 
-  private boolean shouldRead(Expression expression) {
+  protected boolean shouldRead(Expression expression) {
     return shouldRead(expression, true);
   }
 
-  private boolean shouldRead(Expression expression, boolean caseSensitive) {
+  protected boolean shouldRead(Expression expression, boolean caseSensitive) {
     switch (format) {
       case ORC:
         return shouldReadOrc(expression, caseSensitive);
@@ -723,8 +732,8 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
     }
   }
 
-  private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
-    try (CloseableIterable<org.apache.iceberg.data.Record> reader =
+  protected boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
+    try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(orcFile))
             .project(SCHEMA)
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
@@ -737,7 +746,7 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
     }
   }
 
-  private boolean shouldReadParquet(
+  protected boolean shouldReadParquet(
       Expression expression,
       boolean caseSensitive,
       MessageType messageType,
@@ -746,7 +755,7 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
         .shouldRead(messageType, blockMetaData);
   }
 
-  private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
+  protected org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
     return new org.apache.parquet.io.InputFile() {
       @Override
       public long getLength() throws IOException {

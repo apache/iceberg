@@ -54,6 +54,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -157,7 +158,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
     Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
     return new SparkMicroBatchStream(
-        sparkContext, table, readConf, expectedSchema, checkpointLocation);
+        sparkContext, table, readConf, expectedSchema, checkpointLocation, tableBroadcast);
   }
 
   @Override

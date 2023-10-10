@@ -77,9 +77,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
 
-    implementation("com.github.ben-manes.caffeine:caffeine")
+    implementation libs.caffeine
 
-    implementation("org.apache.orc:orc-core::nohive") {
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
