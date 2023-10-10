@@ -23,13 +23,13 @@ import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.request.PutObjectRequest;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 /** Verify the error codes between real client and mock client. */
 public class TestExceptionCode {
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testExceptionCode() {
