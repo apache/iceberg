@@ -172,6 +172,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     }
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
   private void sendDataStatisticsToSubtasks(
       long checkpointId, DataStatistics<D, S> globalDataStatistics) {
     callInCoordinatorThread(
