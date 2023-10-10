@@ -675,7 +675,7 @@ Table metadata consists of the following fields:
 
 For serialization details, see Appendix C.
 
-#### Table statistics
+#### Table Statistics
 
 Table statistics files are valid [Puffin files](../puffin-spec). Statistics are informational. A reader can choose to
 ignore statistics information. Statistics support is not required to read the table correctly. A table can contain
@@ -703,25 +703,25 @@ Blob metadata is a struct with the following fields:
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
 
-#### Partition statistics
+#### Partition Statistics
 
-Partition statistics files are based on [Partition Statistics file spec](#partition-statistics-file). 
+Partition statistics files are based on [Partition statistics file spec](#partition-statistics-file). 
 Partition statistics are not required for reading or planning and readers may ignore them.
 Each table snapshot may be associated with at most one partition statistic file.
-A writer can optionally write the partition statistics file during each write operation, and 
-it must be registered in the table metadata file to be considered as a valid statistics file for the reader.
+A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
+Partition statistics file must be registered in the table metadata file to be considered as a valid statistics file for the reader.
 
 `partition-statistics` field of table metadata is an optional list of struct with the following fields:
 
 | v1 | v2 | Field name | Type | Description |
 |----|----|------------|------|-------------|
 | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
-| _required_ | _required_ | **`statistics-file-path`** | `string` | Path of the partition statistics file. See [Partition Statistics file](#partition-statistics-file). |
+| _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
 
-#### Partition Statistics file
+#### Partition Statistics File
 
-Statistics information for each unique partition tuple is stored as a row in the default data file format of the table (for example, Parquet or ORC).
+Statistics information for each unique partition tuple is stored as a row in any of the data file format of the table (for example, Parquet or ORC).
 These rows must be sorted (in ascending manner with NULL FIRST) by `partition` field to optimize filtering rows while scanning.
 
 The schema of the partition statistics file is as follows:
