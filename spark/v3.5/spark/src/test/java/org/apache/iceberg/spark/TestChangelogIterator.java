@@ -307,6 +307,27 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     validateIterators(rowsWithDuplication, expectedRows);
   }
 
+  @Test
+  public void testCarryRowsRemoveSparkRowEquality() {
+    // these payload values are picked according to the implementation of Spark Row equality
+    Object[] thisPayloads = new Object[] {"data".getBytes(), Float.NaN, Double.NaN};
+    // need separate instances to avoid satisfying object (reference) equality
+    Object[] nextPayloads = new Object[] {"data".getBytes(), Float.NaN, Double.NaN};
+
+    for (int i = 0; i < 3; i++) {
+      // one delete and one insert, identical payload (= carry-over)
+      List<Row> rows =
+          Lists.newArrayList(
+              new GenericRowWithSchema(new Object[] {1, "d", thisPayloads[i], DELETE, 0, 0}, null),
+              new GenericRowWithSchema(new Object[] {1, "d", nextPayloads[i], INSERT, 0, 0}, null));
+
+      // expect both rows removed
+      List<Object[]> expectedRows = Lists.newArrayList();
+
+      validateIterators(rows, expectedRows);
+    }
+  }
+
   private void validateIterators(List<Row> rowsWithDuplication, List<Object[]> expectedRows) {
     Iterator<Row> iterator =
         ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
