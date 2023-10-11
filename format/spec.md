@@ -177,10 +177,10 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
 | **`date`**         | Calendar date without timezone or time                                   |                                                  |
 | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
-| **`timestamp`**    | Timestamp, with microsecond precision, without timezone                  | [4], [6]                                         |
-| **`timestamptz`**  | Timestamp, with microsecond precision, with timezone                     | [4], [7]                                         |
-| **`timestamp_ns`** | Timestamp, with nanosecond precision, without timezone                   | [5], [6]                                         |
-| **`timestamptz_ns`** | Timestamp, with nanosecond precision, with timezone                    | [5], [7]                                         |
+| **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
+| **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
+| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
+| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
 | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
 | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
@@ -188,13 +188,11 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 Notes:
 
-1. `decimal(P,S)` scale (`S`) is fixed, and cannot be changed by schema evolution. Precision (`P`) can only be widened by schema evolution.
-2. `string` values must be stored as UTF-8 encoded byte arrays.
-3. `date` and `time` values represent date and time of day, respectfully, _without time zone_.
-4. `time`, `timestamp`, and `timestamptz` values are represented with _microsecond precision_. Storage formats must retain at least this precision, but may retain higher.
-5. `timestamp_ns` and `timstamptz_ns` values are represented with _nanosecond precision_. Storage formats must retain this precision.
-6. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
-7. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical). 
+1. Decimal scale is fixed and cannot be changed by schema evolution. Precision can only be widened.
+2. `time`, `timestamp`, and `timestamptz` values are represented with _microsecond precision_. `timestamp_ns` and `timstamptz_ns` values are represented with _nanosecond precision_.
+    - Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
+    - Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
+3. Character strings must be stored as UTF-8 encoded byte arrays.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
