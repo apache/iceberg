@@ -862,6 +862,12 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::setNewFilesSequenceNumber(long)\
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecated code"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.avro.generic.GenericEnumSymbol org.apache.avro.Conversion<T>::toEnumSymbol(T,\
+        \ org.apache.avro.Schema, org.apache.avro.LogicalType) @ org.apache.iceberg.avro.UUIDConversion"
+      new: "method org.apache.avro.generic.GenericEnumSymbol<?> org.apache.avro.Conversion<T>::toEnumSymbol(T,\
+        \ org.apache.avro.Schema, org.apache.avro.LogicalType) @ org.apache.iceberg.avro.UUIDConversion"
+      justification: "Generic has been added"
     - code: "java.method.visibilityReduced"
       old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
       new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
