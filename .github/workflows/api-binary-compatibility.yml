@@ -21,7 +21,7 @@ name: "API Binary Compatibility Checks"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
