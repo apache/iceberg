@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -147,8 +148,14 @@ public abstract class BaseViewOperations implements ViewOperations {
   }
 
   private String newMetadataFilePath(ViewMetadata metadata, int newVersion) {
+    String codecName =
+        metadata
+            .properties()
+            .getOrDefault(
+                ViewProperties.METADATA_COMPRESSION, ViewProperties.METADATA_COMPRESSION_DEFAULT);
+    String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(
-        metadata, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), ".metadata.json"));
+        metadata, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   private String metadataFileLocation(ViewMetadata metadata, String filename) {

@@ -28,8 +28,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.TableMetadataParser.Codec;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -163,7 +166,9 @@ public class ViewMetadataParser {
   }
 
   public static ViewMetadata read(InputFile file) {
-    try (InputStream is = file.newStream()) {
+    Codec codec = Codec.fromFileName(file.location());
+    try (InputStream is =
+        codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file.location(), JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to read json file: %s", file), e);
@@ -172,8 +177,11 @@ public class ViewMetadataParser {
 
   private static void internalWrite(
       ViewMetadata metadata, OutputFile outputFile, boolean overwrite) {
+    boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-    try (OutputStreamWriter writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)) {
+    try (OutputStreamWriter writer =
+        new OutputStreamWriter(
+            isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);

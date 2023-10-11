@@ -22,14 +22,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipException;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadataParser.Codec;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestViewMetadataParser {
 
@@ -38,6 +49,8 @@ public class TestViewMetadataParser {
           Types.NestedField.required(1, "x", Types.LongType.get()),
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
+
+  @TempDir private Path tmp;
 
   @Test
   public void nullAndEmptyCheck() {
@@ -307,5 +320,59 @@ public class TestViewMetadataParser {
         ViewMetadata.buildFrom(invalid).addVersion(viewVersion).setCurrentVersionId(2).build();
 
     assertThat(replaced.currentVersion()).isEqualTo(viewVersion);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1.metadata.json", "v1.gz.metadata.json"})
+  public void metadataCompression(String fileName) throws IOException {
+    Codec codec = fileName.startsWith("v1.gz") ? Codec.GZIP : Codec.NONE;
+    String location = Paths.get(tmp.toString(), fileName).toString();
+    OutputFile outputFile = org.apache.iceberg.Files.localOutput(location);
+
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .schemaId(0)
+            .versionId(1)
+            .timestampMillis(23L)
+            .putSummary("operation", "create")
+            .defaultNamespace(Namespace.of("ns"))
+            .build();
+
+    ViewMetadata metadata =
+        ViewMetadata.buildFrom(
+                ViewMetadata.builder()
+                    .setLocation(location)
+                    .addSchema(schema)
+                    .setProperties(
+                        ImmutableMap.of(ViewProperties.METADATA_COMPRESSION, codec.name()))
+                    .addVersion(viewVersion)
+                    .setCurrentVersionId(1)
+                    .build())
+            .setMetadataLocation(outputFile.location())
+            .build();
+
+    ViewMetadataParser.write(metadata, outputFile);
+    assertThat(Codec.GZIP == codec).isEqualTo(isCompressed(location));
+
+    ViewMetadata actualMetadata =
+        ViewMetadataParser.read(org.apache.iceberg.Files.localInput(location));
+
+    assertThat(actualMetadata)
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .isEqualTo(metadata);
+  }
+
+  private boolean isCompressed(String path) throws IOException {
+    try (InputStream ignored = new GZIPInputStream(Files.newInputStream(new File(path).toPath()))) {
+      return true;
+    } catch (ZipException e) {
+      if (e.getMessage().equals("Not in GZIP format")) {
+        return false;
+      } else {
+        throw e;
+      }
+    }
   }
 }
