@@ -24,7 +24,7 @@ flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
 flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
 google-libraries-bom = "26.24.0"
 guava = "32.1.1-jre"
-hadoop2 = "2.7.3"
+hadoop2 = "3.3.6"
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.2.1"
 hive2 = { strictly = "[2, 3[", prefer = "2.3.9"} # see rich version usage explanation above
