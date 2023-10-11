@@ -130,11 +130,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   }
 
   private boolean sameLogicalRow(Row currentRow, Row nextRow) {
-    for (int idx : identifierFieldIdx) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-    return true;
+    return isSameRecord(
+        currentRow, nextRow, identifierFieldIdx.stream().mapToInt(i -> i).toArray());
   }
 }
