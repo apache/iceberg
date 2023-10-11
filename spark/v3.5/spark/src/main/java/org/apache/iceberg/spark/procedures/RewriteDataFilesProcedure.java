@@ -137,8 +137,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action;
   }
 
-  private RewriteDataFiles checkAndApplyBranch(Table t, RewriteDataFiles action) {
-    SparkWriteConf writeConf = new SparkWriteConf(spark(), t, Maps.newHashMap());
+  private RewriteDataFiles checkAndApplyBranch(Table table, RewriteDataFiles action) {
+    SparkWriteConf writeConf = new SparkWriteConf(spark(), table, Maps.newHashMap());
     String targetBranch = writeConf.branch();
     if (targetBranch != null) {
       return action.targetBranch(targetBranch);
