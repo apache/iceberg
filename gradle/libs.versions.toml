@@ -38,7 +38,7 @@ jackson212 = { strictly = "[2.12, 2.13[", prefer = "2.12.3"}
 jackson213 = { strictly = "[2.13, 2.14[", prefer = "2.13.4"}
 jackson214 = { strictly = "[2.14, 2.15[", prefer = "2.14.2"}
 jackson215 = { strictly = "[2.15, 2.16[", prefer = "2.15.2"}
-jakarta-el-api = "3.0.3"
+jakarta-el-api = "5.0.1"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.3"
 jetty = "9.4.43.v20210629"
