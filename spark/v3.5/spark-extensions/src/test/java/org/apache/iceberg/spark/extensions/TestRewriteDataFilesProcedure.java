@@ -88,28 +88,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteWriteOnBranch() throws Exception {
-    createPartitionTable();
-    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
-    insertData(10);
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    String branch = "op_audit";
-    table.manageSnapshots().createBranch(branch).commit();
-    table.refresh();
-    spark.sql(
-        String.format("ALTER TABLE %s SET TBLPROPERTIES ('write.wap.enabled'='true')", tableName));
-    spark.sql(String.format("SET spark.wap.branch = %s", branch));
-    long lastId = table.currentSnapshot().snapshotId();
-    List<Object[]> output =
-        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
-    table.refresh();
-    assertThat(table.currentSnapshot().snapshotId())
-        .as("rewrite should happen on branch")
-        .isEqualTo(lastId);
-  }
-
-  @TestTemplate
-  public void testRewriteReadFromBranch() throws Exception {
+  public void testRewriteOnBranch() throws Exception {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -123,6 +102,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     spark.sql(
         String.format("ALTER TABLE %s SET TBLPROPERTIES ('write.wap.enabled'='true')", tableName));
     spark.sql(String.format("SET spark.wap.branch = %s", branch));
+    long lastSnapshotId = table.currentSnapshot().snapshotId();
     List<Object[]> output =
         sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
     assertThat(Arrays.copyOf(output.get(0), 2))
@@ -132,6 +112,9 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThat(table.refs().get(branch).snapshotId())
         .as("branch ref should have changed")
         .isNotEqualTo(branchSnapshotId);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("rewrite should happen on branch")
+        .isEqualTo(lastSnapshotId);
   }
 
   @TestTemplate

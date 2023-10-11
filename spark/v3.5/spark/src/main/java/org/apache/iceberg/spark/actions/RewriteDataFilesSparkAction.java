@@ -151,6 +151,9 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFiles targetBranch(String branch) {
     this.targetBranch = branch;
+    SnapshotRef ref = table.refs().get(this.targetBranch);
+    Preconditions.checkArgument(
+        ref != null, String.format("Branch does not exist: %s", targetBranch));
     return this;
   }
 
@@ -159,8 +162,6 @@ public class RewriteDataFilesSparkAction
       return table.currentSnapshot().snapshotId();
     } else {
       SnapshotRef ref = table.refs().get(this.targetBranch);
-      Preconditions.checkArgument(
-          ref != null, String.format("Branch does not exist: %s", targetBranch));
       return ref.snapshotId();
     }
   }
