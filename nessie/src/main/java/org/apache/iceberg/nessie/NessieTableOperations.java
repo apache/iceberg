@@ -138,7 +138,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     String refName = client.refName();
     boolean failure = false;
     try {
-      client.commitTable(base, metadata, newMetadataLocation, table, key);
+      String contentId = table == null ? null : table.getId();
+      client.commitTable(base, metadata, newMetadataLocation, contentId, key);
     } catch (NessieConflictException ex) {
       failure = true;
       if (ex instanceof NessieReferenceConflictException) {
