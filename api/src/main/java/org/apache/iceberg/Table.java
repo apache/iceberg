@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -332,6 +333,15 @@ public interface Table {
    * @return the current refs for the table
    */
   Map<String, SnapshotRef> refs();
+
+  /**
+   * Returns the UUID of the table
+   *
+   * @return the UUID of the table
+   */
+  default UUID uuid() {
+    throw new UnsupportedOperationException(this.getClass().getName() + " doesn't implement uuid");
+  }
 
   /**
    * Returns the snapshot referenced by the given name or null if no such reference exists.
