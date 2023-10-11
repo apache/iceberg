@@ -103,7 +103,9 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> output =
         sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
     table.refresh();
-    assertThat(table.currentSnapshot().snapshotId()).as("rewrite should happen on branch").isEqualTo(lastId);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("rewrite should happen on branch")
+        .isEqualTo(lastId);
   }
 
   @TestTemplate
@@ -123,12 +125,13 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     spark.sql(String.format("SET spark.wap.branch = %s", branch));
     List<Object[]> output =
         sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
-    assertEquals(
-        "Action should rewrite 10 data files and add 2 data files (one per partition) ",
-        row(10, 2),
-        Arrays.copyOf(output.get(0), 2));
+    assertThat(Arrays.copyOf(output.get(0), 2))
+        .as("Action should rewrite 10 data files and add 2 data files (one per partition)")
+        .containsExactly(row(10, 2));
     table.refresh();
-    assertThat(table.refs().get(branch).snapshotId()).isEqualTo(branchSnapshotId);
+    assertThat(table.refs().get(branch).snapshotId())
+        .as("branch ref should have changed")
+        .isNotEqualTo(branchSnapshotId);
   }
 
   @TestTemplate

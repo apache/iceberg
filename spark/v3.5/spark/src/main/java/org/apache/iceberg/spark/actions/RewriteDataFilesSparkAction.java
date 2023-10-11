@@ -159,7 +159,7 @@ public class RewriteDataFilesSparkAction
       return table.currentSnapshot().snapshotId();
     } else {
       SnapshotRef ref = table.refs().get(this.targetBranch);
-      assert (ref != null);
+      Preconditions.checkArgument(ref != null, "branch must exist");
       return ref.snapshotId();
     }
   }
