@@ -337,6 +337,8 @@ Iceberg tracks each data file in a table. More data files leads to more metadata
 
 Iceberg can compact data files in parallel using Spark with the `rewriteDataFiles` action. This will combine small files into larger files to reduce metadata overhead and runtime file open cost.
 
+It is also possible to use write audit publish (WAP) to rewrite on target branch.
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
@@ -417,6 +419,13 @@ CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"');
+```
+
+Rewrite the data files in table `db.sample` specifying target branch rewrite happens on
+```sql
+ALTER TABLE db.table SET TBLPROPERTIES ('write.wap.enabled'='true')
+SET spark.wap.branch = audit-branch
+CALL catalog_name.system.rewrite_data_files('db.sample');
 ```
 
 ### `rewrite_manifests`
