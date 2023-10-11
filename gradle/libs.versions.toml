@@ -17,7 +17,7 @@ calcite = "1.10.0"
 delta-standalone = "0.6.0"
 delta-core = "2.2.0"
 esotericsoftware-kryo = "4.0.2"
-errorprone-annotations = "2.3.3"
+errorprone-annotations = "2.22.0"
 findbugs-jsr305 = "3.0.2"
 flink115 = { strictly = "[1.15, 1.16[", prefer = "1.15.0"} # see rich version usage explanation above
 flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
