@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -39,6 +40,7 @@ public class RewriteDataFilesCommitManager {
   private final long startingSnapshotId;
   private final boolean useStartingSequenceNumber;
   private final Map<String, String> snapshotProperties;
+  private final String targetBranch;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -46,23 +48,28 @@ public class RewriteDataFilesCommitManager {
   }
 
   public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
-    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+    this(
+        table,
+        startingSnapshotId,
+        RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
   }
 
   public RewriteDataFilesCommitManager(
       Table table, long startingSnapshotId, boolean useStartingSequenceNumber) {
-    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of());
+    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of(), SnapshotRef.MAIN_BRANCH);
   }
 
   public RewriteDataFilesCommitManager(
       Table table,
       long startingSnapshotId,
       boolean useStartingSequenceNumber,
-      Map<String, String> snapshotProperties) {
+      Map<String, String> snapshotProperties,
+      String branch) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
     this.useStartingSequenceNumber = useStartingSequenceNumber;
     this.snapshotProperties = snapshotProperties;
+    this.targetBranch = branch;
   }
 
   /**
@@ -88,6 +95,7 @@ public class RewriteDataFilesCommitManager {
     }
 
     snapshotProperties.forEach(rewrite::set);
+    rewrite.toBranch(targetBranch);
 
     rewrite.commit();
   }

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -35,6 +36,7 @@ import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
@@ -83,6 +85,50 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
+  }
+
+  @TestTemplate
+  public void testRewriteWriteOnBranch() throws Exception {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String branch = "op_audit";
+    table.manageSnapshots().createBranch(branch).commit();
+    table.refresh();
+    spark.sql(
+        String.format("ALTER TABLE %s SET TBLPROPERTIES ('write.wap.enabled'='true')", tableName));
+    spark.sql(String.format("SET spark.wap.branch = %s", branch));
+    long lastId = table.currentSnapshot().snapshotId();
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId()).as("rewrite should happen on branch").isEqualTo(lastId);
+  }
+
+  @TestTemplate
+  public void testRewriteReadFromBranch() throws Exception {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String branch = "op_audit";
+    table.manageSnapshots().createBranch(branch).commit();
+    table.refresh();
+    long branchSnapshotId = table.currentSnapshot().snapshotId();
+    insertData(10);
+    table.refresh();
+    spark.sql(
+        String.format("ALTER TABLE %s SET TBLPROPERTIES ('write.wap.enabled'='true')", tableName));
+    spark.sql(String.format("SET spark.wap.branch = %s", branch));
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 2 data files (one per partition) ",
+        row(10, 2),
+        Arrays.copyOf(output.get(0), 2));
+    table.refresh();
+    assertThat(table.refs().get(branch).snapshotId()).isEqualTo(branchSnapshotId);
   }
 
   @TestTemplate
