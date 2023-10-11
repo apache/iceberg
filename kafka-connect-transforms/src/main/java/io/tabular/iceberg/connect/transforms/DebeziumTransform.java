@@ -28,6 +28,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.data.Timestamp;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.Requirements;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
@@ -86,20 +87,28 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
       payloadSchema = value.schema().field("after").schema();
     }
 
-    Schema newValueSchema = makeUpdatedSchema(payloadSchema, record.keySchema());
+    // create the CDC metadata
+    Schema cdcSchema = makeCdcSchema(record.keySchema());
+    Struct cdcMetadata = new Struct(cdcSchema);
+    cdcMetadata.put(CdcConstants.COL_OP, op);
+    cdcMetadata.put(CdcConstants.COL_TS, new java.util.Date(value.getInt64("ts_ms")));
+    if (record instanceof SinkRecord) {
+      cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
+    }
+    setTableAndTargetFromSourceStruct(value.getStruct("source"), cdcMetadata);
+
+    if (record.keySchema() != null) {
+      cdcMetadata.put(CdcConstants.COL_KEY, record.key());
+    }
+
+    // create the new value
+    Schema newValueSchema = makeUpdatedSchema(payloadSchema, cdcSchema);
     Struct newValue = new Struct(newValueSchema);
 
     for (Field field : payloadSchema.fields()) {
       newValue.put(field.name(), payload.get(field));
     }
-
-    newValue.put(CdcConstants.COL_CDC_OP, op);
-    newValue.put(CdcConstants.COL_CDC_TS, new java.util.Date(value.getInt64("ts_ms")));
-    setTableAndTargetFromSourceStruct(value.getStruct("source"), newValue);
-
-    if (record.keySchema() != null) {
-      newValue.put(CdcConstants.COL_CDC_KEY, record.key());
-    }
+    newValue.put(CdcConstants.COL_CDC, cdcMetadata);
 
     return record.newRecord(
         record.topic(),
@@ -129,14 +138,22 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
       return null;
     }
 
-    Map<String, Object> newValue = Maps.newHashMap((Map<String, Object>) payload);
-    newValue.put(CdcConstants.COL_CDC_OP, op);
-    newValue.put(CdcConstants.COL_CDC_TS, value.get("ts_ms"));
-    setTableAndTargetFromSourceMap(value.get("source"), newValue);
+    // create the CDC metadata
+    Map<String, Object> cdcMetadata = Maps.newHashMap();
+    cdcMetadata.put(CdcConstants.COL_OP, op);
+    cdcMetadata.put(CdcConstants.COL_TS, value.get("ts_ms"));
+    if (record instanceof SinkRecord) {
+      cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
+    }
+    setTableAndTargetFromSourceMap(value.get("source"), cdcMetadata);
 
     if (record.key() instanceof Map) {
-      newValue.put(CdcConstants.COL_CDC_KEY, record.key());
+      cdcMetadata.put(CdcConstants.COL_KEY, record.key());
     }
+
+    // create the new value
+    Map<String, Object> newValue = Maps.newHashMap((Map<String, Object>) payload);
+    newValue.put(CdcConstants.COL_CDC, cdcMetadata);
 
     return record.newRecord(
         record.topic(),
@@ -160,7 +177,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     }
   }
 
-  private void setTableAndTargetFromSourceStruct(Struct source, Struct value) {
+  private void setTableAndTargetFromSourceStruct(Struct source, Struct cdcMetadata) {
     String db;
     if (source.schema().field("schema") != null) {
       // prefer schema if present, e.g. for Postgres
@@ -170,11 +187,11 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     }
     String table = source.getString("table");
 
-    value.put(CdcConstants.COL_CDC_TABLE, db + "." + table);
-    value.put(CdcConstants.COL_CDC_TARGET, target(db, table));
+    cdcMetadata.put(CdcConstants.COL_SOURCE, db + "." + table);
+    cdcMetadata.put(CdcConstants.COL_TARGET, target(db, table));
   }
 
-  private void setTableAndTargetFromSourceMap(Object source, Map<String, Object> value) {
+  private void setTableAndTargetFromSourceMap(Object source, Map<String, Object> cdcMetadata) {
     Map<String, Object> map = Requirements.requireMap(source, "Debezium transform");
 
     String db;
@@ -186,8 +203,8 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     }
     String table = map.get("table").toString();
 
-    value.put(CdcConstants.COL_CDC_TABLE, db + "." + table);
-    value.put(CdcConstants.COL_CDC_TARGET, target(db, table));
+    cdcMetadata.put(CdcConstants.COL_SOURCE, db + "." + table);
+    cdcMetadata.put(CdcConstants.COL_TARGET, target(db, table));
   }
 
   private String target(String db, String table) {
@@ -196,22 +213,30 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
         : cdcTargetPattern.replace(DB_PLACEHOLDER, db).replace(TABLE_PLACEHOLDER, table);
   }
 
-  private Schema makeUpdatedSchema(Schema schema, Schema keySchema) {
+  private Schema makeCdcSchema(Schema keySchema) {
+    SchemaBuilder builder =
+        SchemaBuilder.struct()
+            .field(CdcConstants.COL_OP, Schema.STRING_SCHEMA)
+            .field(CdcConstants.COL_TS, Timestamp.SCHEMA)
+            .field(CdcConstants.COL_OFFSET, Schema.OPTIONAL_INT64_SCHEMA)
+            .field(CdcConstants.COL_SOURCE, Schema.STRING_SCHEMA)
+            .field(CdcConstants.COL_TARGET, Schema.STRING_SCHEMA);
+
+    if (keySchema != null) {
+      builder.field(CdcConstants.COL_KEY, keySchema);
+    }
+
+    return builder.build();
+  }
+
+  private Schema makeUpdatedSchema(Schema schema, Schema cdcSchema) {
     SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
     for (Field field : schema.fields()) {
       builder.field(field.name(), field.schema());
     }
 
-    builder
-        .field(CdcConstants.COL_CDC_OP, Schema.STRING_SCHEMA)
-        .field(CdcConstants.COL_CDC_TS, Timestamp.SCHEMA)
-        .field(CdcConstants.COL_CDC_TABLE, Schema.STRING_SCHEMA)
-        .field(CdcConstants.COL_CDC_TARGET, Schema.STRING_SCHEMA);
-
-    if (keySchema != null) {
-      builder.field(CdcConstants.COL_CDC_KEY, keySchema);
-    }
+    builder.field(CdcConstants.COL_CDC, cdcSchema);
 
     return builder.build();
   }

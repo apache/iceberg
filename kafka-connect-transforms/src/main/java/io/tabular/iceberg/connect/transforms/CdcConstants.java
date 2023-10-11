@@ -24,9 +24,11 @@ public interface CdcConstants {
   String OP_UPDATE = "U";
   String OP_DELETE = "D";
 
-  String COL_CDC_OP = "_cdc_op";
-  String COL_CDC_TS = "_cdc_ts";
-  String COL_CDC_TABLE = "_cdc_table";
-  String COL_CDC_TARGET = "_cdc_target";
-  String COL_CDC_KEY = "_cdc_key";
+  String COL_CDC = "_cdc";
+  String COL_OP = "op";
+  String COL_TS = "ts";
+  String COL_OFFSET = "offset";
+  String COL_SOURCE = "source";
+  String COL_TARGET = "target";
+  String COL_KEY = "key";
 }
