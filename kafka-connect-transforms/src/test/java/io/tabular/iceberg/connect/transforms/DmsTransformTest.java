@@ -40,8 +40,10 @@ public class DmsTransformTest {
       Map<String, Object> value = (Map<String, Object>) result.value();
 
       assertThat(value.get("account_id")).isEqualTo(1);
-      assertThat(value.get("_cdc_table")).isEqualTo("db.tbl");
-      assertThat(value.get("_cdc_op")).isEqualTo("U");
+
+      Map<String, Object> cdcMetadata = (Map<String, Object>) value.get("_cdc");
+      assertThat(cdcMetadata.get("op")).isEqualTo("U");
+      assertThat(cdcMetadata.get("source")).isEqualTo("db.tbl");
     }
   }
 

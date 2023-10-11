@@ -55,8 +55,6 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
       return null;
     }
 
-    Map<String, Object> result = Maps.newHashMap((Map<String, Object>) dataObj);
-
     Map<String, Object> metadata = (Map<String, Object>) metadataObj;
 
     String dmsOp = metadata.get("operation").toString();
@@ -72,11 +70,17 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
         op = CdcConstants.OP_INSERT;
     }
 
-    result.put(CdcConstants.COL_CDC_OP, op);
-    result.put(
-        CdcConstants.COL_CDC_TABLE,
+    // create the CDC metadata
+    Map<String, Object> cdcMetadata = Maps.newHashMap();
+    cdcMetadata.put(CdcConstants.COL_OP, op);
+    cdcMetadata.put(CdcConstants.COL_TS, metadata.get("timestamp"));
+    cdcMetadata.put(
+        CdcConstants.COL_SOURCE,
         String.format("%s.%s", metadata.get("schema-name"), metadata.get("table-name")));
-    result.put(CdcConstants.COL_CDC_TS, metadata.get("timestamp"));
+
+    // create the new value
+    Map<String, Object> newValue = Maps.newHashMap((Map<String, Object>) dataObj);
+    newValue.put(CdcConstants.COL_CDC, cdcMetadata);
 
     return record.newRecord(
         record.topic(),
@@ -84,7 +88,7 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
         record.keySchema(),
         record.key(),
         null,
-        result,
+        newValue,
         record.timestamp());
   }
 

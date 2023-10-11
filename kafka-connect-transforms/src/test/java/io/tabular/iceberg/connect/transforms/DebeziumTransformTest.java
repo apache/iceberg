@@ -48,7 +48,6 @@ public class DebeziumTransformTest {
           .field("db", Schema.STRING_SCHEMA)
           .field("schema", Schema.STRING_SCHEMA)
           .field("table", Schema.STRING_SCHEMA)
-          .field("txId", Schema.INT64_SCHEMA)
           .build();
 
   private static final Schema VALUE_SCHEMA =
@@ -84,10 +83,12 @@ public class DebeziumTransformTest {
       Map<String, Object> value = (Map<String, Object>) result.value();
 
       assertThat(value.get("account_id")).isEqualTo(1);
-      assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
-      assertThat(value.get("_cdc_target")).isEqualTo("schema_x.tbl_x");
-      assertThat(value.get("_cdc_op")).isEqualTo("U");
-      assertThat(value.get("_cdc_key")).isInstanceOf(Map.class);
+
+      Map<String, Object> cdcMetadata = (Map<String, Object>) value.get("_cdc");
+      assertThat(cdcMetadata.get("op")).isEqualTo("U");
+      assertThat(cdcMetadata.get("source")).isEqualTo("schema.tbl");
+      assertThat(cdcMetadata.get("target")).isEqualTo("schema_x.tbl_x");
+      assertThat(cdcMetadata.get("key")).isInstanceOf(Map.class);
     }
   }
 
@@ -105,10 +106,12 @@ public class DebeziumTransformTest {
       Struct value = (Struct) result.value();
 
       assertThat(value.get("account_id")).isEqualTo(1L);
-      assertThat(value.get("_cdc_table")).isEqualTo("schema.tbl");
-      assertThat(value.get("_cdc_target")).isEqualTo("schema_x.tbl_x");
-      assertThat(value.get("_cdc_op")).isEqualTo("U");
-      assertThat(value.get("_cdc_key")).isInstanceOf(Struct.class);
+
+      Struct cdcMetadata = value.getStruct("_cdc");
+      assertThat(cdcMetadata.get("op")).isEqualTo("U");
+      assertThat(cdcMetadata.get("source")).isEqualTo("schema.tbl");
+      assertThat(cdcMetadata.get("target")).isEqualTo("schema_x.tbl_x");
+      assertThat(cdcMetadata.get("key")).isInstanceOf(Struct.class);
     }
   }
 
@@ -117,8 +120,7 @@ public class DebeziumTransformTest {
         ImmutableMap.of(
             "db", "db",
             "schema", "schema",
-            "table", "tbl",
-            "txId", 12345);
+            "table", "tbl");
 
     Map<String, Object> data =
         ImmutableMap.of(
@@ -136,11 +138,7 @@ public class DebeziumTransformTest {
 
   private Struct createDebeziumEventStruct(String operation) {
     Struct source =
-        new Struct(SOURCE_SCHEMA)
-            .put("db", "db")
-            .put("schema", "schema")
-            .put("table", "tbl")
-            .put("txId", 12345L);
+        new Struct(SOURCE_SCHEMA).put("db", "db").put("schema", "schema").put("table", "tbl");
 
     Struct data =
         new Struct(ROW_SCHEMA)
