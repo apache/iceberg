@@ -25,6 +25,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.Path;
@@ -101,6 +103,8 @@ public class Spark3Util {
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
+
+  private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
 
   private Spark3Util() {}
 
@@ -251,6 +255,15 @@ public class Spark3Util {
           "Cannot add '%s' at unknown position: %s",
           DOT.join(add.fieldNames()),
           add.position());
+    }
+  }
+
+  public static String extractBranch(Identifier ident) {
+    Matcher branch = BRANCH.matcher(ident.name());
+    if (branch.matches()) {
+      return branch.group(1);
+    } else {
+      return null;
     }
   }
 

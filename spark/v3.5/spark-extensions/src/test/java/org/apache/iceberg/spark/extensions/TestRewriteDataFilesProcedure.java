@@ -88,7 +88,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteOnBranch() throws Exception {
+  public void testRewriteOnBranchWAP() throws Exception {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -105,6 +105,36 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     long lastSnapshotId = table.currentSnapshot().snapshotId();
     List<Object[]> output =
         sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+    assertThat(Arrays.copyOf(output.get(0), 2))
+        .as("Action should rewrite 10 data files and add 2 data files (one per partition)")
+        .containsExactly(row(10, 2));
+    table.refresh();
+    assertThat(table.refs().get(branch).snapshotId())
+        .as("branch ref should have changed")
+        .isNotEqualTo(branchSnapshotId);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("rewrite should happen on branch")
+        .isEqualTo(lastSnapshotId);
+  }
+
+  @TestTemplate
+  public void testRewriteOnBranch() throws Exception {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String branch = "op_audit";
+    table.manageSnapshots().createBranch(branch).commit();
+    table.refresh();
+    long branchSnapshotId = table.currentSnapshot().snapshotId();
+    insertData(10);
+    table.refresh();
+    long lastSnapshotId = table.currentSnapshot().snapshotId();
+    TableIdentifier branchIdent =
+        TableIdentifier.of(
+            tableIdent.namespace(), String.format("%s.branch_%s", tableIdent.name(), branch));
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, branchIdent);
     assertThat(Arrays.copyOf(output.get(0), 2))
         .as("Action should rewrite 10 data files and add 2 data files (one per partition)")
         .containsExactly(row(10, 2));

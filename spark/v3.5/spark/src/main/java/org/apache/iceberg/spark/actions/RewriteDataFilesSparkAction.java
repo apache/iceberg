@@ -154,6 +154,8 @@ public class RewriteDataFilesSparkAction
     SnapshotRef ref = table.refs().get(this.targetBranch);
     Preconditions.checkArgument(
         ref != null, String.format("Branch does not exist: %s", targetBranch));
+    Preconditions.checkArgument(
+        ref.isBranch(), String.format("Ref %s is not a branch", targetBranch));
     return this;
   }
 
