@@ -218,11 +218,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected boolean addsDataFiles() {
-    return newDataFiles.size() > 0;
+    return !newDataFiles.isEmpty();
   }
 
   protected boolean addsDeleteFiles() {
-    return newDeleteFilesBySpec.size() > 0;
+    return !newDeleteFilesBySpec.isEmpty();
   }
 
   /** Add a data file to the new snapshot. */
@@ -937,7 +937,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private Iterable<ManifestFile> prepareNewDataManifests() {
     Iterable<ManifestFile> newManifests;
-    if (newDataFiles.size() > 0) {
+    if (!newDataFiles.isEmpty()) {
       List<ManifestFile> dataFileManifests = newDataFilesAsManifests();
       newManifests = Iterables.concat(dataFileManifests, appendManifests, rewrittenAppendManifests);
     } else {
@@ -987,7 +987,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private List<ManifestFile> newDeleteFilesAsManifests() {
-    if (hasNewDeleteFiles && cachedNewDeleteManifests.size() > 0) {
+    if (hasNewDeleteFiles && !cachedNewDeleteManifests.isEmpty()) {
       for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
         deleteFile(cachedNewDeleteManifest.path());
       }
