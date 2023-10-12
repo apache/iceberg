@@ -238,7 +238,7 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
    * @return true if is ACID
    */
   public boolean isAcid() {
-    return hasBase || deltas.size() > 0;
+    return hasBase || !deltas.isEmpty();
   }
 
   public long getProjectedColumnsUncompressedSize() {
