@@ -116,7 +116,7 @@ public class ParquetBloomRowGroupFilter {
           Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
       // If the filter's column set doesn't overlap with any bloom filter columns, exit early with
       // ROWS_MIGHT_MATCH
-      if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
+      if (!filterRefs.isEmpty() && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
         return ROWS_MIGHT_MATCH;
       }
 
