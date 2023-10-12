@@ -35,9 +35,9 @@ The core Java library that tracks table snapshots and metadata is complete, but 
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
-[Java API javadocs][iceberg-javadocs] are available for the master.
+[Java API javadocs][iceberg-javadocs] are available for the main.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/master
+[iceberg-javadocs]: https://iceberg.apache.org/javadoc/main
 [iceberg-spec]: https://iceberg.apache.org/spec
 
 

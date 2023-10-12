@@ -21,7 +21,7 @@ name: "Hive CI"
 on:
   push:
     branches:
-    - 'master'
+    - 'main'
     - '0.**'
     tags:
     - 'apache-iceberg-**'

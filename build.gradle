@@ -142,7 +142,7 @@ subprojects {
                 "\nAPI/ABI breaks detected.\n" +
                 "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
                 "\nPlease make sure to follow the deprecation rules defined in\n" +
-                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "https://github.com/apache/iceberg/blob/main/CONTRIBUTING.md#semantic-versioning.\n" +
                 "==================================================================================")
       }
       onlyIf {

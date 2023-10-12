@@ -21,7 +21,7 @@ name: "Open-API"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
