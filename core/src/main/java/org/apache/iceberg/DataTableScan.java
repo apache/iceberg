@@ -24,6 +24,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataTableScan extends BaseTableScan {
+  private DeleteIndexTable deleteIndexTable = null;
+
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
   }
@@ -73,6 +75,7 @@ public class DataTableScan extends BaseTableScan {
         new ManifestGroup(io, dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
             .select(scanColumns())
+            .skipPlanDeletes(skipPlanDeletes())
             .filterData(filter())
             .specsById(table().specs())
             .scanMetrics(scanMetrics())
@@ -86,6 +89,13 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
-    return manifestGroup.planFiles();
+    CloseableIterable<FileScanTask> result = manifestGroup.planFiles();
+    this.deleteIndexTable = manifestGroup.deleteIndexTable();
+    return result;
+  }
+
+  @Override
+  public Object deleteIndexTable() {
+    return deleteIndexTable;
   }
 }

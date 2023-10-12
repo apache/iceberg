@@ -78,6 +78,14 @@ class DeleteFileIndex {
   private final boolean isEmpty;
   private final boolean useColumnStatsFiltering;
 
+  DeleteFileGroup globalDeletes() {
+    return globalDeletes;
+  }
+
+  Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> deletesByPartition() {
+    return deletesByPartition;
+  }
+
   /** @deprecated since 1.4.0, will be removed in 1.5.0. */
   @Deprecated
   DeleteFileIndex(
@@ -133,7 +141,7 @@ class DeleteFileIndex {
     return ThreadLocal.withInitial(() -> StructLikeWrapper.forType(partitionTypeById.get(specId)));
   }
 
-  private Pair<Integer, StructLikeWrapper> partition(int specId, StructLike struct) {
+  Pair<Integer, StructLikeWrapper> partition(int specId, StructLike struct) {
     ThreadLocal<StructLikeWrapper> wrapper = wrapperById.get(specId);
     return Pair.of(specId, wrapper.get().set(struct));
   }
@@ -624,9 +632,9 @@ class DeleteFileIndex {
   }
 
   // a group of indexed delete files sorted by the sequence number they apply to
-  private static class DeleteFileGroup {
-    private final long[] seqs;
-    private final IndexedDeleteFile[] files;
+  static class DeleteFileGroup {
+    final long[] seqs;
+    final IndexedDeleteFile[] files;
 
     DeleteFileGroup(IndexedDeleteFile[] files) {
       this.seqs = Arrays.stream(files).mapToLong(IndexedDeleteFile::applySequenceNumber).toArray();
@@ -684,7 +692,7 @@ class DeleteFileIndex {
 
   // a delete file wrapper that caches the converted boundaries for faster boundary checks
   // this class is not meant to be exposed beyond the delete file index
-  private static class IndexedDeleteFile {
+  static class IndexedDeleteFile {
     private final PartitionSpec spec;
     private final DeleteFile wrapped;
     private final long applySequenceNumber;

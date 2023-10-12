@@ -161,6 +161,16 @@ public interface RewriteDataFiles
   }
 
   /**
+   * skip plan delete files during rewrite, instead joining to these metadatas
+   *
+   * @param skip whether to skip plan delete files
+   * @return this for chaining
+   */
+  default RewriteDataFiles skipPlanDeletes(boolean skip) {
+    throw new UnsupportedOperationException("skipPlanDeletes not implemented");
+  }
+
+  /**
    * A user provided filter for determining which files will be considered by the rewrite strategy.
    * This will be used in addition to whatever rules the rewrite strategy generates. For example
    * this would be used for providing a restriction to only run rewrite on a specific partition.

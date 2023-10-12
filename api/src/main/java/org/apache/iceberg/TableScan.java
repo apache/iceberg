@@ -101,4 +101,13 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
+
+  /**
+   * Returns a delete index table data structure that contains delete metadata during planning
+   *
+   * @return a delete index table
+   */
+  default Object deleteIndexTable() {
+    throw new UnsupportedOperationException();
+  }
 }
