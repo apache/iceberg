@@ -136,7 +136,7 @@ public class Deletes {
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation,
       List<CloseableIterable<T>> deleteFiles,
-      ExecutorService deletePosThreadPool) {
+      ExecutorService deleteWorkerPool) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions =
         Lists.transform(
@@ -144,10 +144,11 @@ public class Deletes {
             deletes ->
                 CloseableIterable.transform(
                     locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    return toPositionIndex(
-        (positions.size() > 1 && (deletePosThreadPool != null))
-            ? new ParallelIterable<>(positions, deletePosThreadPool)
-            : CloseableIterable.concat(positions));
+    if (positions.size() > 1 && (deleteWorkerPool != null)) {
+      return toPositionIndex(new ParallelIterable<>(positions, deleteWorkerPool));
+    } else {
+      return toPositionIndex(CloseableIterable.concat(positions));
+    }
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {

@@ -66,12 +66,15 @@ public class ThreadPools {
   }
 
   /**
-   * Return an {@link ExecutorService} that uses "delete worker" thread-pool.
+   * Return an {@link ExecutorService} that uses the "delete worker" thread-pool.
+   *
+   * <p>The size of the delete worker pool limits the number of threads used to compute the
+   * PositionDeleteIndex from the position deletes for a data file.
    *
    * <p>The size of this thread-pool is controlled by the Java system property {@code
    * iceberg.worker.delete-num-threads}.
    *
-   * @return an {@link ExecutorService} that uses delete worker pool
+   * @return an {@link ExecutorService} that uses the delete worker pool
    */
   public static ExecutorService getDeleteWorkerPool() {
     return DELETE_WORKER_POOL;
