@@ -294,10 +294,11 @@ public class IcebergSortCompactionBenchmark {
             optional(9, "timestampCol", Types.TimestampType.withZone()),
             optional(10, "stringCol", Types.StringType.get()));
 
-    SparkSessionCatalog catalog;
+    SparkSessionCatalog<?> catalog;
     try {
       catalog =
-          (SparkSessionCatalog) Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
+          (SparkSessionCatalog<?>)
+              Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
       catalog.dropTable(IDENT);
       catalog.createTable(
           IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
