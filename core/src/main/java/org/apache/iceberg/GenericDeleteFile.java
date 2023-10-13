@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Objects;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -94,5 +95,23 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         ImmutableMap.of(
             type, GenericDeleteFile.class.getName(),
             partitionStruct, PartitionData.class.getName()));
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    GenericDeleteFile that = (GenericDeleteFile) o;
+    return this.toString().equals(that.toString());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(this.toString());
   }
 }
