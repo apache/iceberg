@@ -420,6 +420,10 @@ class AssertDefaultSortOrderId(TableRequirement):
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
+class ViewRequirement(BaseModel):
+    __root__: Any = Field(..., discriminator='type')
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -822,6 +826,7 @@ class CommitViewRequest(BaseModel):
     identifier: Optional[TableIdentifier] = Field(
         None, description='View identifier to update'
     )
+    requirements: Optional[List[ViewRequirement]] = None
     updates: List[ViewUpdate]
 
 
