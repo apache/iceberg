@@ -25,6 +25,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
@@ -61,6 +62,7 @@ public class TestFlinkIcebergSinkV2Base {
   protected FileFormat format;
   protected boolean partitioned;
   protected String writeDistributionMode;
+  protected boolean newSink;
 
   protected static final Map<String, RowKind> ROW_KIND_MAP =
       ImmutableMap.of(
@@ -68,6 +70,10 @@ public class TestFlinkIcebergSinkV2Base {
           "-D", RowKind.DELETE,
           "-U", RowKind.UPDATE_BEFORE,
           "+U", RowKind.UPDATE_AFTER);
+
+  public TestFlinkIcebergSinkV2Base(boolean newSink) {
+    this.newSink = newSink;
+  }
 
   protected Row row(String rowKind, int id, String data) {
     RowKind kind = ROW_KIND_MAP.get(rowKind);
@@ -303,14 +309,14 @@ public class TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .equalityFieldColumns(equalityFieldColumns)
-        .upsert(insertAsUpsert)
-        .toBranch(branch)
-        .append();
+    getSink(
+        newSink,
+        dataStream,
+        tableLoader,
+        parallelism,
+        equalityFieldColumns,
+        insertAsUpsert,
+        branch);
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");
@@ -358,5 +364,34 @@ public class TestFlinkIcebergSinkV2Base {
       reader.forEach(set::add);
     }
     return set;
+  }
+
+  private static DataStreamSink<?> getSink(
+      boolean newSink,
+      DataStream<Row> input,
+      TableLoader loader,
+      int writerNum,
+      List<String> columns,
+      boolean insertAsUpsert,
+      String branch) {
+    if (newSink) {
+      return IcebergSink.forRow(input, SimpleDataUtil.FLINK_SCHEMA)
+          .tableLoader(loader)
+          .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(writerNum)
+          .equalityFieldColumns(columns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .append();
+    } else {
+      return FlinkSink.forRow(input, SimpleDataUtil.FLINK_SCHEMA)
+          .tableLoader(loader)
+          .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(writerNum)
+          .equalityFieldColumns(columns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .append();
+    }
   }
 }

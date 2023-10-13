@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
@@ -73,29 +74,45 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
+  private final boolean newSink;
 
-  @Parameterized.Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
+  @Parameterized.Parameters(
+      name = "format={0}, parallelism = {1}, partitioned = {2}, newSink = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"avro", 1, true},
-      {"avro", 1, false},
-      {"avro", 2, true},
-      {"avro", 2, false},
-      {"orc", 1, true},
-      {"orc", 1, false},
-      {"orc", 2, true},
-      {"orc", 2, false},
-      {"parquet", 1, true},
-      {"parquet", 1, false},
-      {"parquet", 2, true},
-      {"parquet", 2, false}
+      {"avro", 1, true, false},
+      {"avro", 1, false, false},
+      {"avro", 2, true, false},
+      {"avro", 2, false, false},
+      {"orc", 1, true, false},
+      {"orc", 1, false, false},
+      {"orc", 2, true, false},
+      {"orc", 2, false, false},
+      {"parquet", 1, true, false},
+      {"parquet", 1, false, false},
+      {"parquet", 2, true, false},
+      {"parquet", 2, false, false},
+      {"avro", 1, true, true},
+      {"avro", 1, false, true},
+      {"avro", 2, true, true},
+      {"avro", 2, false, true},
+      {"orc", 1, true, true},
+      {"orc", 1, false, true},
+      {"orc", 2, true, true},
+      {"orc", 2, false, true},
+      {"parquet", 1, true, true},
+      {"parquet", 1, false, true},
+      {"parquet", 2, true, true},
+      {"parquet", 2, false, true}
     };
   }
 
-  public TestFlinkIcebergSink(String format, int parallelism, boolean partitioned) {
+  public TestFlinkIcebergSink(
+      String format, int parallelism, boolean partitioned, boolean newSink) {
     this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
+    this.newSink = newSink;
   }
 
   @Before
@@ -128,11 +145,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
-    FlinkSink.forRowData(dataStream)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .append();
+    getSink(newSink, dataStream, table, tableLoader, parallelism, null);
 
     // Execute the program.
     env.execute("Test Iceberg DataStream");
@@ -146,13 +159,19 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .writeParallelism(parallelism)
-        .distributionMode(distributionMode)
-        .append();
+    getSink(
+        newSink,
+        dataStream,
+        SimpleDataUtil.FLINK_SCHEMA,
+        table,
+        tableLoader,
+        tableSchema,
+        parallelism,
+        distributionMode,
+        null,
+        null,
+        null,
+        null);
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
@@ -291,29 +310,39 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         env.fromCollection(leftRows, ROW_TYPE_INFO)
             .name("leftCustomSource")
             .uid("leftCustomSource");
-    FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(leftTable)
-        .tableLoader(leftTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .distributionMode(DistributionMode.NONE)
-        .uidPrefix("leftIcebergSink")
-        .append();
+    getSink(
+        newSink,
+        leftStream,
+        SimpleDataUtil.FLINK_SCHEMA,
+        leftTable,
+        leftTableLoader,
+        SimpleDataUtil.FLINK_SCHEMA,
+        null,
+        DistributionMode.NONE,
+        "leftIcebergSink",
+        null,
+        null,
+        null);
 
     List<Row> rightRows = createRows("right-");
     DataStream<Row> rightStream =
         env.fromCollection(rightRows, ROW_TYPE_INFO)
             .name("rightCustomSource")
             .uid("rightCustomSource");
-    FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(rightTable)
-        .tableLoader(rightTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .distributionMode(DistributionMode.HASH)
-        .uidPrefix("rightIcebergSink")
-        .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
-        .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
-        .append();
+
+    getSink(
+        newSink,
+        rightStream,
+        SimpleDataUtil.FLINK_SCHEMA,
+        rightTable,
+        rightTableLoader,
+        SimpleDataUtil.FLINK_SCHEMA,
+        parallelism,
+        DistributionMode.HASH,
+        "rightIcebergSink",
+        "flink.test",
+        TestFlinkIcebergSink.class.getName(),
+        Collections.singletonMap("direction", "rightTable"));
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
@@ -339,7 +368,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder =
+    SinkBuilder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
             .tableLoader(tableLoader)
@@ -359,7 +388,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder =
+    SinkBuilder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
             .tableLoader(tableLoader)
@@ -381,6 +410,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Configuration flinkConf = new Configuration();
     flinkConf.setString(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key(), "100ms");
 
+    getSink(newSink, dataStream, table, tableLoader, parallelism, flinkConf);
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
@@ -393,5 +423,90 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
     // Assert the iceberg table's records.
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  private static DataStreamSink<?> getSink(
+      boolean generateNewSink,
+      DataStream<RowData> input,
+      Table table,
+      TableLoader loader,
+      int writerNum,
+      Configuration flinkConf) {
+    if (generateNewSink) {
+      SinkBuilder builder =
+          IcebergSink.forRowData(input)
+              .table(table)
+              .tableLoader(loader)
+              .writeParallelism(writerNum);
+      if (flinkConf != null) {
+        builder.flinkConf(flinkConf);
+      }
+
+      return builder.append();
+    } else {
+      SinkBuilder builder =
+          FlinkSink.forRowData(input).table(table).tableLoader(loader).writeParallelism(writerNum);
+      if (flinkConf != null) {
+        builder.flinkConf(flinkConf);
+      }
+
+      return builder.append();
+    }
+  }
+
+  private static DataStreamSink<?> getSink(
+      boolean generateNewSink,
+      DataStream<Row> input,
+      TableSchema forRowSchema,
+      Table table,
+      TableLoader loader,
+      TableSchema forBuilderSchema,
+      Integer writerNum,
+      DistributionMode distributionMode,
+      String uidPrefix,
+      String snapshotPropertyName,
+      String snapshotPropertyValue,
+      Map<String, String> snapshotPropertyMap) {
+    if (generateNewSink) {
+      SinkBuilder builder =
+          IcebergSink.forRow(input, forRowSchema)
+              .table(table)
+              .tableLoader(loader)
+              .tableSchema(forBuilderSchema)
+              .distributionMode(distributionMode);
+      if (writerNum != null) {
+        builder.writeParallelism(writerNum);
+      }
+      if (uidPrefix != null) {
+        builder.uidPrefix(uidPrefix);
+      }
+      if (snapshotPropertyName != null && snapshotPropertyValue != null) {
+        builder.setSnapshotProperty(snapshotPropertyName, snapshotPropertyValue);
+      }
+      if (snapshotPropertyMap != null) {
+        builder.setSnapshotProperties(snapshotPropertyMap);
+      }
+      return builder.append();
+    } else {
+      SinkBuilder builder =
+          FlinkSink.forRow(input, SimpleDataUtil.FLINK_SCHEMA)
+              .table(table)
+              .tableLoader(loader)
+              .tableSchema(forBuilderSchema)
+              .distributionMode(distributionMode);
+      if (writerNum != null) {
+        builder.writeParallelism(writerNum);
+      }
+      if (uidPrefix != null) {
+        builder.uidPrefix(uidPrefix);
+      }
+      if (snapshotPropertyName != null && snapshotPropertyValue != null) {
+        builder.setSnapshotProperty(snapshotPropertyName, snapshotPropertyValue);
+      }
+      if (snapshotPropertyMap != null) {
+        builder.setSnapshotProperties(snapshotPropertyMap);
+      }
+      return builder.append();
+    }
   }
 }
