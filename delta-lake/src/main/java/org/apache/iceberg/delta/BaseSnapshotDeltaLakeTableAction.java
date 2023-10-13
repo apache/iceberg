@@ -312,18 +312,18 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       migratedDataFilesBuilder.add(dataFile.path().toString());
     }
 
-    if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
+    if (!filesToAdd.isEmpty() && !filesToRemove.isEmpty()) {
       // OverwriteFiles case
       OverwriteFiles overwriteFiles = transaction.newOverwrite();
       filesToAdd.forEach(overwriteFiles::addFile);
       filesToRemove.forEach(overwriteFiles::deleteFile);
       overwriteFiles.commit();
-    } else if (filesToAdd.size() > 0) {
+    } else if (!filesToAdd.isEmpty()) {
       // AppendFiles case
       AppendFiles appendFiles = transaction.newAppend();
       filesToAdd.forEach(appendFiles::appendFile);
       appendFiles.commit();
-    } else if (filesToRemove.size() > 0) {
+    } else if (!filesToRemove.isEmpty()) {
       // DeleteFiles case
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
