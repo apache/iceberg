@@ -386,7 +386,7 @@ public class FlinkSink {
     @VisibleForTesting
     List<Integer> checkAndGetEqualityFieldIds() {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
         Set<Integer> equalityFieldSet =
             Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
         for (String column : equalityFieldColumns) {

@@ -340,7 +340,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
     private OperatorCoordinator.SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
-          gateways[subtaskIndex].size() > 0,
+          !gateways[subtaskIndex].isEmpty(),
           "Coordinator of %s subtask %d is not ready yet to receive events",
           operatorName,
           subtaskIndex);
