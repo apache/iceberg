@@ -146,7 +146,7 @@ abstract class BaseDistributedDataScan
     Snapshot snapshot = snapshot();
 
     List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);
-    boolean mayHaveEqualityDeletes = deleteManifests.size() > 0 && mayHaveEqualityDeletes(snapshot);
+    boolean mayHaveEqualityDeletes = !deleteManifests.isEmpty() && mayHaveEqualityDeletes(snapshot);
     boolean planDeletesLocally = shouldPlanDeletesLocally(deleteManifests, mayHaveEqualityDeletes);
 
     List<ManifestFile> dataManifests = findMatchingDataManifests(snapshot);

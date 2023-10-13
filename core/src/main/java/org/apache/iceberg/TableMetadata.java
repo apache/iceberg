@@ -1383,7 +1383,7 @@ public class TableMetadata implements Serializable {
 
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
-          || (discardChanges && changes.size() > 0)
+          || (discardChanges && !changes.isEmpty())
           || metadataLocation != null;
     }
 

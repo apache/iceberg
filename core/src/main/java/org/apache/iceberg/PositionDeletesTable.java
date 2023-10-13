@@ -132,7 +132,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
 
-    if (partitionType.fields().size() > 0) {
+    if (!partitionType.fields().isEmpty()) {
       return result;
     } else {
       // avoid returning an empty struct, which is not always supported.

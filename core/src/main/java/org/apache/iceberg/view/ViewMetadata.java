@@ -412,7 +412,7 @@ public interface ViewMetadata extends Serializable {
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+      Preconditions.checkArgument(!versions.isEmpty(), "Invalid view: no versions were added");
 
       // when associated with a metadata file, metadata must have no changes so that the metadata
       // matches exactly what is in the metadata file, which does not store changes. metadata

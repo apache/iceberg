@@ -166,9 +166,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   boolean containsDeletes() {
-    return deletePaths.size() > 0
+    return !deletePaths.isEmpty()
         || deleteExpression != Expressions.alwaysFalse()
-        || dropPartitions.size() > 0;
+        || !dropPartitions.isEmpty();
   }
 
   /**
@@ -335,7 +335,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     boolean canContainDroppedPartitions;
-    if (dropPartitions.size() > 0) {
+    if (!dropPartitions.isEmpty()) {
       canContainDroppedPartitions =
           ManifestFileUtil.canContainAny(manifest, dropPartitions, specsById);
     } else {
@@ -345,7 +345,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean canContainDroppedFiles;
     if (hasPathOnlyDeletes) {
       canContainDroppedFiles = true;
-    } else if (deletePaths.size() > 0) {
+    } else if (!deletePaths.isEmpty()) {
       // because there were no path-only deletes, the set of deleted file partitions is valid
       canContainDroppedFiles =
           ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
