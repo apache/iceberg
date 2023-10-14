@@ -30,7 +30,6 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.relocated.com.google.common.primitives.Longs;
@@ -463,7 +462,7 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    return splitOffsets == null ? ImmutableList.of() : Longs.asList(splitOffsets);
+    return splitOffsets == null ? null : Longs.asList(splitOffsets);
   }
 
   long[] splitOffsetArray() {
@@ -472,7 +471,7 @@ abstract class BaseFile<F>
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return equalityIds == null ? ImmutableList.of() : Ints.asList(equalityIds);
+    return equalityIds == null ? null : Ints.asList(equalityIds);
   }
 
   @Override
