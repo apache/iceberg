@@ -30,7 +30,10 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import org.apache.iceberg.relocated.com.google.common.primitives.Longs;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -81,9 +84,6 @@ abstract class BaseFile<F>
 
   // cached schema
   private transient Schema avroSchema = null;
-
-  // lazy variables
-  private transient volatile List<Long> splitOffsetList = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
@@ -463,11 +463,7 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    if (splitOffsetList == null && splitOffsets != null) {
-      this.splitOffsetList = ArrayUtil.toUnmodifiableLongList(splitOffsets);
-    }
-
-    return splitOffsetList;
+    return splitOffsets == null ? ImmutableList.of() : Longs.asList(splitOffsets);
   }
 
   long[] splitOffsetArray() {
@@ -476,7 +472,7 @@ abstract class BaseFile<F>
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return ArrayUtil.toIntList(equalityIds);
+    return equalityIds == null ? ImmutableList.of() : Ints.asList(equalityIds);
   }
 
   @Override
