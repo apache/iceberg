@@ -21,7 +21,9 @@ package org.apache.iceberg.util;
 import java.lang.reflect.Array;
 import java.util.Collections;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.apache.iceberg.relocated.com.google.common.primitives.Longs;
 
 public class ArrayUtil {
@@ -37,7 +39,7 @@ public class ArrayUtil {
 
   public static List<Integer> toIntList(int[] ints) {
     if (ints != null) {
-      return Ints.asList(ints);
+      return IntStream.of(ints).boxed().collect(Collectors.toList());
     } else {
       return null;
     }
@@ -53,7 +55,7 @@ public class ArrayUtil {
 
   public static List<Long> toLongList(long[] longs) {
     if (longs != null) {
-      return Longs.asList(longs);
+      return LongStream.of(longs).boxed().collect(Collectors.toList());
     } else {
       return null;
     }
