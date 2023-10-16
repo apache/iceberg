@@ -89,6 +89,11 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
 }
 
+tasks.withType(AbstractArchiveTask).configureEach {
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
+}
+
 apply plugin: 'com.gorylenko.gradle-git-properties'
 // git properties file for the root project for adding to the source tarball
 gitProperties {
