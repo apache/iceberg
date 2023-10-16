@@ -30,11 +30,15 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
+import org.apache.flink.table.connector.source.AsyncTableFunctionProvider;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
@@ -44,6 +48,7 @@ import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.IcebergLookupJoinFunction;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 @Internal
 public class IcebergTableSource
     implements ScanTableSource,
+        LookupTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown {
@@ -67,6 +73,8 @@ public class IcebergTableSource
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
+
+  private static final String LOOKUP_ASYNC_CACHE_ENABLED = "lookup.async.enabled";
 
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
@@ -225,5 +233,41 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  /*
+   when execute the SQL below, Flink calls getLookupRuntimeProvider().
+   SELECT * FROM leftTable AS o JOIN rightTable FOR SYSTEM_TIME AS OF o.proctime AS r ON o.c = r.c where r.a = 5
+  */
+
+  @Override
+  public LookupTableSource.LookupRuntimeProvider getLookupRuntimeProvider(
+      LookupTableSource.LookupContext context) {
+
+    Optional<UniqueConstraint> key = this.schema.getPrimaryKey();
+    DataType[] lookupKeyTypes = new DataType[context.getKeys().length];
+    String[] lookupKeyNames = new String[context.getKeys().length];
+
+    for (int i = 0; i < context.getKeys().length; i++) {
+      lookupKeyTypes[i] = this.schema.getFieldDataType(context.getKeys()[i][0]).get();
+      lookupKeyNames[i] = this.schema.getFieldName(context.getKeys()[i][0]).get();
+    }
+
+    if (key.isPresent()) {
+      int fieldCount = this.schema.getFieldCount();
+
+      IcebergLookupJoinFunction lookupJoinFunction =
+          new IcebergLookupJoinFunction(
+              loader, lookupKeyTypes, lookupKeyNames, properties, fieldCount, this.filters);
+
+      // default type is async , if there is no configuration, use async process
+      if (Boolean.parseBoolean(properties.getOrDefault(LOOKUP_ASYNC_CACHE_ENABLED, "true"))) {
+        return AsyncTableFunctionProvider.of(lookupJoinFunction.buildAsyncTableFunction());
+      } else {
+        return TableFunctionProvider.of(lookupJoinFunction.buildTableFunction());
+      }
+    } else {
+      return null;
+    }
   }
 }
