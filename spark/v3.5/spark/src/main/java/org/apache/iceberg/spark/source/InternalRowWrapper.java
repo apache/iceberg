@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -43,11 +44,16 @@ class InternalRowWrapper implements StructLike {
   private InternalRow row = null;
 
   @SuppressWarnings("unchecked")
-  InternalRowWrapper(StructType rowType, Types.StructType icebergStruct) {
+  InternalRowWrapper(StructType rowType, Types.StructType icebergSchema) {
     this.types = Stream.of(rowType.fields()).map(StructField::dataType).toArray(DataType[]::new);
+    Preconditions.checkArgument(
+        types.length == icebergSchema.fields().size(),
+        "Invalid length: Spark struct type (%s) != Iceberg struct type (%s)",
+        types.length,
+        icebergSchema.fields().size());
     this.getters = new BiFunction[types.length];
     for (int i = 0; i < types.length; i++) {
-      getters[i] = getter(icebergStruct.fields().get(i).type(), types[i]);
+      getters[i] = getter(icebergSchema.fields().get(i).type(), types[i]);
     }
   }
 
@@ -79,6 +85,7 @@ class InternalRowWrapper implements StructLike {
 
   private static BiFunction<InternalRow, Integer, ?> getter(Type icebergType, DataType type) {
     if (type instanceof StringType) {
+      // Spark represents UUIDs as strings
       if (Type.TypeID.UUID == icebergType.typeId()) {
         return (row, pos) -> UUID.fromString(row.getUTF8String(pos).toString());
       }

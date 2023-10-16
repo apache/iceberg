@@ -654,7 +654,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.dataSpec = table.spec();
       this.dataPartitionKey = new PartitionKey(dataSpec, context.dataSchema());
       this.internalRowDataWrapper =
-          new InternalRowWrapper(context.dataSparkType(), table.schema().asStruct());
+          new InternalRowWrapper(context.dataSparkType(), context.dataSchema().asStruct());
     }
 
     @Override

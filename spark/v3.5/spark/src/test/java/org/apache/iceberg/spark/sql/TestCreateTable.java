@@ -22,12 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-<<<<<<< HEAD
 import java.nio.file.Files;
-=======
-import java.util.Map;
 import java.util.UUID;
->>>>>>> c0715cfee (Spark: Fix issue when partitioning by UUID)
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
