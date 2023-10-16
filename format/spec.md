@@ -179,8 +179,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
 | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
 | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
-| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
-| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
+| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2], [4]                                         |
+| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2], [4]                                         |
 | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
 | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
@@ -193,6 +193,7 @@ Notes:
     - Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
     - Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
+4. `timestamp_ns` and `timstamptz_ns` are only supported in v3 tables.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
