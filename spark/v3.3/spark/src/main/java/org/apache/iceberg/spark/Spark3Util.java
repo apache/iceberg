@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
@@ -688,11 +689,28 @@ public class Spark3Util {
    */
   public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
       throws ParseException, NoSuchTableException {
-    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+    try {
+      return executeWithSession(
+          spark,
+          () -> {
+            CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
 
-    TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
-    Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
-    return toIcebergTable(sparkTable);
+            TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
+            Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
+            return toIcebergTable(sparkTable);
+          });
+    } catch (Exception e) {
+      if (e instanceof ParseException) {
+        throw (ParseException) e;
+      } else if (e instanceof NoSuchTableException) {
+        throw (NoSuchTableException) e;
+      } else if (e instanceof RuntimeException) {
+        throw (RuntimeException) e;
+      } else {
+        // wrap it
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   /**
@@ -703,14 +721,28 @@ public class Spark3Util {
    * @return the Iceberg catalog class being wrapped by the Spark Catalog
    */
   public static Catalog loadIcebergCatalog(SparkSession spark, String catalogName) {
-    CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
-    Preconditions.checkArgument(
-        catalogPlugin instanceof HasIcebergCatalog,
-        String.format(
-            "Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. "
-                + "Actual Class: %s",
-            catalogName, catalogPlugin.getClass().getName()));
-    return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
+    try {
+      return executeWithSession(
+          spark,
+          () -> {
+            CatalogPlugin catalogPlugin =
+                spark.sessionState().catalogManager().catalog(catalogName);
+            Preconditions.checkArgument(
+                catalogPlugin instanceof HasIcebergCatalog,
+                String.format(
+                    "Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. "
+                        + "Actual Class: %s",
+                    catalogName, catalogPlugin.getClass().getName()));
+            return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
+          });
+    } catch (Exception e) {
+      if (e instanceof RuntimeException) {
+        throw (RuntimeException) e;
+      } else {
+        // wrap it
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name)
@@ -759,29 +791,42 @@ public class Spark3Util {
    */
   public static CatalogAndIdentifier catalogAndIdentifier(
       SparkSession spark, List<String> nameParts, CatalogPlugin defaultCatalog) {
-    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    try {
+      return executeWithSession(
+          spark,
+          () -> {
+            CatalogManager catalogManager = spark.sessionState().catalogManager();
 
-    String[] currentNamespace;
-    if (defaultCatalog.equals(catalogManager.currentCatalog())) {
-      currentNamespace = catalogManager.currentNamespace();
-    } else {
-      currentNamespace = defaultCatalog.defaultNamespace();
+            String[] currentNamespace;
+            if (defaultCatalog.equals(catalogManager.currentCatalog())) {
+              currentNamespace = catalogManager.currentNamespace();
+            } else {
+              currentNamespace = defaultCatalog.defaultNamespace();
+            }
+
+            Pair<CatalogPlugin, Identifier> catalogIdentifier =
+                SparkUtil.catalogAndIdentifier(
+                    nameParts,
+                    catalogName -> {
+                      try {
+                        return catalogManager.catalog(catalogName);
+                      } catch (Exception e) {
+                        return null;
+                      }
+                    },
+                    Identifier::of,
+                    defaultCatalog,
+                    currentNamespace);
+            return new CatalogAndIdentifier(catalogIdentifier);
+          });
+    } catch (Exception e) {
+      if (e instanceof RuntimeException) {
+        throw (RuntimeException) e;
+      } else {
+        // wrap it
+        throw new RuntimeException(e);
+      }
     }
-
-    Pair<CatalogPlugin, Identifier> catalogIdentifier =
-        SparkUtil.catalogAndIdentifier(
-            nameParts,
-            catalogName -> {
-              try {
-                return catalogManager.catalog(catalogName);
-              } catch (Exception e) {
-                return null;
-              }
-            },
-            Identifier::of,
-            defaultCatalog,
-            currentNamespace);
-    return new CatalogAndIdentifier(catalogIdentifier);
   }
 
   private static TableCatalog asTableCatalog(CatalogPlugin catalog) {
@@ -943,6 +988,22 @@ public class Spark3Util {
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
+  }
+
+  private static <T> T executeWithSession(SparkSession session, Callable<T> func) throws Exception {
+    SparkSession prev = SparkSession.getActiveSession().getOrElse(() -> null);
+    if (session != prev) {
+      SparkSession.setActiveSession(session);
+    }
+    try {
+      return func.call();
+    } finally {
+      if (prev == null) {
+        SparkSession.clearActiveSession();
+      } else if (session != prev) {
+        SparkSession.setActiveSession(prev);
+      }
+    }
   }
 
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {
