@@ -20,6 +20,7 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,6 +33,38 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final int dataKeyLength;
 
   private transient volatile SecureRandom lazyRNG = null;
+
+  class StandardEncryptedOutputFile implements EncryptedOutputFile {
+
+    private final OutputFile encryptingOutputFile;
+
+    private final EncryptionKeyMetadata keyMetadata;
+    private final OutputFile rawOutputFile;
+
+    StandardEncryptedOutputFile(
+        OutputFile encryptingOutputFile,
+        EncryptionKeyMetadata keyMetadata,
+        OutputFile rawOutputFile) {
+      this.encryptingOutputFile = encryptingOutputFile;
+      this.keyMetadata = keyMetadata;
+      this.rawOutputFile = rawOutputFile;
+    }
+
+    @Override
+    public OutputFile encryptingOutputFile() {
+      return encryptingOutputFile;
+    }
+
+    @Override
+    public EncryptionKeyMetadata keyMetadata() {
+      return keyMetadata;
+    }
+
+    @Override
+    public OutputFile rawOutputFile() {
+      return rawOutputFile;
+    }
+  }
 
   /**
    * @param tableKeyId table encryption key id
@@ -52,12 +85,12 @@ public class StandardEncryptionManager implements EncryptionManager {
     ByteBuffer fileDek = ByteBuffer.allocate(dataKeyLength);
     workerRNG().nextBytes(fileDek.array());
 
-    ByteBuffer aadPrefix = ByteBuffer.allocate(EncryptionProperties.ENCRYPTION_AAD_LENGTH_DEFAULT);
+    ByteBuffer aadPrefix = ByteBuffer.allocate(TableProperties.ENCRYPTION_AAD_LENGTH_DEFAULT);
     workerRNG().nextBytes(aadPrefix.array());
 
     KeyMetadata encryptionMetadata = new KeyMetadata(fileDek, aadPrefix);
 
-    return EncryptedFiles.encryptedOutput(
+    return new StandardEncryptedOutputFile(
         new AesGcmOutputFile(rawOutput, fileDek.array(), aadPrefix.array()),
         encryptionMetadata,
         rawOutput);
