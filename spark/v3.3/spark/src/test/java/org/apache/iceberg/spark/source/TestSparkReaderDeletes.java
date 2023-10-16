@@ -98,18 +98,22 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   private final String format;
   private final boolean vectorized;
 
-  public TestSparkReaderDeletes(String format, boolean vectorized) {
+  public TestSparkReaderDeletes(String format, boolean vectorized, boolean useStreamDeleteFilter) {
     this.format = format;
     this.vectorized = vectorized;
+    System.clearProperty("iceberg.stream-delete-filter-threshold");
+    if (useStreamDeleteFilter) {
+      System.setProperty("iceberg.stream-delete-filter-threshold", "2");
+    }
   }
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, useStreamDeleteFilter = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false},
-      new Object[] {"parquet", true},
-      new Object[] {"orc", false},
-      new Object[] {"avro", false}
+      new Object[] {"parquet", false, true},
+      new Object[] {"parquet", true, false},
+      new Object[] {"orc", false, true},
+      new Object[] {"avro", false, false}
     };
   }
 
@@ -147,6 +151,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     metastore = null;
     spark.stop();
     spark = null;
+    System.clearProperty("iceberg.stream-delete-filter-threshold");
   }
 
   @After
