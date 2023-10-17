@@ -40,9 +40,11 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.view.ViewMetadata;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
 import org.projectnessie.client.api.GetContentBuilder;
@@ -56,13 +58,17 @@ import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.error.NessieReferenceConflictException;
 import org.projectnessie.error.NessieReferenceNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Conflict;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.EntriesResponse;
+import org.projectnessie.model.IcebergContent;
 import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.IcebergView;
 import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
+import org.projectnessie.model.ImmutableIcebergView;
 import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
@@ -141,16 +147,26 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
+  /** @deprecated will be removed after 1.5.0; use listContents() instead */
+  @Deprecated
   public List<TableIdentifier> listTables(Namespace namespace) {
+    return listContents(namespace, Content.Type.ICEBERG_TABLE);
+  }
+
+  /** Lists Iceberg table or view from the given namespace */
+  public List<TableIdentifier> listContents(Namespace namespace, Content.Type type) {
     try {
       return withReference(api.getEntries()).get().getEntries().stream()
           .filter(namespacePredicate(namespace))
-          .filter(e -> Content.Type.ICEBERG_TABLE == e.getType())
+          .filter(e -> type.equals(e.getType()))
           .map(this::toIdentifier)
           .collect(Collectors.toList());
     } catch (NessieNotFoundException ex) {
       throw new NoSuchNamespaceException(
-          ex, "Unable to list tables due to missing ref '%s'", getRef().getName());
+          ex,
+          "Unable to list %ss due to missing ref '%s'",
+          NessieUtil.contentTypeString(type).toLowerCase(),
+          getRef().getName());
     }
   }
 
@@ -176,11 +192,11 @@ public class NessieIcebergClient implements AutoCloseable {
     return TableIdentifier.of(elements.toArray(new String[elements.size()]));
   }
 
-  public IcebergTable table(TableIdentifier tableIdentifier) {
+  public IcebergContent fetchContent(TableIdentifier tableIdentifier) {
     try {
       ContentKey key = NessieUtil.toKey(tableIdentifier);
-      Content table = withReference(api.getContent().key(key)).get().get(key);
-      return table != null ? table.unwrap(IcebergTable.class).orElse(null) : null;
+      Content content = withReference(api.getContent().key(key)).get().get(key);
+      return content != null ? content.unwrap(IcebergContent.class).orElse(null) : null;
     } catch (NessieNotFoundException e) {
       return null;
     }
@@ -398,23 +414,27 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
+  /** @deprecated will be removed after 1.5.0; use renameContent() instead */
+  @Deprecated
   public void renameTable(TableIdentifier from, TableIdentifier to) {
+    renameContent(from, to, Content.Type.ICEBERG_TABLE);
+  }
+
+  public void renameContent(TableIdentifier from, TableIdentifier to, Content.Type type) {
     getRef().checkMutable();
 
-    IcebergTable existingFromTable = table(from);
-    if (existingFromTable == null) {
-      throw new NoSuchTableException("Table does not exist: %s", from.name());
-    }
-    IcebergTable existingToTable = table(to);
-    if (existingToTable != null) {
-      throw new AlreadyExistsException("Table already exists: %s", to.name());
-    }
+    IcebergContent existingFromContent = fetchContent(from);
+    validateFromContentForRename(from, type, existingFromContent);
 
+    IcebergContent existingToContent = fetchContent(to);
+    validateToContentForRename(from, to, existingToContent);
+
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase();
     try {
       commitRetry(
-          String.format("Iceberg rename table from '%s' to '%s'", from, to),
+          String.format("Iceberg rename %s from '%s' to '%s'", contentType, from, to),
           Operation.Delete.of(NessieUtil.toKey(from)),
-          Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
+          Operation.Put.of(NessieUtil.toKey(to), existingFromContent));
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it
       // would imply that the
@@ -425,15 +445,20 @@ public class NessieIcebergClient implements AutoCloseable {
       // and removed by another.
       throw new RuntimeException(
           String.format(
-              "Cannot rename table '%s' to '%s': ref '%s' no longer exists.",
-              from.name(), to.name(), getRef().getName()),
+              "Cannot rename %s '%s' to '%s': ref '%s' no longer exists.",
+              contentType, from, to, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
+      if (e instanceof NessieConflictException) {
+        NessieUtil.handleExceptionsForCommits(e, getRef().getName(), type);
+      }
+
       throw new CommitFailedException(
           e,
-          "Cannot rename table '%s' to '%s': the current reference is not up to date.",
-          from.name(),
-          to.name());
+          "Cannot rename %s '%s' to '%s': the current reference is not up to date.",
+          contentType,
+          from,
+          to);
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
@@ -448,19 +473,67 @@ public class NessieIcebergClient implements AutoCloseable {
     // behavior. So better be safe than sorry.
   }
 
+  private static void validateToContentForRename(
+      TableIdentifier from, TableIdentifier to, IcebergContent existingToContent) {
+    if (existingToContent != null) {
+      if (existingToContent.getType() == Content.Type.ICEBERG_VIEW) {
+        throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
+      } else if (existingToContent.getType() == Content.Type.ICEBERG_TABLE) {
+        throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
+      } else {
+        throw new AlreadyExistsException(
+            "Cannot rename %s to %s. Another content with same name already exists", from, to);
+      }
+    }
+  }
+
+  private static void validateFromContentForRename(
+      TableIdentifier from, Content.Type type, IcebergContent existingFromContent) {
+    if (existingFromContent == null) {
+      if (type == Content.Type.ICEBERG_VIEW) {
+        throw new NoSuchViewException("View does not exist: %s", from);
+      } else if (type == Content.Type.ICEBERG_TABLE) {
+        throw new NoSuchTableException("Table does not exist: %s", from);
+      } else {
+        throw new RuntimeException("Cannot perform rename for content type: " + type);
+      }
+    } else if (existingFromContent.getType() != type) {
+      throw new RuntimeException(
+          String.format("content type of from identifier %s should be of %s", from, type));
+    }
+  }
+
+  /** @deprecated will be removed after 1.5.0; use dropContent() instead */
+  @Deprecated
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
+    return dropContent(identifier, purge, Content.Type.ICEBERG_TABLE);
+  }
+
+  public boolean dropContent(TableIdentifier identifier, boolean purge, Content.Type type) {
     getRef().checkMutable();
 
-    IcebergTable existingTable = table(identifier);
-    if (existingTable == null) {
+    IcebergContent existingContent = fetchContent(identifier);
+    if (existingContent == null) {
       return false;
     }
 
-    if (purge) {
-      LOG.info("Purging data for table {} was set to true but is ignored", identifier.toString());
+    if (existingContent.getType() != type) {
+      throw new RuntimeException(
+          String.format(
+              "Cannot drop %s: not matching with the type `%s`",
+              identifier, NessieUtil.contentTypeString(type)));
     }
 
-    // We try to drop the table. Simple retry after ref update.
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase();
+
+    if (purge) {
+      LOG.info(
+          "Purging data for {} {} was set to true but is ignored",
+          contentType,
+          identifier.toString());
+    }
+
+    // We try to drop the content. Simple retry after ref update.
     try {
       commitRetry(
           String.format("Iceberg delete table %s", identifier),
@@ -468,13 +541,14 @@ public class NessieIcebergClient implements AutoCloseable {
       return true;
     } catch (NessieConflictException e) {
       LOG.error(
-          "Cannot drop table: failed after retry (update ref '{}' and retry)",
+          "Cannot drop {}: failed after retry (update ref '{}' and retry)",
+          contentType,
           getRef().getName(),
           e);
     } catch (NessieNotFoundException e) {
-      LOG.error("Cannot drop table: ref '{}' is no longer valid.", getRef().getName(), e);
+      LOG.error("Cannot drop {}: ref '{}' is no longer valid.", contentType, getRef().getName(), e);
     } catch (BaseNessieClientServerException e) {
-      LOG.error("Cannot drop table: unknown error", e);
+      LOG.error("Cannot drop {}: unknown error", contentType, e);
     }
     return false;
   }
@@ -499,22 +573,16 @@ public class NessieIcebergClient implements AutoCloseable {
       String contentId,
       ContentKey key)
       throws NessieConflictException, NessieNotFoundException {
-    UpdateableReference updateableReference = getRef();
-
-    updateableReference.checkMutable();
-
-    Branch current = (Branch) updateableReference.getReference();
-    Branch expectedHead = current;
-    if (base != null) {
-      String metadataCommitId =
-          base.property(NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, expectedHead.getHash());
-      if (metadataCommitId != null) {
-        expectedHead = Branch.of(expectedHead.getName(), metadataCommitId);
-      }
-    }
 
     Snapshot snapshot = metadata.currentSnapshot();
     long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
+
+    ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
+    builder.message(buildCommitMsg(base, metadata, key.toString()));
+    if (isSnapshotOperation(base, metadata)) {
+      builder.putProperties("iceberg.operation", snapshot.operation());
+    }
+    CommitMeta commitMeta = NessieUtil.catalogOptions(builder, catalogOptions).build();
 
     ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
     IcebergTable newTable =
@@ -527,22 +595,74 @@ public class NessieIcebergClient implements AutoCloseable {
             .metadataLocation(newMetadataLocation)
             .build();
 
+    Map<String, String> properties = base != null ? base.properties() : null;
+    commitContent(key, newTable, properties, commitMeta);
+  }
+
+  public void commitView(
+      ViewMetadata base,
+      ViewMetadata metadata,
+      String newMetadataLocation,
+      String contentId,
+      ContentKey key)
+      throws NessieConflictException, NessieNotFoundException {
+
+    long versionId = metadata.currentVersion().versionId();
+    ImmutableIcebergView.Builder newViewBuilder = ImmutableIcebergView.builder();
+    IcebergView newView =
+        newViewBuilder
+            .id(contentId)
+            .versionId(versionId)
+            .schemaId(metadata.currentSchemaId())
+            .metadataLocation(newMetadataLocation)
+            // Only view metadata location need to be tracked from Nessie.
+            // Other information can be extracted by parsing the view metadata file.
+            .sqlText("-")
+            .dialect("-")
+            .build();
+
+    ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
+    builder.message(buildCommitMsg(base, metadata, key.toString()));
+    builder.putProperties("iceberg.operation", metadata.currentVersion().operation());
+    CommitMeta commitMeta = NessieUtil.catalogOptions(builder, catalogOptions).build();
+
+    Map<String, String> properties = base != null ? base.properties() : null;
+    commitContent(key, newView, properties, commitMeta);
+  }
+
+  private void commitContent(
+      ContentKey key,
+      IcebergContent newContent,
+      Map<String, String> properties,
+      CommitMeta commitMeta)
+      throws NessieNotFoundException, NessieConflictException {
+    UpdateableReference updateableReference = getRef();
+
+    updateableReference.checkMutable();
+
+    Branch current = (Branch) updateableReference.getReference();
+    Branch expectedHead = current;
+    if (properties != null) {
+      String metadataCommitId =
+          properties.getOrDefault(
+              NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, expectedHead.getHash());
+      if (metadataCommitId != null) {
+        expectedHead = Branch.of(expectedHead.getName(), metadataCommitId);
+      }
+    }
+
     LOG.debug(
         "Committing '{}' against '{}', current is '{}': {}",
         key,
         expectedHead,
         current.getHash(),
-        newTable);
-    ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
-    builder.message(buildCommitMsg(base, metadata, key.toString()));
-    if (isSnapshotOperation(base, metadata)) {
-      builder.putProperties("iceberg.operation", snapshot.operation());
-    }
+        newContent);
+
     Branch branch =
         getApi()
             .commitMultipleOperations()
-            .operation(Operation.Put.of(key, newTable))
-            .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
+            .operation(Operation.Put.of(key, newContent))
+            .commitMeta(commitMeta)
             .branch(expectedHead)
             .commit();
     LOG.info(
@@ -576,11 +696,20 @@ public class NessieIcebergClient implements AutoCloseable {
       return String.format(
           "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
     } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
-      return String.format("Iceberg schema change against %s", tableName);
+      return String.format("Iceberg schema change against table %s", tableName);
     } else if (base == null) {
       return String.format("Iceberg table created/registered with name %s", tableName);
     }
-    return String.format("Iceberg commit against %s", tableName);
+    return String.format("Iceberg commit against table %s", tableName);
+  }
+
+  private String buildCommitMsg(ViewMetadata base, ViewMetadata metadata, String viewName) {
+    String operation = metadata.currentVersion().operation();
+    if (base != null && !metadata.currentSchemaId().equals(base.currentSchemaId())) {
+      return String.format(
+          "Iceberg schema change against view %s for the operation %s", viewName, operation);
+    }
+    return String.format("Iceberg view %sd with name %s", operation, viewName);
   }
 
   public String refName() {
