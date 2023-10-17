@@ -480,7 +480,7 @@ Notes:
    [null, null, 3]    null_value_counts={1: 0, 2: 2}
    ```
    ##### Maps
-   For map-elements the number of null values is counted within the map. The values are not counted if the parent is null. Keep in mind that map keys can't be null, so the field will be zero.
+   For map-elements the number of null values is counted within the map. The values are not counted if the parent is null. Keep in mind that map keys can't be null, so the number of null values will always be zero.
    ```
    schema {
      1: map<2: int, 3: bytes>
