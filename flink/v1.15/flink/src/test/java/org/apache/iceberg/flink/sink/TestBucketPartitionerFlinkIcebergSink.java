@@ -64,19 +64,19 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   @RegisterExtension
   private static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
-      new MiniClusterExtension(
-          new MiniClusterResourceConfiguration.Builder()
-              .setNumberTaskManagers(NUMBER_TASK_MANAGERS)
-              .setNumberSlotsPerTaskManager(SLOTS_PER_TASK_MANAGER)
-              .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
-              .build());
+          new MiniClusterExtension(
+                  new MiniClusterResourceConfiguration.Builder()
+                          .setNumberTaskManagers(NUMBER_TASK_MANAGERS)
+                          .setNumberSlotsPerTaskManager(SLOTS_PER_TASK_MANAGER)
+                          .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
+                          .build());
 
   @RegisterExtension
   private static final HadoopCatalogExtension catalogExtension =
-      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
+          new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+          new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
   // Parallelism = 8 (parallelism > numBuckets) throughout the test suite
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
@@ -90,38 +90,44 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private void setupEnvironment(TableSchemaType tableSchemaType) {
     PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
     table =
-        catalogExtension
-            .catalog()
-            .createTable(
-                TABLE_IDENTIFIER,
-                SimpleDataUtil.SCHEMA,
-                partitionSpec,
-                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+            catalogExtension
+                    .catalog()
+                    .createTable(
+                            TABLE_IDENTIFIER,
+                            SimpleDataUtil.SCHEMA,
+                            partitionSpec,
+                            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
     env =
-        StreamExecutionEnvironment.getExecutionEnvironment(DISABLE_CLASSLOADER_CHECK_CONFIG)
-            .enableCheckpointing(100)
-            .setParallelism(parallelism)
-            .setMaxParallelism(parallelism * 2);
+            StreamExecutionEnvironment.getExecutionEnvironment(DISABLE_CLASSLOADER_CHECK_CONFIG)
+                    .enableCheckpointing(100)
+                    .setParallelism(parallelism)
+                    .setMaxParallelism(parallelism * 2);
     tableLoader = catalogExtension.tableLoader();
   }
 
   private void appendRowsToTable(List<RowData> allRows) throws Exception {
     DataFormatConverters.RowConverter converter =
-        new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+            new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
     DataStream<RowData> dataStream =
-        env.addSource(
-                new BoundedTestSource<>(
-                    allRows.stream().map(converter::toExternal).toArray(Row[]::new)),
-                ROW_TYPE_INFO)
-            .map(converter::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+            env.addSource(
+                            new BoundedTestSource<>(
+                                    allRows.stream().map(converter::toExternal).toArray(Row[]::new)),
+                            ROW_TYPE_INFO)
+                    .map(converter::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE))
+                    .partitionCustom(
+                            new BucketPartitioner(table.spec()),
+                            new BucketPartitionKeySelector(
+                                    table.spec(),
+                                    table.schema(),
+                                    FlinkSink.toFlinkRowType(table.schema(), SimpleDataUtil.FLINK_SCHEMA)));
 
     FlinkSink.forRowData(dataStream)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .distributionMode(DistributionMode.HASH)
-        .append();
+            .table(table)
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism)
+            .distributionMode(DistributionMode.NONE)
+            .append();
 
     env.execute("Test Iceberg DataStream");
 
@@ -130,8 +136,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   @ParameterizedTest
   @EnumSource(
-      value = TableSchemaType.class,
-      names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
+          value = TableSchemaType.class,
+          names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
   public void testSendRecordsToAllBucketsEvenly(TableSchemaType tableSchemaType) throws Exception {
     setupEnvironment(tableSchemaType);
     List<RowData> rows = generateTestDataRows();
@@ -158,26 +164,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
   }
 
   /**
-   * Verifies the BucketPartitioner is not used when the PartitionSpec has more than 1 bucket, and
-   * that it should fallback to input.keyBy
-   */
-  @ParameterizedTest
-  @EnumSource(value = TableSchemaType.class, names = "TWO_BUCKETS")
-  public void testMultipleBucketsFallback(TableSchemaType tableSchemaType) throws Exception {
-    setupEnvironment(tableSchemaType);
-    List<RowData> rows = generateTestDataRows();
-
-    appendRowsToTable(rows);
-    TableTestStats stats = extractPartitionResults(tableSchemaType);
-
-    Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
-    for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
-      // Only 1 file per bucket will be created when falling back to input.keyBy(...)
-      Assertions.assertThat((int) stats.numFilesPerBucket.get(i)).isEqualTo(1);
-    }
-  }
-
-  /**
    * Generating 16 rows to be sent uniformly to all writers (round-robin across 8 writers -> 4
    * buckets)
    */
@@ -188,7 +174,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   }
 
   private TableTestStats extractPartitionResults(TableSchemaType tableSchemaType)
-      throws IOException {
+          throws IOException {
     int totalRecordCount = 0;
     Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, List<WriterId>>
     Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
@@ -206,10 +192,10 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
         totalRecordCount += recordCountInFile;
         int bucketId =
-            scanTask
-                .file()
-                .partition()
-                .get(tableSchemaType.bucketPartitionColumnPosition(), Integer.class);
+                scanTask
+                        .file()
+                        .partition()
+                        .get(tableSchemaType.bucketPartitionColumnPosition(), Integer.class);
         writersPerBucket.computeIfAbsent(bucketId, k -> Lists.newArrayList());
         writersPerBucket.get(bucketId).add(writerId);
         filesPerBucket.put(bucketId, filesPerBucket.getOrDefault(bucketId, 0) + 1);
@@ -228,10 +214,10 @@ public class TestBucketPartitionerFlinkIcebergSink {
     final Map<Integer, Long> rowsPerWriter;
 
     TableTestStats(
-        int totalRecordCount,
-        Map<Integer, List<Integer>> writersPerBucket,
-        Map<Integer, Integer> numFilesPerBucket,
-        Map<Integer, Long> rowsPerWriter) {
+            int totalRecordCount,
+            Map<Integer, List<Integer>> writersPerBucket,
+            Map<Integer, Integer> numFilesPerBucket,
+            Map<Integer, Long> rowsPerWriter) {
       this.totalRowCount = totalRecordCount;
       this.writersPerBucket = writersPerBucket;
       this.numFilesPerBucket = numFilesPerBucket;
