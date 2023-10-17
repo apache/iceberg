@@ -460,6 +460,16 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
+    if (splitOffsets == null || splitOffsets.length == 0) {
+      return null;
+    }
+
+    // If the last split offset is past the file size this means the split offsets are corrupted and
+    // should not be used
+    if (splitOffsets[splitOffsets.length - 1] >= fileSizeInBytes) {
+      return null;
+    }
+
     return ArrayUtil.toUnmodifiableLongList(splitOffsets);
   }
 
