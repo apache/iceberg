@@ -19,13 +19,18 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.LogResponse;
 import org.projectnessie.model.Reference;
 
 public class TestNessieIcebergClient extends BaseTestIceberg {
@@ -89,6 +94,58 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThat(client.withReference(branch, null).getRef().getReference())
         .isEqualTo(ref);
     Assertions.assertThat(client.withReference(branch, null)).isNotEqualTo(client);
+  }
+
+  @Test
+  public void testCreateNamespace() throws NessieConflictException, NessieNotFoundException {
+    String branch = "branchWithNamespace";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        ImmutableMap.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.empty(), ImmutableMap.of()))
+        .hasMessageContaining("Creating empty namespaces is not supported");
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.of("a", "b"), ImmutableMap.of()))
+        .hasMessageContaining("Cannot create Namespace 'a.b': Namespace 'a' must exist");
+
+    Namespace ns = Namespace.of("a");
+    client.createNamespace(ns, ImmutableMap.of());
+    Assertions.assertThat(client.listNamespaces(ns)).isNotNull();
+
+    List<LogResponse.LogEntry> entries =
+        client.getApi().getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .first()
+        .satisfies(
+            entry -> {
+              Assertions.assertThat(entry.getCommitMeta().getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(entry.getCommitMeta().getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            });
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(ns, ImmutableMap.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists: 'a'");
+
+    client
+        .getApi()
+        .deleteBranch()
+        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .delete();
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.of("a", "b"), ImmutableMap.of()))
+        .hasMessageContaining(
+            "Cannot create Namespace 'a.b': ref 'branchWithNamespace' is no longer valid");
   }
 
   @Test

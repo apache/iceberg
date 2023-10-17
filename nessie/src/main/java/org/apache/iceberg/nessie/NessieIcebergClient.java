@@ -43,8 +43,8 @@ import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.OnReferenceBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
+import org.projectnessie.error.NessieBadRequestException;
 import org.projectnessie.error.NessieConflictException;
-import org.projectnessie.error.NessieNamespaceAlreadyExistsException;
 import org.projectnessie.error.NessieNamespaceNotEmptyException;
 import org.projectnessie.error.NessieNamespaceNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -181,23 +181,38 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    getRef().checkMutable();
+
+    if (namespace.isEmpty()) {
+      throw new IllegalArgumentException("Creating empty namespaces is not supported");
+    }
+
     try {
-      getRef().checkMutable();
-      withReference(
-              getApi()
-                  .createNamespace()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-                  .properties(metadata))
-          .create();
+      org.projectnessie.model.Namespace content =
+          org.projectnessie.model.Namespace.of(metadata, namespace.levels());
+      ContentKey key = content.toContentKey();
+
+      api.commitMultipleOperations()
+          .branch((Branch) getRef().getReference())
+          .commitMeta(NessieUtil.buildCommitMetadata("create namespace " + key, catalogOptions))
+          .operation(Operation.Put.of(key, content))
+          .commit();
+
       refresh();
-    } catch (NessieNamespaceAlreadyExistsException e) {
-      throw new AlreadyExistsException(e, "Namespace already exists: %s", namespace);
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot create Namespace '%s': " + "ref '%s' is no longer valid.",
+              "Cannot create Namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
+    } catch (Exception e) {
+      if (e instanceof NessieBadRequestException
+          && e.getMessage().contains("New value to update existing key")) {
+        throw new AlreadyExistsException(e, "Namespace already exists: '%s'", namespace);
+      }
+      throw new RuntimeException(
+          String.format(
+              "Cannot create Namespace '%s': " + e.getMessage(), namespace, getRef().getName()));
     }
   }
 
