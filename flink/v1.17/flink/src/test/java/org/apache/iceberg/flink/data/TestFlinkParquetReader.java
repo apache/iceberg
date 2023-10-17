@@ -19,16 +19,19 @@
 package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
@@ -47,7 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.junit.Assert;
 import org.junit.Test;
 
 public class TestFlinkParquetReader extends DataTest {
@@ -62,15 +64,7 @@ public class TestFlinkParquetReader extends DataTest {
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
-
-    ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
-            .withDataModel(GenericData.get())
-            .withSchema(avroSchema)
-            .config("parquet.avro.add-list-element-records", "true")
-            .config("parquet.avro.write-old-list-structure", "true")
-            .build();
+    assertThat(testFile.delete()).isTrue();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
     List<ByteBuffer> expectedByteList = Lists.newArrayList();
@@ -81,8 +75,15 @@ public class TestFlinkParquetReader extends DataTest {
     recordBuilder.set("topbytes", expectedBinary);
     GenericData.Record expectedRecord = recordBuilder.build();
 
-    writer.write(expectedRecord);
-    writer.close();
+    try (ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build()) {
+      writer.write(expectedRecord);
+    }
 
     try (CloseableIterable<RowData> reader =
         Parquet.read(Files.localInput(testFile))
@@ -90,17 +91,71 @@ public class TestFlinkParquetReader extends DataTest {
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
       Iterator<RowData> rows = reader.iterator();
-      Assert.assertTrue("Should have at least one row", rows.hasNext());
+      assertThat(rows).as("Should have at least one row").hasNext();
       RowData rowData = rows.next();
-      Assert.assertArrayEquals(rowData.getArray(0).getBinary(0), expectedByte);
-      Assert.assertArrayEquals(rowData.getBinary(1), expectedByte);
-      Assert.assertFalse("Should not have more than one row", rows.hasNext());
+      assertThat(expectedByte).isEqualTo(rowData.getArray(0).getBinary(0));
+      assertThat(expectedByte).isEqualTo(rowData.getBinary(1));
+      assertThat(rows).as("Should not have more than one row").isExhausted();
+    }
+  }
+
+  @Test
+  public void testReadBinaryFieldAsString() throws IOException {
+    Schema schemaForWriteBinary = new Schema(optional(1, "strbytes", Types.BinaryType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schemaForWriteBinary.asStruct());
+
+    File testFile = temp.newFile();
+    assertThat(testFile.delete()).isTrue();
+
+    String expectedString = "hello";
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedString.getBytes(StandardCharsets.UTF_8));
+    recordBuilder.set("strbytes", expectedBinary);
+    GenericData.Record expectedRecord = recordBuilder.build();
+
+    try (ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .build()) {
+      writer.write(expectedRecord);
+    }
+
+    // read as string
+    Schema schemaForReadBinaryAsString =
+        new Schema(optional(1, "strbytes", Types.StringType.get()));
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schemaForReadBinaryAsString)
+            .createReaderFunc(
+                type -> FlinkParquetReaders.buildReader(schemaForReadBinaryAsString, type))
+            .build()) {
+      Iterator<RowData> rows = reader.iterator();
+      assertThat(rows).as("Should have at least one row").hasNext();
+      RowData rowData = rows.next();
+      assertThat(rowData.getString(0)).isInstanceOf(BinaryStringData.class);
+      assertThat(rowData.getString(0).toString()).isEqualTo(expectedString);
+      assertThat(rows).as("Should not have more than one row").isExhausted();
+    }
+
+    // read as byte[]
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schemaForWriteBinary)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schemaForWriteBinary, type))
+            .build()) {
+      Iterator<RowData> rows = reader.iterator();
+      assertThat(rows).as("Should have at least one row").hasNext();
+      RowData rowData = rows.next();
+      assertThat(rowData.getBinary(0)).isEqualTo(expectedString.getBytes(StandardCharsets.UTF_8));
+      assertThat(rows).as("Should not have more than one row").isExhausted();
     }
   }
 
   private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
     File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -119,10 +174,10 @@ public class TestFlinkParquetReader extends DataTest {
       Iterator<RowData> rows = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
+        assertThat(rows.hasNext()).as("Should have expected number of rows").isTrue();
         TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
+      assertThat(rows.hasNext()).as("Should not have extra rows").isFalse();
     }
   }
 
