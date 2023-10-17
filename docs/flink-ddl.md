@@ -165,7 +165,7 @@ Currently, it does not support computed column and watermark definition etc.
 #### `PRIMARY KEY`
 
 Primary key constraint can be declared for a column or a set of columns, which must be unique and do not contain null.
-It's required for [`UPSERT` mode](../flink/flink-writes.md#upsert).
+It's required for [`UPSERT` mode](../flink-writes/#upsert).
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -211,7 +211,7 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://nigh
 Iceberg only support altering table properties:
 
 ```sql
-ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
+ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
 ```
 
 ### `ALTER TABLE .. RENAME TO`

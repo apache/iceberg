@@ -36,6 +36,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -52,12 +53,15 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
 
-  @Test
-  public void testCreateTableBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testCreateTableBuilder(int formatVersion) throws Exception {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table =
         hadoopCatalog()
@@ -65,6 +69,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .withPartitionSpec(SPEC)
             .withProperties(null)
             .withProperty("key1", "value1")
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
             .withProperties(ImmutableMap.of("key2", "value2"))
             .create();
 
@@ -75,12 +80,17 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .containsEntry("key2", "value2");
   }
 
-  @Test
-  public void testCreateTableTxnBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testCreateTableTxnBuilder(int formatVersion) throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Transaction txn =
-        catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(null).createTransaction();
+        catalog
+            .buildTable(tableIdent, SCHEMA)
+            .withPartitionSpec(null)
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+            .createTransaction();
     txn.commitTransaction();
     Table table = catalog.loadTable(tableIdent);
 
@@ -88,8 +98,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assertions.assertThat(table.spec().isUnpartitioned()).isTrue();
   }
 
-  @Test
-  public void testReplaceTxnBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTxnBuilder(int formatVersion) throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
@@ -98,6 +109,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .buildTable(tableIdent, SCHEMA)
             .withPartitionSpec(SPEC)
             .withProperty("key1", "value1")
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
             .createOrReplaceTransaction();
 
     createTxn.newAppend().appendFile(FILE_A).commit();
@@ -113,14 +125,21 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     table = catalog.loadTable(tableIdent);
     Assertions.assertThat(table.currentSnapshot()).isNull();
-    PartitionSpec v1Expected =
-        PartitionSpec.builderFor(table.schema())
-            .alwaysNull("data", "data_bucket")
-            .withSpecId(1)
-            .build();
-    Assertions.assertThat(table.spec())
-        .as("Table should have a spec with one void field")
-        .isEqualTo(v1Expected);
+
+    if (formatVersion == 1) {
+      PartitionSpec v1Expected =
+          PartitionSpec.builderFor(table.schema())
+              .alwaysNull("data", "data_bucket")
+              .withSpecId(1)
+              .build();
+      Assertions.assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
+    } else {
+      Assertions.assertThat(table.spec().isUnpartitioned())
+          .as("Table spec should be unpartitioned")
+          .isTrue();
+    }
 
     Assertions.assertThat(table.properties())
         .containsEntry("key1", "value1")

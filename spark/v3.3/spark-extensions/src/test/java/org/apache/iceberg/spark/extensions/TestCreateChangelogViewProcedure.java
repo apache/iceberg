@@ -49,19 +49,16 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   public void createTableWithTwoColumns() {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
   }
 
   private void createTableWithThreeColumns() {
     sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
   }
 
   private void createTableWithIdentifierField() {
     sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 

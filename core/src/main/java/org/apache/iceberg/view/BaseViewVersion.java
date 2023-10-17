@@ -19,9 +19,8 @@
 package org.apache.iceberg.view;
 
 import javax.annotation.Nullable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.BuilderVisibility;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 /**
  * A version of the view at a point in time.
@@ -34,23 +33,19 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
     typeImmutable = "ImmutableViewVersion",
-    visibility = ImplementationVisibility.PUBLIC,
-    builderVisibility = BuilderVisibility.PUBLIC)
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseViewVersion extends ViewVersion {
 
   @Override
   @Value.Lazy
   default String operation() {
+    Preconditions.checkArgument(
+        summary().containsKey("operation"), "Invalid view version summary, missing operation");
     return summary().get("operation");
   }
 
   @Override
   @Nullable
   String defaultCatalog();
-
-  @Override
-  @Value.Check
-  default void check() {
-    ViewVersion.super.check();
-  }
 }

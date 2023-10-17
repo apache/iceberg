@@ -230,9 +230,9 @@ public class TestAwsClientFactories {
 
   private Map<String, String> getDefaultClientFactoryProperties(String providerClass) {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.CLIENT_CREDENTIALS_PROVIDER + ".param1", "value1");
-    properties.put(AwsProperties.CLIENT_REGION, Region.AWS_GLOBAL.toString());
-    properties.put(AwsProperties.CLIENT_CREDENTIALS_PROVIDER, providerClass);
+    properties.put(AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER + ".param1", "value1");
+    properties.put(AwsClientProperties.CLIENT_REGION, Region.AWS_GLOBAL.toString());
+    properties.put(AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER, providerClass);
     return properties;
   }
 

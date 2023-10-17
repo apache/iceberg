@@ -47,33 +47,31 @@ class ApacheHttpClientConfigurations {
   private void initialize(Map<String, String> httpClientProperties) {
     this.connectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
+            httpClientProperties, HttpClientProperties.APACHE_CONNECTION_TIMEOUT_MS);
     this.socketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
+            httpClientProperties, HttpClientProperties.APACHE_SOCKET_TIMEOUT_MS);
     this.acquisitionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties,
-            AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
+            httpClientProperties, HttpClientProperties.APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
     this.connectionMaxIdleTimeMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
+            httpClientProperties, HttpClientProperties.APACHE_CONNECTION_MAX_IDLE_TIME_MS);
     this.connectionTimeToLiveMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
+            httpClientProperties, HttpClientProperties.APACHE_CONNECTION_TIME_TO_LIVE_MS);
     this.expectContinueEnabled =
         PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
+            httpClientProperties, HttpClientProperties.APACHE_EXPECT_CONTINUE_ENABLED);
     this.maxConnections =
         PropertyUtil.propertyAsNullableInt(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
+            httpClientProperties, HttpClientProperties.APACHE_MAX_CONNECTIONS);
     this.tcpKeepAliveEnabled =
         PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
+            httpClientProperties, HttpClientProperties.APACHE_TCP_KEEP_ALIVE_ENABLED);
     this.useIdleConnectionReaperEnabled =
         PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties,
-            AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
+            httpClientProperties, HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
   }
 
   @VisibleForTesting

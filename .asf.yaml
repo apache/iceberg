@@ -31,7 +31,7 @@ github:
     wiki: true
     issues: true
     projects: true
-  collaborators:  # Note: the number of collaborators is limited to 20
+  collaborators:  # Note: the number of collaborators is limited to 10
     - chenjunjiedada
     - jun-he
     - marton-bod
@@ -41,6 +41,7 @@ github:
     - samredai
     - gaborkaszab
     - bitsondatadev
+    - ajantha-bhat
   ghp_branch: gh-pages
   ghp_path: ~
 

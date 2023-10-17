@@ -81,4 +81,15 @@ public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
    * @return this for method chaining
    */
   DeleteFiles caseSensitive(boolean caseSensitive);
+
+  /**
+   * Enables validation that any files that are part of the deletion still exist when committing the
+   * operation.
+   *
+   * @return this for method chaining
+   */
+  default DeleteFiles validateFilesExist() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement validateFilesExist");
+  }
 }

@@ -211,6 +211,7 @@ class MetadataLog(BaseModel):
 
 class BaseUpdate(BaseModel):
     action: Literal[
+        'assign-uuid',
         'upgrade-format-version',
         'add-schema',
         'set-current-schema',
@@ -226,6 +227,14 @@ class BaseUpdate(BaseModel):
         'set-properties',
         'remove-properties',
     ]
+
+
+class AssignUUIDUpdate(BaseUpdate):
+    """
+    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
+    """
+
+    uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
@@ -632,6 +641,7 @@ class AddSchemaUpdate(BaseUpdate):
 
 class TableUpdate(BaseModel):
     __root__: Union[
+        AssignUUIDUpdate,
         UpgradeFormatVersionUpdate,
         AddSchemaUpdate,
         SetCurrentSchemaUpdate,

@@ -120,6 +120,7 @@
                 org.apache.iceberg.NullOrder.*,
                 org.apache.iceberg.MetadataTableType.*,
                 org.apache.iceberg.MetadataColumns.*,
+                org.apache.iceberg.PlanningMode.*,
                 org.apache.iceberg.SortDirection.*,
                 org.apache.iceberg.TableProperties.*,
                 org.apache.iceberg.types.Type.*,

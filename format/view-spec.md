@@ -58,6 +58,7 @@ The view version metadata file has the following fields:
 
 | Requirement | Field name           | Description |
 |-------------|----------------------|-------------|
+| _required_  | `view-uuid`          | A UUID that identifies the view, generated when the view is created. Implementations must throw an exception if a view's UUID does not match the expected UUID after refreshing metadata |
 | _required_  | `format-version`     | An integer version number for the view format; must be 1 |
 | _required_  | `location`           | The view's base location; used to create metadata file locations |
 | _required_  | `schemas`            | A list of known schemas |
@@ -192,6 +193,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 ```
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
   "current-version-id" : 1,
@@ -259,6 +261,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
 ```
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
   "current-version-id" : 1,

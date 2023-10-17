@@ -105,7 +105,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   public void testListNamespace() {
     String namespace = createNamespace();
     List<Namespace> namespaceList = glueCatalog.listNamespaces();
-    Assert.assertTrue(namespaceList.size() > 0);
+    Assert.assertFalse(namespaceList.isEmpty());
     Assert.assertTrue(namespaceList.contains(Namespace.of(namespace)));
     namespaceList = glueCatalog.listNamespaces(Namespace.of(namespace));
     Assert.assertTrue(namespaceList.isEmpty());

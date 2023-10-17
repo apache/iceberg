@@ -89,6 +89,11 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
 }
 
+tasks.withType(AbstractArchiveTask).configureEach {
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
+}
+
 apply plugin: 'com.gorylenko.gradle-git-properties'
 // git properties file for the root project for adding to the source tarball
 gitProperties {
@@ -133,7 +138,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.3.0"
+      oldVersion = "1.4.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -142,7 +147,7 @@ subprojects {
                 "\nAPI/ABI breaks detected.\n" +
                 "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
                 "\nPlease make sure to follow the deprecation rules defined in\n" +
-                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "https://github.com/apache/iceberg/blob/main/CONTRIBUTING.md#semantic-versioning.\n" +
                 "==================================================================================")
       }
       onlyIf {
@@ -374,10 +379,7 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -682,10 +684,7 @@ project(':iceberg-hive-metastore') {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation(libs.hive2.exec) {
-      artifact {
-        classifier = 'core'
-      }
+    testImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -735,10 +734,7 @@ project(':iceberg-orc') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation(libs.orc.core) {
-      artifact {
-        classifier = 'nohive'
-      }
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar

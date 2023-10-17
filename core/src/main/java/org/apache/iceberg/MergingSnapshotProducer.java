@@ -218,11 +218,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected boolean addsDataFiles() {
-    return newDataFiles.size() > 0;
+    return !newDataFiles.isEmpty();
   }
 
   protected boolean addsDeleteFiles() {
-    return newDeleteFilesBySpec.size() > 0;
+    return !newDeleteFilesBySpec.isEmpty();
   }
 
   /** Add a data file to the new snapshot. */
@@ -682,9 +682,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.newDataFilesDataSequenceNumber = sequenceNumber;
   }
 
-  private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
-    if (staringSnapshotId != null && metadata.snapshot(staringSnapshotId) != null) {
-      Snapshot startingSnapshot = metadata.snapshot(staringSnapshotId);
+  private long startingSequenceNumber(TableMetadata metadata, Long startingSnapshotId) {
+    if (startingSnapshotId != null && metadata.snapshot(startingSnapshotId) != null) {
+      Snapshot startingSnapshot = metadata.snapshot(startingSnapshotId);
       return startingSnapshot.sequenceNumber();
     } else {
       return TableMetadata.INITIAL_SEQUENCE_NUMBER;
@@ -937,7 +937,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private Iterable<ManifestFile> prepareNewDataManifests() {
     Iterable<ManifestFile> newManifests;
-    if (newDataFiles.size() > 0) {
+    if (!newDataFiles.isEmpty()) {
       List<ManifestFile> dataFileManifests = newDataFilesAsManifests();
       newManifests = Iterables.concat(dataFileManifests, appendManifests, rewrittenAppendManifests);
     } else {
@@ -987,7 +987,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private List<ManifestFile> newDeleteFilesAsManifests() {
-    if (hasNewDeleteFiles && cachedNewDeleteManifests.size() > 0) {
+    if (hasNewDeleteFiles && !cachedNewDeleteManifests.isEmpty()) {
       for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
         deleteFile(cachedNewDeleteManifest.path());
       }

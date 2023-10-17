@@ -94,14 +94,14 @@ Additional properties can be found in common [catalog configuration](../configur
 Catalog names are used in SQL queries to identify a table. In the examples above, `hive_prod` and `hadoop_prod` can be used to prefix database and table names that will be loaded from those catalogs.
 
 ```sql
-SELECT * FROM hive_prod.db.table -- load db.table from catalog hive_prod
+SELECT * FROM hive_prod.db.table; -- load db.table from catalog hive_prod
 ```
 
 Spark 3 keeps track of the current catalog and namespace, which can be omitted from table names.
 
 ```sql
 USE hive_prod.db;
-SELECT * FROM table -- load db.table from catalog hive_prod
+SELECT * FROM table; -- load db.table from catalog hive_prod
 ```
 
 To see the current catalog and namespace, run `SHOW CURRENT NAMESPACE`.
@@ -194,6 +194,9 @@ df.write
 | check-ordering       | true        | Checks if input schema and table schema are same  |
 | isolation-level | null | Desired isolation level for Dataframe overwrite operations.  `null` => no checks (for idempotent writes), `serializable` => check for concurrent inserts or deletes in destination partitions, `snapshot` => checks for concurrent deletes in destination partitions. |
 | validate-from-snapshot-id | null | If isolation level is set, id of base snapshot from which to check concurrent write conflicts into a table. Should be the snapshot before any reads from the table. Can be obtained via [Table API](../../api#table-metadata) or [Snapshots table](../spark-queries#snapshots). If null, the table's oldest known snapshot is used. |
+| compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
+| compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
+| compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
 
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. If properties start with `snapshot-property.`, then that prefix will be removed from each property. Here is an example:
 

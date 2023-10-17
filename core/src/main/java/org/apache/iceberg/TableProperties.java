@@ -143,6 +143,7 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  public static final String PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0 = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
@@ -231,6 +232,10 @@ public class TableProperties {
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
+  public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
+  public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
@@ -299,6 +304,9 @@ public class TableProperties {
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
+  public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
+      "write.spark.advisory-partition-size-bytes";
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED =
       "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
@@ -347,19 +355,6 @@ public class TableProperties {
 
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
-
-  /**
-   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
-   *     performed starting from 0.13.0.
-   */
-  @Deprecated
-  public static final String MERGE_CARDINALITY_CHECK_ENABLED =
-      "write.merge.cardinality-check.enabled";
-  /**
-   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
-   *     performed starting from 0.13.0.
-   */
-  @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 

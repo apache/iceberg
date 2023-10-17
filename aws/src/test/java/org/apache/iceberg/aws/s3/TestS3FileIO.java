@@ -35,12 +35,14 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
@@ -48,6 +50,7 @@ import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -359,6 +362,19 @@ public class TestS3FileIO {
 
     Assertions.assertThat(roundTripSerializedFileIO.properties())
         .isEqualTo(testS3FileIO.properties());
+  }
+
+  @Test
+  public void testResolvingFileIOLoad() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    Assertions.assertThat(result).isInstanceOf(S3FileIO.class);
   }
 
   private void createRandomObjects(String prefix, int count) {

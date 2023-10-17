@@ -82,7 +82,7 @@ public class ResidualEvaluator implements Serializable {
    * @return a residual evaluator for the expression
    */
   public static ResidualEvaluator of(PartitionSpec spec, Expression expr, boolean caseSensitive) {
-    if (spec.fields().size() > 0) {
+    if (!spec.fields().isEmpty()) {
       return new ResidualEvaluator(spec, expr, caseSensitive);
     } else {
       return unpartitioned(expr);

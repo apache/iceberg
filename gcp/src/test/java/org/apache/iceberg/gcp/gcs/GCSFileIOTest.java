@@ -35,12 +35,15 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,6 +57,7 @@ public class GCSFileIOTest {
   private final Storage storage = spy(LocalStorageHelper.getOptions().getService());
   private GCSFileIO io;
 
+  @SuppressWarnings("unchecked")
   @BeforeEach
   public void before() {
     // LocalStorageHelper doesn't support batch operations, so mock that here
@@ -205,5 +209,18 @@ public class GCSFileIOTest {
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
+  }
+
+  @Test
+  public void testResolvingFileIOLoad() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result).isInstanceOf(GCSFileIO.class);
   }
 }

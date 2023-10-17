@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -93,6 +95,16 @@ public class PositionDeletesTable extends BaseMetadataTable {
     return specs;
   }
 
+  @Override
+  public Map<String, String> properties() {
+    // The write properties are needed by PositionDeletesRewriteAction,
+    // these properties should respect the ones of BaseTable.
+    return Collections.unmodifiableMap(
+        table().properties().entrySet().stream()
+            .filter(entry -> entry.getKey().startsWith("write."))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+  }
+
   private Schema calculateSchema() {
     Types.StructType partitionType = Partitioning.partitionType(table());
     Schema result =
@@ -120,7 +132,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
 
-    if (partitionType.fields().size() > 0) {
+    if (!partitionType.fields().isEmpty()) {
       return result;
     } else {
       // avoid returning an empty struct, which is not always supported.

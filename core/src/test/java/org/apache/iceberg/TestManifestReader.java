@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -40,6 +43,12 @@ public class TestManifestReader extends TableTestBase {
   public static Object[] parameters() {
     return new Object[] {1, 2};
   }
+
+  private static final RecursiveComparisonConfiguration FILE_COMPARISON_CONFIG =
+      RecursiveComparisonConfiguration.builder()
+          .withIgnoredFields(
+              "dataSequenceNumber", "fileOrdinal", "fileSequenceNumber", "fromProjectionPos")
+          .build();
 
   public TestManifestReader(int formatVersion) {
     super(formatVersion);
@@ -61,16 +70,14 @@ public class TestManifestReader extends TableTestBase {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 0))) {
-      List<String> files =
-          Streams.stream(reader).map(file -> file.path().toString()).collect(Collectors.toList());
+      List<DataFile> files = Streams.stream(reader).collect(Collectors.toList());
 
       // note that all files are returned because the reader returns data files that may match, and
       // the partition is
       // bucketing by data, which doesn't help filter files
-      Assert.assertEquals(
-          "Should read the expected files",
-          Lists.newArrayList(FILE_A.path(), FILE_B.path(), FILE_C.path()),
-          files);
+      assertThat(files)
+          .usingRecursiveComparison(FILE_COMPARISON_CONFIG)
+          .isEqualTo(Lists.newArrayList(FILE_A, FILE_B, FILE_C));
     }
   }
 
