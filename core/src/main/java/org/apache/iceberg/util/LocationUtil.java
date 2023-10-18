@@ -18,14 +18,14 @@
  */
 package org.apache.iceberg.util;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class LocationUtil {
   private LocationUtil() {}
 
   public static String stripTrailingSlash(String path) {
-    Preconditions.checkArgument(
-        path != null && path.length() > 0, "path must not be null or empty");
+    Preconditions.checkArgument(!StringUtils.isEmpty(path), "path must not be null or empty");
 
     String result = path;
     while (result.endsWith("/")) {

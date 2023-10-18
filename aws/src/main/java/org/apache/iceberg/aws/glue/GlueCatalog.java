@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -189,8 +190,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.catalogName = name;
     this.awsProperties = properties;
     this.s3FileIOProperties = s3Properties;
-    this.warehousePath =
-        (path != null && path.length() > 0) ? LocationUtil.stripTrailingSlash(path) : null;
+    this.warehousePath = !StringUtils.isEmpty(path) ? LocationUtil.stripTrailingSlash(path) : null;
     this.glue = client;
     this.lockManager = lock;
 
@@ -285,7 +285,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
 
     ValidationException.check(
-        warehousePath != null && warehousePath.length() > 0,
+        !StringUtils.isEmpty(warehousePath),
         "Cannot derive default warehouse location, warehouse path must not be null or empty");
 
     return String.format(
