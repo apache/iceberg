@@ -281,6 +281,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
                 .build());
     String dbLocationUri = response.database().locationUri();
     if (dbLocationUri != null) {
+      dbLocationUri = LocationUtil.stripTrailingSlash(dbLocationUri);
       return String.format("%s/%s", dbLocationUri, tableIdentifier.name());
     }
 
@@ -514,7 +515,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
       Map<String, String> result = Maps.newHashMap(database.parameters());
 
       if (database.locationUri() != null) {
-        result.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, database.locationUri());
+        result.put(
+            IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
+            LocationUtil.stripTrailingSlash(database.locationUri()));
       }
 
       if (database.description() != null) {
