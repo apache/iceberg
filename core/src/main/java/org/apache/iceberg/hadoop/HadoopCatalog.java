@@ -44,7 +44,8 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -97,7 +98,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
   private Map<String, String> catalogProperties;
-  private StandardEncryptionManagerFactory encryptionManagerFactory;
+  private KeyManagementClient keyManagementClient;
 
   public HadoopCatalog() {}
 
@@ -119,17 +120,15 @@ public class HadoopCatalog extends BaseMetastoreCatalog
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-   if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)) {
-      this.encryptionManagerFactory = new StandardEncryptionManagerFactory(properties);
-    } else {
-      this.encryptionManagerFactory = null;
+    if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
     }
 
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(lockManager);
-    closeableGroup.addCloseable(encryptionManagerFactory);
+    closeableGroup.addCloseable(keyManagementClient);
     closeableGroup.setSuppressCloseFailure(true);
 
     this.suppressPermissionError =
@@ -237,7 +236,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     return new HadoopTableOperations(
         new Path(defaultWarehouseLocation(identifier)),
         fileIO,
-        encryptionManagerFactory,
+        keyManagementClient,
         conf,
         lockManager);
   }

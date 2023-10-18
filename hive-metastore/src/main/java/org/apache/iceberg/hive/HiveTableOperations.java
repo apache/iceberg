@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -46,8 +47,9 @@ import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -109,8 +111,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final long maxHiveTablePropertySize;
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
-  private final StandardEncryptionManagerFactory encryptionManagerFactory;
+  private final KeyManagementClient keyManagementClient;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
+  private boolean fetchedTableKeyID = false;
+  private String tableEncryptionKeyID;
 
   /** Tests only */
   protected HiveTableOperations(
@@ -127,14 +131,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       Configuration conf,
       ClientPool metaClients,
       FileIO fileIO,
-      StandardEncryptionManagerFactory encryptionManagerFactory,
+      KeyManagementClient keyManagementClient,
       String catalogName,
       String database,
       String table) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
-    this.encryptionManagerFactory = encryptionManagerFactory;
+    this.keyManagementClient = keyManagementClient;
     this.fullName = catalogName + "." + database + "." + table;
     this.catalogName = catalogName;
     this.database = database;
@@ -159,7 +163,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public EncryptionManager encryption() {
-    if (encryptionManagerFactory == null) {
+    if (keyManagementClient == null) {
       return PlaintextEncryptionManager.instance();
     }
 
@@ -168,10 +172,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     if (current().formatVersion() < 2) {
+      if (current().properties().containsKey(ENCRYPTION_TABLE_KEY)) {
+        throw new IllegalStateException("Encryption is not supported in v1 tables");
+      }
+
       return PlaintextEncryptionManager.instance();
     }
 
-    return encryptionManagerFactory.create(current().properties());
+    return EncryptionUtil.createEncryptionManager(current().properties(), keyManagementClient);
   }
 
   @Override
@@ -258,6 +266,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             base.properties().keySet().stream()
                 .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
+      }
+
+      if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
+        throw new RuntimeException("Cannot remove key in encrypted table");
       }
 
       Map<String, String> summary =

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -38,8 +40,9 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -69,7 +72,7 @@ public class HadoopTableOperations implements TableOperations {
   private final Path location;
   private final FileIO fileIO;
   private final LockManager lockManager;
-  private final StandardEncryptionManagerFactory encryptionManagerFactory;
+  private final KeyManagementClient keyManagementClient;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
@@ -83,14 +86,14 @@ public class HadoopTableOperations implements TableOperations {
   protected HadoopTableOperations(
       Path location,
       FileIO fileIO,
-      StandardEncryptionManagerFactory encryptionManagerFactory,
+      KeyManagementClient keyManagementClient,
       Configuration conf,
       LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
     this.lockManager = lockManager;
-    this.encryptionManagerFactory = encryptionManagerFactory;
+    this.keyManagementClient = keyManagementClient;
   }
 
   @Override
@@ -193,7 +196,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public EncryptionManager encryption() {
-    if (encryptionManagerFactory == null) {
+    if (keyManagementClient == null) {
       return PlaintextEncryptionManager.instance();
     }
 
@@ -202,10 +205,14 @@ public class HadoopTableOperations implements TableOperations {
     }
 
     if (current().formatVersion() < 2) {
+      if (current().properties().containsKey(ENCRYPTION_TABLE_KEY)) {
+        throw new IllegalStateException("Encryption is not supported in v1 tables");
+      }
+
       return PlaintextEncryptionManager.instance();
     }
 
-    return encryptionManagerFactory.create(current().properties());
+    return EncryptionUtil.createEncryptionManager(current().properties(), keyManagementClient);
   }
 
   @Override
