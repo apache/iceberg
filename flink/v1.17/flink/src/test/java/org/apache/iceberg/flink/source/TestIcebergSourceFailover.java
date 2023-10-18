@@ -39,7 +39,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -98,11 +97,6 @@ public class TestIcebergSourceFailover {
     return RandomGenericData.generate(schema(), numRecords, seed);
   }
 
-  protected void assertRecords(
-      Table table, List<Record> expectedRecords, Duration interval, int maxCount) throws Exception {
-    SimpleDataUtil.assertTableRecords(table, expectedRecords, interval, maxCount);
-  }
-
   @Test
   public void testBoundedWithTaskManagerFailover() throws Exception {
     testBoundedIcebergSource(FailoverType.TM);
@@ -156,7 +150,8 @@ public class TestIcebergSourceFailover {
         RecordCounterToFail::continueProcessing,
         miniClusterResource.getMiniCluster());
 
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    SimpleDataUtil.assertTableRecords(
+        sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -219,7 +214,8 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    SimpleDataUtil.assertTableRecords(
+        sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   // ------------------------------------------------------------------------
