@@ -44,7 +44,6 @@ import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.OnReferenceBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
-import org.projectnessie.error.NessieBadRequestException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNamespaceNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -219,7 +218,8 @@ public class NessieIcebergClient implements AutoCloseable {
 
         Tasks.foreach(commitBuilder)
             .retry(5)
-            .stopRetryOn(NessieConflictException.class, NessieBadRequestException.class)
+            .stopRetryOn(
+                NessieReferenceNotFoundException.class, NessieReferenceConflictException.class)
             .throwFailureWhenFinished()
             .onFailure((o, exception) -> refresh())
             .run(
@@ -244,7 +244,7 @@ public class NessieIcebergClient implements AutoCloseable {
         }
         throw new RuntimeException(
             String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
-      } catch (Exception e) {
+      } catch (BaseNessieClientServerException e) {
         throw new RuntimeException(
             String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
@@ -292,7 +292,8 @@ public class NessieIcebergClient implements AutoCloseable {
 
       Tasks.foreach(commitBuilder)
           .retry(5)
-          .stopRetryOn(NessieNotFoundException.class, NessieConflictException.class)
+          .stopRetryOn(
+              NessieReferenceNotFoundException.class, NessieReferenceConflictException.class)
           .throwFailureWhenFinished()
           .onFailure((o, exception) -> refresh())
           .run(
@@ -310,23 +311,23 @@ public class NessieIcebergClient implements AutoCloseable {
           getRef().getName(),
           e);
       return false;
-    } catch (Exception e) {
-      if (e instanceof NessieReferenceConflictException) {
-        List<Conflict> conflicts =
-            ((NessieReferenceConflictException) e).getErrorDetails().conflicts();
-        if (conflicts.size() == 1) {
-          Conflict conflict = conflicts.get(0);
-          if (Objects.equals(conflict.key(), key)) {
-            if (conflict.conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
-              return false;
-            }
-            if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_NOT_EMPTY) {
-              throw new NamespaceNotEmptyException(
-                  e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
-            }
+    } catch (NessieReferenceConflictException e) {
+      List<Conflict> conflicts = e.getErrorDetails().conflicts();
+      if (conflicts.size() == 1) {
+        Conflict conflict = conflicts.get(0);
+        if (Objects.equals(conflict.key(), key)) {
+          if (conflict.conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
+            return false;
+          }
+          if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_NOT_EMPTY) {
+            throw new NamespaceNotEmptyException(
+                e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
           }
         }
       }
+      throw new RuntimeException(
+          String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+    } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
           String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
     }
