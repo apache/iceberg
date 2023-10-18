@@ -98,7 +98,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
   @Test
   public void testCreateNamespace() throws NessieConflictException, NessieNotFoundException {
-    String branch = "branchWithNamespace";
+    String branch = "createNamespaceBranch";
     createBranch(branch);
     Map<String, String> catalogOptions =
         ImmutableMap.of(
@@ -126,6 +126,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .first()
         .satisfies(
             entry -> {
+              Assertions.assertThat(entry.getCommitMeta().getMessage())
+                  .contains("create namespace a");
               Assertions.assertThat(entry.getCommitMeta().getAuthor()).isEqualTo("iceberg-user");
               Assertions.assertThat(entry.getCommitMeta().getProperties())
                   .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
@@ -145,7 +147,58 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(
             () -> client.createNamespace(Namespace.of("a", "b"), ImmutableMap.of()))
         .hasMessageContaining(
-            "Cannot create Namespace 'a.b': ref 'branchWithNamespace' is no longer valid");
+            "Cannot create Namespace 'a.b': ref 'createNamespaceBranch' is no longer valid");
+  }
+
+  @Test
+  public void testDropNamespace() throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        ImmutableMap.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    Namespace parent = Namespace.of("a");
+    Namespace child = Namespace.of("a", "b");
+
+    Assertions.assertThat(client.dropNamespace(parent)).isFalse();
+    Assertions.assertThat(client.dropNamespace(child)).isFalse();
+
+    client.createNamespace(parent, ImmutableMap.of());
+    client.createNamespace(child, ImmutableMap.of());
+
+    Assertions.assertThat(client.dropNamespace(child)).isTrue();
+
+    List<LogResponse.LogEntry> entries =
+        client.getApi().getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .first()
+        .satisfies(
+            entry -> {
+              Assertions.assertThat(entry.getCommitMeta().getMessage())
+                  .contains("drop namespace a.b");
+              Assertions.assertThat(entry.getCommitMeta().getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(entry.getCommitMeta().getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            });
+
+    client.createNamespace(child, ImmutableMap.of());
+
+    Assertions.assertThatThrownBy(() -> client.dropNamespace(parent))
+        .hasMessageContaining("Namespace 'a' is not empty.");
+
+    client
+        .getApi()
+        .deleteBranch()
+        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .delete();
+
+    Assertions.assertThat(client.dropNamespace(child)).isFalse();
   }
 
   @Test
