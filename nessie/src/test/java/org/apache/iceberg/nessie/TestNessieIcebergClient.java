@@ -39,7 +39,9 @@ import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.ContentKey;
+import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.LogResponse;
+import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
 
 public class TestNessieIcebergClient extends BaseTestIceberg {
@@ -144,23 +146,52 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
                   .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
             });
 
+    // test cases where a conflicting key is added by this client
+
     Assertions.assertThatThrownBy(() -> client.createNamespace(ns, ImmutableMap.of()))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Namespace already exists: 'a'");
 
-    // edge case: another content type exists with the same key
     Schema schema =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-    TableMetadata table =
+    TableMetadata table1 =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of());
     client.commitTable(
-        null, table, "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, table1, "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
 
     Assertions.assertThatThrownBy(
             () -> client.createNamespace(Namespace.of("a", "tbl"), ImmutableMap.of()))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Namespace already exists: 'a.tbl'");
+        .hasMessageContaining("Another content object with name 'a.tbl' already exists");
+
+    // test cases where a conflicting key is added by another client
+
+    api.commitMultipleOperations()
+        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .commitMeta(NessieUtil.buildCommitMetadata("create namespace b", catalogOptions))
+        .operation(
+            Operation.Put.of(
+                ContentKey.of("b"), org.projectnessie.model.Namespace.of(ContentKey.of("b"))))
+        .commit();
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.of("b"), ImmutableMap.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists: 'b'");
+
+    IcebergTable table2 = IcebergTable.of("file:///tmp/iceberg", 1, 1, 1, 1);
+    api.commitMultipleOperations()
+        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .commitMeta(NessieUtil.buildCommitMetadata("create table a.tbl2", catalogOptions))
+        .operation(Operation.Put.of(ContentKey.of("a", "tbl2"), table2))
+        .commit();
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.of("a", "tbl2"), ImmutableMap.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        // Message is misleading, but this is the message that client returns
+        .hasMessageContaining("Namespace already exists: 'a.tbl2'");
 
     client
         .getApi()
@@ -169,9 +200,9 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .delete();
 
     Assertions.assertThatThrownBy(
-            () -> client.createNamespace(Namespace.of("a", "b"), ImmutableMap.of()))
+            () -> client.createNamespace(Namespace.of("c"), ImmutableMap.of()))
         .hasMessageContaining(
-            "Cannot create Namespace 'a.b': ref 'createNamespaceBranch' is no longer valid");
+            "Cannot create Namespace 'c': ref 'createNamespaceBranch' is no longer valid");
   }
 
   @Test

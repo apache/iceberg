@@ -189,59 +189,71 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new IllegalArgumentException("Creating empty namespaces is not supported");
     }
 
+    ContentKey key = ContentKey.of(namespace.levels());
+    org.projectnessie.model.Namespace content =
+        org.projectnessie.model.Namespace.of(key.getElements(), metadata);
+
     try {
-      org.projectnessie.model.Namespace content =
-          org.projectnessie.model.Namespace.of(metadata, namespace.levels());
-      ContentKey key = content.toContentKey();
 
-      CommitMultipleOperationsBuilder commitBuilder =
-          api.commitMultipleOperations()
-              .commitMeta(NessieUtil.buildCommitMetadata("create namespace " + key, catalogOptions))
-              .operation(Operation.Put.of(key, content));
-
-      Tasks.foreach(commitBuilder)
-          .retry(5)
-          // conflict can be thrown when parent namespace doesn't exist;
-          // bad request can be thrown when namespace already exists.
-          .stopRetryOn(
-              NessieNotFoundException.class,
-              NessieConflictException.class,
-              NessieBadRequestException.class)
-          .throwFailureWhenFinished()
-          .onFailure((o, exception) -> refresh())
-          .run(
-              b -> {
-                Branch branch = b.branch((Branch) getRef().getReference()).commit();
-                getRef().updateReference(branch);
-              },
-              BaseNessieClientServerException.class);
-
-    } catch (NessieReferenceNotFoundException e) {
-      throw new RuntimeException(
-          String.format(
-              "Cannot create Namespace '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
-          e);
-    } catch (Exception e) {
-      if (e instanceof NessieBadRequestException
-          && e.getMessage().contains("New value to update existing key")) {
-        // The existing content could be something else than a namespace, but we don't know
-        throw new AlreadyExistsException(e, "Namespace already exists: '%s'", namespace);
+      // First, check that the namespace doesn't exist at the current hash;
+      // this will avoid a NessieBadRequestException when committing the namespace creation
+      Reference ref = getReference();
+      Map<ContentKey, Content> contentMap = api.getContent().reference(ref).key(key).get();
+      Content existing = contentMap.get(key);
+      if (existing != null) {
+        if (existing instanceof org.projectnessie.model.Namespace) {
+          throw new AlreadyExistsException("Namespace already exists: '%s'", namespace);
+        } else {
+          throw new AlreadyExistsException(
+              "Another content object with name '%s' already exists", key.toPathString());
+        }
       }
-      if (e instanceof NessieReferenceConflictException) {
-        List<Conflict> conflicts =
-            ((NessieReferenceConflictException) e).getErrorDetails().conflicts();
+
+      try {
+
+        CommitMultipleOperationsBuilder commitBuilder =
+            api.commitMultipleOperations()
+                .commitMeta(
+                    NessieUtil.buildCommitMetadata("create namespace " + key, catalogOptions))
+                .operation(Operation.Put.of(key, content));
+
+        Tasks.foreach(commitBuilder)
+            .retry(5)
+            .stopRetryOn(NessieConflictException.class, NessieBadRequestException.class)
+            .throwFailureWhenFinished()
+            .onFailure((o, exception) -> refresh())
+            .run(
+                b -> {
+                  Branch branch = b.branch((Branch) getReference()).commit();
+                  getRef().updateReference(branch);
+                },
+                BaseNessieClientServerException.class);
+
+      } catch (NessieReferenceConflictException e) {
+        List<Conflict> conflicts = e.getErrorDetails().conflicts();
         if (conflicts.size() == 1) {
           Conflict conflict = conflicts.get(0);
-          if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_ABSENT) {
+          if (conflict.conflictType() == Conflict.ConflictType.KEY_EXISTS) {
+            // could be a namespace or something else, we can't tell here
+            throw new AlreadyExistsException("Namespace already exists: '%s'", namespace);
+          } else if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_ABSENT) {
             throw new NoSuchNamespaceException(
                 "Cannot create Namespace '%s': parent namespace '%s' does not exist",
                 namespace, conflict.key());
           }
         }
+        throw new RuntimeException(
+            String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
+      } catch (Exception e) {
+        throw new RuntimeException(
+            String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
+    } catch (NessieNotFoundException e) {
       throw new RuntimeException(
-          String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
+          String.format(
+              "Cannot create Namespace '%s': ref '%s' is no longer valid.",
+              namespace, getRef().getName()),
+          e);
     }
   }
 
