@@ -113,7 +113,7 @@ public class TableTestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(1)
-          .withSplitOffsets(ImmutableList.of(2L, 2_000_000L))
+          .withSplitOffsets(ImmutableList.of(2L, 8L))
           .build();
   static final DeleteFile FILE_C2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -129,7 +129,7 @@ public class TableTestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=3") // easy way to set partition data for now
           .withRecordCount(1)
-          .withSplitOffsets(ImmutableList.of(3L, 3_000L, 3_000_000L))
+          .withSplitOffsets(ImmutableList.of(0L, 3L, 6L))
           .build();
   static final DeleteFile FILE_D2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)

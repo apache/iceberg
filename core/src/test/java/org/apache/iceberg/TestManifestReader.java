@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -157,6 +158,22 @@ public class TestManifestReader extends TableTestBase {
             "Position from field index should match", expectedPos, ((BaseFile) file).get(17));
         expectedPos += 1;
       }
+    }
+  }
+
+  @Test
+  public void testDataFileSplitOffsetsNullWhenInvalid() throws IOException {
+    DataFile invalidOffset =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/invalid-offsets.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withSplitOffsets(ImmutableList.of(2L, 1000L)) // Offset 1000 is out of bounds
+            .build();
+    ManifestFile manifest = writeManifest(1000L, invalidOffset);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      DataFile file = Iterables.getOnlyElement(reader);
+      Assertions.assertThat(file.splitOffsets()).isNull();
     }
   }
 }
