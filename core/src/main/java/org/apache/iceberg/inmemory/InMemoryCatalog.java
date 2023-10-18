@@ -165,6 +165,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
       }
 
+      if (views.containsKey(to)) {
+        throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
+      }
+
       tables.put(to, fromLocation);
       tables.remove(from);
     }
@@ -404,6 +408,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
                   throw new AlreadyExistsException("Table already exists: %s", tableName());
                 }
 
+                if (null == existingLocation) {
+                  throw new NoSuchTableException("Table does not exist: %s", tableName());
+                }
+
                 throw new CommitFailedException(
                     "Cannot commit to table %s metadata location from %s to %s "
                         + "because it has been concurrently modified to %s",
@@ -468,6 +476,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
               if (!Objects.equal(existingLocation, oldLocation)) {
                 if (null == base) {
                   throw new AlreadyExistsException("View already exists: %s", identifier);
+                }
+
+                if (null == existingLocation) {
+                  throw new NoSuchViewException("View does not exist: %s", identifier);
                 }
 
                 throw new CommitFailedException(
