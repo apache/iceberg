@@ -225,7 +225,20 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (Exception e) {
       if (e instanceof NessieBadRequestException
           && e.getMessage().contains("New value to update existing key")) {
+        // The existing content could be something else than a namespace, but we don't know
         throw new AlreadyExistsException(e, "Namespace already exists: '%s'", namespace);
+      }
+      if (e instanceof NessieReferenceConflictException) {
+        List<Conflict> conflicts =
+            ((NessieReferenceConflictException) e).getErrorDetails().conflicts();
+        if (conflicts.size() == 1) {
+          Conflict conflict = conflicts.get(0);
+          if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_ABSENT) {
+            throw new NoSuchNamespaceException(
+                "Cannot create Namespace '%s': parent namespace '%s' does not exist",
+                namespace, conflict.key());
+          }
+        }
       }
       throw new RuntimeException(
           String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
@@ -289,20 +302,17 @@ public class NessieIcebergClient implements AutoCloseable {
       if (e instanceof NessieReferenceConflictException) {
         List<Conflict> conflicts =
             ((NessieReferenceConflictException) e).getErrorDetails().conflicts();
-        if (conflicts.stream()
-            .anyMatch(
-                c ->
-                    Objects.equals(c.key(), key)
-                        && c.conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST)) {
-          return false;
-        }
-        if (conflicts.stream()
-            .anyMatch(
-                c ->
-                    Objects.equals(c.key(), key)
-                        && c.conflictType() == Conflict.ConflictType.NAMESPACE_NOT_EMPTY)) {
-          throw new NamespaceNotEmptyException(
-              e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
+        if (conflicts.size() == 1) {
+          Conflict conflict = conflicts.get(0);
+          if (Objects.equals(conflict.key(), key)) {
+            if (conflict.conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
+              return false;
+            }
+            if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_NOT_EMPTY) {
+              throw new NamespaceNotEmptyException(
+                  e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
+            }
+          }
         }
       }
       throw new RuntimeException(

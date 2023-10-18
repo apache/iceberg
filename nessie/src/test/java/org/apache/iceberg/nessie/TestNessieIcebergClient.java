@@ -18,18 +18,27 @@
  */
 package org.apache.iceberg.nessie;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.LogResponse;
 import org.projectnessie.model.Reference;
 
@@ -113,7 +122,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(
             () -> client.createNamespace(Namespace.of("a", "b"), ImmutableMap.of()))
-        .hasMessageContaining("Cannot create Namespace 'a.b': Namespace 'a' must exist");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Cannot create Namespace 'a.b': parent namespace 'a' does not exist");
 
     Namespace ns = Namespace.of("a");
     client.createNamespace(ns, ImmutableMap.of());
@@ -137,6 +147,20 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> client.createNamespace(ns, ImmutableMap.of()))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Namespace already exists: 'a'");
+
+    // edge case: another content type exists with the same key
+    Schema schema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    TableMetadata table =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of());
+    client.commitTable(
+        null, table, "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+
+    Assertions.assertThatThrownBy(
+            () -> client.createNamespace(Namespace.of("a", "tbl"), ImmutableMap.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists: 'a.tbl'");
 
     client
         .getApi()
