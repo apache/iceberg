@@ -2323,6 +2323,8 @@ components:
 
     IcebergErrorResponse:
       type: object
+      required:
+        - error
       properties:
         error:
           $ref: '#/components/schemas/ErrorModel'
