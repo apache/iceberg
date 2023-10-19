@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +49,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -401,10 +404,11 @@ public class TestIcebergSourceContinuous {
     return results;
   }
 
-  public static void waitUntilJobIsRunning(ClusterClient<?> client) throws Exception {
-    while (getRunningJobs(client).isEmpty()) {
-      Thread.sleep(10);
-    }
+  public static void waitUntilJobIsRunning(ClusterClient<?> client) {
+    Awaitility.await("job should be running")
+        .atMost(Duration.ofSeconds(30))
+        .pollInterval(Duration.ofMillis(10))
+        .untilAsserted(() -> assertThat(getRunningJobs(client)).isNotEmpty());
   }
 
   public static List<JobID> getRunningJobs(ClusterClient<?> client) throws Exception {
