@@ -200,12 +200,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Map<ContentKey, Content> contentMap = api.getContent().reference(ref).key(key).get();
       Content existing = contentMap.get(key);
       if (existing != null) {
-        if (existing instanceof org.projectnessie.model.Namespace) {
-          throw new AlreadyExistsException("Namespace already exists: '%s'", namespace);
-        } else {
-          throw new AlreadyExistsException(
-              "Another content object with name '%s' already exists", key.toPathString());
-        }
+        throwNamespaceAlreadyExists(key, existing);
       }
 
       try {
@@ -230,12 +225,13 @@ public class NessieIcebergClient implements AutoCloseable {
                 BaseNessieClientServerException.class);
 
       } catch (NessieReferenceConflictException e) {
+        refresh();
         List<Conflict> conflicts = e.getErrorDetails().conflicts();
         if (conflicts.size() == 1) {
           Conflict conflict = conflicts.get(0);
           if (conflict.conflictType() == Conflict.ConflictType.KEY_EXISTS) {
-            // could be a namespace or something else, we can't tell here
-            throw new AlreadyExistsException("Namespace already exists: '%s'", namespace);
+            contentMap = withReference(api.getContent().key(key)).get();
+            throwNamespaceAlreadyExists(key, contentMap.get(key));
           } else if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_ABSENT) {
             throw new NoSuchNamespaceException(
                 "Cannot create Namespace '%s': parent namespace '%s' does not exist",
@@ -244,16 +240,26 @@ public class NessieIcebergClient implements AutoCloseable {
         }
         throw new RuntimeException(
             String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
-      } catch (BaseNessieClientServerException e) {
-        throw new RuntimeException(
-            String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
+
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
               "Cannot create Namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
+    } catch (BaseNessieClientServerException e) {
+      throw new RuntimeException(
+          String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
+    }
+  }
+
+  private static void throwNamespaceAlreadyExists(ContentKey key, Content existing) {
+    if (existing instanceof org.projectnessie.model.Namespace) {
+      throw new AlreadyExistsException("Namespace already exists: '%s'", key.toPathString());
+    } else {
+      throw new AlreadyExistsException(
+          "Another content object with name '%s' already exists", key.toPathString());
     }
   }
 

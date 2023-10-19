@@ -190,8 +190,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(
             () -> client.createNamespace(Namespace.of("a", "tbl2"), ImmutableMap.of()))
         .isInstanceOf(AlreadyExistsException.class)
-        // Message is misleading, but this is the message that client returns
-        .hasMessageContaining("Namespace already exists: 'a.tbl2'");
+        .hasMessageContaining("Another content object with name 'a.tbl2' already exists");
 
     client
         .getApi()
