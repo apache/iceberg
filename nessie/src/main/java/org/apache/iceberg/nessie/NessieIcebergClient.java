@@ -225,7 +225,6 @@ public class NessieIcebergClient implements AutoCloseable {
                 BaseNessieClientServerException.class);
 
       } catch (NessieReferenceConflictException e) {
-        refresh();
         List<Conflict> conflicts = e.getErrorDetails().conflicts();
         if (conflicts.size() == 1) {
           Conflict conflict = conflicts.get(0);
