@@ -464,7 +464,7 @@ class IcebergErrorResponse(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    error: Optional[ErrorModel] = None
+    error: ErrorModel
 
 
 class CreateNamespaceResponse(BaseModel):
