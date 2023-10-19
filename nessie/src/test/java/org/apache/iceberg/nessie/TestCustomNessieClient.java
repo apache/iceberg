@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.client.NessieClientBuilder.AbstractNessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApi;
-import org.projectnessie.client.http.HttpClientBuilder;
 
 public class TestCustomNessieClient extends BaseTestIceberg {
 
@@ -60,8 +59,8 @@ public class TestCustomNessieClient extends BaseTestIceberg {
             temp.toUri().toString(),
             CatalogProperties.URI,
             uri,
-            NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-            HttpClientBuilder.class.getName(),
+            NessieConfigConstants.CONF_NESSIE_CLIENT_NAME,
+            "HTTP",
             "client-api-version",
             apiVersion));
   }
@@ -78,30 +77,11 @@ public class TestCustomNessieClient extends BaseTestIceberg {
                       temp.toUri().toString(),
                       CatalogProperties.URI,
                       uri,
-                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-                      "non.existent.ClientBuilderImpl"));
+                      NessieConfigConstants.CONF_NESSIE_CLIENT_NAME,
+                      "non_existent_Client"));
             })
         .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("Cannot load Nessie client builder implementation class");
-  }
-
-  @Test
-  public void testCustomClientByImpl() {
-    assertThatThrownBy(
-            () -> {
-              NessieCatalog catalog = new NessieCatalog();
-              catalog.initialize(
-                  "nessie",
-                  ImmutableMap.of(
-                      CatalogProperties.WAREHOUSE_LOCATION,
-                      temp.toUri().toString(),
-                      CatalogProperties.URI,
-                      uri,
-                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-                      DummyClientBuilderImpl.class.getName()));
-            })
-        .isInstanceOf(RuntimeException.class)
-        .hasMessage("BUILD CALLED");
+        .hasMessageContaining("Requested Nessie client named non_existent_Client not found");
   }
 
   @Test
