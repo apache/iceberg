@@ -56,7 +56,7 @@ abstract class DataScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
             .specsById(table().specs())
             .scanMetrics(scanMetrics())
             .ignoreDeleted()
-            .columnStatsToKeep(context().returnColumnStatsToInclude());
+            .columnStatsToKeep(context().columnsToIncludeStats());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();

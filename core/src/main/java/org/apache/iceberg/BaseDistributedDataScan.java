@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -369,7 +370,8 @@ abstract class BaseDistributedDataScan
 
           return new BaseFileScanTask(
               copyDataFiles
-                  ? dataFile.copy(shouldReturnColumnStats(), columnStatsToInclude())
+                  ? ContentFileUtil.copy(
+                      dataFile, shouldReturnColumnStats(), columnsToIncludeStats())
                   : dataFile,
               deleteFiles,
               schemaString,

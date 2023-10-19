@@ -21,9 +21,9 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -487,8 +487,8 @@ class V1Metadata {
     }
 
     @Override
-    public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
-      return wrapped.copyWithSpecificStats(statsToKeep);
+    public DataFile copyWithStats(Set<Integer> statsToKeep) {
+      return wrapped.copyWithStats(statsToKeep);
     }
 
     @Override

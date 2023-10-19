@@ -36,9 +36,9 @@ import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
@@ -664,7 +664,7 @@ public class TestHelpers {
     }
 
     @Override
-    public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
+    public DataFile copyWithStats(Set<Integer> statsToKeep) {
       return this;
     }
 

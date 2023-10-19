@@ -19,9 +19,9 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Superinterface of {@link DataFile} and {@link DeleteFile} that exposes common methods.
@@ -168,13 +168,14 @@ public interface ContentFile<F> {
 
   /**
    * Copies this file with only specific column stats. Manifest readers can reuse file instances;
-   * use this method to copy data and only copy specific stats when collecting files.
+   * use this method to copy data and only copy specific stats when collecting files. If the
+   * columnsToKeepStats set is empty or <code>null</code>, then all column stats will be kept.
    *
-   * @param statsToKeep the collection of the column ids for the columns which stats are kept
+   * @param columnsToKeepStats the set of the column ids for the columns which stats are kept.
    * @return a copy of this data file, with stats lower bounds, upper bounds, value counts, null
    *     value counts, and nan value counts for only specific columns.
    */
-  default F copyWithSpecificStats(Collection<Integer> statsToKeep) {
+  default F copyWithStats(Set<Integer> columnsToKeepStats) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement copyWithSpecificStats");
   }
@@ -190,27 +191,5 @@ public interface ContentFile<F> {
    */
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();
-  }
-
-  /**
-   * Copies this file (potentially with or without specific column stats). Manifest readers can
-   * reuse file instances; use this method to copy data when collecting files from tasks.
-   *
-   * @param withStats Will copy this file without file stats if set to <code>false</code>.
-   * @param statsToKeep Will keep stats only for these columns. Not used if <code>withStats</code>
-   *     is set to <code>false</code>.
-   * @return a copy of this data file. If "withStats" is set to <code>false</code> the file will not
-   *     contain lower bounds, upper bounds, value counts, null value counts, or nan value counts.
-   *     If "withStats" is set to <code>true</code> and the "statsToKeep" is not empty then only
-   *     specific column stats will be kept.
-   */
-  default F copy(boolean withStats, Collection<Integer> statsToKeep) {
-    if (withStats) {
-      return statsToKeep != null && !statsToKeep.isEmpty()
-          ? copyWithSpecificStats(statsToKeep)
-          : copy();
-    } else {
-      return copyWithoutStats();
-    }
   }
 }

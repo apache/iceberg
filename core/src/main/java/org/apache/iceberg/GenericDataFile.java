@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,11 +68,11 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
-   * @param fullCopy whether to copy all fields or to drop column-level stats
-   * @param statsToKeep column ids columns where we need to keep the stats
+   * @param fullCopy whether to copy all fields or to drop column-level stats.
+   * @param statsToKeep a set of column ids to keep stats. If empty or <code>null</code> then every
+   *     column stat is kept.
    */
-  private GenericDataFile(
-      GenericDataFile toCopy, boolean fullCopy, Collection<Integer> statsToKeep) {
+  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy, Set<Integer> statsToKeep) {
     super(toCopy, fullCopy, statsToKeep);
   }
 
@@ -85,7 +85,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   }
 
   @Override
-  public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
+  public DataFile copyWithStats(Set<Integer> statsToKeep) {
     return new GenericDataFile(this, true, statsToKeep);
   }
 

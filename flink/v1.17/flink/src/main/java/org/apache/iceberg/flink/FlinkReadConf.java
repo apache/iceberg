@@ -20,8 +20,8 @@ package org.apache.iceberg.flink;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
@@ -155,7 +155,7 @@ public class FlinkReadConf {
         .parse();
   }
 
-  public Collection<Integer> columnStatsToKeep() {
+  public Set<Integer> columnStatsToKeep() {
     return split(
         confParser
             .stringConf()
@@ -204,7 +204,7 @@ public class FlinkReadConf {
         .parse();
   }
 
-  public static Collection<Integer> split(String text) {
+  public static Set<Integer> split(String text) {
     return Arrays.stream(text.split("\\s*,\\s*"))
         .filter(s -> !s.isEmpty())
         .map(Integer::parseInt)

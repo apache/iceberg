@@ -21,11 +21,12 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -176,9 +177,10 @@ abstract class BaseFile<F>
    *
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
-   * @param statsToKeep the collection of the column ids for the columns which stats are kept
+   * @param statsToKeep a set of column ids to keep stats. If empty or <code>null</code> then every
+   *     column stat is kept.
    */
-  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Collection<Integer> statsToKeep) {
+  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Set<Integer> statsToKeep) {
     this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
@@ -189,23 +191,24 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
-      if (statsToKeep == null || statsToKeep.isEmpty()) {
-        this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
-        this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
-        this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
-        this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
-        this.lowerBounds =
-            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
-        this.upperBounds =
-            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
-      } else {
-        this.columnSizes = filteredLongMap(toCopy.columnSizes, statsToKeep);
-        this.valueCounts = filteredLongMap(toCopy.valueCounts, statsToKeep);
-        this.nullValueCounts = filteredLongMap(toCopy.nullValueCounts, statsToKeep);
-        this.nanValueCounts = filteredLongMap(toCopy.nanValueCounts, statsToKeep);
-        this.lowerBounds = filteredByteBufferMap(toCopy.lowerBounds, statsToKeep);
-        this.upperBounds = filteredByteBufferMap(toCopy.upperBounds, statsToKeep);
-      }
+      this.columnSizes =
+          filterColumnsStats(toCopy.columnSizes, statsToKeep, SerializableMap::copyOf);
+      this.valueCounts =
+          filterColumnsStats(toCopy.valueCounts, statsToKeep, SerializableMap::copyOf);
+      this.nullValueCounts =
+          filterColumnsStats(toCopy.nullValueCounts, statsToKeep, SerializableMap::copyOf);
+      this.nanValueCounts =
+          filterColumnsStats(toCopy.nanValueCounts, statsToKeep, SerializableMap::copyOf);
+      this.lowerBounds =
+          filterColumnsStats(
+              toCopy.lowerBounds,
+              statsToKeep,
+              m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
+      this.upperBounds =
+          filterColumnsStats(
+              toCopy.upperBounds,
+              statsToKeep,
+              m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -518,38 +521,27 @@ abstract class BaseFile<F>
     }
   }
 
-  private static Map<Integer, Long> filteredLongMap(
-      Map<Integer, Long> map, Collection<Integer> columnIds) {
+  private static <TypeT> Map<Integer, TypeT> filterColumnsStats(
+      Map<Integer, TypeT> map,
+      Set<Integer> columnIds,
+      Function<Map<Integer, TypeT>, Map<Integer, TypeT>> copyFunction) {
+    if (columnIds == null || columnIds.isEmpty()) {
+      return copyFunction.apply(map);
+    }
+
     if (map == null) {
       return null;
     }
 
-    Map<Integer, Long> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
+    Map<Integer, TypeT> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
     for (Integer columnId : columnIds) {
-      Long value = map.get(columnId);
+      TypeT value = map.get(columnId);
       if (value != null) {
         filtered.put(columnId, value);
       }
     }
 
-    return SerializableMap.copyOf(filtered);
-  }
-
-  private static Map<Integer, ByteBuffer> filteredByteBufferMap(
-      Map<Integer, ByteBuffer> map, Collection<Integer> columnIds) {
-    if (map == null) {
-      return null;
-    }
-
-    Map<Integer, ByteBuffer> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
-    for (Integer columnId : columnIds) {
-      ByteBuffer value = map.get(columnId);
-      if (value != null) {
-        filtered.put(columnId, value);
-      }
-    }
-
-    return SerializableMap.copyOf(filtered);
+    return copyFunction.apply(filtered);
   }
 
   @Override

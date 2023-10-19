@@ -84,7 +84,7 @@ class BaseIncrementalAppendScan
                         && manifestEntry.status() == ManifestEntry.Status.ADDED)
             .specsById(table().specs())
             .ignoreDeleted()
-            .columnStatsToKeep(context().returnColumnStatsToInclude());
+            .columnStatsToKeep(context().columnsToIncludeStats());
 
     if (context().ignoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();

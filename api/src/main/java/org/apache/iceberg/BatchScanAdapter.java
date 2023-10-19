@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -84,7 +85,7 @@ class BatchScanAdapter implements BatchScan {
   }
 
   @Override
-  public BatchScan includeColumnStats(Collection<Integer> columns) {
+  public BatchScan includeColumnStats(Set<Integer> columns) {
     return new BatchScanAdapter(scan.includeColumnStats(columns));
   }
 
