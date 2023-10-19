@@ -218,8 +218,8 @@ public class NessieIcebergClient implements AutoCloseable {
             .throwFailureWhenFinished()
             .onFailure((o, exception) -> refresh())
             .run(
-                b -> {
-                  Branch branch = b.branch((Branch) getReference()).commit();
+                builder -> {
+                  Branch branch = builder.branch((Branch) getReference()).commit();
                   getRef().updateReference(branch);
                 },
                 BaseNessieClientServerException.class);
@@ -302,8 +302,8 @@ public class NessieIcebergClient implements AutoCloseable {
           .throwFailureWhenFinished()
           .onFailure((o, exception) -> refresh())
           .run(
-              b -> {
-                Branch branch = b.branch((Branch) getReference()).commit();
+              builder -> {
+                Branch branch = builder.branch((Branch) getReference()).commit();
                 getRef().updateReference(branch);
               },
               BaseNessieClientServerException.class);
