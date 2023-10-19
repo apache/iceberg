@@ -572,7 +572,7 @@ project(':iceberg-delta-lake') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    // The newest version of delta-core uses Spark 3.4.*. Since its only for test, we do
+    // The newest version of delta-core uses Spark 3.5.*. Since its only for test, we do
     // not need to include older version of delta-core
     if (sparkVersions.contains("3.5")) {
       integrationImplementation "io.delta:delta-spark_${scalaVersion}:${libs.versions.delta.spark.get()}"
