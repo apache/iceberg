@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.operators.StreamSource;
@@ -47,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -111,14 +113,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       function.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -148,14 +147,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       function.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -184,14 +180,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       function.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -212,16 +205,13 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, func);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       state = harness.snapshot(1, 1);
 
       // Stop the stream task.
       func.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -238,17 +228,24 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, newFunc);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       newFunc.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
     }
+  }
+
+  private void awaitExpectedSplits(TestSourceContext sourceContext) {
+    Awaitility.await("expected splits should be produced")
+        .atMost(Duration.ofMillis(WAIT_TIME_MILLIS))
+        .untilAsserted(
+            () -> {
+              assertThat(sourceContext.latch.getCount()).isEqualTo(0);
+              assertThat(sourceContext.splits).as("Should produce the expected splits").hasSize(1);
+            });
   }
 
   @Test
