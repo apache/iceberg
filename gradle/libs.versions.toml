@@ -15,7 +15,7 @@ azuresdk-bom = "1.2.17"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "0.6.0"
-delta-core = "2.4.0"
+delta-spark = "3.0.0"
 esotericsoftware-kryo = "4.0.2"
 errorprone-annotations = "2.22.0"
 findbugs-jsr305 = "3.0.2"
@@ -152,7 +152,7 @@ snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowf
 # test libraries
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
-delta-core = { module = "io.delta:delta-core_2.12", version.ref = "delta-core" }
+delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
 flink115-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink115" }
 flink115-core = { module = "org.apache.flink:flink-core", version.ref = "flink115" }
