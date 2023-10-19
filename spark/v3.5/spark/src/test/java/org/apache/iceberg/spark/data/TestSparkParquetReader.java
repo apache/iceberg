@@ -19,14 +19,19 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -35,6 +40,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -169,6 +175,59 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     for (int i = 0; i < tableRecords.size(); i++) {
       GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
+    }
+  }
+
+  @Test
+  public void testReadBinaryFieldAsString() throws IOException {
+    Schema schemaForWriteBinary = new Schema(optional(1, "strbytes", Types.BinaryType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schemaForWriteBinary.asStruct());
+
+    File testFile = temp.newFile();
+    assertThat(testFile.delete()).isTrue();
+
+    String expectedString = "hello";
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedString.getBytes(StandardCharsets.UTF_8));
+    recordBuilder.set("strbytes", expectedBinary);
+    GenericData.Record expectedRecord = recordBuilder.build();
+
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schemaForWriteBinary)
+            .named("test")
+            .build()) {
+      writer.add(expectedRecord);
+    }
+
+    // read as string
+    Schema schemaForReadBinaryAsString =
+        new Schema(optional(1, "strbytes", Types.StringType.get()));
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schemaForReadBinaryAsString)
+            .createReaderFunc(
+                type -> SparkParquetReaders.buildReader(schemaForReadBinaryAsString, type))
+            .build()) {
+      Iterator<InternalRow> rows = reader.iterator();
+      assertThat(rows).as("Should have at least one row").hasNext();
+      InternalRow row = rows.next();
+      assertThat(row.getString(0)).isEqualTo(expectedString);
+      assertThat(rows).as("Should not have more than one row").isExhausted();
+    }
+
+    // read as byte[]
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schemaForReadBinaryAsString)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(schemaForWriteBinary, type))
+            .build()) {
+      Iterator<InternalRow> rows = reader.iterator();
+      assertThat(rows).as("Should have at least one row").hasNext();
+      InternalRow row = rows.next();
+      assertThat(row.getBinary(0)).isEqualTo(expectedString.getBytes(StandardCharsets.UTF_8));
+      assertThat(rows).as("Should not have more than one row").isExhausted();
     }
   }
 
