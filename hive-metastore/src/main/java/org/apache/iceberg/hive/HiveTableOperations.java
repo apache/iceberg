@@ -47,6 +47,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -57,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.MetastoreOperationsUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,13 +144,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
+    Table table;
+
     try {
-      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      table = metaClients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
 
-    } catch (NoSuchObjectException e) {
+    } catch (NoSuchObjectException | NoSuchIcebergTableException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
       }
@@ -166,7 +170,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:methodlength"})
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
@@ -184,6 +188,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       Table tbl = loadHmsTable();
 
       if (tbl != null) {
+        if (tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())) {
+          throw new AlreadyExistsException(
+              "View with same name already exists: %s.%s", tbl.getDbName(), tbl.getTableName());
+        }
+
         // If we try to create the table but the metadata location is already set, then we had a
         // concurrent commit
         if (newTable
@@ -195,15 +204,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         updateHiveTable = true;
         LOG.debug("Committing existing table: {}", fullName);
       } else {
-        tbl =
-            newHmsTable(
-                metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()));
+        tbl = newHmsTable(metadata.properties());
         LOG.debug("Committing new table: {}", fullName);
       }
 
       tbl.setSd(
           HiveOperationsBase.storageDescriptor(
-              metadata, hiveEngineEnabled)); // set to pickup any schema changes
+              metadata.schema(),
+              metadata.location(),
+              hiveEngineEnabled)); // set to pickup any schema changes
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
@@ -250,14 +259,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
       } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
-
+        throw new AlreadyExistsException(
+            "%s already exists: %s.%s",
+            tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name()) ? "View" : "Table",
+            tbl.getDbName(),
+            tbl.getTableName());
       } catch (InvalidObjectException e) {
         throw new ValidationException(e, "Invalid Hive object for %s.%s", database, tableName);
-
       } catch (CommitFailedException | CommitStateUnknownException e) {
         throw e;
-
       } catch (Throwable e) {
         if (e.getMessage()
             .contains(
@@ -282,7 +292,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             database,
             tableName,
             e);
-        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+        commitStatus =
+            MetastoreOperationsUtil.checkCommitStatus(
+                tableName(),
+                newMetadataLocation,
+                metadata.properties(),
+                this::calculateCommitStatusWithUpdatedLocation);
         switch (commitStatus) {
           case SUCCESS:
             break;
@@ -328,6 +343,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       Set<String> obsoleteProps,
       boolean hiveEngineEnabled,
       Map<String, String> summary) {
+
     Map<String, String> parameters =
         Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
 
@@ -341,19 +357,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
               parameters.put(hmsKey, entry.getValue());
             });
-    if (metadata.uuid() != null) {
-      parameters.put(TableProperties.UUID, metadata.uuid());
-    }
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
 
-    parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
+    setHmsParameters(
+        tbl,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
+        newMetadataLocation,
+        metadata.schema(),
+        metadata.uuid(),
+        obsoleteProps,
+        this::currentMetadataLocation);
 
-    if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
-      parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
-    }
+    parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
 
     // If needed set the 'storage_handler' property to enable query from Hive
     if (hiveEngineEnabled) {
@@ -376,7 +393,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     setSnapshotStats(metadata, parameters);
-    setSchema(metadata, parameters);
     setPartitionSpec(metadata, parameters);
     setSortOrder(metadata, parameters);
 

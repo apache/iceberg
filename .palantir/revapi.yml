@@ -890,6 +890,10 @@ acceptedBreaks:
     - code: "java.field.serialVersionUIDChanged"
       new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
       justification: "Serialization is not be used"
+    - code: "java.method.removed"
+      old: "method java.lang.String org.apache.iceberg.BaseMetastoreCatalog::fullTableName(java.lang.String,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Moved to CatalogUtil for better usability"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

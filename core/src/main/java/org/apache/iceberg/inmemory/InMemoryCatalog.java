@@ -376,7 +376,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier) {
       this.fileIO = fileIO;
       this.tableIdentifier = tableIdentifier;
-      this.fullTableName = fullTableName(catalogName, tableIdentifier);
+      this.fullTableName = CatalogUtil.fullTableName(catalogName, tableIdentifier);
     }
 
     @Override

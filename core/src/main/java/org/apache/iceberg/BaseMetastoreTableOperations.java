@@ -18,15 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
-
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.MetastoreOperationsUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +45,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   public static final String TABLE_TYPE_PROP = "table_type";
   public static final String ICEBERG_TABLE_TYPE_VALUE = "iceberg";
+  public static final String ICEBERG_VIEW_TYPE_VALUE = "iceberg-view";
   public static final String METADATA_LOCATION_PROP = "metadata_location";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
@@ -291,7 +283,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     };
   }
 
-  protected enum CommitStatus {
+  public enum CommitStatus {
     FAILURE,
     SUCCESS,
     UNKNOWN
@@ -309,65 +301,19 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * @return Commit Status of Success, Failure or Unknown
    */
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
-    int maxAttempts =
-        PropertyUtil.propertyAsInt(
-            config.properties(), COMMIT_NUM_STATUS_CHECKS, COMMIT_NUM_STATUS_CHECKS_DEFAULT);
-    long minWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT);
-    long maxWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT);
-    long totalRetryMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS,
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT);
+    return MetastoreOperationsUtil.checkCommitStatus(
+        tableName(),
+        newMetadataLocation,
+        config.properties(),
+        this::calculateCommitStatusWithUpdatedLocation);
+  }
 
-    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
-
-    Tasks.foreach(newMetadataLocation)
-        .retry(maxAttempts)
-        .suppressFailureWhenFinished()
-        .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
-        .onFailure(
-            (location, checkException) ->
-                LOG.error("Cannot check if commit to {} exists.", tableName(), checkException))
-        .run(
-            location -> {
-              TableMetadata metadata = refresh();
-              String currentMetadataFileLocation = metadata.metadataFileLocation();
-              boolean commitSuccess =
-                  currentMetadataFileLocation.equals(newMetadataLocation)
-                      || metadata.previousFiles().stream()
-                          .anyMatch(log -> log.file().equals(newMetadataLocation));
-              if (commitSuccess) {
-                LOG.info(
-                    "Commit status check: Commit to {} of {} succeeded",
-                    tableName(),
-                    newMetadataLocation);
-                status.set(CommitStatus.SUCCESS);
-              } else {
-                LOG.warn(
-                    "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
-                        + "or in history",
-                    tableName(),
-                    newMetadataLocation);
-              }
-            });
-
-    if (status.get() == CommitStatus.UNKNOWN) {
-      LOG.error(
-          "Cannot determine commit state to {}. Failed during checking {} times. "
-              + "Treating commit state as unknown.",
-          tableName(),
-          maxAttempts);
-    }
-    return status.get();
+  protected boolean calculateCommitStatusWithUpdatedLocation(String newMetadataLocation) {
+    TableMetadata metadata = refresh();
+    String currentMetadataFileLocation = metadata.metadataFileLocation();
+    return currentMetadataFileLocation.equals(newMetadataLocation)
+        || metadata.previousFiles().stream()
+            .anyMatch(log -> log.file().equals(newMetadataLocation));
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {

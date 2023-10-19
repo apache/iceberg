@@ -20,6 +20,9 @@ package org.apache.iceberg.hive;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
@@ -27,12 +30,11 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
@@ -76,10 +78,10 @@ interface HiveOperationsBase {
     return maxHiveTablePropertySize() > 0;
   }
 
-  default void setSchema(TableMetadata metadata, Map<String, String> parameters) {
+  default void setSchema(Schema tableSchema, Map<String, String> parameters) {
     parameters.remove(TableProperties.CURRENT_SCHEMA);
-    if (exposeInHmsProperties() && metadata.schema() != null) {
-      String schema = SchemaParser.toJson(metadata.schema());
+    if (exposeInHmsProperties() && tableSchema != null) {
+      String schema = SchemaParser.toJson(tableSchema);
       setField(parameters, TableProperties.CURRENT_SCHEMA, schema);
     }
   }
@@ -123,13 +125,14 @@ interface HiveOperationsBase {
     }
   }
 
-  static StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
-
+  static StorageDescriptor storageDescriptor(
+      Schema schema, String location, boolean hiveEngineEnabled) {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
-    storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
-    storageDescriptor.setLocation(metadata.location());
+    storageDescriptor.setCols(HiveSchemaUtil.convert(schema));
+    storageDescriptor.setLocation(location);
     SerDeInfo serDeInfo = new SerDeInfo();
     serDeInfo.setParameters(Maps.newHashMap());
+
     if (hiveEngineEnabled) {
       storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
       storageDescriptor.setOutputFormat("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
@@ -139,6 +142,7 @@ interface HiveOperationsBase {
       storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
       serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
     }
+
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }
@@ -154,23 +158,22 @@ interface HiveOperationsBase {
     }
   }
 
-  default Table newHmsTable(String hmsTableOwner) {
-    Preconditions.checkNotNull(hmsTableOwner, "'hmsOwner' parameter can't be null");
+  default Table newHmsTable(Map<String, String> properties) {
     final long currentTimeMillis = System.currentTimeMillis();
 
     Table newTable =
         new Table(
             table(),
             database(),
-            hmsTableOwner,
+            properties.getOrDefault(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()),
             (int) currentTimeMillis / 1000,
             (int) currentTimeMillis / 1000,
             Integer.MAX_VALUE,
             null,
             Collections.emptyList(),
             Maps.newHashMap(),
-            null,
-            null,
+            properties.getOrDefault(HiveCatalog.VIEW_ORIGINAL_TEXT, null),
+            properties.getOrDefault(HiveCatalog.VIEW_EXPANDED_TEXT, null),
             tableType().name());
 
     if (tableType().equals(TableType.EXTERNAL_TABLE)) {
@@ -180,5 +183,33 @@ interface HiveOperationsBase {
     }
 
     return newTable;
+  }
+
+  default void setHmsParameters(
+      Table tbl,
+      String tableTypeProp,
+      String newMetadataLocation,
+      Schema schema,
+      String uuid,
+      Set<String> obsoleteProps,
+      Supplier<String> previousLocationSupplier) {
+    Map<String, String> parameters =
+        Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
+
+    if (!obsoleteProps.contains(TableProperties.UUID) && uuid != null) {
+      parameters.put(TableProperties.UUID, uuid);
+    }
+
+    parameters.put(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, newMetadataLocation);
+    parameters.put(BaseMetastoreTableOperations.TABLE_TYPE_PROP, tableTypeProp);
+
+    if (previousLocationSupplier.get() != null && !previousLocationSupplier.get().isEmpty()) {
+      parameters.put(
+          BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
+          previousLocationSupplier.get());
+    }
+
+    setSchema(schema, parameters);
+    tbl.setParameters(parameters);
   }
 }

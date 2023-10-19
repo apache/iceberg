@@ -91,9 +91,8 @@ public class MetadataTableUtils {
       TableIdentifier baseTableIdentifier,
       TableIdentifier metadataTableIdentifier,
       MetadataTableType type) {
-    String baseTableName = BaseMetastoreCatalog.fullTableName(catalogName, baseTableIdentifier);
-    String metadataTableName =
-        BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
+    String baseTableName = CatalogUtil.fullTableName(catalogName, baseTableIdentifier);
+    String metadataTableName = CatalogUtil.fullTableName(catalogName, metadataTableIdentifier);
     return createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
   }
 

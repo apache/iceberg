@@ -56,7 +56,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         }
 
       } else {
-        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+        result =
+            new BaseTable(ops, CatalogUtil.fullTableName(name(), identifier), metricsReporter());
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
@@ -88,7 +89,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    return new BaseTable(ops, CatalogUtil.fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override
@@ -203,7 +204,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+      return new BaseTable(ops, CatalogUtil.fullTableName(name(), identifier), metricsReporter());
     }
 
     @Override
@@ -282,29 +283,6 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
           tableOverrideProperties);
       return tableOverrideProperties;
     }
-  }
-
-  protected static String fullTableName(String catalogName, TableIdentifier identifier) {
-    StringBuilder sb = new StringBuilder();
-
-    if (catalogName.contains("/") || catalogName.contains(":")) {
-      // use / for URI-like names: thrift://host:port/db.table
-      sb.append(catalogName);
-      if (!catalogName.endsWith("/")) {
-        sb.append("/");
-      }
-    } else {
-      // use . for non-URI named catalogs: prod.db.table
-      sb.append(catalogName).append(".");
-    }
-
-    for (String level : identifier.namespace().levels()) {
-      sb.append(level).append(".");
-    }
-
-    sb.append(identifier.name());
-
-    return sb.toString();
   }
 
   protected MetricsReporter metricsReporter() {
