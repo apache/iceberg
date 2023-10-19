@@ -195,7 +195,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCatalogExpirationTtlRefreshesAfterAccessViaCatalog() throws IOException {
+  public void testCatalogExpirationTtl() throws IOException {
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
@@ -227,23 +227,34 @@ public class TestCachingCatalog extends HadoopTableTestBase {
         .get()
         .isEqualTo(HALF_OF_EXPIRATION.minus(oneMinute));
 
-    // Access the table via the catalog, which should refresh the TTL
+    // Access the table via the catalog, which should not refresh the TTL
     Table table = catalog.loadTable(tableIdent);
-    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ZERO);
-    Assertions.assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(EXPIRATION_TTL);
+    Assertions.assertThat(catalog.ageOf(tableIdent))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_EXPIRATION.plus(oneMinute));
+    Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
+        .get()
+        .isEqualTo(HALF_OF_EXPIRATION.minus(oneMinute));
 
-    ticker.advance(HALF_OF_EXPIRATION);
-    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
-    Assertions.assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+    ticker.advance(Duration.ofSeconds(30));
+    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ofMinutes(4));
+    Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
+        .get()
+        .isEqualTo(Duration.ofMinutes(1));
 
     // Check that accessing the table object directly does not affect the cache TTL
     table.refresh();
-    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
-    Assertions.assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ofMinutes(4));
+    Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
+        .get()
+        .isEqualTo(Duration.ofMinutes(1));
 
     table.newAppend().appendFile(FILE_A).commit();
-    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
-    Assertions.assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+    Assertions.assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ofMinutes(4));
+    Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
+        .get()
+        .isEqualTo(Duration.ofMinutes(1));
   }
 
   @Test
@@ -271,19 +282,19 @@ public class TestCachingCatalog extends HadoopTableTestBase {
         .allMatch(age -> age.isPresent() && age.get().equals(Duration.ZERO));
 
     Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
-        .as("Loading a non-cached metadata table should refresh the main table's age")
-        .isEqualTo(Optional.of(EXPIRATION_TTL));
+        .as("Loading a non-cached metadata table should not refresh the main table's age")
+        .isEqualTo(Optional.of(HALF_OF_EXPIRATION));
 
     // Move time forward and access already cached metadata tables.
     ticker.advance(HALF_OF_EXPIRATION);
     Arrays.stream(metadataTables(tableIdent)).forEach(catalog::loadTable);
     Assertions.assertThat(Arrays.stream(metadataTables(tableIdent)).map(catalog::ageOf))
         .isNotEmpty()
-        .allMatch(age -> age.isPresent() && age.get().equals(Duration.ZERO));
+        .allMatch(age -> age.isPresent() && age.get().equals(HALF_OF_EXPIRATION));
 
     Assertions.assertThat(catalog.remainingAgeFor(tableIdent))
         .as("Accessing a cached metadata table should not affect the main table's age")
-        .isEqualTo(Optional.of(HALF_OF_EXPIRATION));
+        .isEqualTo(Optional.of(Duration.ZERO));
 
     // Move time forward so the data table drops.
     ticker.advance(HALF_OF_EXPIRATION);

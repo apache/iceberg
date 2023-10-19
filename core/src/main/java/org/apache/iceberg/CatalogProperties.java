@@ -54,8 +54,8 @@ public class CatalogProperties {
    * <ul>
    *   <li>Zero - Caching and cache expiration are both disabled
    *   <li>Negative Values - Cache expiration is turned off and entries expire only on refresh etc
-   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
-   *       milliseconds
+   *   <li>Positive Values - Cache entries expire after a fixed time period, regardless of whether
+   *       they are accessed via the cache during this time
    * </ul>
    */
   public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";

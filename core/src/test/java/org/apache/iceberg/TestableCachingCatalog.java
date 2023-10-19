@@ -60,7 +60,7 @@ public class TestableCachingCatalog extends CachingCatalog {
 
   // Throws a NoSuchElementException if this entry is not in the cache (has already been TTL'd).
   public Optional<Duration> ageOf(TableIdentifier identifier) {
-    return tableCache.policy().expireAfterAccess().get().ageOf(identifier);
+    return tableCache.policy().expireAfterWrite().get().ageOf(identifier);
   }
 
   // Throws a NoSuchElementException if the entry is not in the cache (has already been TTL'd).

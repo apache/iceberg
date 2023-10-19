@@ -109,7 +109,7 @@ public class CachingCatalog implements Catalog {
       return cacheBuilder
           .removalListener(new MetadataTableInvalidatingRemovalListener())
           .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
-          .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
+          .expireAfterWrite(Duration.ofMillis(expirationIntervalMillis))
           .ticker(ticker)
           .build();
     }
