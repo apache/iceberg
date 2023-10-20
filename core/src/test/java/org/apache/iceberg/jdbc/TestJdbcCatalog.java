@@ -601,27 +601,67 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    // Test with no metadata
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns_"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb_"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testD_"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb."))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb.ns"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb.ns_"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2", "ns3"))).isFalse();
+
+    testNamespace = Namespace.of("testDb_");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("testD_");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("testDb.");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("testDb.ns");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("testDb.ns_");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("testDb%");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+
+    testNamespace = Namespace.of("test\\%Db","ns\\.1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
 
     Namespace underscore = Namespace.of("te%t_b");
+    assertThat(catalog.namespaceExists(Namespace.of("te\\%t_b"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("te%t\\_b"))).isFalse();
     assertThat(catalog.namespaceExists(underscore))
         .as("Should false to namespace doesn't exist")
         .isFalse();
 
     Namespace underscore2 = Namespace.of("special_name%space");
+    assertThat(catalog.namespaceExists(underscore2)).isFalse();
     catalog.createNamespace(underscore2);
     assertThat(catalog.namespaceExists(underscore2)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("special_name%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("special_name%spa_e")))
         .as("Should false to namespace doesn't exist")
         .isFalse();
