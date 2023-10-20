@@ -224,4 +224,34 @@ public abstract class ScanTestBase<
       }
     }
   }
+
+  @Test
+  public void testDataFileSorted() throws Exception {
+    Schema schema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()), required(2, "b", Types.StringType.get()));
+    File dir = temp.newFolder();
+    dir.delete();
+    this.table =
+        TestTables.create(
+            dir, "test_data_file_sorted", schema, PartitionSpec.unpartitioned(), formatVersion);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data/a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .withSortOrder(
+                    SortOrder.builderFor(table.schema()).asc("a", NullOrder.NULLS_FIRST).build())
+                .build())
+        .commit();
+
+    TableScan scan = table.newScan();
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask fileScanTask : tasks) {
+        Assertions.assertThat(fileScanTask.file().sortOrderId()).isEqualTo(1);
+      }
+    }
+  }
 }
