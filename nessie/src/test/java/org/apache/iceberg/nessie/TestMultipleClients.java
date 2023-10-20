@@ -39,6 +39,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
+import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
 
 public class TestMultipleClients extends BaseTestIceberg {
 
@@ -67,7 +70,7 @@ public class TestMultipleClients extends BaseTestIceberg {
   }
 
   @Test
-  public void testListNamespaces() {
+  public void testListNamespaces() throws NessieConflictException, NessieNotFoundException {
     catalog.createNamespace(Namespace.of("db1"), Collections.emptyMap());
     Assertions.assertThat(catalog.listNamespaces()).containsExactlyInAnyOrder(Namespace.of("db1"));
 
@@ -78,10 +81,19 @@ public class TestMultipleClients extends BaseTestIceberg {
 
     Assertions.assertThat(catalog.listNamespaces())
         .containsExactlyInAnyOrder(Namespace.of("db1"), Namespace.of("db2"));
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> catalog.listNamespaces())
+        .hasMessageContaining(
+            "Cannot list Namespaces starting from '': ref '%s' is no longer valid", branch);
+    Assertions.assertThatThrownBy(() -> anotherCatalog.listNamespaces())
+        .hasMessageContaining(
+            "Cannot list Namespaces starting from '': ref '%s' is no longer valid", branch);
   }
 
   @Test
-  public void testLoadNamespaceMetadata() {
+  public void testLoadNamespaceMetadata() throws NessieConflictException, NessieNotFoundException {
     catalog.createNamespace(Namespace.of("namespace1"), Collections.emptyMap());
     Assertions.assertThat(catalog.listNamespaces())
         .containsExactlyInAnyOrder(Namespace.of("namespace1"));
@@ -94,6 +106,16 @@ public class TestMultipleClients extends BaseTestIceberg {
 
     Assertions.assertThat(catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
         .containsExactly(entry);
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .hasMessageContaining(
+            "Cannot load Namespace 'namespace1': ref '%s' is no longer valid", branch);
+    Assertions.assertThatThrownBy(
+            () -> anotherCatalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .hasMessageContaining(
+            "Cannot load Namespace 'namespace1': ref '%s' is no longer valid", branch);
   }
 
   @Test
