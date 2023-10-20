@@ -35,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
@@ -110,6 +109,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
+  private static final String REST_DATA_COMMIT_ENABLED = "rest-data-commit-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
@@ -132,6 +132,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
+  private boolean dataCommitViaRestEnabled;
   private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
@@ -215,7 +216,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           AuthSession.fromAccessToken(
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
-
+    this.dataCommitViaRestEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_DATA_COMMIT_ENABLED, false);
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOCloser = newFileIOCloser();
@@ -379,12 +381,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableMetadata);
 
     trackFileIO(ops);
-
-    BaseTable table =
-        new BaseTable(
+    Table table =
+        new RESTTable(
             ops,
             fullTableName(finalIdentifier),
-            metricsReporter(paths.metrics(finalIdentifier), session::headers));
+            metricsReporter(paths.metrics(finalIdentifier), session::headers),
+            this.client,
+            paths.table(finalIdentifier),
+            session::headers,
+            dataCommitViaRestEnabled);
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -452,9 +457,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             response.tableMetadata());
 
     trackFileIO(ops);
-
-    return new BaseTable(
-        ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
+    return new RESTTable(
+        ops,
+        fullTableName(ident),
+        metricsReporter(paths.metrics(ident), session::headers),
+        client,
+        paths.table(ident),
+        session::headers,
+        dataCommitViaRestEnabled);
   }
 
   @Override
@@ -671,9 +681,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               response.tableMetadata());
 
       trackFileIO(ops);
-
-      return new BaseTable(
-          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
+      return new RESTTable(
+          ops,
+          fullTableName(ident),
+          metricsReporter(paths.metrics(ident), session::headers),
+          client,
+          paths.table(ident),
+          session::headers,
+          dataCommitViaRestEnabled);
     }
 
     @Override

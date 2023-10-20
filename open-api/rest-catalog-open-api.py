@@ -344,6 +344,30 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
     )
 
 
+class AppendFilesUpdate(BaseUpdate):
+    appended_manifests: List[str] = Field(
+        ...,
+        alias='appended-manifests',
+        description='Manifest files of DataFiles appended to a table',
+    )
+
+
+class DeleteFilesUpdateItem(BaseModel):
+    deleted_manifests: List[str] = Field(
+        ...,
+        alias='deleted-manifests',
+        description='Manifest files of DataFiles deleted from a table',
+    )
+
+
+class DeleteFilesUpdate1(BaseUpdate):
+    case_sensitive: Optional[bool] = Field(None, alias='case-sensitive')
+
+
+class DeleteFilesUpdate2(DeleteFilesUpdateItem, DeleteFilesUpdate1):
+    pass
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -618,7 +642,7 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
-class ReportMetricsRequest2(CommitReport):
+class ReportMetricsRequest1(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -742,6 +766,32 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
+class DeleteFilesUpdateItem1(BaseModel):
+    delete_expression: Expression = Field(..., alias='delete-expression')
+
+
+class DeleteFilesUpdate(BaseModel):
+    __root__: Union[DeleteFilesUpdate2, DeleteFilesUpdate3]
+
+
+class OverwriteFilesUpdate(BaseUpdate):
+    appended_manifests: Optional[List[str]] = Field(
+        None,
+        alias='appended-manifests',
+        description='Manifest files of DataFiles appended to a table',
+    )
+    deleted_manifests: Optional[List[str]] = Field(
+        None,
+        alias='deleted-manifests',
+        description='Manifest files of DataFiles deleted from a table',
+    )
+    overwrite_by_row_filter_expression: Optional[Expression] = Field(
+        None, alias='overwrite-by-row-filter-expression'
+    )
+    conflict_filter: Optional[Expression] = Field(None, alias='conflict-filter')
+    case_sensitive: Optional[bool] = Field(None, alias='case-sensitive')
+
+
 class TableUpdate(BaseModel):
     __root__: Union[
         AssignUUIDUpdate,
@@ -759,6 +809,9 @@ class TableUpdate(BaseModel):
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
+        AppendFilesUpdate,
+        DeleteFilesUpdate,
+        OverwriteFilesUpdate,
     ]
 
 
@@ -879,8 +932,8 @@ class LoadViewResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
-class ReportMetricsRequest(BaseModel):
-    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
+class ReportMetricsRequest2(BaseModel):
+    __root__: Union[ReportMetricsRequest, ReportMetricsRequest1]
 
 
 class ScanReport(BaseModel):
@@ -906,7 +959,11 @@ class Schema(StructType):
     )
 
 
-class ReportMetricsRequest1(ScanReport):
+class DeleteFilesUpdate3(DeleteFilesUpdateItem1, DeleteFilesUpdate1):
+    pass
+
+
+class ReportMetricsRequest(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -917,6 +974,7 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
+DeleteFilesUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
-ReportMetricsRequest.update_forward_refs()
+ReportMetricsRequest2.update_forward_refs()

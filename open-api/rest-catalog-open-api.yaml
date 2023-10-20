@@ -2341,6 +2341,63 @@ components:
               type: integer
               description: The view version id to set as current, or -1 to set last added view version id
 
+    AppendFilesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - appended-manifests
+          properties:
+            appended-manifests:
+              type: array
+              items:
+                type: string
+              description: Manifest files of DataFiles appended to a table
+
+    DeleteFilesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - oneOf:
+            - required:
+                - deleted-manifests
+              properties:
+                deleted-manifests:
+                  type: array
+                  items:
+                    type: string
+                  description: Manifest files of DataFiles deleted from a table
+            - required:
+                - delete-expression
+              properties:
+                delete-expression:
+                  $ref: '#/components/schemas/Expression'
+        - type: object
+          properties:
+            case-sensitive:
+              type: boolean
+
+    OverwriteFilesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            appended-manifests:
+              type: array
+              items:
+                type: string
+              description: Manifest files of DataFiles appended to a table
+            deleted-manifests:
+              type: array
+              items:
+                type: string
+              description: Manifest files of DataFiles deleted from a table
+            overwrite-by-row-filter-expression:
+              $ref: '#/components/schemas/Expression'
+            conflict-filter:
+              $ref: '#/components/schemas/Expression'
+            case-sensitive:
+              type: boolean
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2358,6 +2415,9 @@ components:
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/AppendFilesUpdate'
+        - $ref: '#/components/schemas/DeleteFilesUpdate'
+        - $ref: '#/components/schemas/OverwriteFilesUpdate'
 
     ViewUpdate:
       anyOf:

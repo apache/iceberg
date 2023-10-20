@@ -21,9 +21,12 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -57,6 +60,9 @@ public class MetadataUpdateParser {
   static final String REMOVE_STATISTICS = "remove-statistics";
   static final String ADD_VIEW_VERSION = "add-view-version";
   static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
+  static final String APPEND_FILES = "append-files";
+  static final String DELETE_FILES = "delete-files";
+  static final String OVERWRITE_FILES = "overwrite-files";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -121,6 +127,14 @@ public class MetadataUpdateParser {
   // SetCurrentViewVersion
   private static final String VIEW_VERSION_ID = "view-version-id";
 
+  // Data operations
+  private static final String APPENDED_MANIFESTS = "appended-manifests";
+  private static final String DELETE_EXPRESSION = "delete-expression";
+  private static final String CASE_SENSITIVE = "case-sensitive";
+  private static final String DELETED_MANIFESTS = "deleted-manifests";
+  private static final String OVERWRITE_FILTER = "overwrite-by-row-filter-expression";
+  private static final String CONFLICT_EXPRESSION = "conflict-expression";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -142,6 +156,9 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
+          .put(MetadataUpdate.AppendFilesUpdate.class, APPEND_FILES)
+          .put(MetadataUpdate.DeleteFilesUpdate.class, DELETE_FILES)
+          .put(MetadataUpdate.OverwriteFilesUpdate.class, OVERWRITE_FILES)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -226,6 +243,15 @@ public class MetadataUpdateParser {
         writeSetCurrentViewVersionId(
             (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
         break;
+      case APPEND_FILES:
+        writeAppendFiles((MetadataUpdate.AppendFilesUpdate) metadataUpdate, generator);
+        break;
+      case DELETE_FILES:
+        writeDeleteFiles((MetadataUpdate.DeleteFilesUpdate) metadataUpdate, generator);
+        break;
+      case OVERWRITE_FILES:
+        writeOverwriteFiles((MetadataUpdate.OverwriteFilesUpdate) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -293,6 +319,12 @@ public class MetadataUpdateParser {
         return readAddViewVersion(jsonNode);
       case SET_CURRENT_VIEW_VERSION:
         return readCurrentViewVersionId(jsonNode);
+      case APPEND_FILES:
+        return readAppendFiles(jsonNode);
+      case DELETE_FILES:
+        return readDeleteFiles(jsonNode);
+      case OVERWRITE_FILES:
+        return readOverwriteFiles(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -325,6 +357,44 @@ public class MetadataUpdateParser {
       MetadataUpdate.AddPartitionSpec update, JsonGenerator gen) throws IOException {
     gen.writeFieldName(SPEC);
     PartitionSpecParser.toJson(update.spec(), gen);
+  }
+
+  private static void writeAppendFiles(MetadataUpdate.AppendFilesUpdate update, JsonGenerator gen)
+      throws IOException {
+    if (update.getAddedManifests() != null) {
+      JsonUtil.writeStringArray(APPENDED_MANIFESTS, update.getAddedManifests(), gen);
+    }
+  }
+
+  private static void writeDeleteFiles(MetadataUpdate.DeleteFilesUpdate update, JsonGenerator gen)
+      throws IOException {
+    if (update.getDeleteExpression() != null) {
+      gen.writeStringField(
+          DELETE_EXPRESSION, ExpressionParser.toJson(update.getDeleteExpression()));
+    }
+    if (update.getDeletedManifests() != null) {
+      JsonUtil.writeStringArray(DELETED_MANIFESTS, update.getDeletedManifests(), gen);
+    }
+    gen.writeBooleanField(CASE_SENSITIVE, update.isCaseSensitive());
+  }
+
+  private static void writeOverwriteFiles(
+      MetadataUpdate.OverwriteFilesUpdate update, JsonGenerator gen) throws IOException {
+    if (update.getOverwriteByRowFilterExpression() != null) {
+      gen.writeStringField(
+          OVERWRITE_FILTER, ExpressionParser.toJson(update.getOverwriteByRowFilterExpression()));
+    }
+    if (update.getConflictExpression() != null) {
+      gen.writeStringField(
+          CONFLICT_EXPRESSION, ExpressionParser.toJson(update.getConflictExpression()));
+    }
+    if (update.getDeletedManifests() != null) {
+      JsonUtil.writeStringArray(DELETED_MANIFESTS, update.getDeletedManifests(), gen);
+    }
+    if (update.getAddedManifests() != null) {
+      JsonUtil.writeStringArray(APPENDED_MANIFESTS, update.getAddedManifests(), gen);
+    }
+    gen.writeBooleanField(CASE_SENSITIVE, update.isCaseSensitive());
   }
 
   private static void writeSetDefaultPartitionSpec(
@@ -420,6 +490,41 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readAssignUUID(JsonNode node) {
     String uuid = JsonUtil.getString(UUID, node);
     return new MetadataUpdate.AssignUUID(uuid);
+  }
+
+  private static MetadataUpdate readAppendFiles(JsonNode node) {
+    List<String> metadataLocations = JsonUtil.getStringList(APPENDED_MANIFESTS, node);
+    return new MetadataUpdate.AppendFilesUpdate(metadataLocations);
+  }
+
+  private static MetadataUpdate readDeleteFiles(JsonNode node) {
+    MetadataUpdate.DeleteFilesUpdate update = new MetadataUpdate.DeleteFilesUpdate();
+    if (node.has(DELETED_MANIFESTS)) {
+      List<String> manifests = JsonUtil.getStringList(DELETED_MANIFESTS, node);
+      update.setDeletedManifests(manifests);
+      return update;
+    }
+    JsonNode expressionNode = JsonUtil.get(DELETE_EXPRESSION, node);
+    Expression expression = ExpressionParser.fromJson(expressionNode);
+    update.setDeleteExpression(expression);
+    update.setCaseSensitive(JsonUtil.getBool(CASE_SENSITIVE, node));
+    return update;
+  }
+
+  private static MetadataUpdate readOverwriteFiles(JsonNode node) {
+    MetadataUpdate.OverwriteFilesUpdate update = new MetadataUpdate.OverwriteFilesUpdate();
+    List<String> appendedManifests = JsonUtil.getStringList(APPENDED_MANIFESTS, node);
+    update.setAddedManifests(appendedManifests);
+    List<String> deletedManifests = JsonUtil.getStringList(DELETED_MANIFESTS, node);
+    update.setAddedManifests(deletedManifests);
+    JsonNode overwriteFilterNode = JsonUtil.get(OVERWRITE_FILTER, node);
+    Expression overwriteFilter = ExpressionParser.fromJson(overwriteFilterNode);
+    update.setOverwriteByRowFilterExpression(overwriteFilter);
+    JsonNode conflictExpressionNode = JsonUtil.get(CONFLICT_EXPRESSION, node);
+    Expression conflictExpression = ExpressionParser.fromJson(conflictExpressionNode);
+    update.setConflictExpression(conflictExpression);
+    update.setCaseSensitive(JsonUtil.getBool(CASE_SENSITIVE, node));
+    return update;
   }
 
   private static MetadataUpdate readUpgradeFormatVersion(JsonNode node) {
