@@ -90,6 +90,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isEqualTo(1);
     assertThat(view.schema().schemaId()).isEqualTo(0);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(view.currentVersion().operation()).isEqualTo("create");
     assertThat(view.schemas()).hasSize(1).containsKey(0);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
 
@@ -99,7 +100,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
                 .schemaId(0)
-                .putSummary("operation", "create")
+                .summary(view.currentVersion().summary())
                 .defaultNamespace(identifier.namespace())
                 .addRepresentations(
                     ImmutableSQLViewRepresentation.builder()
@@ -147,6 +148,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .first()
         .extracting(ViewHistoryEntry::versionId)
         .isEqualTo(1);
+    assertThat(view.currentVersion().operation()).isEqualTo("create");
     assertThat(view.schema().schemaId()).isEqualTo(0);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
     assertThat(view.schemas()).hasSize(1).containsKey(0);
@@ -158,7 +160,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                 .timestampMillis(view.currentVersion().timestampMillis())
                 .versionId(1)
                 .schemaId(0)
-                .putSummary("operation", "create")
+                .summary(view.currentVersion().summary())
                 .defaultNamespace(identifier.namespace())
                 .defaultCatalog(catalog().name())
                 .addRepresentations(
@@ -835,7 +837,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(replacedViewVersion.versionId()).isEqualTo(2);
     assertThat(replacedViewVersion.schemaId()).isEqualTo(1);
     assertThat(replacedViewVersion.operation()).isEqualTo("replace");
-    assertThat(replacedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(replacedViewVersion.representations())
         .containsExactly(
             ImmutableSQLViewRepresentation.builder()
@@ -1066,7 +1067,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     ViewVersion updatedViewVersion = updatedView.currentVersion();
     assertThat(updatedViewVersion).isNotNull();
     assertThat(updatedViewVersion.versionId()).isEqualTo(viewVersion.versionId() + 1);
-    assertThat(updatedViewVersion.summary()).hasSize(1).containsEntry("operation", "replace");
     assertThat(updatedViewVersion.operation()).isEqualTo("replace");
     assertThat(updatedViewVersion.representations()).hasSize(1).containsExactly(trino);
     assertThat(updatedViewVersion.schemaId()).isEqualTo(1);

@@ -73,7 +73,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -89,7 +89,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -182,7 +182,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -198,7 +198,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -247,7 +247,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -306,7 +306,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -335,7 +335,7 @@ public class TestViewMetadataParser {
             .schemaId(0)
             .versionId(1)
             .timestampMillis(23L)
-            .putSummary("operation", "create")
+            .putSummary("user", "some-user")
             .defaultNamespace(Namespace.of("ns"))
             .build();
 
