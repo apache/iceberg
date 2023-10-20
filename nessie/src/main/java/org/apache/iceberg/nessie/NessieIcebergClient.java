@@ -21,11 +21,11 @@ package org.apache.iceberg.nessie;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
@@ -200,7 +200,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Map<ContentKey, Content> contentMap = api.getContent().reference(ref).key(key).get();
       Content existing = contentMap.get(key);
       if (existing != null) {
-        throwNamespaceAlreadyExists(key, existing);
+        throw newNamespaceAlreadyExistsException(key, existing, null);
       }
 
       try {
@@ -225,20 +225,11 @@ public class NessieIcebergClient implements AutoCloseable {
                 BaseNessieClientServerException.class);
 
       } catch (NessieReferenceConflictException e) {
-        List<Conflict> conflicts = e.getErrorDetails().conflicts();
-        if (conflicts.size() == 1) {
-          Conflict conflict = conflicts.get(0);
-          if (conflict.conflictType() == Conflict.ConflictType.KEY_EXISTS) {
-            contentMap = withReference(api.getContent().key(key)).get();
-            throwNamespaceAlreadyExists(key, contentMap.get(key));
-          } else if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_ABSENT) {
-            throw new NoSuchNamespaceException(
-                "Cannot create Namespace '%s': parent namespace '%s' does not exist",
-                namespace, conflict.key());
-          }
+        if (!NessieConflictHandler.handleSingle(
+            e, (t, k) -> onNamespaceConflict(namespace, e, t, k))) {
+          throw new RuntimeException(
+              String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
         }
-        throw new RuntimeException(
-            String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
 
     } catch (NessieNotFoundException e) {
@@ -250,15 +241,6 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
           String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
-    }
-  }
-
-  private static void throwNamespaceAlreadyExists(ContentKey key, Content existing) {
-    if (existing instanceof org.projectnessie.model.Namespace) {
-      throw new AlreadyExistsException("Namespace already exists: '%s'", key.toPathString());
-    } else {
-      throw new AlreadyExistsException(
-          "Another content object with name '%s' already exists", key.toPathString());
     }
   }
 
@@ -289,52 +271,79 @@ public class NessieIcebergClient implements AutoCloseable {
     ContentKey key = ContentKey.of(namespace.levels());
 
     try {
+      try {
+        CommitMultipleOperationsBuilder commitBuilder =
+            api.commitMultipleOperations()
+                .commitMeta(NessieUtil.buildCommitMetadata("drop namespace " + key, catalogOptions))
+                .operation(Operation.Delete.of(key));
 
-      CommitMultipleOperationsBuilder commitBuilder =
-          api.commitMultipleOperations()
-              .commitMeta(NessieUtil.buildCommitMetadata("drop namespace " + key, catalogOptions))
-              .operation(Operation.Delete.of(key));
+        Tasks.foreach(commitBuilder)
+            .retry(5)
+            .stopRetryOn(
+                NessieReferenceNotFoundException.class, NessieReferenceConflictException.class)
+            .throwFailureWhenFinished()
+            .onFailure((o, exception) -> refresh())
+            .run(
+                builder -> {
+                  Branch branch = builder.branch((Branch) getReference()).commit();
+                  getRef().updateReference(branch);
+                },
+                BaseNessieClientServerException.class);
 
-      Tasks.foreach(commitBuilder)
-          .retry(5)
-          .stopRetryOn(
-              NessieReferenceNotFoundException.class, NessieReferenceConflictException.class)
-          .throwFailureWhenFinished()
-          .onFailure((o, exception) -> refresh())
-          .run(
-              builder -> {
-                Branch branch = builder.branch((Branch) getReference()).commit();
-                getRef().updateReference(branch);
-              },
-              BaseNessieClientServerException.class);
-
-      return true;
-    } catch (NessieReferenceNotFoundException e) {
+        return true;
+      } catch (NessieReferenceConflictException e) {
+        if (!NessieConflictHandler.handleSingle(
+            e, (t, k) -> onNamespaceConflict(namespace, e, t, k))) {
+          throw new RuntimeException(
+              String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+        }
+        return false; // namespace did not exist, operation was a no-op
+      }
+    } catch (NessieNotFoundException e) {
       LOG.error(
           "Cannot drop Namespace '{}': ref '{}' is no longer valid.",
           namespace,
           getRef().getName(),
           e);
       return false;
-    } catch (NessieReferenceConflictException e) {
-      List<Conflict> conflicts = e.getErrorDetails().conflicts();
-      if (conflicts.size() == 1) {
-        Conflict conflict = conflicts.get(0);
-        if (Objects.equals(conflict.key(), key)) {
-          if (conflict.conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
-            return false;
-          }
-          if (conflict.conflictType() == Conflict.ConflictType.NAMESPACE_NOT_EMPTY) {
-            throw new NamespaceNotEmptyException(
-                e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
-          }
-        }
-      }
-      throw new RuntimeException(
-          String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
           String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+    }
+  }
+
+  private boolean onNamespaceConflict(
+      Namespace namespace,
+      NessieReferenceConflictException ex,
+      Conflict.ConflictType conflictType,
+      ContentKey key)
+      throws NessieNotFoundException {
+    switch (conflictType) {
+      case KEY_EXISTS:
+        Content existing = withReference(api.getContent().key(key)).get().get(key);
+        throw newNamespaceAlreadyExistsException(key, existing, ex);
+      case KEY_DOES_NOT_EXIST:
+        return true; // OK, continue
+      case NAMESPACE_ABSENT:
+        throw new NoSuchNamespaceException(
+            ex,
+            "Cannot create Namespace '%s': parent namespace '%s' does not exist",
+            namespace,
+            key);
+      case NAMESPACE_NOT_EMPTY:
+        throw new NamespaceNotEmptyException(
+            ex, "Namespace '%s' is not empty. One or more tables exist.", namespace);
+    }
+    return false;
+  }
+
+  private static AlreadyExistsException newNamespaceAlreadyExistsException(
+      ContentKey key, Content existing, @Nullable Exception ex) {
+    if (existing instanceof org.projectnessie.model.Namespace) {
+      return new AlreadyExistsException(ex, "Namespace already exists: '%s'", key.toPathString());
+    } else {
+      return new AlreadyExistsException(
+          ex, "Another content object with name '%s' already exists", key.toPathString());
     }
   }
 
