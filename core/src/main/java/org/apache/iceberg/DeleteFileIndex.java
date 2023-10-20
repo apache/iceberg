@@ -660,20 +660,18 @@ class DeleteFileIndex {
     }
 
     private int findStartIndex(long seq) {
-      int pos = Arrays.binarySearch(seqs, seq);
-      int start;
-      if (pos < 0) {
-        // the sequence number was not found, where it would be inserted is -(pos + 1)
-        start = -(pos + 1);
-      } else {
-        // the sequence number was found, but may not be the first
-        // find the first delete file with the given sequence number by decrementing the position
-        start = pos;
-        while (start > 0 && seqs[start - 1] >= seq) {
-          start -= 1;
+      int start = 0;
+      int len = seqs.length;
+      while (len > 0) {
+        int half = len >> 1;
+        int mid = start + half;
+        if (seqs[mid] < seq) {
+          start = mid + 1;
+          len -= (half + 1);
+        } else {
+          len = half;
         }
       }
-
       return start;
     }
 
