@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateLocation;
@@ -31,7 +33,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -56,7 +58,13 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   protected abstract Catalog tableCatalog();
 
+  @TempDir private Path tempDir;
+
   protected boolean requiresNamespaceCreate() {
+    return false;
+  }
+
+  protected boolean overridesRequestedLocation() {
     return false;
   }
 
@@ -80,6 +88,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(view).isNotNull();
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(((BaseView) view).operations().current().metadataFileLocation()).isNotNull();
 
     // validate view settings
     assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
@@ -123,6 +132,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
+    String location =
+        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
     View view =
         catalog()
             .buildView(identifier)
@@ -133,15 +144,21 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withQuery("trino", "select * from ns.tbl using X")
             .withProperty("prop1", "val1")
             .withProperty("prop2", "val2")
-            .withLocation("file://tmp/ns/view")
+            .withLocation(location)
             .create();
 
     assertThat(view).isNotNull();
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(((BaseView) view).operations().current().metadataFileLocation()).isNotNull();
+
+    if (!overridesRequestedLocation()) {
+      assertThat(view.location()).isEqualTo(location);
+    } else {
+      assertThat(view.location()).isNotNull();
+    }
 
     // validate view settings
     assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
-    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
     assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
     assertThat(view.history())
         .hasSize(1)
@@ -504,6 +521,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
 
     ViewMetadata original = ((BaseView) view).operations().current();
+    assertThat(original.metadataFileLocation()).isNotNull();
 
     catalog().renameView(from, to);
 
@@ -667,6 +685,41 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void renameTableTargetAlreadyExistsAsView() {
+    Assumptions.assumeThat(tableCatalog())
+        .as("Only valid for catalogs that support tables")
+        .isNotNull();
+
+    TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should not exist").isFalse();
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(viewIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(viewIdentifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(viewIdentifier)).as("View should exist").isTrue();
+
+    assertThatThrownBy(() -> tableCatalog().renameTable(tableIdentifier, viewIdentifier))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Cannot rename ns.table to ns.view. View already exists");
+  }
+
+  @Test
   public void listViews() {
     Namespace ns1 = Namespace.of("ns1");
     Namespace ns2 = Namespace.of("ns2");
@@ -789,6 +842,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     View view = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(((BaseView) view).operations().current().metadataFileLocation()).isNotNull();
 
     ViewVersion viewVersion = view.currentVersion();
     assertThat(viewVersion.representations())
@@ -810,6 +864,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     // validate replaced view settings
     assertThat(replacedView.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(((BaseView) replacedView).operations().current().metadataFileLocation()).isNotNull();
     assertThat(replacedView.properties())
         .containsEntry("prop1", "val1")
         .containsEntry("prop2", "val2")
@@ -1234,8 +1289,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
     assertThatThrownBy(() -> updateViewProperties.set("key1", "val1").commit())
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Cannot commit");
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageContaining("View does not exist: ns.view");
   }
 
   @Test
@@ -1270,8 +1325,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .withSchema(SCHEMA)
                     .withDefaultNamespace(identifier.namespace())
                     .commit())
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Cannot commit");
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageContaining("View does not exist: ns.view");
   }
 
   @Test
@@ -1351,28 +1406,42 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
+    String location =
+        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
     View view =
         catalog()
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select * from ns.tbl")
-            .withLocation("file://tmp/ns/view")
+            .withLocation(location)
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
-    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
 
+    if (!overridesRequestedLocation()) {
+      assertThat(view.location()).isEqualTo(location);
+    } else {
+      assertThat(view.location()).isNotNull();
+    }
+
+    String updatedLocation =
+        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
+            .toString();
     view =
         catalog()
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select * from ns.tbl")
-            .withLocation("file://updated_tmp/ns/view")
+            .withLocation(updatedLocation)
             .replace();
 
-    assertThat(view.location()).isEqualTo("file://updated_tmp/ns/view");
+    if (!overridesRequestedLocation()) {
+      assertThat(view.location()).isEqualTo(updatedLocation);
+    } else {
+      assertThat(view.location()).isNotNull();
+    }
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
@@ -1388,23 +1457,36 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
+    String location =
+        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
     View view =
         catalog()
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select * from ns.tbl")
-            .withLocation("file://tmp/ns/view")
+            .withLocation(location)
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
-    assertThat(view.location()).isEqualTo("file://tmp/ns/view");
+    if (!overridesRequestedLocation()) {
+      assertThat(view.location()).isEqualTo(location);
+    } else {
+      assertThat(view.location()).isNotNull();
+    }
 
-    view.updateLocation().setLocation("file://updated_tmp/ns/view").commit();
+    String updatedLocation =
+        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
+            .toString();
+    view.updateLocation().setLocation(updatedLocation).commit();
 
     View updatedView = catalog().loadView(identifier);
 
-    assertThat(updatedView.location()).isEqualTo("file://updated_tmp/ns/view");
+    if (!overridesRequestedLocation()) {
+      assertThat(updatedView.location()).isEqualTo(updatedLocation);
+    } else {
+      assertThat(view.location()).isNotNull();
+    }
 
     // history and view versions should stay the same after updating view properties
     assertThat(updatedView.history()).hasSize(1).isEqualTo(view.history());
@@ -1446,7 +1528,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     // the view was already dropped concurrently
     assertThatThrownBy(() -> updateViewLocation.setLocation("new-location").commit())
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Cannot commit");
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageContaining("View does not exist: ns.view");
   }
 }
