@@ -645,7 +645,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
 
-    testNamespace = Namespace.of("test\\%Db", "ns\\.1");
+    testNamespace = Namespace.of("test\\%Db","ns\\.1");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
