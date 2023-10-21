@@ -645,7 +645,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
 
-    testNamespace = Namespace.of("test\\%Db","ns\\.1");
+    testNamespace = Namespace.of("test\\%Db", "ns\\.1");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
@@ -665,12 +665,25 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(Namespace.of("special_name%spa_e")))
         .as("Should false to namespace doesn't exist")
         .isFalse();
+
+    underscore2 =
+        Namespace.of("special_nested_name%space", "names\\pace1", "names_pace1", "name%s_pace1");
+    assertThat(catalog.namespaceExists(underscore2)).isFalse();
+    catalog.createNamespace(underscore2);
+    assertThat(catalog.namespaceExists(underscore2)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("special_nested_name%space", "names\\pace1")))
+        .isTrue();
+    assertThat(
+            catalog.namespaceExists(
+                Namespace.of("special_nested_name%space", "names\\pace1", "names_pace1")))
+        .isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("special_nested_name%space"))).isTrue();
   }
 
   @Test
   public void testCreateTableInNonExistingNamespace() {
     try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
-      Namespace namespace = Namespace.of("testDb", "ns1", "ns2");
+      Namespace namespace = Namespace.of("test\\D_b%", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
       Assertions.assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
       Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
