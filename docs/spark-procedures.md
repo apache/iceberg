@@ -127,11 +127,11 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | | long   | Snapshot ID to set as current |
-| `ref` | | string | Snapshot Referece (branch or tag) to set as current |
+| Argument Name | Required? | Type | Description                                          |
+|---------------|-----------|------|------------------------------------------------------|
+| `table`       | ✔️  | string | Name of the table to update                          |
+| `snapshot_id` | | long   | Snapshot ID to set as current                        |
+| `ref` | | string | Snapshot Reference (branch or tag) to set as current |
 
 Either `snapshot_id` or `ref` must be provided but not both.
 
