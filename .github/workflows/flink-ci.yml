@@ -27,7 +27,7 @@ on:
     - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
-    - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
+    - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.gitignore'
