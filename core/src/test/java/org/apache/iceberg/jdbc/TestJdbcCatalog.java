@@ -649,7 +649,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-    assertThat(catalog.namespaceExists( Namespace.of("test\\%Db"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db"))).isTrue();
 
     Namespace underscore = Namespace.of("te%t_b");
     assertThat(catalog.namespaceExists(Namespace.of("te\\%t_b"))).isFalse();
