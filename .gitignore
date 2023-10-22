@@ -2,7 +2,6 @@
 .DS_Store
 .cache
 tmp/
-site
 
 # intellij files
 .idea
