@@ -20,8 +20,12 @@ package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -29,14 +33,15 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class TestMetaColumns extends SparkExtensionsTestBase {
+public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBase {
 
-  public TestMetaColumns(String catalogName, String implementation, Map<String, String> config) {
+  public TestMetaColumnProjectionWithStageScan(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -54,6 +59,12 @@ public class TestMetaColumns extends SparkExtensionsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  private <T extends ScanTask> void stageTask(
+      Table tab, String fileSetID, CloseableIterable<T> tasks) {
+    ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
+    taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
   }
 
   @Test
@@ -80,25 +91,35 @@ public class TestMetaColumns extends SparkExtensionsTestBase {
     table.refresh();
     String tableLocation = table.location();
 
-    Dataset<Row> scanDF2 =
-        spark
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.FILE_OPEN_COST, "0")
-            .load(tableLocation);
+    try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
+      String fileSetID = UUID.randomUUID().toString();
+      stageTask(table, fileSetID, tasks);
+      Dataset<Row> scanDF2 =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, "0")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .load(tableLocation);
 
-    Assert.assertEquals("base case", 2, scanDF2.columns().length);
+      Assertions.assertThat(scanDF2.columns().length).isEqualTo(2);
+    }
 
-    Dataset<Row> scanDF =
-        spark
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.FILE_OPEN_COST, "0")
-            .load(tableLocation)
-            .select("*", "_pos");
+    try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
+      String fileSetID = UUID.randomUUID().toString();
+      stageTask(table, fileSetID, tasks);
+      Dataset<Row> scanDF =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, "0")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .load(tableLocation)
+              .select("*", "_pos");
 
-    List<Row> rows = scanDF.collectAsList();
-    Assert.assertEquals("should have 4 records", 4, rows.size());
-    Assert.assertEquals("meta columns should be included", 3, scanDF.columns().length);
+      List<Row> rows = scanDF.collectAsList();
+      Assertions.assertThat(rows.size()).isEqualTo(4);
+      Assertions.assertThat(scanDF.columns().length).isEqualTo(3);
+    }
   }
 }
