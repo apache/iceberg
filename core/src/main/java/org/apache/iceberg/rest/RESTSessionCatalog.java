@@ -968,7 +968,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return Caffeine.newBuilder()
         .weakKeys()
         .removalListener(
-            (RemovalListener<Object, FileIO>)
+            (RemovalListener<TableOperations, FileIO>)
                 (ops, fileIO, cause) -> {
                   if (null != fileIO) {
                     fileIO.close();

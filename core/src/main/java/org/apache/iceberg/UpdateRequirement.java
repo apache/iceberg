@@ -61,6 +61,14 @@ public interface UpdateRequirement {
             "Requirement failed: UUID does not match: expected %s != %s", base.uuid(), uuid);
       }
     }
+
+    @Override
+    public void validate(ViewMetadata base) {
+      if (!uuid.equalsIgnoreCase(base.uuid())) {
+        throw new CommitFailedException(
+            "Requirement failed: UUID does not match: expected %s != %s", base.uuid(), uuid);
+      }
+    }
   }
 
   class AssertRefSnapshotID implements UpdateRequirement {
