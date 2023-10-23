@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -30,24 +29,17 @@ import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
 
 class RESTViewOperations implements ViewOperations {
-
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
-  private final FileIO io;
   private ViewMetadata current;
 
   RESTViewOperations(
-      RESTClient client,
-      String path,
-      Supplier<Map<String, String>> headers,
-      FileIO io,
-      ViewMetadata current) {
+      RESTClient client, String path, Supplier<Map<String, String>> headers, ViewMetadata current) {
     Preconditions.checkArgument(null != current, "Invalid view metadata: null");
     this.client = client;
     this.path = path;
     this.headers = headers;
-    this.io = io;
     this.current = current;
   }
 
@@ -75,10 +67,6 @@ class RESTViewOperations implements ViewOperations {
             path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
 
     updateCurrentMetadata(response);
-  }
-
-  public FileIO io() {
-    return io;
   }
 
   private ViewMetadata updateCurrentMetadata(LoadViewResponse response) {

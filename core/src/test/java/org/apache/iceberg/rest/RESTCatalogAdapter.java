@@ -94,13 +94,13 @@ public class RESTCatalogAdapter implements RESTClient {
 
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;
-  private final ViewCatalog viewCatalog;
+  private final ViewCatalog asViewCatalog;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
-    this.viewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
+    this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
   }
 
   enum HTTPMethod {
@@ -411,49 +411,49 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case LIST_VIEWS:
         {
-          if (null != viewCatalog) {
+          if (null != asViewCatalog) {
             Namespace namespace = namespaceFromPathVars(vars);
-            return castResponse(responseType, CatalogHandlers.listViews(viewCatalog, namespace));
+            return castResponse(responseType, CatalogHandlers.listViews(asViewCatalog, namespace));
           }
           break;
         }
 
       case CREATE_VIEW:
         {
-          if (null != viewCatalog) {
+          if (null != asViewCatalog) {
             Namespace namespace = namespaceFromPathVars(vars);
             CreateViewRequest request = castRequest(CreateViewRequest.class, body);
             return castResponse(
-                responseType, CatalogHandlers.createView(viewCatalog, namespace, request));
+                responseType, CatalogHandlers.createView(asViewCatalog, namespace, request));
           }
           break;
         }
 
       case LOAD_VIEW:
         {
-          if (null != viewCatalog) {
+          if (null != asViewCatalog) {
             TableIdentifier ident = identFromPathVars(vars);
-            return castResponse(responseType, CatalogHandlers.loadView(viewCatalog, ident));
+            return castResponse(responseType, CatalogHandlers.loadView(asViewCatalog, ident));
           }
           break;
         }
 
       case UPDATE_VIEW:
         {
-          if (null != viewCatalog) {
+          if (null != asViewCatalog) {
             TableIdentifier ident = identFromPathVars(vars);
             UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
             return castResponse(
-                responseType, CatalogHandlers.updateView(viewCatalog, ident, request));
+                responseType, CatalogHandlers.updateView(asViewCatalog, ident, request));
           }
           break;
         }
 
       case RENAME_VIEW:
         {
-          if (null != viewCatalog) {
+          if (null != asViewCatalog) {
             RenameTableRequest request = castRequest(RenameTableRequest.class, body);
-            CatalogHandlers.renameView(viewCatalog, request);
+            CatalogHandlers.renameView(asViewCatalog, request);
             return null;
           }
           break;
@@ -461,8 +461,8 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_VIEW:
         {
-          if (null != viewCatalog) {
-            CatalogHandlers.dropView(viewCatalog, identFromPathVars(vars));
+          if (null != asViewCatalog) {
+            CatalogHandlers.dropView(asViewCatalog, identFromPathVars(vars));
             return null;
           }
           break;

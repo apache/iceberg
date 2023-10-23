@@ -45,7 +45,7 @@ import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
 public class RESTCatalog
-    implements Catalog, SupportsNamespaces, Configurable<Object>, Closeable, ViewCatalog {
+    implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;

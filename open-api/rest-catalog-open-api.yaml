@@ -1154,8 +1154,7 @@ paths:
 
 
         The response contains both configuration and view metadata. The configuration, if non-empty is used
-        as additional configuration for the view that overrides catalog configuration. For example, this
-        configuration may change the FileIO implementation to be used for the view.
+        as additional configuration for the view that overrides catalog configuration.
 
 
         The response also contains the view's full metadata, matching the view metadata JSON file.
@@ -1330,8 +1329,8 @@ paths:
       description:
         Check if a view exists within a given namespace. This request does not return a response body.
       responses:
-        200:
-          description: OK - View Exists
+        204:
+          description: Success, no content
         400:
           description: Bad Request
         401:
@@ -2339,6 +2338,7 @@ components:
           properties:
             view-version-id:
               type: integer
+              description: The view version id to set as current, or -1 to set last added view version id
 
     TableUpdate:
       anyOf:
@@ -2641,6 +2641,7 @@ components:
           $ref: '#/components/schemas/Schema'
         view-version:
           $ref: '#/components/schemas/ViewVersion'
+          description: The view version to create, will replace the schema-id sent within the view-version with the id assigned to the provided schema
         properties:
           type: object
           additionalProperties:
@@ -2654,25 +2655,14 @@ components:
         The view metadata JSON is returned in the `metadata` field. The corresponding file location of view metadata is returned in the `metadata-location` field.
         Clients can check whether metadata has changed by comparing metadata locations after the view has been created.
 
-
-        The `config` map returns view-specific configuration for the view's resources, including its HTTP client and FileIO.
-        For example, config may contain a specific FileIO implementation class for the view depending on its underlying storage.
-
+        The `config` map returns view-specific configuration for the view's resources.
 
         The following configurations should be respected by clients:
 
         ## General Configurations
 
-        - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled 
+        - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
-        ## AWS Configurations
-
-        The following configurations should be respected when working with views stored in AWS S3
-         - `client.region`: region to configure client for making requests to AWS
-         - `s3.access-key-id`: id for for credentials that provide access to the data in S3
-         - `s3.secret-access-key`: secret for credentials that provide access to data in S3 
-         - `s3.session-token`: if present, this value should be used for as the session token 
-         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
       type: object
       required:
         - metadata-location

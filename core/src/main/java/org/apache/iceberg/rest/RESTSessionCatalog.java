@@ -47,6 +47,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -121,7 +122,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
-  private Cache<Object, FileIO> fileIOCloser;
+  private Cache<TableOperations, FileIO> fileIOCloser;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
@@ -392,12 +393,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private void trackFileIO(RESTTableOperations ops) {
-    if (io != ops.io()) {
-      fileIOCloser.put(ops, ops.io());
-    }
-  }
-
-  private void trackFileIO(RESTViewOperations ops) {
     if (io != ops.io()) {
       fileIOCloser.put(ops, ops.io());
     }
@@ -969,7 +964,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .build();
   }
 
-  private Cache<Object, FileIO> newFileIOCloser() {
+  private Cache<TableOperations, FileIO> newFileIOCloser() {
     return Caffeine.newBuilder()
         .weakKeys()
         .removalListener(
@@ -1026,14 +1021,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(
-            client,
-            paths.view(identifier),
-            session::headers,
-            tableFileIO(context, response.config()),
-            metadata);
-
-    trackFileIO(ops);
+        new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
@@ -1163,7 +1151,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               headers(context),
               ErrorHandlers.viewErrorHandler());
 
-      return viewFromResponse(response);
+      AuthSession session = tableSession(response.config(), session(context));
+      RESTViewOperations ops =
+          new RESTViewOperations(
+              client, paths.view(identifier), session::headers, response.metadata());
+
+      return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
 
     @Override
@@ -1225,31 +1218,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       ViewMetadata replacement = builder.build();
 
-      UpdateTableRequest request =
-          UpdateTableRequest.create(identifier, ImmutableList.of(), replacement.changes());
-
-      LoadViewResponse viewResponse =
-          client.post(
-              paths.view(identifier),
-              request,
-              LoadViewResponse.class,
-              headers(context),
-              ErrorHandlers.viewCommitHandler());
-
-      return viewFromResponse(viewResponse);
-    }
-
-    private BaseView viewFromResponse(LoadViewResponse response) {
       AuthSession session = tableSession(response.config(), session(context));
       RESTViewOperations ops =
-          new RESTViewOperations(
-              client,
-              paths.view(identifier),
-              session::headers,
-              tableFileIO(context, response.config()),
-              response.metadata());
+          new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
 
-      trackFileIO(ops);
+      ops.commit(metadata, replacement);
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
