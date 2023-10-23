@@ -30,7 +30,7 @@ import org.apache.iceberg.util.SerializableFunction;
 /**
  * A struct of flattened transformed values.
  *
- * <p>Instances of this class can produce sort values from a data row passed to {@link
+ * <p>Instances of this class can produce transformed values from a row passed to {@link
  * #wrap(StructLike)}.
  */
 class StructTransform implements StructLike, Serializable {
