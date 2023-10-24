@@ -461,6 +461,10 @@ class OAuthTokenResponse(BaseModel):
 
 
 class IcebergErrorResponse(BaseModel):
+    """
+    JSON wrapper for all error responses (non-2xx)
+    """
+
     class Config:
         extra = Extra.forbid
 
