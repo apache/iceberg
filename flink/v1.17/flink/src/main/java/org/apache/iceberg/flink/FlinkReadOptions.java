@@ -96,9 +96,6 @@ public class FlinkReadOptions {
   public static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS_OPTION =
       ConfigOptions.key(PREFIX + INCLUDE_COLUMN_STATS).booleanType().defaultValue(false);
 
-  public static final String COLUMNS_TO_KEEP_STATS = "columns-to-keep-stats";
-  public static final ConfigOption<String> COLUMNS_TO_KEEP_STATS_OPTION =
-      ConfigOptions.key(PREFIX + COLUMNS_TO_KEEP_STATS).stringType().defaultValue("");
   public static final String MAX_PLANNING_SNAPSHOT_COUNT = "max-planning-snapshot-count";
   public static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT_OPTION =
       ConfigOptions.key(PREFIX + MAX_PLANNING_SNAPSHOT_COUNT)

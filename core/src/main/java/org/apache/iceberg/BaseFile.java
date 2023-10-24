@@ -521,10 +521,10 @@ abstract class BaseFile<F>
     }
   }
 
-  private static <TypeT> SerializableMap<Integer, TypeT> filterColumnsStats(
+  private static <TypeT> Map<Integer, TypeT> filterColumnsStats(
       Map<Integer, TypeT> map,
       Set<Integer> columnIds,
-      Function<Map<Integer, TypeT>, SerializableMap<Integer, TypeT>> copyFunction) {
+      Function<Map<Integer, TypeT>, Map<Integer, TypeT>> copyFunction) {
     if (columnIds == null || columnIds.isEmpty()) {
       return copyFunction.apply(map);
     }

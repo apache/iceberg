@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /** Context object with optional arguments for a Flink Scan. */
 @Internal
@@ -359,8 +360,7 @@ public class ScanContext implements Serializable {
     private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
     private boolean includeColumnStats =
         FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
-    private Set<Integer> columnsToKeepStats =
-        FlinkReadConf.split(FlinkReadOptions.COLUMNS_TO_KEEP_STATS_OPTION.defaultValue());
+    private Set<Integer> columnsToKeepStats = ImmutableSet.of();
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
@@ -526,8 +526,7 @@ public class ScanContext implements Serializable {
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
-          .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
-          .columnsToKeepStats(flinkReadConf.columnsToKeepStats());
+          .maxAllowedPlanningFailures(maxAllowedPlanningFailures);
     }
 
     public ScanContext build() {
