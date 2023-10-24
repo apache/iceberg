@@ -155,13 +155,13 @@ public class FlinkReadConf {
         .parse();
   }
 
-  public Set<Integer> columnStatsToKeep() {
+  public Set<Integer> columnsToKeepStats() {
     return split(
         confParser
             .stringConf()
-            .option(FlinkReadOptions.COLUMN_STATS_TO_KEEP)
-            .flinkConfig(FlinkReadOptions.COLUMN_STATS_TO_KEEP_OPTION)
-            .defaultValue(FlinkReadOptions.COLUMN_STATS_TO_KEEP_OPTION.defaultValue())
+            .option(FlinkReadOptions.COLUMNS_TO_KEEP_STATS)
+            .flinkConfig(FlinkReadOptions.COLUMNS_TO_KEEP_STATS_OPTION)
+            .defaultValue(FlinkReadOptions.COLUMNS_TO_KEEP_STATS_OPTION.defaultValue())
             .parse());
   }
 

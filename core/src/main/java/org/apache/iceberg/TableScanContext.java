@@ -62,7 +62,7 @@ abstract class TableScanContext {
   }
 
   @Value.Default
-  public Set<Integer> columnsToIncludeStats() {
+  public Set<Integer> columnsToKeepStats() {
     return ImmutableSet.of();
   }
 
@@ -132,13 +132,13 @@ abstract class TableScanContext {
         .build();
   }
 
-  TableScanContext columnsToIncludeStats(Set<Integer> columnStatsToInclude) {
+  TableScanContext columnsToKeepStats(Set<Integer> columnsToKeepStats) {
     Preconditions.checkState(
         returnColumnStats(),
-        "Cannot select column stats to include when column stats are not returned");
+        "Cannot select columns to keep stats when column stats are not returned");
     return ImmutableTableScanContext.builder()
         .from(this)
-        .columnsToIncludeStats(columnStatsToInclude)
+        .columnsToKeepStats(columnsToKeepStats)
         .build();
   }
 

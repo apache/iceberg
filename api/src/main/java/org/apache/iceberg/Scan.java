@@ -85,12 +85,12 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    *
    * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
    *
-   * @param columns column ids from the table's schema
+   * @param columnsToKeepStats column ids from the table's schema
    * @return a new scan based on this that loads column stats for specific columns.
    */
-  default ThisT includeColumnStats(Set<Integer> columns) {
+  default ThisT columnsToKeepStats(Set<Integer> columnsToKeepStats) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement includeColumnStats");
+        this.getClass().getName() + " doesn't implement columnsToKeepStats");
   }
 
   /**

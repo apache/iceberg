@@ -164,7 +164,7 @@ public class FlinkSplitPlanner {
     if (context.includeColumnStats()) {
       refinedScan = refinedScan.includeColumnStats();
       if (context.columnStatsToKeep() != null) {
-        refinedScan = refinedScan.includeColumnStats(context.columnStatsToKeep());
+        refinedScan = refinedScan.columnsToKeepStats(context.columnStatsToKeep());
       }
     }
 

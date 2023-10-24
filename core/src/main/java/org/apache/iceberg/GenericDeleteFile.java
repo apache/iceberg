@@ -70,11 +70,12 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
    *
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats.
-   * @param statsToKeep a set of column ids to keep stats. If empty or <code>null</code> then every
-   *     column stat is kept.
+   * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
+   *     every column stat is kept.
    */
-  private GenericDeleteFile(GenericDeleteFile toCopy, boolean fullCopy, Set<Integer> statsToKeep) {
-    super(toCopy, fullCopy, statsToKeep);
+  private GenericDeleteFile(
+      GenericDeleteFile toCopy, boolean fullCopy, Set<Integer> columnsToKeepStats) {
+    super(toCopy, fullCopy, columnsToKeepStats);
   }
 
   /** Constructor for Java serialization. */
@@ -86,8 +87,8 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   }
 
   @Override
-  public DeleteFile copyWithStats(Set<Integer> statsToKeep) {
-    return new GenericDeleteFile(this, true, statsToKeep);
+  public DeleteFile copyWithStats(Set<Integer> columnsToKeepStats) {
+    return new GenericDeleteFile(this, true, columnsToKeepStats);
   }
 
   @Override

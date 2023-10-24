@@ -371,7 +371,7 @@ abstract class BaseDistributedDataScan
           return new BaseFileScanTask(
               copyDataFiles
                   ? ContentFileUtil.copy(
-                      dataFile, shouldReturnColumnStats(), columnsToIncludeStats())
+                      dataFile, shouldReturnColumnStats(), columnsToKeepStats())
                   : dataFile,
               deleteFiles,
               schemaString,

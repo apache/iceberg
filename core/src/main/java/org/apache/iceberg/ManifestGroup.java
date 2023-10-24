@@ -62,7 +62,7 @@ class ManifestGroup {
   private boolean ignoreResiduals;
   private List<String> columns;
   private boolean caseSensitive;
-  private Set<Integer> columnStatsToKeep;
+  private Set<Integer> columnsToKeepStats;
   private ExecutorService executorService;
   private ScanMetrics scanMetrics;
 
@@ -156,8 +156,8 @@ class ManifestGroup {
     return this;
   }
 
-  ManifestGroup columnStatsToKeep(Set<Integer> newColumnStatsToKeep) {
-    this.columnStatsToKeep = newColumnStatsToKeep;
+  ManifestGroup columnsToKeepStats(Set<Integer> newColumnsToKeepStats) {
+    this.columnsToKeepStats = Sets.newHashSet(newColumnsToKeepStats);
     return this;
   }
 
@@ -201,7 +201,7 @@ class ManifestGroup {
                   PartitionSpec spec = specsById.get(specId);
                   ResidualEvaluator residuals = residualCache.get(specId);
                   return new TaskContext(
-                      spec, deleteFiles, residuals, dropStats, columnStatsToKeep, scanMetrics);
+                      spec, deleteFiles, residuals, dropStats, columnsToKeepStats, scanMetrics);
                 });
 
     Iterable<CloseableIterable<T>> tasks =
@@ -370,7 +370,7 @@ class ManifestGroup {
         entries,
         entry -> {
           DataFile dataFile =
-              ContentFileUtil.copy(entry.file(), ctx.shouldKeepStats(), ctx.statsToKeep());
+              ContentFileUtil.copy(entry.file(), ctx.shouldKeepStats(), ctx.columnsToKeepStats());
           DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
           ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
           return new BaseFileScanTask(
@@ -390,7 +390,7 @@ class ManifestGroup {
     private final DeleteFileIndex deletes;
     private final ResidualEvaluator residuals;
     private final boolean dropStats;
-    private final Set<Integer> statsToKeep;
+    private final Set<Integer> columnsToKeepStats;
     private final ScanMetrics scanMetrics;
 
     TaskContext(
@@ -398,14 +398,14 @@ class ManifestGroup {
         DeleteFileIndex deletes,
         ResidualEvaluator residuals,
         boolean dropStats,
-        Set<Integer> statsToKeep,
+        Set<Integer> columnsToKeepStats,
         ScanMetrics scanMetrics) {
       this.schemaAsString = SchemaParser.toJson(spec.schema());
       this.specAsString = PartitionSpecParser.toJson(spec);
       this.deletes = deletes;
       this.residuals = residuals;
       this.dropStats = dropStats;
-      this.statsToKeep = statsToKeep;
+      this.columnsToKeepStats = columnsToKeepStats;
       this.scanMetrics = scanMetrics;
     }
 
@@ -429,8 +429,8 @@ class ManifestGroup {
       return !dropStats;
     }
 
-    Set<Integer> statsToKeep() {
-      return statsToKeep;
+    Set<Integer> columnsToKeepStats() {
+      return columnsToKeepStats;
     }
 
     public ScanMetrics scanMetrics() {

@@ -121,8 +121,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context().returnColumnStats();
   }
 
-  protected Set<Integer> columnsToIncludeStats() {
-    return context().columnsToIncludeStats();
+  protected Set<Integer> columnsToKeepStats() {
+    return context().columnsToKeepStats();
   }
 
   protected boolean shouldIgnoreResiduals() {
@@ -170,9 +170,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   @Override
-  public ThisT includeColumnStats(Set<Integer> statsNeeded) {
+  public ThisT columnsToKeepStats(Set<Integer> columnsToIncludeStats) {
     return newRefinedScan(
-        table, schema, context.shouldReturnColumnStats(true).columnsToIncludeStats(statsNeeded));
+        table,
+        schema,
+        context.shouldReturnColumnStats(true).columnsToKeepStats(columnsToIncludeStats));
   }
 
   @Override

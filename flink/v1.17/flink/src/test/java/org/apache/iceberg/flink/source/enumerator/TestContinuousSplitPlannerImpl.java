@@ -592,7 +592,7 @@ public class TestContinuousSplitPlannerImpl {
     ScanContext scanContext =
         ScanContext.builder()
             .includeColumnStats(true)
-            .columnStatsToKeep(ImmutableSet.of(1))
+            .columnsToKeepStats(ImmutableSet.of(1))
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =

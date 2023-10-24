@@ -562,8 +562,8 @@ class V2Metadata {
     }
 
     @Override
-    public F copyWithStats(Set<Integer> statsToKeep) {
-      return wrapped.copyWithStats(statsToKeep);
+    public F copyWithStats(Set<Integer> columnsToKeepStats) {
+      return wrapped.copyWithStats(columnsToKeepStats);
     }
 
     @Override

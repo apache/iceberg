@@ -85,8 +85,8 @@ class BatchScanAdapter implements BatchScan {
   }
 
   @Override
-  public BatchScan includeColumnStats(Set<Integer> columns) {
-    return new BatchScanAdapter(scan.includeColumnStats(columns));
+  public BatchScan columnsToKeepStats(Set<Integer> columnsToKeepStats) {
+    return new BatchScanAdapter(scan.columnsToKeepStats(columnsToKeepStats));
   }
 
   @Override

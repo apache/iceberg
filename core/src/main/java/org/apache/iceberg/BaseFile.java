@@ -177,10 +177,10 @@ abstract class BaseFile<F>
    *
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
-   * @param statsToKeep a set of column ids to keep stats. If empty or <code>null</code> then every
-   *     column stat is kept.
+   * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
+   *     every column stat is kept.
    */
-  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Set<Integer> statsToKeep) {
+  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Set<Integer> columnsToKeepStats) {
     this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
@@ -192,22 +192,22 @@ abstract class BaseFile<F>
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
       this.columnSizes =
-          filterColumnsStats(toCopy.columnSizes, statsToKeep, SerializableMap::copyOf);
+          filterColumnsStats(toCopy.columnSizes, columnsToKeepStats, SerializableMap::copyOf);
       this.valueCounts =
-          filterColumnsStats(toCopy.valueCounts, statsToKeep, SerializableMap::copyOf);
+          filterColumnsStats(toCopy.valueCounts, columnsToKeepStats, SerializableMap::copyOf);
       this.nullValueCounts =
-          filterColumnsStats(toCopy.nullValueCounts, statsToKeep, SerializableMap::copyOf);
+          filterColumnsStats(toCopy.nullValueCounts, columnsToKeepStats, SerializableMap::copyOf);
       this.nanValueCounts =
-          filterColumnsStats(toCopy.nanValueCounts, statsToKeep, SerializableMap::copyOf);
+          filterColumnsStats(toCopy.nanValueCounts, columnsToKeepStats, SerializableMap::copyOf);
       this.lowerBounds =
           filterColumnsStats(
               toCopy.lowerBounds,
-              statsToKeep,
+              columnsToKeepStats,
               m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
       this.upperBounds =
           filterColumnsStats(
               toCopy.upperBounds,
-              statsToKeep,
+              columnsToKeepStats,
               m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
     } else {
       this.columnSizes = null;
@@ -521,10 +521,10 @@ abstract class BaseFile<F>
     }
   }
 
-  private static <TypeT> Map<Integer, TypeT> filterColumnsStats(
+  private static <TypeT> SerializableMap<Integer, TypeT> filterColumnsStats(
       Map<Integer, TypeT> map,
       Set<Integer> columnIds,
-      Function<Map<Integer, TypeT>, Map<Integer, TypeT>> copyFunction) {
+      Function<Map<Integer, TypeT>, SerializableMap<Integer, TypeT>> copyFunction) {
     if (columnIds == null || columnIds.isEmpty()) {
       return copyFunction.apply(map);
     }

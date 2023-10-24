@@ -664,7 +664,7 @@ public class TestHelpers {
     }
 
     @Override
-    public DataFile copyWithStats(Set<Integer> statsToKeep) {
+    public DataFile copyWithStats(Set<Integer> columnsToKeepStats) {
       return this;
     }
 

@@ -29,15 +29,15 @@ public class ContentFileUtil {
    *
    * @param file a generic data file to copy.
    * @param withStats whether to keep any stats
-   * @param statsToKeep a set of column ids to keep stats. If empty or <code>null</code> then every
-   *     column stat is kept.
+   * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
+   *     every column stat is kept.
    * @return The copied file
    */
   public static <F extends ContentFile<K>, K> K copy(
-      F file, boolean withStats, Set<Integer> statsToKeep) {
+      F file, boolean withStats, Set<Integer> columnsToKeepStats) {
     if (withStats) {
-      return statsToKeep != null && !statsToKeep.isEmpty()
-          ? file.copyWithStats(statsToKeep)
+      return columnsToKeepStats != null && !columnsToKeepStats.isEmpty()
+          ? file.copyWithStats(columnsToKeepStats)
           : file.copy();
     } else {
       return file.copyWithoutStats();
