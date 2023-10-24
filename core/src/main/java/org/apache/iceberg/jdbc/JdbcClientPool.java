@@ -28,11 +28,15 @@ import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPoolImpl;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
 
   private final String dbUrl;
   private final Map<String, String> properties;
+
+  private static final Logger LOG = LoggerFactory.getLogger(JdbcClientPool.class);
 
   private static final Set<String> RETRYABLE_CONNECTION_SQL_STATES =
       // CCCS modification: added state 57000 for PostgresQL connection timeout.
@@ -70,8 +74,15 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   }
 
   private boolean isRetryableConnectionException(Exception exc) {
-    return exc instanceof SQLException
-        && RETRYABLE_CONNECTION_SQL_STATES.contains(((SQLException) exc).getSQLState());
+    boolean retry =
+        exc instanceof SQLException
+            && RETRYABLE_CONNECTION_SQL_STATES.contains(((SQLException) exc).getSQLState());
+    if (!retry) {
+      LOG.info(
+          "Not a retryable connection exception. class name: ",
+          exc.getClass().getName() + " sql state: " + ((SQLException) exc).getSQLState());
+    }
+    return retry;
   }
 
   @Override
