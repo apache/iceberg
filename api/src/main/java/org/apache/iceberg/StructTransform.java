@@ -55,7 +55,7 @@ class StructTransform implements StructLike, Serializable {
       Transform<?, ?> transform = fieldTransforms.get(i).transform();
       Accessor<StructLike> accessor = schema.accessorForField(sourceFieldId);
       Preconditions.checkArgument(
-          accessor != null, "Cannot build accessor for field: " + schema.findField(sourceFieldId));
+          accessor != null, "Cannot build accessor for field: %s", schema.findField(sourceFieldId));
       this.accessors[i] = accessor;
       this.transforms[i] = transform.bind(accessor.type());
     }
@@ -127,7 +127,7 @@ class StructTransform implements StructLike, Serializable {
 
   /**
    * Simple POJO for source field id and transform function. {@code Pair} class is not usable here
-   * in API module, as it has Avro dep and lives in core module.
+   * in API module, as it has an Avro dep and is in the core module.
    */
   static class FieldTransform {
     private final int sourceFieldId;
