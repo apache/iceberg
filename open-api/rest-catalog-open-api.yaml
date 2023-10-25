@@ -2508,7 +2508,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "The server does not support this operation",
@@ -2516,6 +2516,19 @@ components:
               "code": 406
             }
           }
+
+    IcebergErrorResponse:
+      description: JSON wrapper for all error responses (non-2xx)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+            example: {
+              "error": {
+                "message": "The server does not support this operation",
+                "type": "UnsupportedOperationException",
+                "code": 406
+              } }
 
     CreateNamespaceResponse:
       description:
