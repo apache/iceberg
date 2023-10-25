@@ -68,13 +68,13 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
-   * @param fullCopy whether to copy all fields or to drop column-level stats.
+   * @param copyStats whether to copy all fields or to drop column-level stats.
    * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
    *     every column stat is kept.
    */
   private GenericDataFile(
-      GenericDataFile toCopy, boolean fullCopy, Set<Integer> columnsToKeepStats) {
-    super(toCopy, fullCopy, columnsToKeepStats);
+      GenericDataFile toCopy, boolean copyStats, Set<Integer> columnsToKeepStats) {
+    super(toCopy, copyStats, columnsToKeepStats);
   }
 
   /** Constructor for Java serialization. */

@@ -168,16 +168,17 @@ public interface ContentFile<F> {
 
   /**
    * Copies this file with only specific column stats. Manifest readers can reuse file instances;
-   * use this method to copy data and only copy specific stats when collecting files. If the
-   * columnsToKeepStats set is empty or <code>null</code>, then all column stats will be kept.
+   * use this method to copy data and only copy specific stats when collecting files.
    *
-   * @param columnsToKeepStats the set of the column ids for the columns which stats are kept.
+   * @param columnsToKeepStats the set of the column ids for the columns which stats are kept. If
+   *     the columnsToKeepStats set is empty or <code>null</code>, then all column stats will be
+   *     kept.
    * @return a copy of this data file, with stats lower bounds, upper bounds, value counts, null
    *     value counts, and nan value counts for only specific columns.
    */
   default F copyWithStats(Set<Integer> columnsToKeepStats) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement copyWithSpecificStats");
+        this.getClass().getName() + " doesn't implement copyWithStats");
   }
 
   /**

@@ -176,11 +176,11 @@ abstract class BaseFile<F>
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
-   * @param fullCopy whether to copy all fields or to drop column-level stats
+   * @param copyStats whether to copy all fields or to drop column-level stats
    * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
    *     every column stat is kept.
    */
-  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Set<Integer> columnsToKeepStats) {
+  BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> columnsToKeepStats) {
     this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
@@ -190,7 +190,7 @@ abstract class BaseFile<F>
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
-    if (fullCopy) {
+    if (copyStats) {
       this.columnSizes =
           filterColumnsStats(toCopy.columnSizes, columnsToKeepStats, SerializableMap::copyOf);
       this.valueCounts =
