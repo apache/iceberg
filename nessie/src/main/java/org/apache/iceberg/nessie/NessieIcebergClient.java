@@ -50,6 +50,7 @@ import org.projectnessie.client.api.OnReferenceBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieContentNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.error.NessieReferenceConflictException;
 import org.projectnessie.error.NessieReferenceNotFoundException;
@@ -360,23 +361,28 @@ public class NessieIcebergClient implements AutoCloseable {
     ContentKey key = ContentKey.of(namespace.levels());
 
     try {
-
-      Map<ContentKey, Content> contentMap =
-          api.getContent().reference(getReference()).key(key).get();
-      Content existing = contentMap.get(key);
-      if (!(existing instanceof org.projectnessie.model.Namespace)) {
-        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-      }
-      org.projectnessie.model.Namespace oldNamespace = (org.projectnessie.model.Namespace) existing;
-      Map<String, String> newProperties = Maps.newHashMap(oldNamespace.getProperties());
-      action.accept(newProperties);
-      org.projectnessie.model.Namespace updatedNamespace =
-          org.projectnessie.model.Namespace.builder()
-              .from(oldNamespace)
-              .properties(newProperties)
-              .build();
-
-      commitRetry("update namespace " + key, Operation.Put.of(key, updatedNamespace));
+      commitRetry(
+          "update namespace " + key,
+          true,
+          commitBuilder -> {
+            Map<ContentKey, Content> contentMap =
+                api.getContent().reference(getReference()).key(key).get();
+            Content existing = contentMap.get(key);
+            if (!(existing instanceof org.projectnessie.model.Namespace)) {
+              throw new NessieContentNotFoundException(key, getReference().getName());
+            }
+            org.projectnessie.model.Namespace oldNamespace =
+                (org.projectnessie.model.Namespace) existing;
+            Map<String, String> newProperties = Maps.newHashMap(oldNamespace.getProperties());
+            action.accept(newProperties);
+            org.projectnessie.model.Namespace updatedNamespace =
+                org.projectnessie.model.Namespace.builder()
+                    .from(oldNamespace)
+                    .properties(newProperties)
+                    .build();
+            commitBuilder.operation(Operation.Put.of(key, updatedNamespace));
+            return commitBuilder;
+          });
 
       // always successful, otherwise an exception is thrown
       return true;
@@ -393,7 +399,9 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new RuntimeException(
           String.format(
               "Cannot update properties on Namespace '%s': %s", namespace, e.getMessage()));
-    } catch (NessieNotFoundException e) {
+    } catch (NessieContentNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+    } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(
           String.format(
               "Cannot update properties on Namespace '%s': ref '%s' is no longer valid.",
@@ -607,21 +615,40 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private void commitRetry(String message, Operation... ops)
       throws BaseNessieClientServerException {
+    commitRetry(message, false, builder -> builder.operations(Arrays.asList(ops)));
+  }
 
-    CommitMultipleOperationsBuilder commitBuilder =
-        api.commitMultipleOperations()
-            .commitMeta(NessieUtil.buildCommitMetadata(message, catalogOptions))
-            .operations(Arrays.asList(ops));
+  private void commitRetry(String message, boolean retryConflicts, CommitEnhancer commitEnhancer)
+      throws BaseNessieClientServerException {
 
-    Tasks.foreach(commitBuilder)
+    // Retry all errors except for NessieNotFoundException and also NessieConflictException, unless
+    // retryConflicts is set to true.
+    Predicate<Exception> shouldRetry =
+        e ->
+            !(e instanceof NessieNotFoundException)
+                && (!(e instanceof NessieConflictException) || retryConflicts);
+
+    Tasks.range(1)
         .retry(5)
-        .stopRetryOn(NessieReferenceNotFoundException.class, NessieReferenceConflictException.class)
+        .shouldRetryTest(shouldRetry)
         .throwFailureWhenFinished()
-        .onFailure((o, exception) -> refresh())
+        .onFailure((o, exception) -> refresh()) // FIXME is this necessary?
         .run(
-            builder -> {
-              Branch branch = builder.branch((Branch) getReference()).commit();
-              getRef().updateReference(branch);
+            i -> {
+              try {
+                Branch branch =
+                    commitEnhancer
+                        .enhance(api.commitMultipleOperations())
+                        .commitMeta(NessieUtil.buildCommitMetadata(message, catalogOptions))
+                        .branch((Branch) getReference())
+                        .commit();
+                getRef().updateReference(branch);
+              } catch (NessieConflictException e) {
+                if (retryConflicts) {
+                  refresh(); // otherwise retrying a conflict doesn't make sense
+                }
+                throw e;
+              }
             },
             BaseNessieClientServerException.class);
   }
@@ -634,5 +661,10 @@ public class NessieIcebergClient implements AutoCloseable {
       return new AlreadyExistsException(
           ex, "Another content object with name '%s' already exists", key);
     }
+  }
+
+  private interface CommitEnhancer {
+    CommitMultipleOperationsBuilder enhance(CommitMultipleOperationsBuilder builder)
+        throws BaseNessieClientServerException;
   }
 }

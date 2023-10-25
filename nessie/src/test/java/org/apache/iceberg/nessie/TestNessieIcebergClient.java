@@ -325,7 +325,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Content nsUpdate =
         org.projectnessie.model.Namespace.builder()
             .from(content)
-            .properties(Map.of("k2", "v2"))
+            .properties(Map.of("k1", "v1c", "k2", "v2"))
             .build();
     api.commitMultipleOperations()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
@@ -333,9 +333,24 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .operation(Operation.Put.of(key, nsUpdate))
         .commit();
 
-    Assertions.assertThatThrownBy(() -> client.setProperties(ns, Map.of()))
-        .hasMessageContaining(
-            "Cannot update properties on Namespace 'a': Values of existing and expected content for key 'a' are different");
+    // will generate a conflict and a retry
+    Assertions.assertThat(client.setProperties(ns, Map.of("k3", "v3"))).isTrue();
+
+    content =
+        client
+            .getApi()
+            .getContent()
+            .key(key)
+            .reference(client.getApi().getReference().refName(branch).get())
+            .get()
+            .get(key)
+            .unwrap(org.projectnessie.model.Namespace.class)
+            .orElseThrow();
+    Assertions.assertThat(content.getProperties())
+        .hasSize(3)
+        .containsEntry("k1", "v1c")
+        .containsEntry("k2", "v2")
+        .containsEntry("k3", "v3");
 
     api.commitMultipleOperations()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
@@ -403,16 +418,30 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
             });
 
     Content nsUpdate =
-        org.projectnessie.model.Namespace.builder().from(content).properties(Map.of()).build();
+        org.projectnessie.model.Namespace.builder()
+            .from(content)
+            .properties(Map.of("k2", "v2", "k3", "v3"))
+            .build();
     api.commitMultipleOperations()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
         .commitMeta(NessieUtil.buildCommitMetadata("update namespace a", catalogOptions))
         .operation(Operation.Put.of(key, nsUpdate))
         .commit();
 
-    Assertions.assertThatThrownBy(() -> client.removeProperties(ns, Set.of()))
-        .hasMessageContaining(
-            "Cannot update properties on Namespace 'a': Values of existing and expected content for key 'a' are different");
+    // will generate a conflict and a retry
+    Assertions.assertThat(client.removeProperties(ns, Set.of("k2"))).isTrue();
+
+    content =
+        client
+            .getApi()
+            .getContent()
+            .key(key)
+            .reference(client.getApi().getReference().refName(branch).get())
+            .get()
+            .get(key)
+            .unwrap(org.projectnessie.model.Namespace.class)
+            .orElseThrow();
+    Assertions.assertThat(content.getProperties()).hasSize(1).containsEntry("k3", "v3");
 
     api.commitMultipleOperations()
         .branch((Branch) client.getApi().getReference().refName(branch).get())
