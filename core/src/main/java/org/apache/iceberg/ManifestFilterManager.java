@@ -450,8 +450,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                           // only add the file to deletes if it is a new delete
                           // this keeps the snapshot summary accurate for non-duplicate data
                           deletedFiles.add(entry.file().copyWithoutStats());
+                          deletedPaths.add(wrapper);
                         }
-                        deletedPaths.add(wrapper);
                       } else {
                         writer.existing(entry);
                       }
