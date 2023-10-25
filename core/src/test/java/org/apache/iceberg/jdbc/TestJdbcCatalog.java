@@ -601,93 +601,75 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("ns1", "ns2"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns_"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2", "ns3"))).isFalse();
-
-    testNamespace = Namespace.of("testDb_");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-
-    testNamespace = Namespace.of("testD_");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-
-    testNamespace = Namespace.of("testDb.");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-
-    testNamespace = Namespace.of("testDb.ns");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
   }
 
   @Test
-  public void testCreateNamespaceWithSpecialCharacter() {
-    // creating namespaces with special characters
-    // and existence check with special characters should succeed
-    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+  public void testCreateNamespaceWithBackslashCharacter() {
 
-    testNamespace = Namespace.of("testDb.ns_");
+    Namespace testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\Db", "ns\\1"))).isTrue();
+    //
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns\\.1"))).isFalse();
+  }
 
-    testNamespace = Namespace.of("testDb%");
+  @Test
+  public void testCreateNamespaceWithPercentCharacter() {
+
+    Namespace testNamespace = Namespace.of("testDb%", "ns%1");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isTrue();
+    //
+    assertThat(catalog.namespaceExists(Namespace.of("testDb\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("tes%Db%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%", "ns%"))).isFalse();
+  }
 
-    testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+  @Test
+  public void testCreateNamespaceWithUnderscoreCharacter() {
+    Namespace testNamespace = Namespace.of("test_Db", "ns_1", "ns_");
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_1"))).isTrue();
+    //
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_%"))).isFalse();
+  }
 
-    testNamespace = Namespace.of("test\\%Db", "ns\\.1");
-    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+  @Test
+  public void testCreateNamespaceWithDotCharacter() {
+    Namespace testNamespace = Namespace.of("test.Db", "ns1", "ns2");
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db"))).isTrue();
-
-    Namespace underscore = Namespace.of("te%t_b");
-    assertThat(catalog.namespaceExists(Namespace.of("te\\%t_b"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("te%t\\_b"))).isFalse();
-    assertThat(catalog.namespaceExists(underscore))
-        .as("Should false to namespace doesn't exist")
-        .isFalse();
-
-    Namespace underscore2 = Namespace.of("special_name%space");
-    assertThat(catalog.namespaceExists(underscore2)).isFalse();
-    catalog.createNamespace(underscore2);
-    assertThat(catalog.namespaceExists(underscore2)).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("special_name%"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("special_name%spa_e")))
-        .as("Should false to namespace doesn't exist")
-        .isFalse();
-
-    underscore2 =
-        Namespace.of("special_nested_name%space", "names\\pace1", "names_pace1", "name%s_pace1");
-    assertThat(catalog.namespaceExists(underscore2)).isFalse();
-    catalog.createNamespace(underscore2);
-    assertThat(catalog.namespaceExists(underscore2)).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("special_nested_name%space", "names\\pace1")))
-        .isTrue();
-    assertThat(
-            catalog.namespaceExists(
-                Namespace.of("special_nested_name%space", "names\\pace1", "names_pace1")))
-        .isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("special_nested_name%space"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test.Db", "ns1"))).isTrue();
+    // TODO FIX handle Dot (its namespace SEPERATOR)? in the namespace levels. currently its
+    // accepted and threaded as a level
+    // Related to https://github.com/google/guava/issues/412
+    assertThat(catalog.namespaceExists(Namespace.of("test", "Db"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test", "Db", "ns1", "ns2"))).isTrue();
   }
 
   @Test
