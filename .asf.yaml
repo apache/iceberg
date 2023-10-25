@@ -27,6 +27,16 @@ github:
     - iceberg
     - apache
     - hacktoberfest
+  
+  enabled_merge_buttons:
+    merge: false
+    squash: true
+    rebase: true
+
+  protected_branches:
+    main:
+      required_linear_history: true
+  
   features:
     wiki: true
     issues: true
