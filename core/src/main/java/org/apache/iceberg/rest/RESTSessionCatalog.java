@@ -85,6 +85,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -107,6 +108,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
+  private Cache<String, AuthSession> tableSessions = null;
   private Cache<TableOperations, FileIO> fileIOCloser;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
@@ -181,6 +183,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
+    this.tableSessions = newSessionCache(mergedProps);
     this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
@@ -226,7 +229,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     AuthSession session =
         sessions.get(
             context.sessionId(),
-            id -> newSession(context.credentials(), context.properties(), catalogAuth));
+            id -> {
+              Pair<String, Supplier<AuthSession>> newSession =
+                  newSession(context.credentials(), context.properties(), catalogAuth);
+              if (null != newSession) {
+                return newSession.second().get();
+              }
+
+              return null;
+            });
 
     return session != null ? session : catalogAuth;
   }
@@ -839,7 +850,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    AuthSession session = newSession(tableConf, tableConf, parent);
+    Pair<String, Supplier<AuthSession>> newSession = newSession(tableConf, tableConf, parent);
+    if (null == newSession) {
+      return parent;
+    }
+
+    AuthSession session = tableSessions.get(newSession.first(), id -> newSession.second().get());
 
     return session != null ? session : parent;
   }
@@ -869,30 +885,46 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return configResponse;
   }
 
-  private AuthSession newSession(
+  private Pair<String, Supplier<AuthSession>> newSession(
       Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
     if (credentials != null) {
       // use the bearer token without exchanging
       if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        return AuthSession.fromAccessToken(
-            client,
-            tokenRefreshExecutor(),
+        return Pair.of(
             credentials.get(OAuth2Properties.TOKEN),
-            expiresAtMillis(properties),
-            parent);
+            () ->
+                AuthSession.fromAccessToken(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.TOKEN),
+                    expiresAtMillis(properties),
+                    parent));
       }
 
       if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
-        return AuthSession.fromCredential(
-            client, tokenRefreshExecutor(), credentials.get(OAuth2Properties.CREDENTIAL), parent);
+        return Pair.of(
+            credentials.get(OAuth2Properties.CREDENTIAL),
+            () ->
+                AuthSession.fromCredential(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.CREDENTIAL),
+                    parent));
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
         if (credentials.containsKey(tokenType)) {
           // exchange the token for an access token using the token exchange flow
-          return AuthSession.fromTokenExchange(
-              client, tokenRefreshExecutor(), credentials.get(tokenType), tokenType, parent);
+          return Pair.of(
+              credentials.get(tokenType),
+              () ->
+                  AuthSession.fromTokenExchange(
+                      client,
+                      tokenRefreshExecutor(),
+                      credentials.get(tokenType),
+                      tokenType,
+                      parent));
         }
       }
     }
