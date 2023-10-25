@@ -629,6 +629,15 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+  }
+
+  @Test
+  public void testCreateNamespaceWithSpecialCharacter() {
+    // creating namespaces with special characters
+    // and existence check with special characters should succeed
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
 
     testNamespace = Namespace.of("testDb.ns_");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
