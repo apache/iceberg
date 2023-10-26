@@ -530,6 +530,111 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/scans:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Create a table scan for the table
+      description:
+        Creates a table scan for the table.
+      operationId: createScan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScanRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/CreateScanResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/scans/{scan}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/scan'
+    get:
+      tags:
+        - Catalog API
+      summary: Gets a list of FileScanTasks
+      operationId: getScanTasks
+      description:
+        Gets a list of FileScanTasks
+      parameters:
+        - in: query
+          name: shard
+          description:
+            Reads a single or multiple shards in parallel, to obtain a list of file scan tasks.
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: next
+          description:
+            Used for obtaining the next batch of fileScanTasks
+          required: false
+          allowEmptyValue: true
+          schema:
+            type: string
+      responses:
+        200:
+          $ref: '#/components/responses/GetScanTasksResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1444,6 +1549,15 @@ components:
         type: string
       example: "sales"
 
+    scan:
+      name: scan
+      in: path
+      description: a scan id
+      required: true
+      schema:
+        type: string
+      example: "scan123"
+
     view:
       name: view
       in: path
@@ -2030,6 +2144,138 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
 
+    FileScanTask:
+      type: object
+      required:
+        - data-file
+      properties:
+        data-file:
+          $ref: '#/components/schemas/ContentFile'
+        partition:
+            type: object
+            additionalProperties:
+              type: string
+        size-bytes:
+          type: number
+        start:
+          type: number
+        length:
+          type: number
+        estimated-rows-count:
+          type: number
+        delete-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFile'
+        schema:
+          $ref: '#/components/schemas/Schema'
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
+        residual-filter:
+          $ref: '#/components/schemas/Expression'
+
+    ContentFile:
+      type: object
+      required:
+        - file-path
+      properties:
+        spec-id:
+          type: string
+        content:
+          $ref: '#/components/schemas/FileContent'
+        file-path:
+          type: string
+        file-format:
+          type: string
+        partition:
+          type: object
+          additionalProperties:
+            type: string
+        record-count:
+          type: number
+        file-size-in-bytes:
+          type: number
+        column-sizes:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: number
+        value-counts:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: number
+        null-value-counts:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: number
+        nan-value-counts:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: number
+        lower-bounds:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: string
+                format: binary
+        upper-bounds:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              keys:
+                type: integer
+              values:
+                type: string
+                format: binary
+        key-metadata:
+          type: string
+          format: binary
+        split-offsets:
+          type: array
+          items:
+            type: number
+        equality-ids:
+          type: array
+          items:
+            type: integer
+        sort-order-id:
+          type: integer
+        data-sequence-number:
+          type: number
+        file-sequence-number:
+          type: number
+
+    FileContent:
+      type: string
+      enum:
+        - DATA
+        - POSITION_DELETES
+        - EQUALITY_DELETES
+
     SQLViewRepresentation:
       type: object
       required:
@@ -2550,6 +2796,33 @@ components:
           additionalProperties:
             type: string
 
+    CreateScanResult:
+      type: object
+      description: create scan response
+      required:
+        - scan
+        - shards
+      properties:
+        scan:
+          type: string
+        shards:
+          type: array
+          items:
+            type: string
+
+    GetScanTasksResult:
+      description: Result of when attempting to get file scan tasks from a scan.
+      type: object
+      required:
+        - file-scan-tasks
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+        next:
+          type: string
+
     CommitTableRequest:
       type: object
       required:
@@ -2611,6 +2884,23 @@ components:
         stage-create:
           type: boolean
         properties:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateScanRequest:
+      type: object
+      required:
+        - select
+        - options
+      properties:
+        select:
+          type: array
+          items:
+            type: string
+        filter:
+          type: string
+        options:
           type: object
           additionalProperties:
             type: string
@@ -3291,6 +3581,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+
+    CreateScanResponse:
+      description: Create Scan Response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateScanResult'
+
+    GetScanTasksResponse:
+      description: get scan tasks response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GetScanTasksResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table

@@ -59,6 +59,8 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.GetScanTasksResponse;
+import org.apache.iceberg.rest.responses.GetScanTasksResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponseParser;
@@ -115,7 +117,9 @@ public class RESTSerializers {
         .addSerializer(LoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
-        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>());
+        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addSerializer(GetScanTasksResponse.class, new GetScanTasksResponseSerializer<>())
+        .addDeserializer(GetScanTasksResponse.class, new GetScanTasksResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -426,6 +430,24 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) LoadViewResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class GetScanTasksResponseSerializer<T extends GetScanTasksResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      GetScanTasksResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class GetScanTasksResponseDeserializer<T extends GetScanTasksResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) GetScanTasksResponseParser.fromJson(jsonNode);
     }
   }
 }

@@ -131,6 +131,13 @@ public class FileScanTaskParser {
     ResidualEvaluator residualEvaluator = ResidualEvaluator.of(spec, filter, caseSensitive);
     BaseFileScanTask baseFileScanTask =
         new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, residualEvaluator);
+
+    if (start == 0 && length == dataFile.fileSizeInBytes()) {
+      // TODO
+      // When rest scans are enabled we require this check
+      // As fileScanTasks returned from external service are not split
+      return baseFileScanTask;
+    }
     return new BaseFileScanTask.SplitScanTask(start, length, baseFileScanTask);
   }
 }

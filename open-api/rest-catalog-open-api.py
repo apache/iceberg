@@ -209,6 +209,40 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
+class ColumnSizes(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[float] = None
+
+
+class ValueCounts(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[float] = None
+
+
+class NullValueCounts(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[float] = None
+
+
+class NanValueCounts(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[float] = None
+
+
+class LowerBounds(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[bytes] = None
+
+
+class UpperBounds(BaseModel):
+    keys: Optional[int] = None
+    values: Optional[bytes] = None
+
+
+class FileContent(BaseModel):
+    __root__: Literal['DATA', 'POSITION_DELETES', 'EQUALITY_DELETES']
+
+
 class SQLViewRepresentation(BaseModel):
     type: str
     sql: str
@@ -420,6 +454,21 @@ class AssertDefaultSortOrderId(TableRequirement):
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
+class CreateScanResult(BaseModel):
+    """
+    create scan response
+    """
+
+    scan: str
+    shards: List[str]
+
+
+class CreateScanRequest(BaseModel):
+    select: List[str]
+    filter: Optional[str] = None
+    options: Dict[str, str]
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -614,6 +663,32 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
+class ContentFile(BaseModel):
+    spec_id: Optional[str] = Field(None, alias='spec-id')
+    content: Optional[FileContent] = None
+    file_path: str = Field(..., alias='file-path')
+    file_format: Optional[str] = Field(None, alias='file-format')
+    partition: Optional[Dict[str, str]] = None
+    record_count: Optional[float] = Field(None, alias='record-count')
+    file_size_in_bytes: Optional[float] = Field(None, alias='file-size-in-bytes')
+    column_sizes: Optional[Dict[str, ColumnSizes]] = Field(None, alias='column-sizes')
+    value_counts: Optional[Dict[str, ValueCounts]] = Field(None, alias='value-counts')
+    null_value_counts: Optional[Dict[str, NullValueCounts]] = Field(
+        None, alias='null-value-counts'
+    )
+    nan_value_counts: Optional[Dict[str, NanValueCounts]] = Field(
+        None, alias='nan-value-counts'
+    )
+    lower_bounds: Optional[Dict[str, LowerBounds]] = Field(None, alias='lower-bounds')
+    upper_bounds: Optional[Dict[str, UpperBounds]] = Field(None, alias='upper-bounds')
+    key_metadata: Optional[bytes] = Field(None, alias='key-metadata')
+    split_offsets: Optional[List[float]] = Field(None, alias='split-offsets')
+    equality_ids: Optional[List[int]] = Field(None, alias='equality-ids')
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+    data_sequence_number: Optional[float] = Field(None, alias='data-sequence-number')
+    file_sequence_number: Optional[float] = Field(None, alias='file-sequence-number')
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -718,6 +793,19 @@ class TableMetadata(BaseModel):
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
 
 
+class FileScanTask(BaseModel):
+    data_file: ContentFile = Field(..., alias='data-file')
+    partition: Optional[Dict[str, str]] = None
+    size_bytes: Optional[float] = Field(None, alias='size-bytes')
+    start: Optional[float] = None
+    length: Optional[float] = None
+    estimated_rows_count: Optional[float] = Field(None, alias='estimated-rows-count')
+    delete_files: Optional[List[ContentFile]] = Field(None, alias='delete-files')
+    schema_: Optional[Schema] = Field(None, alias='schema')
+    spec: Optional[PartitionSpec] = None
+    residual_filter: Optional[Expression] = Field(None, alias='residual-filter')
+
+
 class ViewMetadata(BaseModel):
     view_uuid: str = Field(..., alias='view-uuid')
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
@@ -807,6 +895,15 @@ class LoadTableResult(BaseModel):
     )
     metadata: TableMetadata
     config: Optional[Dict[str, str]] = None
+
+
+class GetScanTasksResult(BaseModel):
+    """
+    Result of when attempting to get file scan tasks from a scan.
+    """
+
+    file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+    next: Optional[str] = None
 
 
 class CommitTableRequest(BaseModel):
@@ -910,6 +1007,7 @@ ListType.update_forward_refs()
 MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
+FileScanTask.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
