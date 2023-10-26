@@ -160,6 +160,7 @@ class SparkConfParser {
     private final List<String> optionNames = Lists.newArrayList();
     private String sessionConfName;
     private String tablePropertyName;
+    private String defaultSessionConfName;
 
     protected abstract ThisT self();
 
@@ -175,6 +176,11 @@ class SparkConfParser {
 
     public ThisT tableProperty(String name) {
       this.tablePropertyName = name;
+      return self();
+    }
+
+    public ThisT defaultSessionConfName(String name) {
+      this.defaultSessionConfName = name;
       return self();
     }
 
@@ -201,6 +207,13 @@ class SparkConfParser {
         String propertyValue = properties.get(tablePropertyName);
         if (propertyValue != null) {
           return conversion.apply(propertyValue);
+        }
+      }
+
+      if (defaultSessionConfName != null) {
+        String defaultSessionConfValue = sessionConf.get(defaultSessionConfName, null);
+        if (defaultSessionConfValue != null) {
+          return conversion.apply(defaultSessionConfValue);
         }
       }
 
