@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /** Represents a table. */
 public interface Table {
@@ -345,5 +346,14 @@ public interface Table {
     }
 
     return null;
+  }
+
+  /**
+   * Returns the metrics reporter for this table.
+   *
+   * @return the metrics reporter for this table.
+   */
+  default MetricsReporter metricsReporter() {
+    throw new UnsupportedOperationException("Accessing metrics reporter is not supported");
   }
 }

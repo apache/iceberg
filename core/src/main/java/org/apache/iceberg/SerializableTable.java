@@ -26,6 +26,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -63,10 +64,13 @@ public class SerializableTable implements Table, Serializable {
   private final LocationProvider locationProvider;
   private final Map<String, SnapshotRef> refs;
 
+  private final Map<String, String> metricsReporterProperties;
+
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
+  private transient volatile MetricsReporter lazyMetricsReporter = null;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -83,6 +87,7 @@ public class SerializableTable implements Table, Serializable {
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
+    this.metricsReporterProperties = SerializableMap.copyOf(table.metricsReporter().properties());
   }
 
   /**
@@ -136,7 +141,7 @@ public class SerializableTable implements Table, Serializable {
   }
 
   protected Table newTable(TableOperations ops, String tableName) {
-    return new BaseTable(ops, tableName);
+    return new BaseTable(ops, tableName, metricsReporter());
   }
 
   @Override
@@ -245,6 +250,18 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
+  }
+
+  @Override
+  public MetricsReporter metricsReporter() {
+    if (lazyMetricsReporter == null) {
+      synchronized (this) {
+        if (lazyMetricsReporter == null) {
+          lazyMetricsReporter = CatalogUtil.loadMetricsReporter(this.metricsReporterProperties);
+        }
+      }
+    }
+    return lazyMetricsReporter;
   }
 
   @Override

@@ -778,6 +778,11 @@ public class BaseTransaction implements Transaction {
     Object writeReplace() {
       return SerializableTable.copyOf(this);
     }
+
+    @Override
+    public MetricsReporter metricsReporter() {
+      return BaseTransaction.this.reporter;
+    }
   }
 
   @VisibleForTesting
