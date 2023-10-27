@@ -34,6 +34,7 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
@@ -54,9 +55,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private static final Logger LOG = LoggerFactory.getLogger(MigrateTableSparkAction.class);
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
-  private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
 
+  private StagingTableCatalog destCatalog;
   private Identifier backupIdent;
   private boolean dropBackup = false;
 
@@ -105,6 +106,22 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   @Override
   public MigrateTableSparkAction backupTableName(String tableName) {
     this.backupIdent = Identifier.of(sourceTableIdent().namespace(), tableName);
+    return this;
+  }
+
+  @Override
+  public MigrateTableSparkAction destCatalogName(String catalogName) {
+    CatalogManager catalogManager = spark().sessionState().catalogManager();
+
+    CatalogPlugin catalogPlugin;
+    if (catalogManager.isCatalogRegistered(catalogName)) {
+      catalogPlugin = catalogManager.catalog(catalogName);
+    } else {
+      LOG.warn("{} doesn't exist in SparkSession. " +
+              "Fallback to current SparkSession catalog.", catalogName);
+      catalogPlugin = catalogManager.currentCatalog();
+    }
+    this.destCatalog = checkDestinationCatalog(catalogPlugin);
     return this;
   }
 

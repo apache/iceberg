@@ -40,7 +40,8 @@ class MigrateTableProcedure extends BaseProcedure {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
         ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
-        ProcedureParameter.optional("backup_table_name", DataTypes.StringType)
+        ProcedureParameter.optional("backup_table_name", DataTypes.StringType),
+        ProcedureParameter.optional("dest_catalog_name", DataTypes.StringType),
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -93,6 +94,7 @@ class MigrateTableProcedure extends BaseProcedure {
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
     String backupTableName = args.isNullAt(3) ? null : args.getString(3);
+    String destCatalogName = args.isNullAt(4) ? null : args.getString(4);
 
     MigrateTableSparkAction migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);
@@ -103,6 +105,10 @@ class MigrateTableProcedure extends BaseProcedure {
 
     if (backupTableName != null) {
       migrateTableSparkAction = migrateTableSparkAction.backupTableName(backupTableName);
+    }
+
+    if (destCatalogName != null) {
+      migrateTableSparkAction = migrateTableSparkAction.destCatalogName(destCatalogName);
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

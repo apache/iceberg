@@ -60,6 +60,15 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Backup table name cannot be specified");
   }
 
+  /**
+   * Sets a destination catalog name to use the catalog for renaming a backup table
+   * @param catalogName - the destination catalog name for backup table rename
+   * @return this for method chaining
+   */
+  default MigrateTable destCatalogName(String catalogName) {
+    throw new UnsupportedOperationException("Destination catalog name cannot be specified");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */
