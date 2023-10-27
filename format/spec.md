@@ -130,11 +130,11 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata (including manifests files and manifest lists) files to a table with the given version.
 
-| Requirement | Write behavior                      |
-|-------------|-------------------------------------|
-| (blank)     | The field should be omitted         |
+| Requirement | Write behavior |
+|-------------|----------------|
+| (blank)     | The field should be omitted |
 | _optional_  | The field can be written or omitted |
-| _required_  | The field must be written           |
+| _required_  | The field must be written |
 
 Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
 
