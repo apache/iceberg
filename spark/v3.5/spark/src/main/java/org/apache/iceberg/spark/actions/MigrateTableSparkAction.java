@@ -117,8 +117,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     if (catalogManager.isCatalogRegistered(catalogName)) {
       catalogPlugin = catalogManager.catalog(catalogName);
     } else {
-      LOG.warn("{} doesn't exist in SparkSession. " +
-              "Fallback to current SparkSession catalog.", catalogName);
+      LOG.warn(
+          "{} doesn't exist in SparkSession. " + "Fallback to current SparkSession catalog.",
+          catalogName);
       catalogPlugin = catalogManager.currentCatalog();
     }
     this.destCatalog = checkDestinationCatalog(catalogPlugin);

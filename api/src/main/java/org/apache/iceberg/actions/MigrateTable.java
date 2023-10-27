@@ -62,6 +62,7 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
 
   /**
    * Sets a destination catalog name to use the catalog for renaming a backup table
+   *
    * @param catalogName - the destination catalog name for backup table rename
    * @return this for method chaining
    */

@@ -146,18 +146,20 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   public void testMigrateWithDestCatalogName() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
-    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+    spark
+        .conf()
+        .set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
 
     String location = temp.newFolder().toString();
     sql(
-            "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-            tableName, location);
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     Object result =
-            scalarSql(
-                    "CALL %s.system.migrate(table => '%s', drop_backup => false, dest_catalog_name => '%s')",
-                    catalogName, tableName, catalogName);
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', drop_backup => false, dest_catalog_name => '%s')",
+            catalogName, tableName, catalogName);
     Assertions.assertThat(result).isEqualTo(1L);
     Assertions.assertThat(spark.catalog().tableExists(tableName + "_BACKUP_")).isTrue();
   }
@@ -170,14 +172,14 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     String location = temp.newFolder().toString();
     sql(
-            "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-            tableName, location);
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     Object result =
-            scalarSql(
-                    "CALL %s.system.migrate(table => '%s', drop_backup => false, dest_catalog_name => '%s')",
-                    catalogName, tableName, destCatalogName);
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', drop_backup => false, dest_catalog_name => '%s')",
+            catalogName, tableName, destCatalogName);
     Assertions.assertThat(result).isEqualTo(1L);
     Assertions.assertThat(spark.catalog().tableExists(tableName + "_BACKUP_")).isTrue();
   }
