@@ -167,8 +167,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Primitive Types
 
-| Primitive type     | Description                                                              | Requirements                                     |
-|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
+| Primitive type     | Description                                                              | Requirements                                     | Iceberg Version |
+|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|-----------------|
 | **`boolean`**      | True or false                                                            |                                                  |
 | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 | **`long`**         | 64-bit signed integers                                                   |                                                  |
@@ -179,8 +179,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
 | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
 | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
-| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | only supported in v3 tables [2]                  |
-| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | only supported in v3 tables [2]                  |
+| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              | [v3](#version-3) |
+| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              | [v3](#version-3) |
 | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
 | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
