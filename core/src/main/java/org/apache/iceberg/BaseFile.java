@@ -27,13 +27,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -533,15 +533,10 @@ abstract class BaseFile<F>
       return null;
     }
 
-    Map<Integer, TypeT> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
-    for (Integer columnId : columnIds) {
-      TypeT value = map.get(columnId);
-      if (value != null) {
-        filtered.put(columnId, value);
-      }
-    }
-
-    return copyFunction.apply(filtered);
+    return copyFunction.apply(
+        columnIds.stream()
+            .filter(map::containsKey)
+            .collect(Collectors.toMap(Function.identity(), map::get)));
   }
 
   @Override
