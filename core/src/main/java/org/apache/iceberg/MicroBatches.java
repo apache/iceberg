@@ -92,7 +92,7 @@ public class MicroBatches {
 
     for (ManifestFile manifest : manifestFiles) {
       manifestIndexes.add(Pair.of(manifest, currentFileIndex));
-      currentFileIndex += manifest.addedFilesCount() + manifest.existingFilesCount();
+      currentFileIndex += manifest.addedFilesCount();
     }
 
     return manifestIndexes;

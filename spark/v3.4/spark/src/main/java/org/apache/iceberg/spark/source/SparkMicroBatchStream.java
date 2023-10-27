@@ -309,6 +309,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
   }
 
+  private Snapshot nextSnapshotSkippingOverNoneProcessable(Snapshot curSnapshot) {
+    curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    while (!shouldProcess(curSnapshot)) {
+      LOG.debug("Skipping snapshot: {} of table {}", curSnapshot.snapshotId(), table.name());
+      // if the currentSnapShot was also the mostRecentSnapshot then break
+      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    }
+    return curSnapshot;
+  }
+
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
@@ -392,8 +405,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
       // if everything was OK and we consumed complete snapshot then move to next snapshot
       if (shouldContinueReading) {
+        Snapshot nextValid = nextSnapshotSkippingOverNoneProcessable(curSnapshot);
+        if (nextValid == null) {
+          // all the remaining snapshots should be skipped.
+          shouldContinueReading = false;
+          break;
+        }
+        // we found the next available snapshot, continue from there.
+        curSnapshot = nextValid;
         startPosOfSnapOffset = -1;
-        curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
         // if anyhow we are moving to next snapshot we should only scan addedFiles
         scanAllFiles = false;
       }
