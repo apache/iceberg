@@ -111,8 +111,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Glue detected concurrent update")
         .cause()
-        .isInstanceOf(ConcurrentModificationException.class)
-        .hasMessageContaining(null);
+        .isInstanceOf(ConcurrentModificationException.class);
     Mockito.verify(spyOps, Mockito.times(0)).refresh();
 
     ops.refresh();

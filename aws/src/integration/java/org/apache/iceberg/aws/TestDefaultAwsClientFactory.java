@@ -42,6 +42,7 @@ public class TestDefaultAwsClientFactory {
     Assertions.assertThatThrownBy(
             () -> glueClient.getDatabase(GetDatabaseRequest.builder().name("TEST").build()))
         .as("Should refuse connection to unknown endpoint")
+        .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: unknown");
   }
