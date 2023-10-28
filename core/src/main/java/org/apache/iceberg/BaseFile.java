@@ -460,21 +460,27 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    if (splitOffsets == null || splitOffsets.length == 0) {
-      return null;
+    if (hasWellDefinedOffsets()) {
+      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
     }
 
-    // If the last split offset is past the file size this means the split offsets are corrupted and
-    // should not be used
-    if (splitOffsets[splitOffsets.length - 1] >= fileSizeInBytes) {
-      return null;
-    }
-
-    return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+    return null;
   }
 
   long[] splitOffsetArray() {
-    return splitOffsets;
+    if (hasWellDefinedOffsets()) {
+      return splitOffsets;
+    }
+
+    return null;
+  }
+
+  private boolean hasWellDefinedOffsets() {
+    // If the last split offset is past the file size this means the split offsets are corrupted and
+    // should not be used
+    return splitOffsets != null
+        && splitOffsets.length != 0
+        && splitOffsets[splitOffsets.length - 1] < fileSizeInBytes;
   }
 
   @Override
