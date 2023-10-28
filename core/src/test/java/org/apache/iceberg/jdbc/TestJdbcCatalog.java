@@ -628,6 +628,14 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(Namespace.of("test%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test\\%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns\\.1"))).isFalse();
+    //
+    testNamespace = Namespace.of("test\\%Db2", "ns1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db2"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\_Db2"))).isFalse();
   }
 
   @Test
@@ -657,19 +665,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(Namespace.of("test_D%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_%"))).isFalse();
-  }
-
-  @Test
-  public void testCreateNamespaceWithDotCharacter() {
-    Namespace testNamespace = Namespace.of("test.Db", "ns1", "ns2");
-    catalog.createNamespace(testNamespace);
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("test.Db", "ns1"))).isTrue();
-    // TODO FIX handle Dot (its namespace SEPERATOR)? in the namespace levels. currently its
-    // accepted and threaded as a level
-    // Related to https://github.com/google/guava/issues/412
-    assertThat(catalog.namespaceExists(Namespace.of("test", "Db"))).isTrue();
-    assertThat(catalog.namespaceExists(Namespace.of("test", "Db", "ns1", "ns2"))).isTrue();
   }
 
   @Test
