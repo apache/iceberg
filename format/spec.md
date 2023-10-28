@@ -167,7 +167,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Primitive Types
 
-| Primitive type     | Description                                                              | Requirements                                     | Iceberg Version |
+| Primitive type     | Description                                                              | Requirements                                     | Valid From      |
 |--------------------|--------------------------------------------------------------------------|--------------------------------------------------|-----------------|
 | **`boolean`**      | True or false                                                            |                                                  |
 | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
