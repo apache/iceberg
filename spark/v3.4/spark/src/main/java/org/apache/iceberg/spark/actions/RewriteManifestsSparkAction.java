@@ -399,9 +399,9 @@ public class RewriteManifestsSparkAction
           spec(),
           newOutputFile(),
           null,
-          table().properties().get(TableProperties.AVRO_COMPRESSION),
-          PropertyUtil.propertyAsNullableInt(
-              table().properties(), TableProperties.AVRO_COMPRESSION_LEVEL));
+          ManifestWriter.options()
+              .compressionCodec(compressionCodec())
+              .compressionLevel(compressionLevel()));
     }
 
     private PartitionSpec spec() {
@@ -410,6 +410,15 @@ public class RewriteManifestsSparkAction
 
     private OutputFile newOutputFile() {
       return table().io().newOutputFile(newManifestLocation());
+    }
+
+    private String compressionCodec() {
+      return table().properties().get(TableProperties.AVRO_COMPRESSION);
+    }
+
+    private Integer compressionLevel() {
+      return PropertyUtil.propertyAsNullableInt(
+          table().properties(), TableProperties.AVRO_COMPRESSION_LEVEL);
     }
 
     private String newManifestLocation() {

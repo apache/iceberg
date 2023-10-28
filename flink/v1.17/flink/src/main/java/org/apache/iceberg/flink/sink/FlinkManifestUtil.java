@@ -56,7 +56,13 @@ class FlinkManifestUtil {
       throws IOException {
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
-            FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID, compressionCodec, compressionLevel);
+            FORMAT_V2,
+            spec,
+            outputFile,
+            DUMMY_SNAPSHOT_ID,
+            ManifestWriter.options()
+                .compressionCodec(compressionCodec)
+                .compressionLevel(compressionLevel));
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -129,8 +135,9 @@ class FlinkManifestUtil {
               spec,
               deleteManifestFile,
               DUMMY_SNAPSHOT_ID,
-              compressionCodec,
-              compressionLevel);
+              ManifestWriter.options()
+                  .compressionCodec(compressionCodec)
+                  .compressionLevel(compressionLevel));
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);

@@ -346,7 +346,14 @@ public class SparkTableUtil {
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
       ManifestWriter<DataFile> writer =
-          ManifestFiles.write(1, spec, outputFile, null, compressionCodec, compressionLevel);
+          ManifestFiles.write(
+              1,
+              spec,
+              outputFile,
+              null,
+              ManifestWriter.options()
+                  .compressionCodec(compressionCodec)
+                  .compressionLevel(compressionLevel));
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));

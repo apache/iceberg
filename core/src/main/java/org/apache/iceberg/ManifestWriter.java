@@ -52,15 +52,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minDataSequenceNumber = null;
 
-  private ManifestWriter(
-      PartitionSpec spec,
-      OutputFile file,
-      Long snapshotId,
-      String compressionCodec,
-      Integer compressionLevel) {
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId, Options options) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(spec, file, compressionCodec, compressionLevel);
+    this.writer = newAppender(spec, file, options);
     this.snapshotId = snapshotId;
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
@@ -69,18 +64,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
   /**
-   * @deprecated since 1.4.0, will be removed in 1.5.0; use {@link
-   *     ManifestWriter#newAppender(PartitionSpec, OutputFile, String, Integer)} instead.
+   * @deprecated since 1.5.0, will be removed in 1.6.0; use {@link
+   *     ManifestWriter#newAppender(PartitionSpec, OutputFile, Options)} instead.
    */
   @Deprecated
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
 
   protected FileAppender<ManifestEntry<F>> newAppender(
-      PartitionSpec spec,
-      OutputFile outputFile,
-      String compressionCodec,
-      Integer compressionLevel) {
+      PartitionSpec spec, OutputFile outputFile, Options options) {
     return newAppender(spec, outputFile);
   }
 
@@ -231,16 +223,40 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     writer.close();
   }
 
+  public static Options options() {
+    return new Options();
+  }
+
+  public static class Options {
+    private String compCodec;
+    private Integer compLevel;
+
+    private Options() {}
+
+    public Options compressionCodec(String codec) {
+      compCodec = codec;
+      return this;
+    }
+
+    public Options compressionLevel(Integer level) {
+      compLevel = level;
+      return this;
+    }
+
+    String compressionCodec() {
+      return compCodec;
+    }
+
+    Integer compressionLevel() {
+      return compLevel;
+    }
+  }
+
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
-    V2Writer(
-        PartitionSpec spec,
-        OutputFile file,
-        Long snapshotId,
-        String compressionCodec,
-        Integer compressionLevel) {
-      super(spec, file, snapshotId, compressionCodec, compressionLevel);
+    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId, Options options) {
+      super(spec, file, snapshotId, options);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -252,13 +268,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      return newAppender(spec, file, null, null);
+      return newAppender(spec, file, options());
     }
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
-        PartitionSpec spec, OutputFile file, String compressionCodec, Integer compressionLevel) {
+        PartitionSpec spec, OutputFile file, Options options) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
+      String compressionCodec = options.compressionCodec();
+      Integer compressionLevel = options.compressionLevel();
+
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)
@@ -289,13 +308,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
-    V2DeleteWriter(
-        PartitionSpec spec,
-        OutputFile file,
-        Long snapshotId,
-        String compressionCodec,
-        Integer compressionLevel) {
-      super(spec, file, snapshotId, compressionCodec, compressionLevel);
+    V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId, Options options) {
+      super(spec, file, snapshotId, options);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -307,13 +321,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      return newAppender(spec, file, null, null);
+      return newAppender(spec, file, options());
     }
 
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
-        PartitionSpec spec, OutputFile file, String compressionCodec, Integer compressionLevel) {
+        PartitionSpec spec, OutputFile file, Options options) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
+      String compressionCodec = options.compressionCodec();
+      Integer compressionLevel = options.compressionLevel();
+
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)
@@ -349,13 +366,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(
-        PartitionSpec spec,
-        OutputFile file,
-        Long snapshotId,
-        String compressionCodec,
-        Integer compressionLevel) {
-      super(spec, file, snapshotId, compressionCodec, compressionLevel);
+    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId, Options options) {
+      super(spec, file, snapshotId, options);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 
@@ -367,13 +379,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      return newAppender(spec, file, null, null);
+      return newAppender(spec, file, options());
     }
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
-        PartitionSpec spec, OutputFile file, String compressionCodec, Integer compressionLevel) {
+        PartitionSpec spec, OutputFile file, Options options) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
+      String compressionCodec = options.compressionCodec();
+      Integer compressionLevel = options.compressionLevel();
+
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)

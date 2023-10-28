@@ -31,18 +31,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
-  private ManifestListWriter(
-      OutputFile file,
-      Map<String, String> meta,
-      String compressionCodec,
-      Integer compressionLevel) {
-    this.writer = newAppender(file, meta, compressionCodec, compressionLevel);
+  private ManifestListWriter(OutputFile file, Map<String, String> meta, Options options) {
+    this.writer = newAppender(file, meta, options);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta, String compressionCodec, Integer compressionLevel);
+      OutputFile file, Map<String, String> meta, Options options);
 
   @Override
   public void add(ManifestFile manifest) {
@@ -74,6 +70,35 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return writer.length();
   }
 
+  public static Options options() {
+    return new Options();
+  }
+
+  static class Options {
+    private String compCodec;
+    private Integer compLevel;
+
+    private Options() {}
+
+    public Options compressionCodec(String codec) {
+      compCodec = codec;
+      return this;
+    }
+
+    public Options compressionLevel(Integer level) {
+      compLevel = level;
+      return this;
+    }
+
+    String compressionCodec() {
+      return compCodec;
+    }
+
+    Integer compressionLevel() {
+      return compLevel;
+    }
+  }
+
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 
@@ -82,8 +107,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         long snapshotId,
         Long parentSnapshotId,
         long sequenceNumber,
-        String compressionCodec,
-        Integer compressionLevel) {
+        Options options) {
       super(
           snapshotFile,
           ImmutableMap.of(
@@ -91,8 +115,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
               "format-version", "2"),
-          compressionCodec,
-          compressionLevel);
+          options);
       this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 
@@ -103,10 +126,10 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected FileAppender<ManifestFile> newAppender(
-        OutputFile file,
-        Map<String, String> meta,
-        String compressionCodec,
-        Integer compressionLevel) {
+        OutputFile file, Map<String, String> meta, Options options) {
+      String compressionCodec = options.compressionCodec();
+      Integer compressionLevel = options.compressionLevel();
+
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)
@@ -133,20 +156,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V1Writer extends ManifestListWriter {
     private final V1Metadata.IndexedManifestFile wrapper = new V1Metadata.IndexedManifestFile();
 
-    V1Writer(
-        OutputFile snapshotFile,
-        long snapshotId,
-        Long parentSnapshotId,
-        String compressionCodec,
-        Integer compressionLevel) {
+    V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, Options options) {
       super(
           snapshotFile,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "format-version", "1"),
-          compressionCodec,
-          compressionLevel);
+          options);
     }
 
     @Override
@@ -159,10 +176,10 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected FileAppender<ManifestFile> newAppender(
-        OutputFile file,
-        Map<String, String> meta,
-        String compressionCodec,
-        Integer compressionLevel) {
+        OutputFile file, Map<String, String> meta, Options options) {
+      String compressionCodec = options.compressionCodec();
+      Integer compressionLevel = options.compressionLevel();
+
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)

@@ -270,7 +270,11 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
-            formatVersion, table.spec(), outputFile, snapshotId, compressionCodec, null);
+            formatVersion,
+            table.spec(),
+            outputFile,
+            snapshotId,
+            ManifestWriter.options().compressionCodec(compressionCodec));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -332,7 +336,11 @@ public class TableTestBase {
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(
-            newFormatVersion, SPEC, manifestFile, snapshotId, compressionCodec, null);
+            newFormatVersion,
+            SPEC,
+            manifestFile,
+            snapshotId,
+            ManifestWriter.options().compressionCodec(compressionCodec));
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -358,8 +366,7 @@ public class TableTestBase {
             EXAMPLE_SNAPSHOT_ID,
             EXAMPLE_SNAPSHOT_ID - 1,
             formatVersion > 1 ? 34L : 0,
-            compressionCodec,
-            null)) {
+            ManifestListWriter.options().compressionCodec(compressionCodec))) {
       for (ManifestFile manifestFile : manifestFiles) {
         writer.add(manifestFile);
       }

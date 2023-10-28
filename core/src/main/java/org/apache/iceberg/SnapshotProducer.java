@@ -235,6 +235,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     OutputFile manifestList = manifestListPath();
 
+    ManifestListWriter.Options options =
+        ManifestListWriter.options()
+            .compressionCodec(base.properties().get(TableProperties.AVRO_COMPRESSION))
+            .compressionLevel(base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
     try (ManifestListWriter writer =
         ManifestLists.write(
             base.formatVersion(),
@@ -242,8 +246,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             snapshotId(),
             parentSnapshotId,
             sequenceNumber,
-            base.properties().get(TableProperties.AVRO_COMPRESSION),
-            base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL))) {
+            options)) {
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -509,23 +512,21 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
+    ManifestWriter.Options options =
+        ManifestWriter.options()
+            .compressionCodec(base.properties().get(TableProperties.AVRO_COMPRESSION))
+            .compressionLevel(base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
     return ManifestFiles.write(
-        base.formatVersion(),
-        spec,
-        newManifestOutput(),
-        snapshotId(),
-        base.properties().get(TableProperties.AVRO_COMPRESSION),
-        base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
+        base.formatVersion(), spec, newManifestOutput(), snapshotId(), options);
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
+    ManifestWriter.Options options =
+        ManifestWriter.options()
+            .compressionCodec(base.properties().get(TableProperties.AVRO_COMPRESSION))
+            .compressionLevel(base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
     return ManifestFiles.writeDeleteManifest(
-        base.formatVersion(),
-        spec,
-        newManifestOutput(),
-        snapshotId(),
-        base.properties().get(TableProperties.AVRO_COMPRESSION),
-        base.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
+        base.formatVersion(), spec, newManifestOutput(), snapshotId(), options);
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {

@@ -393,7 +393,14 @@ public class RewriteManifestsSparkAction
     SparkDataFile wrapper = new SparkDataFile(combinedFileType, manifestFileType, sparkType);
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(format, spec, outputFile, null, compressionCodec, compressionLevel);
+        ManifestFiles.write(
+            format,
+            spec,
+            outputFile,
+            null,
+            ManifestWriter.options()
+                .compressionCodec(compressionCodec)
+                .compressionLevel(compressionLevel));
 
     try {
       for (int index = startIndex; index < endIndex; index++) {

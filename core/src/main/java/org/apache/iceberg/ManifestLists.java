@@ -62,7 +62,12 @@ class ManifestLists {
       Long parentSnapshotId,
       long sequenceNumber) {
     return write(
-        formatVersion, manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, null, null);
+        formatVersion,
+        manifestListFile,
+        snapshotId,
+        parentSnapshotId,
+        sequenceNumber,
+        ManifestListWriter.options());
   }
 
   static ManifestListWriter write(
@@ -71,8 +76,7 @@ class ManifestLists {
       long snapshotId,
       Long parentSnapshotId,
       long sequenceNumber,
-      String compressionCodec,
-      Integer compressionLevel) {
+      ManifestListWriter.Options options) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
@@ -80,15 +84,10 @@ class ManifestLists {
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
         return new ManifestListWriter.V1Writer(
-            manifestListFile, snapshotId, parentSnapshotId, compressionCodec, compressionLevel);
+            manifestListFile, snapshotId, parentSnapshotId, options);
       case 2:
         return new ManifestListWriter.V2Writer(
-            manifestListFile,
-            snapshotId,
-            parentSnapshotId,
-            sequenceNumber,
-            compressionCodec,
-            compressionLevel);
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, options);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
