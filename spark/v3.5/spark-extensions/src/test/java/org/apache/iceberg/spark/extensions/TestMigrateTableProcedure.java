@@ -174,14 +174,15 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    Object result =
-        scalarSql(
-            "CALL %s.system.migrate(table => '%s', drop_backup => false, dest_catalog_name => '%s')",
-            catalogName, tableName, destCatalogName);
-    Assertions.assertThat(result).isEqualTo(1L);
-    Assertions.assertThat(spark.catalog().tableExists(tableName + "_BACKUP_")).isTrue();
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "CALL %s.system.migrate(table => '%s', dest_catalog_name => '%s')",
+                  catalogName, tableName, destCatalogName);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The destination catalog %s doesn't exist in SparkSession.", destCatalogName);
   }
 
   @Test
