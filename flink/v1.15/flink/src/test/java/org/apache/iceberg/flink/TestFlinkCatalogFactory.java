@@ -86,10 +86,10 @@ public class TestFlinkCatalogFactory {
     props.put(
         FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HIVE);
     Assertions.assertThatThrownBy(
-                    () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
-            .as("Should throw when both catalog-type and catalog-impl are set")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("both catalog-type and catalog-impl are set");
+            () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot create catalog customCatalog, both catalog-type and catalog-impl are set");
   }
 
   @Test
@@ -97,10 +97,9 @@ public class TestFlinkCatalogFactory {
     String catalogName = "unknownCatalog";
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "fooType");
     Assertions.assertThatThrownBy(
-                    () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
-            .as("Should throw when an unregistered / unknown catalog is set as the catalog factor's`type` setting")
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("Unknown catalog-type");
+            () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith("Unknown catalog-type: fooType");
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {

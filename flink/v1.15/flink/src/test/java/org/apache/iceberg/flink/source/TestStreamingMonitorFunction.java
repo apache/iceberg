@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Before;
@@ -253,28 +254,18 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(0)
             .build();
-    Assertions.assertThatThrownBy(
-                    () -> {
-                      createFunction(scanContext1);
-                      return null;
-                    })
-            .as("Should throw exception because of invalid config")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be greater than zero");
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
 
     ScanContext scanContext2 =
         ScanContext.builder()
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(-10)
             .build();
-    Assertions.assertThatThrownBy(
-                    () -> {
-                      createFunction(scanContext2);
-                      return null;
-                    })
-            .as("Should throw exception because of invalid config")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be greater than zero");
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
 
   @Test

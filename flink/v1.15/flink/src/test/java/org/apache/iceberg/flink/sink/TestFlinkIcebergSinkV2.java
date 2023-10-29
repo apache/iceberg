@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -200,18 +201,22 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)
             .upsert(true);
-    Assertions.assertThatThrownBy(
-                    () ->
-                            builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append())
-            .as("Should be error because upsert mode and overwrite mode enable at the same time.")
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("OVERWRITE mode shouldn't be enable");
-    Assertions.assertThatThrownBy(
-                    () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
-            .as("Should be error because equality field columns are empty.")
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Equality field columns shouldn't be empty");
 
+    Assertions.assertThatThrownBy(
+            () ->
+                builder
+                    .equalityFieldColumns(ImmutableList.of("id", "data"))
+                    .overwrite(true)
+                    .append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
+
+    Assertions.assertThatThrownBy(
+            () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
   }
 
   @Test

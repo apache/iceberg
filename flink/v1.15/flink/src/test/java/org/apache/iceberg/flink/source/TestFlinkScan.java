@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -354,25 +355,25 @@ public abstract class TestFlinkScan {
         expected,
         TestFixtures.SCHEMA);
     Assertions.assertThatThrownBy(
-                    () ->
-                            runWithOptions(
-                                    ImmutableMap.<String, String>builder()
-                                            .put("start-tag", startTag)
-                                            .put("end-tag", endTag)
-                                            .put("start-snapshot-id", Long.toString(snapshotId1))
-                                            .buildOrThrow()))
-            .as("START_SNAPSHOT_ID and START_TAG cannot both be set.")
-            .isInstanceOf(Exception.class);
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-tag", startTag)
+                        .put("end-tag", endTag)
+                        .put("start-snapshot-id", Long.toString(snapshotId1))
+                        .buildOrThrow()))
+        .isInstanceOf(Exception.class)
+        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
     Assertions.assertThatThrownBy(
-                    () ->
-                            runWithOptions(
-                                    ImmutableMap.<String, String>builder()
-                                            .put("start-tag", startTag)
-                                            .put("end-tag", endTag)
-                                            .put("end-snapshot-id", Long.toString(snapshotId3))
-                                            .buildOrThrow()))
-            .as("END_SNAPSHOT_ID and END_TAG cannot both be set.")
-            .isInstanceOf(Exception.class);
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-tag", startTag)
+                        .put("end-tag", endTag)
+                        .put("end-snapshot-id", Long.toString(snapshotId3))
+                        .buildOrThrow()))
+        .isInstanceOf(Exception.class)
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
   @Test
