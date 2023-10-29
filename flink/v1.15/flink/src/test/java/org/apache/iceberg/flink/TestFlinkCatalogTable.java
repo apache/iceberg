@@ -34,7 +34,6 @@ import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -105,11 +104,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
-    AssertHelpers.assertThrows(
-        "Should fail if trying to get a nonexistent table",
-        ValidationException.class,
-        "Table `tl` was not found.",
-        () -> getTableEnv().from("tl"));
+    Assertions.assertThatThrownBy(
+                    () -> getTableEnv().from("tl"))
+            .as("Should fail if trying to get a nonexistent table")
+            .isInstanceOf(ValidationException.class)
+            .hasMessageContaining("Table `tl` was not found.");
     Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
     Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
@@ -178,11 +177,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     assertThat(table("tl")).isNotNull();
 
     sql("DROP TABLE tl");
-    AssertHelpers.assertThrows(
-        "Table 'tl' should be dropped",
-        NoSuchTableException.class,
-        "Table does not exist: " + getFullQualifiedTableName("tl"),
-        () -> table("tl"));
+    Assertions.assertThatThrownBy(
+                    () -> table("tl"))
+            .as("Table 'tl' should be dropped")
+            .isInstanceOf(NoSuchTableException.class)
+            .hasMessageContaining("Table does not exist: " + getFullQualifiedTableName("tl"));
 
     sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
     assertThat(table("tl").properties()).doesNotContainKey("key");
@@ -277,12 +276,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Table table = table("tl");
     TableOperations ops = ((BaseTable) table).operations();
     Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
-
-    AssertHelpers.assertThrowsRootCause(
-        "should fail to downgrade to v1",
-        IllegalArgumentException.class,
-        "Cannot downgrade v2 table to v1",
-        () -> sql("ALTER TABLE tl SET('format-version'='1')"));
+    Assertions.assertThatThrownBy(
+                    () -> sql("ALTER TABLE tl SET('format-version'='1')"))
+            .as("should fail to downgrade to v1")
+            .rootCause()
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Cannot downgrade v2 table to v1");
   }
 
   @Test

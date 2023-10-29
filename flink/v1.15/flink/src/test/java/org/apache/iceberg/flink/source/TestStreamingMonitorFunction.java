@@ -32,7 +32,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -254,30 +253,28 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(0)
             .build();
-
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext1);
-          return null;
-        });
+    Assertions.assertThatThrownBy(
+                    () -> {
+                      createFunction(scanContext1);
+                      return null;
+                    })
+            .as("Should throw exception because of invalid config")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("must be greater than zero");
 
     ScanContext scanContext2 =
         ScanContext.builder()
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(-10)
             .build();
-
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext2);
-          return null;
-        });
+    Assertions.assertThatThrownBy(
+                    () -> {
+                      createFunction(scanContext2);
+                      return null;
+                    })
+            .as("Should throw exception because of invalid config")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("must be greater than zero");
   }
 
   @Test

@@ -31,7 +31,6 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -261,11 +260,11 @@ public class TestIcebergConnector extends FlinkTestBase {
     try {
       testCreateConnectorTable();
       // Ensure that the table was created under the specific database.
-      AssertHelpers.assertThrows(
-          "Table should already exists",
-          org.apache.flink.table.api.TableException.class,
-          "Could not execute CreateTable in path",
-          () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME));
+      Assertions.assertThatThrownBy(
+                      () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
+              .as("Table should already exists")
+              .isInstanceOf(org.apache.flink.table.api.TableException.class)
+              .hasMessageContaining("Could not execute CreateTable in path");
     } finally {
       sql("DROP TABLE IF EXISTS `%s`.`%s`", databaseName(), TABLE_NAME);
       if (!isDefaultDatabaseName()) {
@@ -293,14 +292,15 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create a connector table in an iceberg catalog.
     sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
     try {
-      AssertHelpers.assertThrowsCause(
-          "Cannot create the iceberg connector table in iceberg catalog",
-          IllegalArgumentException.class,
-          "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog",
-          () ->
-              sql(
-                  "CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
-                  FlinkCatalogFactory.DEFAULT_DATABASE_NAME, TABLE_NAME, toWithClause(tableProps)));
+      Assertions.assertThatThrownBy(
+                      () ->
+                              sql(
+                                      "CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
+                                      FlinkCatalogFactory.DEFAULT_DATABASE_NAME, TABLE_NAME, toWithClause(tableProps)))
+              .as("Cannot create the iceberg connector table in iceberg catalog")
+              .cause()
+              .isInstanceOf(IllegalArgumentException.class)
+              .hasMessageContaining("Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog");
     } finally {
       sql("DROP CATALOG IF EXISTS `test_catalog`");
     }

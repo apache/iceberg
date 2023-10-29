@@ -23,7 +23,6 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.catalog.Namespace;
@@ -90,10 +89,10 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    AssertHelpers.assertThrows(
-        "Should not list partitions for unpartitioned table.",
-        TableNotPartitionedException.class,
-        () -> flinkCatalog.listPartitions(objectPath));
+    Assertions.assertThatThrownBy(
+                    () -> flinkCatalog.listPartitions(objectPath))
+            .as("Should not list partitions for unpartitioned table.")
+            .isInstanceOf(TableNotPartitionedException.class);
   }
 
   @Test

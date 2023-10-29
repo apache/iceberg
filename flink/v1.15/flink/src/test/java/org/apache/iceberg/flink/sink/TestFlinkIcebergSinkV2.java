@@ -23,7 +23,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
@@ -201,19 +200,18 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)
             .upsert(true);
+    Assertions.assertThatThrownBy(
+                    () ->
+                            builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append())
+            .as("Should be error because upsert mode and overwrite mode enable at the same time.")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("OVERWRITE mode shouldn't be enable");
+    Assertions.assertThatThrownBy(
+                    () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+            .as("Should be error because equality field columns are empty.")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Equality field columns shouldn't be empty");
 
-    AssertHelpers.assertThrows(
-        "Should be error because upsert mode and overwrite mode enable at the same time.",
-        IllegalStateException.class,
-        "OVERWRITE mode shouldn't be enable",
-        () ->
-            builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append());
-
-    AssertHelpers.assertThrows(
-        "Should be error because equality field columns are empty.",
-        IllegalStateException.class,
-        "Equality field columns shouldn't be empty",
-        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append());
   }
 
   @Test
