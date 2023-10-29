@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -134,14 +133,14 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotId(1L)
             .build();
 
-    // emtpy table
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot id",
-        IllegalArgumentException.class,
-        "Start snapshot id not found in history: 1",
-        () ->
-            ContinuousSplitPlannerImpl.startSnapshot(
-                tableResource.table(), scanContextInvalidSnapshotId));
+    // empty table
+    Assertions.assertThatThrownBy(
+                    () ->
+                            ContinuousSplitPlannerImpl.startSnapshot(
+                                    tableResource.table(), scanContextInvalidSnapshotId))
+            .as("Should detect invalid starting snapshot id")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Start snapshot id not found in history: 1");
 
     appendThreeSnapshots();
 
@@ -166,14 +165,14 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotTimestamp(1L)
             .build();
 
-    // emtpy table
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot timestamp",
-        IllegalArgumentException.class,
-        "Cannot find a snapshot after: ",
-        () ->
-            ContinuousSplitPlannerImpl.startSnapshot(
-                tableResource.table(), scanContextInvalidSnapshotTimestamp));
+    // empty table
+    Assertions.assertThatThrownBy(
+                    () ->
+                            ContinuousSplitPlannerImpl.startSnapshot(
+                                    tableResource.table(), scanContextInvalidSnapshotTimestamp))
+            .as("Should detect invalid starting snapshot timestamp")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Cannot find a snapshot after: ");
 
     appendThreeSnapshots();
 

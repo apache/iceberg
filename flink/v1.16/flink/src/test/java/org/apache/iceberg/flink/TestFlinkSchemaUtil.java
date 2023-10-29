@@ -30,7 +30,6 @@ import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -407,10 +406,10 @@ public class TestFlinkSchemaUtil {
                     Types.StructType.of(
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
-    AssertHelpers.assertThrows(
-        "Does not support the nested columns in flink schema's primary keys",
-        ValidationException.class,
-        "Column 'struct.inner' does not exist",
-        () -> FlinkSchemaUtil.toSchema(icebergSchema));
+    Assertions.assertThatThrownBy(
+                    () -> FlinkSchemaUtil.toSchema(icebergSchema))
+            .as("Does not support the nested columns in flink schema's primary keys")
+            .isInstanceOf(ValidationException.class)
+            .hasMessageContaining("Column 'struct.inner' does not exist");
   }
 }
