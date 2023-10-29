@@ -98,7 +98,7 @@ public class TestFlinkCatalogFactory {
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "fooType");
     Assertions.assertThatThrownBy(
                     () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
-            .as( "Should throw when an unregistered / unknown catalog is set as the catalog factor's`type` setting")
+            .as("Should throw when an unregistered / unknown catalog is set as the catalog factor's`type` setting")
             .isInstanceOf(UnsupportedOperationException.class)
             .hasMessageContaining("Unknown catalog-type");
   }

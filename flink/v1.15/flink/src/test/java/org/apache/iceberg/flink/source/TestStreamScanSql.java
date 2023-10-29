@@ -225,7 +225,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                                     TABLE))
             .as("Cannot scan table using ref for stream yet")
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining( "Cannot scan table using ref");
+            .hasMessageContaining("Cannot scan table using ref");
   }
 
   @Test

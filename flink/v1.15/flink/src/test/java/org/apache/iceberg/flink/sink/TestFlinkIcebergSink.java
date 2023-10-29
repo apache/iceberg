@@ -202,7 +202,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                       return null;
                     })
             .as("Does not support range distribution-mode now.")
-            .isInstanceOf( IllegalArgumentException.class)
+            .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Flink does not support 'range' write distribution mode now.");
   }
 
@@ -383,7 +383,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                       env.execute("Test Iceberg DataStream.");
                       return null;
                     })
-            .as( "Should fail with invalid file format.")
+            .as("Should fail with invalid file format.")
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Invalid file format: UNRECOGNIZED");
   }
