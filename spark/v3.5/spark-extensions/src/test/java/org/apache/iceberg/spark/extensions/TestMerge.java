@@ -43,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PlanningMode;
@@ -866,22 +865,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     ds.union(ds).createOrReplaceTempView("source");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
-    AssertHelpers.assertThrowsCause(
-        "Should complain about multiple matches",
-        SparkRuntimeException.class,
-        errorMsg,
-        () -> {
-          sql(
-              "MERGE INTO %s AS t USING source AS s "
-                  + "ON t.id == s.value "
-                  + "WHEN MATCHED AND t.id = 1 THEN "
-                  + "  UPDATE SET id = 10 "
-                  + "WHEN MATCHED AND t.id = 6 THEN "
-                  + "  DELETE "
-                  + "WHEN NOT MATCHED AND s.value = 2 THEN "
-                  + "  INSERT (id, dep) VALUES (s.value, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id == s.value "
+                      + "WHEN MATCHED AND t.id = 1 THEN "
+                      + "  UPDATE SET id = 10 "
+                      + "WHEN MATCHED AND t.id = 6 THEN "
+                      + "  DELETE "
+                      + "WHEN NOT MATCHED AND s.value = 2 THEN "
+                      + "  INSERT (id, dep) VALUES (s.value, null)",
+                  commitTarget());
+            })
+        .as("Should complain about multiple matches")
+        .cause()
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining(errorMsg);
 
     assertEquals(
         "Target should be unchanged",
@@ -908,22 +908,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "a single row from the target table with multiple rows of the source table";
-          AssertHelpers.assertThrowsCause(
-              "Should complain about multiple matches",
-              SparkRuntimeException.class,
-              errorMsg,
-              () -> {
-                sql(
-                    "MERGE INTO %s AS t USING source AS s "
-                        + "ON t.id == s.value "
-                        + "WHEN MATCHED AND t.id = 1 THEN "
-                        + "  UPDATE SET id = 10 "
-                        + "WHEN MATCHED AND t.id = 6 THEN "
-                        + "  DELETE "
-                        + "WHEN NOT MATCHED AND s.value = 2 THEN "
-                        + "  INSERT (id, dep) VALUES (s.value, null)",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s AS t USING source AS s "
+                            + "ON t.id == s.value "
+                            + "WHEN MATCHED AND t.id = 1 THEN "
+                            + "  UPDATE SET id = 10 "
+                            + "WHEN MATCHED AND t.id = 6 THEN "
+                            + "  DELETE "
+                            + "WHEN NOT MATCHED AND s.value = 2 THEN "
+                            + "  INSERT (id, dep) VALUES (s.value, null)",
+                        commitTarget());
+                  })
+              .as("Should complain about multiple matches")
+              .cause()
+              .isInstanceOf(SparkRuntimeException.class)
+              .hasMessageContaining(errorMsg);
         });
 
     assertEquals(
@@ -948,22 +949,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "a single row from the target table with multiple rows of the source table";
-          AssertHelpers.assertThrowsCause(
-              "Should complain about multiple matches",
-              SparkRuntimeException.class,
-              errorMsg,
-              () -> {
-                sql(
-                    "MERGE INTO %s AS t USING source AS s "
-                        + "ON t.id > s.value "
-                        + "WHEN MATCHED AND t.id = 1 THEN "
-                        + "  UPDATE SET id = 10 "
-                        + "WHEN MATCHED AND t.id = 6 THEN "
-                        + "  DELETE "
-                        + "WHEN NOT MATCHED AND s.value = 2 THEN "
-                        + "  INSERT (id, dep) VALUES (s.value, null)",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s AS t USING source AS s "
+                            + "ON t.id > s.value "
+                            + "WHEN MATCHED AND t.id = 1 THEN "
+                            + "  UPDATE SET id = 10 "
+                            + "WHEN MATCHED AND t.id = 6 THEN "
+                            + "  DELETE "
+                            + "WHEN NOT MATCHED AND s.value = 2 THEN "
+                            + "  INSERT (id, dep) VALUES (s.value, null)",
+                        commitTarget());
+                  })
+              .as("Should complain about multiple matches")
+              .cause()
+              .isInstanceOf(SparkRuntimeException.class)
+              .hasMessageContaining(errorMsg);
         });
 
     assertEquals(
@@ -986,21 +988,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     ds.union(ds).createOrReplaceTempView("source");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
-    AssertHelpers.assertThrowsCause(
-        "Should complain about multiple matches",
-        SparkRuntimeException.class,
-        errorMsg,
-        () -> {
-          sql(
-              "MERGE INTO %s AS t USING source AS s "
-                  + "ON t.id == s.value "
-                  + "WHEN MATCHED AND t.id = 1 THEN "
-                  + "  UPDATE SET id = 10 "
-                  + "WHEN MATCHED AND t.id = 6 THEN "
-                  + "  DELETE",
-              commitTarget());
-        });
-
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id == s.value "
+                      + "WHEN MATCHED AND t.id = 1 THEN "
+                      + "  UPDATE SET id = 10 "
+                      + "WHEN MATCHED AND t.id = 6 THEN "
+                      + "  DELETE",
+                  commitTarget());
+            })
+        .as("Should complain about multiple matches")
+        .cause()
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining(errorMsg);
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
@@ -1020,20 +1022,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     ds.union(ds).createOrReplaceTempView("source");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
-    AssertHelpers.assertThrowsCause(
-        "Should complain about multiple matches",
-        SparkRuntimeException.class,
-        errorMsg,
-        () -> {
-          sql(
-              "MERGE INTO %s AS t USING source AS s "
-                  + "ON t.id > s.value "
-                  + "WHEN MATCHED AND t.id = 1 THEN "
-                  + "  UPDATE SET id = 10 "
-                  + "WHEN MATCHED AND t.id = 6 THEN "
-                  + "  DELETE",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id > s.value "
+                      + "WHEN MATCHED AND t.id = 1 THEN "
+                      + "  UPDATE SET id = 10 "
+                      + "WHEN MATCHED AND t.id = 6 THEN "
+                      + "  DELETE",
+                  commitTarget());
+            })
+        .as("Should complain about multiple matches")
+        .cause()
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining(errorMsg);
 
     assertEquals(
         "Target should be unchanged",
@@ -1056,22 +1059,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
-    AssertHelpers.assertThrowsCause(
-        "Should complain about multiple matches",
-        SparkRuntimeException.class,
-        errorMsg,
-        () -> {
-          sql(
-              "MERGE INTO %s AS t USING source AS s "
-                  + "ON t.id == s.id "
-                  + "WHEN MATCHED AND t.id = 1 THEN "
-                  + "  UPDATE SET * "
-                  + "WHEN MATCHED AND t.id = 6 THEN "
-                  + "  DELETE "
-                  + "WHEN NOT MATCHED AND s.id = 2 THEN "
-                  + "  INSERT *",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id == s.id "
+                      + "WHEN MATCHED AND t.id = 1 THEN "
+                      + "  UPDATE SET * "
+                      + "WHEN MATCHED AND t.id = 6 THEN "
+                      + "  DELETE "
+                      + "WHEN NOT MATCHED AND s.id = 2 THEN "
+                      + "  INSERT *",
+                  commitTarget());
+            })
+        .as("Should complain about multiple matches")
+        .cause()
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining(errorMsg);
 
     assertEquals(
         "Target should be unchanged",
@@ -1127,20 +1131,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
-    AssertHelpers.assertThrowsCause(
-        "Should complain about multiple matches",
-        SparkRuntimeException.class,
-        errorMsg,
-        () -> {
-          sql(
-              "MERGE INTO %s AS t USING source AS s "
-                  + "ON t.id == s.id "
-                  + "WHEN MATCHED AND t.id = 1 THEN "
-                  + "  DELETE "
-                  + "WHEN NOT MATCHED AND s.id = 2 THEN "
-                  + "  INSERT *",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id == s.id "
+                      + "WHEN MATCHED AND t.id = 1 THEN "
+                      + "  DELETE "
+                      + "WHEN NOT MATCHED AND s.id = 2 THEN "
+                      + "  INSERT *",
+                  commitTarget());
+            })
+        .as("Should complain about multiple matches")
+        .cause()
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining(errorMsg);
 
     assertEquals(
         "Target should be unchanged",
@@ -2270,47 +2275,48 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.invalid_col = s.c2",
+                  commitTarget());
+            })
+        .as("Should complain about the invalid top-level column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `t`.`invalid_col` cannot be resolved");
 
-    AssertHelpers.assertThrows(
-        "Should complain about the invalid top-level column",
-        AnalysisException.class,
-        "A column or function parameter with name `t`.`invalid_col` cannot be resolved",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.invalid_col = s.c2",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n2.invalid_col = s.c2",
+                  commitTarget());
+            })
+        .as("Should complain about the invalid nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("No such struct field `invalid_col`");
 
-    AssertHelpers.assertThrows(
-        "Should complain about the invalid nested column",
-        AnalysisException.class,
-        "No such struct field `invalid_col`",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n2.invalid_col = s.c2",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about the invalid top-level column",
-        AnalysisException.class,
-        "A column or function parameter with name `invalid_col` cannot be resolved",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n2.dn1 = s.c2 "
-                  + "WHEN NOT MATCHED THEN "
-                  + "  INSERT (id, invalid_col) VALUES (s.c1, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n2.dn1 = s.c2 "
+                      + "WHEN NOT MATCHED THEN "
+                      + "  INSERT (id, invalid_col) VALUES (s.c1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about the invalid top-level column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `invalid_col` cannot be resolved");
   }
 
   @Test
@@ -2319,49 +2325,47 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n2.dn1 = s.c2 "
+                      + "WHEN NOT MATCHED THEN "
+                      + "  INSERT (id, c.n2) VALUES (s.c1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about the nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("INSERT assignment keys cannot be nested fields");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n2.dn1 = s.c2 "
+                      + "WHEN NOT MATCHED THEN "
+                      + "  INSERT (id, id) VALUES (s.c1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about duplicate columns")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Multiple assignments for 'id'");
 
-    AssertHelpers.assertThrows(
-        "Should complain about the nested column",
-        AnalysisException.class,
-        "INSERT assignment keys cannot be nested fields",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n2.dn1 = s.c2 "
-                  + "WHEN NOT MATCHED THEN "
-                  + "  INSERT (id, c.n2) VALUES (s.c1, null)",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about duplicate columns",
-        AnalysisException.class,
-        "Multiple assignments for 'id'",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n2.dn1 = s.c2 "
-                  + "WHEN NOT MATCHED THEN "
-                  + "  INSERT (id, id) VALUES (s.c1, null)",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about missing columns",
-        AnalysisException.class,
-        "No assignment for 'c'",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN NOT MATCHED THEN "
-                  + "  INSERT (id) VALUES (s.c1)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN NOT MATCHED THEN "
+                      + "  INSERT (id) VALUES (s.c1)",
+                  commitTarget());
+            })
+        .as("Should complain about missing columns")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("No assignment for 'c'");
   }
 
   @Test
@@ -2390,32 +2394,31 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
         "{ \"id\": 1, \"a\": [ { \"c1\": 2, \"c2\": 3 } ], \"m\": { \"k\": \"v\"} }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.a.c1 = s.c2",
+                  commitTarget());
+            })
+        .as("Should complain about updating an array column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updating nested fields is only supported for StructType");
 
-    AssertHelpers.assertThrows(
-        "Should complain about updating an array column",
-        AnalysisException.class,
-        "Updating nested fields is only supported for StructType",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.a.c1 = s.c2",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about updating a map column",
-        AnalysisException.class,
-        "Updating nested fields is only supported for StructType",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.m.key = 'new_key'",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.m.key = 'new_key'",
+                  commitTarget());
+            })
+        .as("Should complain about updating a map column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updating nested fields is only supported for StructType");
   }
 
   @Test
@@ -2424,45 +2427,43 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.id = 1, t.c.n1 = 2, t.id = 2",
+                  commitTarget());
+            })
+        .as("Should complain about conflicting updates to a top-level column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Multiple assignments for 'id");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n1 = 1, t.id = 2, t.c.n1 = 2",
+                  commitTarget());
+            })
+        .as("Should complain about conflicting updates to a nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Multiple assignments for 'c.n1'");
 
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a top-level column",
-        AnalysisException.class,
-        "Multiple assignments for 'id",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.id = 1, t.c.n1 = 2, t.id = 2",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a nested column",
-        AnalysisException.class,
-        "Multiple assignments for 'c.n1'",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n1 = 1, t.id = 2, t.c.n1 = 2",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a nested column",
-        AnalysisException.class,
-        "Conflicting assignments for 'c'",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET c.n1 = 1, c = named_struct('n1', 1, 'n2', named_struct('dn1', 1, 'dn2', 2))",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET c.n1 = 1, c = named_struct('n1', 1, 'n2', named_struct('dn1', 1, 'dn2', 2))",
+                  commitTarget());
+            })
+        .as("Should complain about conflicting updates to a nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Conflicting assignments for 'c'");
   }
 
   @Test
@@ -2478,70 +2479,67 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.STORE_ASSIGNMENT_POLICY().key(), "ansi"),
         () -> {
-          AssertHelpers.assertThrows(
-              "Should complain about writing nulls to a top-level column",
-              SparkException.class,
-              "Null value appeared in non-nullable field",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.id = cast(NULL as int)",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.id = cast(NULL as int)",
+                        commitTarget());
+                  })
+              .as("Should complain about writing nulls to a top-level column")
+              .isInstanceOf(SparkException.class)
+              .hasMessageContaining("Null value appeared in non-nullable field");
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n1 = NULL",
+                        commitTarget());
+                  })
+              .as("Should complain about writing nulls to a nested column")
+              .isInstanceOf(SparkException.class)
+              .hasMessageContaining("Null value appeared in non-nullable field");
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s = s.c2",
+                        commitTarget());
+                  })
+              .as("Should complain about writing missing fields in structs")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n1 = s.c3",
+                        commitTarget());
+                  })
+              .as("Should complain about writing invalid data types")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot safely cast");
 
-          AssertHelpers.assertThrows(
-              "Should complain about writing nulls to a nested column",
-              SparkException.class,
-              "Null value appeared in non-nullable field",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n1 = NULL",
-                    commitTarget());
-              });
-
-          AssertHelpers.assertThrows(
-              "Should complain about writing missing fields in structs",
-              AnalysisException.class,
-              "Cannot find data for the output column `s`.`n2`",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s = s.c2",
-                    commitTarget());
-              });
-
-          AssertHelpers.assertThrows(
-              "Should complain about writing invalid data types",
-              AnalysisException.class,
-              "Cannot safely cast",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n1 = s.c3",
-                    commitTarget());
-              });
-
-          AssertHelpers.assertThrows(
-              "Should complain about writing incompatible structs",
-              AnalysisException.class,
-              "Cannot find data for the output column `s`.`n2`.`dn2`",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n2 = s.c4",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n2 = s.c4",
+                        commitTarget());
+                  })
+              .as("Should complain about writing incompatible structs")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot find data for the output column `s`.`n2`.`dn2`");
         });
   }
 
@@ -2558,70 +2556,68 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.STORE_ASSIGNMENT_POLICY().key(), "strict"),
         () -> {
-          AssertHelpers.assertThrows(
-              "Should complain about writing nulls to a top-level column",
-              AnalysisException.class,
-              "Cannot safely cast `id` \"VOID\" to \"INT\"",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.id = NULL",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.id = NULL",
+                        commitTarget());
+                  })
+              .as("Should complain about writing nulls to a top-level column")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot safely cast `id` \"VOID\" to \"INT\"");
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n1 = NULL",
+                        commitTarget());
+                  })
+              .as("Should complain about writing nulls to a nested column")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot safely cast `s`.`n1` \"VOID\" to \"INT\"");
 
-          AssertHelpers.assertThrows(
-              "Should complain about writing nulls to a nested column",
-              AnalysisException.class,
-              "Cannot safely cast `s`.`n1` \"VOID\" to \"INT\"",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n1 = NULL",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s = s.c2",
+                        commitTarget());
+                  })
+              .as("Should complain about writing missing fields in structs")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n1 = s.c3",
+                        commitTarget());
+                  })
+              .as("Should complain about writing invalid data types")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot safely cast");
 
-          AssertHelpers.assertThrows(
-              "Should complain about writing missing fields in structs",
-              AnalysisException.class,
-              "Cannot find data for the output column `s`.`n2`",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s = s.c2",
-                    commitTarget());
-              });
-
-          AssertHelpers.assertThrows(
-              "Should complain about writing invalid data types",
-              AnalysisException.class,
-              "Cannot safely cast",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n1 = s.c3",
-                    commitTarget());
-              });
-
-          AssertHelpers.assertThrows(
-              "Should complain about writing incompatible structs",
-              AnalysisException.class,
-              "annot find data for the output column `s`.`n2`.`dn2`",
-              () -> {
-                sql(
-                    "MERGE INTO %s t USING source s "
-                        + "ON t.id == s.c1 "
-                        + "WHEN MATCHED THEN "
-                        + "  UPDATE SET t.s.n2 = s.c4",
-                    commitTarget());
-              });
+          Assertions.assertThatThrownBy(
+                  () -> {
+                    sql(
+                        "MERGE INTO %s t USING source s "
+                            + "ON t.id == s.c1 "
+                            + "WHEN MATCHED THEN "
+                            + "  UPDATE SET t.s.n2 = s.c4",
+                        commitTarget());
+                  })
+              .as("Should complain about writing incompatible structs")
+              .isInstanceOf(AnalysisException.class)
+              .hasMessageContaining("Cannot find data for the output column `s`.`n2`.`dn2`");
         });
   }
 
@@ -2631,58 +2627,60 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 AND rand() > t.id "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n1 = -1",
+                  commitTarget());
+            })
+        .as("Should complain about non-deterministic search conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported SEARCH condition. Non-deterministic expressions are not allowed");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND rand() > t.id THEN "
+                      + "  UPDATE SET t.c.n1 = -1",
+                  commitTarget());
+            })
+        .as("Should complain about non-deterministic update conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported UPDATE condition. Non-deterministic expressions are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic search conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported SEARCH condition. Non-deterministic expressions are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 AND rand() > t.id "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n1 = -1",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND rand() > t.id THEN "
+                      + "  DELETE",
+                  commitTarget());
+            })
+        .as("Should complain about non-deterministic delete conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported DELETE condition. Non-deterministic expressions are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic update conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported UPDATE condition. Non-deterministic expressions are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND rand() > t.id THEN "
-                  + "  UPDATE SET t.c.n1 = -1",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic delete conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported DELETE condition. Non-deterministic expressions are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND rand() > t.id THEN "
-                  + "  DELETE",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic insert conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported INSERT condition. Non-deterministic expressions are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN NOT MATCHED AND rand() > c1 THEN "
-                  + "  INSERT (id, c) VALUES (1, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN NOT MATCHED AND rand() > c1 THEN "
+                      + "  INSERT (id, c) VALUES (1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about non-deterministic insert conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported INSERT condition. Non-deterministic expressions are not allowed");
   }
 
   @Test
@@ -2691,58 +2689,61 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 AND max(t.id) == 1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n1 = -1",
+                  commitTarget());
+            })
+        .as("Should complain about agg expressions in search conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported SEARCH condition. Aggregates are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about agg expressions in search conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported SEARCH condition. Aggregates are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 AND max(t.id) == 1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n1 = -1",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND sum(t.id) < 1 THEN "
+                      + "  UPDATE SET t.c.n1 = -1",
+                  commitTarget());
+            })
+        .as("Should complain about agg expressions in update conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported UPDATE condition. Aggregates are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about agg expressions in update conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported UPDATE condition. Aggregates are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND sum(t.id) < 1 THEN "
-                  + "  UPDATE SET t.c.n1 = -1",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND sum(t.id) THEN "
+                      + "  DELETE",
+                  commitTarget());
+            })
+        .as("Should complain about agg expressions in delete conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported DELETE condition. Aggregates are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about agg expressions in delete conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported DELETE condition. Aggregates are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND sum(t.id) THEN "
-                  + "  DELETE",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about agg expressions in insert conditions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported INSERT condition. Aggregates are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN NOT MATCHED AND sum(c1) < 1 THEN "
-                  + "  INSERT (id, c) VALUES (1, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN NOT MATCHED AND sum(c1) < 1 THEN "
+                      + "  INSERT (id, c) VALUES (1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about agg expressions in insert conditions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported INSERT condition. Aggregates are not allowed");
   }
 
   @Test
@@ -2751,58 +2752,61 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 AND t.id < (SELECT max(c2) FROM source) "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET t.c.n1 = s.c2",
+                  commitTarget());
+            })
+        .as("Should complain about subquery expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported SEARCH condition. Subqueries are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about subquery expressions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported SEARCH condition. Subqueries are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 AND t.id < (SELECT max(c2) FROM source) "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET t.c.n1 = s.c2",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND t.id < (SELECT max(c2) FROM source) THEN "
+                      + "  UPDATE SET t.c.n1 = s.c2",
+                  commitTarget());
+            })
+        .as("Should complain about subquery expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported UPDATE condition. Subqueries are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about subquery expressions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported UPDATE condition. Subqueries are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND t.id < (SELECT max(c2) FROM source) THEN "
-                  + "  UPDATE SET t.c.n1 = s.c2",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN MATCHED AND t.id NOT IN (SELECT c2 FROM source) THEN "
+                      + "  DELETE",
+                  commitTarget());
+            })
+        .as("Should complain about subquery expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported DELETE condition. Subqueries are not allowed");
 
-    AssertHelpers.assertThrows(
-        "Should complain about subquery expressions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported DELETE condition. Subqueries are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN MATCHED AND t.id NOT IN (SELECT c2 FROM source) THEN "
-                  + "  DELETE",
-              commitTarget());
-        });
-
-    AssertHelpers.assertThrows(
-        "Should complain about subquery expressions",
-        AnalysisException.class,
-        "MERGE operation contains unsupported INSERT condition. Subqueries are not allowed",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.c1 "
-                  + "WHEN NOT MATCHED AND s.c1 IN (SELECT c2 FROM source) THEN "
-                  + "  INSERT (id, c) VALUES (1, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.c1 "
+                      + "WHEN NOT MATCHED AND s.c1 IN (SELECT c2 FROM source) THEN "
+                      + "  INSERT (id, c) VALUES (1, null)",
+                  commitTarget());
+            })
+        .as("Should complain about subquery expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "MERGE operation contains unsupported INSERT condition. Subqueries are not allowed");
   }
 
   @Test
@@ -2810,18 +2814,18 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, c2 INT", "{ \"id\": 1, \"c2\": 2 }");
     createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
 
-    AssertHelpers.assertThrows(
-        "Should complain about the target column",
-        AnalysisException.class,
-        "A column or function parameter with name `c2` cannot be resolved",
-        () -> {
-          sql(
-              "MERGE INTO %s t USING source s "
-                  + "ON t.id == s.id "
-                  + "WHEN NOT MATCHED AND c2 = 1 THEN "
-                  + "  INSERT (id, c2) VALUES (s.id, null)",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO %s t USING source s "
+                      + "ON t.id == s.id "
+                      + "WHEN NOT MATCHED AND c2 = 1 THEN "
+                      + "  INSERT (id, c2) VALUES (s.id, null)",
+                  commitTarget());
+            })
+        .as("Should complain about the target column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("A column or function parameter with name `c2` cannot be resolved");
   }
 
   @Test
@@ -2829,17 +2833,17 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows(
-        "Should complain non iceberg target table",
-        UnsupportedOperationException.class,
-        "MERGE INTO TABLE is not supported temporarily.",
-        () -> {
-          sql(
-              "MERGE INTO target t USING source s "
-                  + "ON t.c1 == s.c1 "
-                  + "WHEN MATCHED THEN "
-                  + "  UPDATE SET *");
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "MERGE INTO target t USING source s "
+                      + "ON t.c1 == s.c1 "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET *");
+            })
+        .as("Should complain non iceberg target table")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("MERGE INTO TABLE is not supported temporarily.");
   }
 
   /**
