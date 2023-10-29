@@ -324,7 +324,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
         .as("Cannot perform drop tag on tag which does not exist")
-        .isInstanceOf(IcebergParseException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist: nonExistingTag");
   }
 
