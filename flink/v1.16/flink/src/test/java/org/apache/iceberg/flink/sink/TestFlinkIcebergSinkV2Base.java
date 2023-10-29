@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class TestFlinkIcebergSinkV2Base {
@@ -231,19 +232,18 @@ public class TestFlinkIcebergSinkV2Base {
 
     if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
       Assertions.assertThatThrownBy(
-                      () -> {
-                        testChangeLogs(
-                                ImmutableList.of("id"),
-                                row -> row.getField(ROW_ID_POS),
-                                false,
-                                elementsPerCheckpoint,
-                                expectedRecords,
-                                branch);
-                        return null;
-                      })
-              .as("Should be error because equality field columns don't include all partition keys")
-              .isInstanceOf(IllegalStateException.class)
-              .hasMessageContaining("should be included in equality fields");
+              () -> {
+                testChangeLogs(
+                    ImmutableList.of("id"),
+                    row -> row.getField(ROW_ID_POS),
+                    false,
+                    elementsPerCheckpoint,
+                    expectedRecords,
+                    branch);
+              })
+          .as("Should be error because equality field columns don't include all partition keys")
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("should be included in equality fields");
     } else {
       testChangeLogs(
           ImmutableList.of("id"),
@@ -278,19 +278,18 @@ public class TestFlinkIcebergSinkV2Base {
           branch);
     } else {
       Assertions.assertThatThrownBy(
-                      () -> {
-                        testChangeLogs(
-                                ImmutableList.of("id"),
-                                row -> row.getField(ROW_ID_POS),
-                                true,
-                                elementsPerCheckpoint,
-                                expectedRecords,
-                                branch);
-                        return null;
-                      })
-              .as("Should be error because equality field columns don't include all partition keys")
-              .isInstanceOf(IllegalStateException.class)
-              .hasMessageContaining("should be included in equality fields");
+              () -> {
+                testChangeLogs(
+                    ImmutableList.of("id"),
+                    row -> row.getField(ROW_ID_POS),
+                    true,
+                    elementsPerCheckpoint,
+                    expectedRecords,
+                    branch);
+              })
+          .as("Should be error because equality field columns don't include all partition keys")
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("should be included in equality fields");
     }
   }
 

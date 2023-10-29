@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -406,10 +407,9 @@ public class TestFlinkSchemaUtil {
                     Types.StructType.of(
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
-    Assertions.assertThatThrownBy(
-                    () -> FlinkSchemaUtil.toSchema(icebergSchema))
-            .as("Does not support the nested columns in flink schema's primary keys")
-            .isInstanceOf(ValidationException.class)
-            .hasMessageContaining("Column 'struct.inner' does not exist");
+    Assertions.assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
+        .as("Does not support the nested columns in flink schema's primary keys")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Column 'struct.inner' does not exist");
   }
 }

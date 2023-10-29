@@ -45,6 +45,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -198,13 +199,12 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .commit();
 
     Assertions.assertThatThrownBy(
-                    () -> {
-                      testWriteRow(null, DistributionMode.RANGE);
-                      return null;
-                    })
-            .as("Does not support range distribution-mode now.")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Flink does not support 'range' write distribution mode now.");
+            () -> {
+              testWriteRow(null, DistributionMode.RANGE);
+            })
+        .as("Does not support range distribution-mode now.")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Flink does not support 'range' write distribution mode now.");
   }
 
   @Test
@@ -351,16 +351,14 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .setAll(newProps);
 
     Assertions.assertThatThrownBy(
-                    () -> {
-                      builder.append();
-
-                      // Execute the program.
-                      env.execute("Test Iceberg DataStream.");
-                      return null;
-                    })
-            .as("Should fail with invalid distribution mode.")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Invalid distribution mode: UNRECOGNIZED");
+            () -> {
+              builder.append();
+              // Execute the program.
+              env.execute("Test Iceberg DataStream.");
+            })
+        .as("Should fail with invalid distribution mode.")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @Test
@@ -379,16 +377,14 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .setAll(newProps);
 
     Assertions.assertThatThrownBy(
-                    () -> {
-                      builder.append();
-
-                      // Execute the program.
-                      env.execute("Test Iceberg DataStream.");
-                      return null;
-                    })
-            .as("Should fail with invalid file format.")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Invalid file format: UNRECOGNIZED");
+            () -> {
+              builder.append();
+              // Execute the program.
+              env.execute("Test Iceberg DataStream.");
+            })
+        .as("Should fail with invalid file format.")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid file format: UNRECOGNIZED");
   }
 
   @Test

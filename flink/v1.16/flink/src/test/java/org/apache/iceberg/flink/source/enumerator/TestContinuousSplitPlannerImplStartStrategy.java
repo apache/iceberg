@@ -29,6 +29,7 @@ import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -135,12 +136,12 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
     // empty table
     Assertions.assertThatThrownBy(
-                    () ->
-                            ContinuousSplitPlannerImpl.startSnapshot(
-                                    tableResource.table(), scanContextInvalidSnapshotId))
-            .as("Should detect invalid starting snapshot id")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Start snapshot id not found in history: 1");
+            () ->
+                ContinuousSplitPlannerImpl.startSnapshot(
+                    tableResource.table(), scanContextInvalidSnapshotId))
+        .as("Should detect invalid starting snapshot id")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start snapshot id not found in history: 1");
 
     appendThreeSnapshots();
 
@@ -167,12 +168,12 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
     // empty table
     Assertions.assertThatThrownBy(
-                    () ->
-                            ContinuousSplitPlannerImpl.startSnapshot(
-                                    tableResource.table(), scanContextInvalidSnapshotTimestamp))
-            .as("Should detect invalid starting snapshot timestamp")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cannot find a snapshot after: ");
+            () ->
+                ContinuousSplitPlannerImpl.startSnapshot(
+                    tableResource.table(), scanContextInvalidSnapshotTimestamp))
+        .as("Should detect invalid starting snapshot timestamp")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot after: ");
 
     appendThreeSnapshots();
 

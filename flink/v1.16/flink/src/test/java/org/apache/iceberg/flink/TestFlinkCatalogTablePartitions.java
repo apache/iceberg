@@ -28,6 +28,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -89,10 +90,9 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    Assertions.assertThatThrownBy(
-                    () -> flinkCatalog.listPartitions(objectPath))
-            .as("Should not list partitions for unpartitioned table.")
-            .isInstanceOf(TableNotPartitionedException.class)
+    Assertions.assertThatThrownBy(() -> flinkCatalog.listPartitions(objectPath))
+        .as("Should not list partitions for unpartitioned table.")
+        .isInstanceOf(TableNotPartitionedException.class);
   }
 
   @Test

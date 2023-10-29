@@ -36,6 +36,7 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -336,11 +337,10 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-    Assertions.assertThatThrownBy(
-                    () -> splitPlanner.planSplits(null))
-            .as("Should detect invalid starting snapshot id")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Start snapshot id not found in history: 1");
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .as("Should detect invalid starting snapshot id")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start snapshot id not found in history: 1");
   }
 
   @Test
@@ -363,11 +363,10 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-    Assertions.assertThatThrownBy(
-                    () -> splitPlanner.planSplits(null))
-            .as("Should detect invalid starting snapshot id")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Start snapshot id not found in history: " + invalidSnapshotId);
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .as("Should detect invalid starting snapshot id")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start snapshot id not found in history: " + invalidSnapshotId);
   }
 
   @Test
@@ -426,11 +425,10 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-    Assertions.assertThatThrownBy(
-                    () -> splitPlanner.planSplits(null))
-            .as("Should detect invalid starting snapshot timestamp")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cannot find a snapshot after: ");
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .as("Should detect invalid starting snapshot timestamp")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot after: ");
   }
 
   @Test
@@ -448,11 +446,10 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-    Assertions.assertThatThrownBy(
-                    () -> splitPlanner.planSplits(null))
-            .as("Should detect invalid starting snapshot timestamp")
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cannot find a snapshot after: ");
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .as("Should detect invalid starting snapshot timestamp")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot after: ");
   }
 
   @Test
