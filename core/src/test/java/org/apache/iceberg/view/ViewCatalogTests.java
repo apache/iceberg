@@ -1535,4 +1535,90 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageContaining("View does not exist: ns.view");
   }
+
+  @Test
+  public void concurrentReplaceViewVersion() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    ReplaceViewVersion replaceViewVersion =
+        view.replaceVersion()
+            .withQuery("trino", "select count(*) from ns.tbl")
+            .withSchema(OTHER_SCHEMA)
+            .withDefaultNamespace(identifier.namespace());
+
+    ReplaceViewVersion replaceViewVersionConcurrent =
+        view.replaceVersion()
+            .withQuery("spark", "select count(*) from ns.tbl")
+            .withSchema(OTHER_SCHEMA)
+            .withDefaultNamespace(identifier.namespace());
+
+    // concurrently replace the view version, the last replace wins
+    replaceViewVersionConcurrent.commit();
+    replaceViewVersion.commit();
+
+    View updatedView = catalog().loadView(identifier);
+    ViewVersion viewVersion = updatedView.currentVersion();
+    assertThat(viewVersion.versionId()).isEqualTo(3);
+    assertThat(updatedView.versions()).hasSize(3);
+    assertThat(updatedView.version(1))
+        .isEqualTo(
+            ImmutableViewVersion.builder()
+                .timestampMillis(updatedView.version(1).timestampMillis())
+                .versionId(1)
+                .schemaId(0)
+                .summary(updatedView.version(1).summary())
+                .defaultNamespace(identifier.namespace())
+                .addRepresentations(
+                    ImmutableSQLViewRepresentation.builder()
+                        .sql("select * from ns.tbl")
+                        .dialect("trino")
+                        .build())
+                .build());
+
+    assertThat(updatedView.version(2))
+        .isEqualTo(
+            ImmutableViewVersion.builder()
+                .timestampMillis(updatedView.version(2).timestampMillis())
+                .versionId(2)
+                .schemaId(1)
+                .summary(updatedView.version(2).summary())
+                .defaultNamespace(identifier.namespace())
+                .addRepresentations(
+                    ImmutableSQLViewRepresentation.builder()
+                        .sql("select count(*) from ns.tbl")
+                        .dialect("spark")
+                        .build())
+                .build());
+
+    assertThat(updatedView.version(3))
+        .isEqualTo(
+            ImmutableViewVersion.builder()
+                .timestampMillis(updatedView.version(3).timestampMillis())
+                .versionId(3)
+                .schemaId(1)
+                .summary(updatedView.version(3).summary())
+                .defaultNamespace(identifier.namespace())
+                .addRepresentations(
+                    ImmutableSQLViewRepresentation.builder()
+                        .sql("select count(*) from ns.tbl")
+                        .dialect("trino")
+                        .build())
+                .build());
+  }
 }

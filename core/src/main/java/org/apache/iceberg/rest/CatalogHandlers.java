@@ -387,8 +387,9 @@ public class CatalogHandlers {
     return ops.current();
   }
 
-  private static BaseView baseView(View view) {
-    Preconditions.checkArgument(view instanceof BaseView, "View must be a BaseView");
+  private static BaseView asBaseView(View view) {
+    Preconditions.checkState(
+        view instanceof BaseView, "Cannot wrap catalog that does not produce BaseView");
     return (BaseView) view;
   }
 
@@ -431,7 +432,7 @@ public class CatalogHandlers {
   }
 
   private static LoadViewResponse viewResponse(View view) {
-    ViewMetadata metadata = baseView(view).operations().current();
+    ViewMetadata metadata = asBaseView(view).operations().current();
     return ImmutableLoadViewResponse.builder()
         .metadata(metadata)
         .metadataLocation(metadata.metadataFileLocation())
@@ -446,7 +447,7 @@ public class CatalogHandlers {
   public static LoadViewResponse updateView(
       ViewCatalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     View view = catalog.loadView(ident);
-    ViewMetadata metadata = commit(baseView(view).operations(), request);
+    ViewMetadata metadata = commit(asBaseView(view).operations(), request);
 
     return ImmutableLoadViewResponse.builder()
         .metadata(metadata)
