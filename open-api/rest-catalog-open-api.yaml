@@ -1824,6 +1824,25 @@ components:
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
+    TableRequirement:
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-create: '#/components/schemas/AssertCreate'
+          assert-table-uuid: '#/components/schemas/AssertTableUUID'
+          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
+          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
+          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
+          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
+          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
+          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: "string"
+
     AssertCreate:
       allOf:
         - $ref: "#/components/schemas/TableRequirement"
@@ -1944,25 +1963,6 @@ components:
           enum: [ "assert-default-sort-order-id" ]
         default-sort-order-id:
           type: integer
-
-    TableRequirement:
-      discriminator:
-        propertyName: type
-        mapping:
-          assert-create: '#/components/schemas/AssertCreate'
-          assert-table-uuid: '#/components/schemas/AssertTableUUID'
-          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
-          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
-          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
-          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
-          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
-          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
 
     LoadTableResult:
       description: |
