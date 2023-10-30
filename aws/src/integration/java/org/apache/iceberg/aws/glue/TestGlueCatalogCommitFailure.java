@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.File;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
@@ -61,12 +60,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, new CommitFailedException("Datacenter on fire"));
-
-    AssertHelpers.assertThrows(
-        "Commit failed exception should directly throw",
-        CommitFailedException.class,
-        "Datacenter on fire",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -84,12 +80,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
-
-    AssertHelpers.assertThrows(
-        "Should throw CommitStateUnknownException since exception is unexpected",
-        CommitStateUnknownException.class,
-        "Datacenter on fire",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on fire");
     Mockito.verify(spyOps, Mockito.times(1)).refresh();
 
     ops.refresh();
@@ -111,14 +104,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, ConcurrentModificationException.builder().build());
-
-    AssertHelpers.assertThrowsWithCause(
-        "GlueCatalog should fail on concurrent modifications",
-        CommitFailedException.class,
-        "Glue detected concurrent update",
-        ConcurrentModificationException.class,
-        null,
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Glue detected concurrent update")
+        .cause()
+        .isInstanceOf(ConcurrentModificationException.class);
     Mockito.verify(spyOps, Mockito.times(0)).refresh();
 
     ops.refresh();
@@ -236,12 +226,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
-
-    AssertHelpers.assertThrows(
-        "Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class,
-        "Datacenter on fire",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
 
@@ -265,13 +252,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     commitAndThrowException(ops, spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
-
-    AssertHelpers.assertThrows(
-        "Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class,
-        "Datacenter on fire",
-        () -> spyOps.commit(metadataV2, metadataV1));
-
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on fire");
     ops.refresh();
 
     Assert.assertNotEquals("Current metadata should have changed", ops.current(), metadataV2);
@@ -357,12 +340,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, EntityNotFoundException.builder().build());
-
-    AssertHelpers.assertThrows(
-        "Should throw not found exception",
-        NotFoundException.class,
-        "because Glue cannot find the requested entity",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("because Glue cannot find the requested entity");
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -380,13 +360,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, AccessDeniedException.builder().build());
-
-    AssertHelpers.assertThrows(
-        "Should throw forbidden exception",
-        ForbiddenException.class,
-        "because Glue cannot access the requested resources",
-        () -> spyOps.commit(metadataV2, metadataV1));
-
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("because Glue cannot access the requested resources");
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
@@ -403,12 +379,10 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, ValidationException.builder().build());
-
-    AssertHelpers.assertThrows(
-        "Should throw validation exception",
-        org.apache.iceberg.exceptions.ValidationException.class,
-        "because Glue encountered a validation exception while accessing requested resources",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(org.apache.iceberg.exceptions.ValidationException.class)
+        .hasMessageContaining(
+            "because Glue encountered a validation exception while accessing requested resources");
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -426,10 +400,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
-
-    AssertHelpers.assertThrows(
-        null, S3Exception.class, () -> spyOps.commit(metadataV2, metadataV1));
-
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(S3Exception.class)
+        .hasMessage(null);
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
@@ -446,9 +419,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
-
-    AssertHelpers.assertThrows(
-        null, GlueException.class, () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(GlueException.class)
+        .hasMessage(null);
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -466,9 +439,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
-
-    AssertHelpers.assertThrows(
-        null, CommitFailedException.class, () -> spyOps.commit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(null);
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
