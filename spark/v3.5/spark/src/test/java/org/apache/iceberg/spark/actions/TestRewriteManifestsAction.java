@@ -75,18 +75,25 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Parameterized.Parameters(name = "snapshotIdInheritanceEnabled = {0}")
+  @Parameterized.Parameters(name = "snapshotIdInheritanceEnabled = {0}, useCaching = {1}")
   public static Object[] parameters() {
-    return new Object[] {"true", "false"};
+    return new Object[][] {
+      new Object[] {"true", "true"},
+      new Object[] {"false", "true"},
+      new Object[] {"true", "false"},
+      new Object[] {"false", "false"}
+    };
   }
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final String snapshotIdInheritanceEnabled;
+  private final String useCaching;
   private String tableLocation = null;
 
-  public TestRewriteManifestsAction(String snapshotIdInheritanceEnabled) {
+  public TestRewriteManifestsAction(String snapshotIdInheritanceEnabled, String useCaching) {
     this.snapshotIdInheritanceEnabled = snapshotIdInheritanceEnabled;
+    this.useCaching = useCaching;
   }
 
   @Before
@@ -109,6 +116,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     actions
         .rewriteManifests(table)
         .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
         .stagingLocation(temp.newFolder().toString())
         .execute();
 
@@ -141,7 +149,11 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     SparkActions actions = SparkActions.get();
 
     RewriteManifests.Result result =
-        actions.rewriteManifests(table).rewriteIf(manifest -> true).execute();
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
 
     Assert.assertEquals(
         "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
@@ -281,7 +293,11 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .commit();
 
     RewriteManifests.Result result =
-        actions.rewriteManifests(table).rewriteIf(manifest -> true).execute();
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
 
     Assert.assertEquals(
         "Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
@@ -354,6 +370,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           actions
               .rewriteManifests(table)
               .rewriteIf(manifest -> true)
+              .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
               .stagingLocation(temp.newFolder().toString())
               .execute();
 
@@ -404,6 +421,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .stagingLocation(temp.newFolder().toString())
             .execute();
 
@@ -451,7 +469,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    // rewrite only the first manifest without caching
+    // rewrite only the first manifest
     RewriteManifests.Result result =
         actions
             .rewriteManifests(table)
@@ -460,7 +478,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
                     (manifest.path().equals(manifests.get(0).path())
                         || (manifest.path().equals(manifests.get(1).path()))))
             .stagingLocation(temp.newFolder().toString())
-            .option("use-caching", "false")
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
     Assert.assertEquals(
@@ -519,7 +537,11 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
-    RewriteManifests.Result result = actions.rewriteManifests(table).execute();
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
     Assert.assertEquals(
         "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
