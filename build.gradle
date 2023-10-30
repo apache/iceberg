@@ -298,6 +298,7 @@ project(':iceberg-api') {
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.awaitility
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -497,6 +498,7 @@ project(':iceberg-aws') {
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 
   sourceSets {
@@ -717,6 +719,7 @@ project(':iceberg-hive-metastore') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 }
 
