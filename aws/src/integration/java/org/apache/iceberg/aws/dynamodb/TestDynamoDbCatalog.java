@@ -105,7 +105,6 @@ public class TestDynamoDbCatalog {
         namespace.toString(),
         response.item().get("namespace").s());
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(namespace))
-        .as("should not create duplicated namespace")
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
   }
@@ -113,11 +112,9 @@ public class TestDynamoDbCatalog {
   @Test
   public void testCreateNamespaceBadName() {
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "", "b")))
-        .as("should not create namespace with empty level")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("must not be empty");
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "b.c")))
-        .as("should not create namespace with dot in level")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("must not contain dot");
   }
@@ -175,7 +172,6 @@ public class TestDynamoDbCatalog {
         namespace.toString(),
         response.item().get("namespace").s());
     Assertions.assertThatThrownBy(() -> catalog.createTable(tableIdentifier, SCHEMA))
-        .as("should not create duplicated table")
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
   }
@@ -186,12 +182,10 @@ public class TestDynamoDbCatalog {
     catalog.createNamespace(namespace);
     Assertions.assertThatThrownBy(
             () -> catalog.createTable(TableIdentifier.of(Namespace.empty(), "a"), SCHEMA))
-        .as("should not create table name with empty namespace")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Table namespace must not be empty");
     Assertions.assertThatThrownBy(
             () -> catalog.createTable(TableIdentifier.of(namespace, "a.b"), SCHEMA))
-        .as("should not create table name with dot")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("must not contain dot");
   }
@@ -245,7 +239,7 @@ public class TestDynamoDbCatalog {
                         .build()))
         .as("metadata location should be deleted")
         .isInstanceOf(NoSuchKeyException.class)
-            .hasMessageContaining("not found");
+        .hasMessageContaining("not found");
   }
 
   @Test
@@ -259,12 +253,10 @@ public class TestDynamoDbCatalog {
     TableIdentifier tableIdentifier2 = TableIdentifier.of(namespace2, genRandomName());
     Assertions.assertThatThrownBy(
             () -> catalog.renameTable(TableIdentifier.of(namespace, "a"), tableIdentifier2))
-        .as("should not be able to rename a table not exist")
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageContaining("does not exist");
 
     Assertions.assertThatThrownBy(() -> catalog.renameTable(tableIdentifier, tableIdentifier))
-        .as("should not be able to rename an existing table")
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
 
@@ -396,7 +388,8 @@ public class TestDynamoDbCatalog {
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
     Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class);
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }

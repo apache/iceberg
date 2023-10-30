@@ -41,7 +41,6 @@ public class TestDefaultAwsClientFactory {
     GlueClient glueClient = factory.glue();
     Assertions.assertThatThrownBy(
             () -> glueClient.getDatabase(GetDatabaseRequest.builder().name("TEST").build()))
-        .as("Should refuse connection to unknown endpoint")
         .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: unknown");
@@ -56,7 +55,6 @@ public class TestDefaultAwsClientFactory {
     Assertions.assertThatThrownBy(
             () ->
                 s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()))
-        .as("Should refuse connection to unknown endpoint")
         .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: bucket.unknown");
@@ -76,7 +74,6 @@ public class TestDefaultAwsClientFactory {
                         .bucket(AwsIntegTestUtil.testBucketName())
                         .key("key")
                         .build()))
-        .as("Should fail request because of bad access key")
         .isInstanceOf(S3Exception.class)
         .hasMessageContaining("The AWS Access Key Id you provided does not exist in our records");
   }
@@ -88,7 +85,6 @@ public class TestDefaultAwsClientFactory {
     AwsClientFactory factory = AwsClientFactories.from(properties);
     DynamoDbClient dynamoDbClient = factory.dynamo();
     Assertions.assertThatThrownBy(dynamoDbClient::listTables)
-        .as("Should refuse connection to unknown endpoint")
         .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: unknown");
