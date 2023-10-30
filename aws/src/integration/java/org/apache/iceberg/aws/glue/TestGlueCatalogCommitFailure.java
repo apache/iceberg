@@ -409,7 +409,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
     Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(S3Exception.class);
+        .isInstanceOf(S3Exception.class).hasMessageContaining("dfdg");
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
@@ -427,7 +427,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
     Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(GlueException.class);
+        .isInstanceOf(GlueException.class).hasMessageContaining("dfdg");
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -446,7 +446,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
     Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(CommitFailedException.class);
+        .isInstanceOf(CommitFailedException.class).hasMessageContaining("dfdg");
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());

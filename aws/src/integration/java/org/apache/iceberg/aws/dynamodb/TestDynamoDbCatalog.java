@@ -244,7 +244,8 @@ public class TestDynamoDbCatalog {
                                 testBucket.length() + 6)) // s3:// + end slash
                         .build()))
         .as("metadata location should be deleted")
-        .isInstanceOf(NoSuchKeyException.class);
+        .isInstanceOf(NoSuchKeyException.class)
+            .hasMessageContaining("not found");
   }
 
   @Test
