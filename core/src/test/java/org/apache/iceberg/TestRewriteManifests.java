@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -443,6 +444,14 @@ public class TestRewriteManifests extends TableTestBase {
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
     Assert.assertEquals(3, manifests.size());
 
+    if (formatVersion == 1) {
+      assertThat(manifests.get(0).path()).isNotEqualTo(firstNewManifest.path());
+      assertThat(manifests.get(1).path()).isNotEqualTo(secondNewManifest.path());
+    } else {
+      assertThat(manifests.get(0).path()).isEqualTo(firstNewManifest.path());
+      assertThat(manifests.get(1).path()).isEqualTo(secondNewManifest.path());
+    }
+
     validateSummary(snapshot, 1, 1, 2, 0);
 
     validateManifestEntries(
@@ -498,6 +507,9 @@ public class TestRewriteManifests extends TableTestBase {
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
     Assert.assertEquals(3, manifests.size());
+
+    assertThat(manifests.get(0).path()).isEqualTo(firstNewManifest.path());
+    assertThat(manifests.get(1).path()).isEqualTo(secondNewManifest.path());
 
     validateSummary(snapshot, 1, 1, 2, 0);
 
