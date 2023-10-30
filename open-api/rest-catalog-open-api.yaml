@@ -1879,54 +1879,142 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
     TableRequirement:
-      description:
-        Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
-
-        - `assert-create` - the table must not already exist; used for create transactions
-
-        - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
-
-        - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-
-        - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-
-        - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-
-        - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-
-        - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-
-        - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-create: '#/components/schemas/AssertCreate'
+          assert-table-uuid: '#/components/schemas/AssertTableUUID'
+          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
+          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
+          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
+          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
+          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
+          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
       type: object
       required:
         - type
       properties:
         type:
+          type: "string"
+
+    AssertCreate:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      type: object
+      description: The table must not already exist; used for create transactions
+      required:
+        - type
+      properties:
+        type:
           type: string
-          enum:
-            - assert-create
-            - assert-table-uuid
-            - assert-ref-snapshot-id
-            - assert-last-assigned-field-id
-            - assert-current-schema-id
-            - assert-last-assigned-partition-id
-            - assert-default-spec-id
-            - assert-default-sort-order-id
-        ref:
+          enum: ["assert-create"]
+
+    AssertTableUUID:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description: The table UUID must match the requirement's `uuid`
+      required:
+        - type
+        - uuid
+      properties:
+        type:
           type: string
+          enum: ["assert-table-uuid"]
         uuid:
+          type: string
+
+    AssertRefSnapshotId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
+        if `snapshot-id` is `null` or missing, the ref must not already exist
+      required:
+        - type
+        - ref
+        - snapshot-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-ref-snapshot-id" ]
+        ref:
           type: string
         snapshot-id:
           type: integer
           format: int64
+
+    AssertLastAssignedFieldId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's last assigned column id must match the requirement's `last-assigned-field-id`
+      required:
+        - type
+        - last-assigned-field-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-last-assigned-field-id" ]
         last-assigned-field-id:
           type: integer
+
+    AssertCurrentSchemaId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's current schema id must match the requirement's `current-schema-id`
+      required:
+        - type
+        - current-schema-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-current-schema-id" ]
         current-schema-id:
           type: integer
+
+    AssertLastAssignedPartitionId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+      required:
+        - type
+        - last-assigned-partition-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-last-assigned-partition-id" ]
         last-assigned-partition-id:
           type: integer
+
+    AssertDefaultSpecId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's default spec id must match the requirement's `default-spec-id`
+      required:
+        - type
+        - default-spec-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-default-spec-id" ]
         default-spec-id:
           type: integer
+
+    AssertDefaultSortOrderId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's default sort order id must match the requirement's `default-sort-order-id`
+      required:
+        - type
+        - default-sort-order-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-default-sort-order-id" ]
         default-sort-order-id:
           type: integer
 
