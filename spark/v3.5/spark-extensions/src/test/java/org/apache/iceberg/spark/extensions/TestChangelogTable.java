@@ -203,8 +203,8 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
     Assertions.assertThatThrownBy(
             () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
-        .as("Should fail if start time is after end time")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot set start-timestamp to be greater than end-timestamp for changelogs");
   }
 
   @Test

@@ -830,7 +830,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 1, \"state\": \"off\" }\n"
             + "{ \"id\": 10, \"state\": \"on\" }");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () ->
                 sql(
@@ -864,7 +864,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () -> {
               sql(
@@ -878,7 +878,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, dep) VALUES (s.value, null)",
                   commitTarget());
             })
-        .as("Should complain about multiple matches")
         .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
@@ -906,8 +905,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.PREFER_SORTMERGEJOIN().key(), "false"),
         () -> {
-          String errorMsg =
-              "a single row from the target table with multiple rows of the source table";
+          String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
           Assertions.assertThatThrownBy(
                   () -> {
                     sql(
@@ -921,7 +919,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                             + "  INSERT (id, dep) VALUES (s.value, null)",
                         commitTarget());
                   })
-              .as("Should complain about multiple matches")
               .cause()
               .isInstanceOf(SparkRuntimeException.class)
               .hasMessageContaining(errorMsg);
@@ -947,8 +944,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.PREFER_SORTMERGEJOIN().key(), "false"),
         () -> {
-          String errorMsg =
-              "a single row from the target table with multiple rows of the source table";
+          String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
           Assertions.assertThatThrownBy(
                   () -> {
                     sql(
@@ -962,7 +958,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                             + "  INSERT (id, dep) VALUES (s.value, null)",
                         commitTarget());
                   })
-              .as("Should complain about multiple matches")
               .cause()
               .isInstanceOf(SparkRuntimeException.class)
               .hasMessageContaining(errorMsg);
@@ -987,7 +982,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () -> {
               sql(
@@ -999,7 +994,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  DELETE",
                   commitTarget());
             })
-        .as("Should complain about multiple matches")
         .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
@@ -1021,7 +1015,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () -> {
               sql(
@@ -1033,7 +1027,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  DELETE",
                   commitTarget());
             })
-        .as("Should complain about multiple matches")
         .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
@@ -1058,7 +1051,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () -> {
               sql(
@@ -1072,7 +1065,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT *",
                   commitTarget());
             })
-        .as("Should complain about multiple matches")
         .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
@@ -1130,7 +1122,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
-    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    String errorMsg = "MERGE statement matched a single row from the target table with multiple rows of the source table.";
     Assertions.assertThatThrownBy(
             () -> {
               sql(
@@ -1142,7 +1134,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT *",
                   commitTarget());
             })
-        .as("Should complain about multiple matches")
         .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
@@ -2336,7 +2327,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, c.n2) VALUES (s.c1, null)",
                   commitTarget());
             })
-        .as("Should complain about the nested column")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("INSERT assignment keys cannot be nested fields");
     Assertions.assertThatThrownBy(
@@ -2350,7 +2340,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, id) VALUES (s.c1, null)",
                   commitTarget());
             })
-        .as("Should complain about duplicate columns")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Multiple assignments for 'id'");
 
@@ -2363,7 +2352,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id) VALUES (s.c1)",
                   commitTarget());
             })
-        .as("Should complain about missing columns")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("No assignment for 'c'");
   }
@@ -2526,7 +2514,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   })
               .as("Should complain about writing invalid data types")
               .isInstanceOf(AnalysisException.class)
-              .hasMessageContaining("Cannot safely cast");
+              .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
           Assertions.assertThatThrownBy(
                   () -> {
@@ -2537,7 +2525,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                             + "  UPDATE SET t.s.n2 = s.c4",
                         commitTarget());
                   })
-              .as("Should complain about writing incompatible structs")
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot find data for the output column `s`.`n2`.`dn2`");
         });
@@ -2590,7 +2577,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                             + "  UPDATE SET t.s = s.c2",
                         commitTarget());
                   })
-              .as("Should complain about writing missing fields in structs")
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
           Assertions.assertThatThrownBy(
@@ -2604,7 +2590,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   })
               .as("Should complain about writing invalid data types")
               .isInstanceOf(AnalysisException.class)
-              .hasMessageContaining("Cannot safely cast");
+              .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
           Assertions.assertThatThrownBy(
                   () -> {
@@ -2636,7 +2622,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = -1",
                   commitTarget());
             })
-        .as("Should complain about non-deterministic search conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Non-deterministic expressions are not allowed");
@@ -2649,7 +2634,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = -1",
                   commitTarget());
             })
-        .as("Should complain about non-deterministic update conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Non-deterministic expressions are not allowed");
@@ -2663,7 +2647,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  DELETE",
                   commitTarget());
             })
-        .as("Should complain about non-deterministic delete conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Non-deterministic expressions are not allowed");
@@ -2677,7 +2660,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, c) VALUES (1, null)",
                   commitTarget());
             })
-        .as("Should complain about non-deterministic insert conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported INSERT condition. Non-deterministic expressions are not allowed");
@@ -2698,7 +2680,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = -1",
                   commitTarget());
             })
-        .as("Should complain about agg expressions in search conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Aggregates are not allowed");
@@ -2712,7 +2693,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = -1",
                   commitTarget());
             })
-        .as("Should complain about agg expressions in update conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Aggregates are not allowed");
@@ -2726,7 +2706,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  DELETE",
                   commitTarget());
             })
-        .as("Should complain about agg expressions in delete conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Aggregates are not allowed");
@@ -2740,7 +2719,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, c) VALUES (1, null)",
                   commitTarget());
             })
-        .as("Should complain about agg expressions in insert conditions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported INSERT condition. Aggregates are not allowed");
@@ -2761,7 +2739,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = s.c2",
                   commitTarget());
             })
-        .as("Should complain about subquery expressions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Subqueries are not allowed");
@@ -2775,7 +2752,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  UPDATE SET t.c.n1 = s.c2",
                   commitTarget());
             })
-        .as("Should complain about subquery expressions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Subqueries are not allowed");
@@ -2789,7 +2765,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  DELETE",
                   commitTarget());
             })
-        .as("Should complain about subquery expressions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Subqueries are not allowed");
@@ -2803,7 +2778,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, c) VALUES (1, null)",
                   commitTarget());
             })
-        .as("Should complain about subquery expressions")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported INSERT condition. Subqueries are not allowed");
@@ -2823,7 +2797,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "  INSERT (id, c2) VALUES (s.id, null)",
                   commitTarget());
             })
-        .as("Should complain about the target column")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("A column or function parameter with name `c2` cannot be resolved");
   }
@@ -2843,7 +2816,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             })
         .as("Should complain non iceberg target table")
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("MERGE INTO TABLE is not supported temporarily.");
+        .hasMessage("MERGE INTO TABLE is not supported temporarily.");
   }
 
   /**

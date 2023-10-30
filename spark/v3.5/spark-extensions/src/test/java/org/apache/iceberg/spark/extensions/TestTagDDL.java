@@ -101,13 +101,11 @@ public class TestTagDDL extends SparkExtensionsTestBase {
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
                     tableName, tagName, firstSnapshotId, maxRefAge))
-        .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
-        .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
@@ -116,7 +114,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d SECONDS",
                     tableName, tagName, firstSnapshotId, maxRefAge))
-        .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}");
   }
@@ -140,7 +137,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
             () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1))
         .as("unknown snapshot")
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("unknown snapshot: -1");
+        .hasMessage("Cannot set "+tagName+" to unknown snapshot: -1");
 
     sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName);
     table.refresh();
@@ -151,7 +148,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         "The tag needs to have the default max ref age, which is null.", ref.maxRefAgeMs());
 
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
-        .as("Cannot create an exist tag")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("already exists");
 
@@ -246,7 +242,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
                 sql(
                     "ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d",
                     tableName, "someTag", table.currentSnapshot().snapshotId()))
-        .as("Cannot perform replace tag on tag which does not exist")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist");
   }
@@ -323,7 +318,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
   public void testDropTagDoesNotExist() {
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
-        .as("Cannot perform drop tag on tag which does not exist")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist: nonExistingTag");
   }
