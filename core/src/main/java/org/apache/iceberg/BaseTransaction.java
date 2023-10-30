@@ -31,6 +31,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -768,6 +769,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public Map<String, SnapshotRef> refs() {
       return current.refs();
+    }
+
+    @Override
+    public UUID uuid() {
+      return UUID.fromString(current.uuid());
     }
 
     @Override
