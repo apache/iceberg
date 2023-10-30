@@ -43,8 +43,8 @@ public class SystemConfigs {
           Integer::parseUnsignedInt);
 
   /**
-   * Sets the size of the delete worker pool. The delete worker pool limits the number of tasks concurrently
-   * processing positional deletes from multiple FileScanTasks.
+   * Sets the size of the delete worker pool. The delete worker pool limits the number of tasks
+   * concurrently processing positional deletes from multiple FileScanTasks.
    */
   public static final ConfigEntry<Integer> DELETE_POS_FILES_THREAD_POOL_SIZE =
       new ConfigEntry<>(
