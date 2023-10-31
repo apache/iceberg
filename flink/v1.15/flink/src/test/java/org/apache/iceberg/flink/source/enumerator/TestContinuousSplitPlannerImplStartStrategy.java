@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -30,6 +29,7 @@ import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -79,7 +79,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -97,7 +97,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -115,7 +115,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -134,14 +134,13 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotId(1L)
             .build();
 
-    // emtpy table
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot id",
-        IllegalArgumentException.class,
-        "Start snapshot id not found in history: 1",
-        () ->
-            ContinuousSplitPlannerImpl.startSnapshot(
-                tableResource.table(), scanContextInvalidSnapshotId));
+    // empty table
+    Assertions.assertThatThrownBy(
+            () ->
+                ContinuousSplitPlannerImpl.startSnapshot(
+                    tableResource.table(), scanContextInvalidSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Start snapshot id not found in history: 1");
 
     appendThreeSnapshots();
 
@@ -166,14 +165,13 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotTimestamp(1L)
             .build();
 
-    // emtpy table
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot timestamp",
-        IllegalArgumentException.class,
-        "Cannot find a snapshot after: ",
-        () ->
-            ContinuousSplitPlannerImpl.startSnapshot(
-                tableResource.table(), scanContextInvalidSnapshotTimestamp));
+    // empty table
+    Assertions.assertThatThrownBy(
+            () ->
+                ContinuousSplitPlannerImpl.startSnapshot(
+                    tableResource.table(), scanContextInvalidSnapshotTimestamp))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find a snapshot after: ");
 
     appendThreeSnapshots();
 

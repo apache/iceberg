@@ -25,7 +25,6 @@ import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -102,11 +101,10 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testLimitPushDown() {
-
-    AssertHelpers.assertThrows(
-        "Invalid limit number: -1 ",
-        SqlParserException.class,
-        () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
+    Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME))
+        .as("Invalid limit number: -1 ")
+        .isInstanceOf(SqlParserException.class)
+        .hasMessageContaining("SQL parse failed. Encountered \"-\"");
 
     Assert.assertEquals(
         "Should have 0 record", 0, sql("SELECT * FROM %s LIMIT 0", TABLE_NAME).size());
@@ -611,44 +609,38 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testSqlParseError() {
     String sqlParseErrorEqual =
         String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorEqual));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorEqual))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
 
     String sqlParseErrorNotEqual =
         String.format("SELECT * FROM %s WHERE d <> CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorNotEqual));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorNotEqual))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
 
     String sqlParseErrorGT =
         String.format("SELECT * FROM %s WHERE d > CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorGT));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorGT))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
 
     String sqlParseErrorLT =
         String.format("SELECT * FROM %s WHERE d < CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorLT));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorLT))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
 
     String sqlParseErrorGTE =
         String.format("SELECT * FROM %s WHERE d >= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorGTE));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorGTE))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
 
     String sqlParseErrorLTE =
         String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorLTE));
+    Assertions.assertThatThrownBy(() -> sql(sqlParseErrorLTE))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("Infinite or NaN");
   }
 }
