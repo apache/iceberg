@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateLocation;
@@ -158,6 +159,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     }
 
     // validate view settings
+    assertThat(view.uuid())
+        .isEqualTo(UUID.fromString(((BaseView) view).operations().current().uuid()));
     assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
     assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
     assertThat(view.history())
