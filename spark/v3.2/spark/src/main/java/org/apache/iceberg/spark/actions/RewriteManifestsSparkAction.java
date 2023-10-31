@@ -328,7 +328,7 @@ public class RewriteManifestsSparkAction
       addedManifests.forEach(rewriteManifests::addManifest);
       commit(rewriteManifests);
 
-      if (!snapshotIdInheritanceEnabled) {
+      if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
         // delete new manifests as they were rewritten before the commit
         deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
       }

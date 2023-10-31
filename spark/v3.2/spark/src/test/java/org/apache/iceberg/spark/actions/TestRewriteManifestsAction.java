@@ -24,6 +24,7 @@ import static org.apache.iceberg.ValidationHelpers.files;
 import static org.apache.iceberg.ValidationHelpers.snapshotIds;
 import static org.apache.iceberg.ValidationHelpers.validateDataManifest;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -64,6 +65,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestRewriteManifestsAction extends SparkTestBase {
@@ -75,13 +77,13 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Parameterized.Parameters(name = "snapshotIdInheritanceEnabled = {0}, useCaching = {1}")
+  @Parameters(name = "snapshotIdInheritanceEnabled = {0}, useCaching = {1}, formatVersion = {2}")
   public static Object[] parameters() {
     return new Object[][] {
-      new Object[] {"true", "true"},
-      new Object[] {"false", "true"},
-      new Object[] {"true", "false"},
-      new Object[] {"false", "false"}
+      new Object[] {"true", "true", 1},
+      new Object[] {"false", "true", 1},
+      new Object[] {"true", "false", 2},
+      new Object[] {"false", "false", 2}
     };
   }
 
@@ -89,11 +91,14 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
   private final String snapshotIdInheritanceEnabled;
   private final String useCaching;
+  private final int formatVersion;
   private String tableLocation = null;
 
-  public TestRewriteManifestsAction(String snapshotIdInheritanceEnabled, String useCaching) {
+  public TestRewriteManifestsAction(
+      String snapshotIdInheritanceEnabled, String useCaching, int formatVersion) {
     this.snapshotIdInheritanceEnabled = snapshotIdInheritanceEnabled;
     this.useCaching = useCaching;
+    this.formatVersion = formatVersion;
   }
 
   @Before
@@ -106,6 +111,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteManifestsEmptyTable() throws IOException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -127,6 +133,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteSmallManifestsNonPartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -184,6 +191,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteManifestsWithCommitStateUnknownException() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -250,6 +258,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteSmallManifestsPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -334,6 +343,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteImportedManifests() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -390,6 +400,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteLargeManifestsPartitionedTable() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -446,6 +457,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   public void testRewriteManifestsWithPredicate() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -513,6 +525,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
   @Test
   public void testRewriteSmallManifestsNonPartitionedV2Table() {
+    assumeThat(formatVersion).isGreaterThan(1);
+
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
     Table table = TABLES.create(SCHEMA, spec, properties, tableLocation);

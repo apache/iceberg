@@ -124,7 +124,7 @@ The value of these properties are not persisted as a part of the table metadata.
 
 | Property                                      | Default  | Description                                                   |
 | --------------------------------------------- | -------- | ------------------------------------------------------------- |
-| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
+| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs (always true if the format version is > 1) |
 
 ## Catalog properties
 
