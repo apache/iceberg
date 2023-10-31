@@ -22,8 +22,6 @@ import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -80,7 +78,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DataFile> filterManager;
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
-  private final boolean snapshotIdInheritanceEnabled;
 
   // update data
   private final List<DataFile> newDataFiles = Lists.newArrayList();
@@ -123,10 +120,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.deleteMergeManager =
         new DeleteFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
     this.deleteFilterManager = new DeleteFileFilterManager();
-    this.snapshotIdInheritanceEnabled =
-        ops.current()
-            .propertyAsBoolean(
-                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -271,7 +264,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void add(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);
-    if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
+    if (canInheritSnapshotId() && manifest.snapshotId() == null) {
       appendedManifestsSummary.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {

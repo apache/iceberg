@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +41,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
-  private final boolean snapshotIdInheritanceEnabled;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -57,10 +53,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
-    this.snapshotIdInheritanceEnabled =
-        ops.current()
-            .propertyAsBoolean(
-                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -115,7 +107,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence number must be assigned during commit");
 
-    if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
+    if (canInheritSnapshotId() && manifest.snapshotId() == null) {
       summaryBuilder.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
