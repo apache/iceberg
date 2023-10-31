@@ -167,24 +167,26 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Primitive Types
 
-| Primitive type     | Description                                                              | Requirements                                     | Valid From      |
-|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|-----------------|
-| **`boolean`**      | True or false                                                            |                                                  |
-| **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
-| **`long`**         | 64-bit signed integers                                                   |                                                  |
-| **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
-| **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-| **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
-| **`date`**         | Calendar date without timezone or time                                   |                                                  |
-| **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
-| **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
-| **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
-| **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              | [v3](#version-3) |
-| **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              | [v3](#version-3) |
-| **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
-| **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
-| **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
-| **`binary`**       | Arbitrary-length byte array                                              |                                                  |
+Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
+
+| Added by verison | Primitive type     | Description                                                              | Requirements                                     |
+|------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
+|                  | **`boolean`**      | True or false                                                            |                                                  |
+|                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
+|                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
+|                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
+|                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
+|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
+|                  | **`date`**         | Calendar date without timezone or time                                   |                                                  |
+|                  | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
+|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
+|                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
+| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
+| [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
+|                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
+|                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
+|                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
+|                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
 
 Notes:
 
