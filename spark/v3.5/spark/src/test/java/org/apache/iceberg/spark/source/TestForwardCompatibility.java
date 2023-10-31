@@ -74,14 +74,14 @@ public class TestForwardCompatibility {
 
   // create a spec for the schema that uses a "zero" transform that produces all 0s
   private static final PartitionSpec UNKNOWN_SPEC =
-      org.apache.iceberg.TestHelpers.newPartitionSpecBuilder()
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(0)
           .addField("zero", 1, "id_zero")
           .build();
   // create a fake spec to use to write table metadata
   private static final PartitionSpec FAKE_SPEC =
-      org.apache.iceberg.TestHelpers.newPartitionSpecBuilder()
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(0)
           .addField("identity", 1, "id_zero")

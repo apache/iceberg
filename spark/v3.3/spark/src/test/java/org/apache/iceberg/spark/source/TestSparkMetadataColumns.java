@@ -75,7 +75,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final PartitionSpec UNKNOWN_SPEC =
-      TestHelpers.newPartitionSpecBuilder()
+      TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(1)
           .addField("zero", 1, "id_zero")

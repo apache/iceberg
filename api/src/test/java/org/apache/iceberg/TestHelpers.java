@@ -265,8 +265,8 @@ public class TestHelpers {
     }
   }
 
-  public static PartitionSpecBuilder newPartitionSpecBuilder() {
-    return new PartitionSpecBuilder();
+  public static ExpectedSpecBuilder newExpectedSpecBuilder() {
+    return new ExpectedSpecBuilder();
   }
 
   public static class KryoHelpers {
@@ -672,32 +672,32 @@ public class TestHelpers {
     }
   }
 
-  public static class PartitionSpecBuilder {
+  public static class ExpectedSpecBuilder {
     private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
 
     private Schema schema;
 
-    private PartitionSpecBuilder() {
+    private ExpectedSpecBuilder() {
       this.unboundPartitionSpecBuilder = UnboundPartitionSpec.builder();
     }
 
-    public PartitionSpecBuilder withSchema(Schema newSchema) {
+    public ExpectedSpecBuilder withSchema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
-    public PartitionSpecBuilder withSpecId(int newSpecId) {
+    public ExpectedSpecBuilder withSpecId(int newSpecId) {
       unboundPartitionSpecBuilder.withSpecId(newSpecId);
       return this;
     }
 
-    public PartitionSpecBuilder addField(
+    public ExpectedSpecBuilder addField(
         String transformAsString, int sourceId, int partitionId, String name) {
       unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
       return this;
     }
 
-    public PartitionSpecBuilder addField(String transformAsString, int sourceId, String name) {
+    public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
       unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
       return this;
     }

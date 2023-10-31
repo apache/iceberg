@@ -627,7 +627,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     Table table = validationCatalog.loadTable(tableIdent);
 
     PartitionSpec unknownSpec =
-        TestHelpers.newPartitionSpecBuilder()
+        TestHelpers.newExpectedSpecBuilder()
             .withSchema(table.schema())
             .withSpecId(1)
             .addField("zero", 1, "id_zero")
