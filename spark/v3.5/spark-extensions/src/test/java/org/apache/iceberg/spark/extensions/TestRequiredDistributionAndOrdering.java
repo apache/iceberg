@@ -187,21 +187,17 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
 
     // should fail if ordering is disabled
     Assertions.assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 inputDF
                     .writeTo(tableName)
                     .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
                     .option(SparkWriteOptions.FANOUT_ENABLED, "false")
-                    .append();
-              } catch (NoSuchTableException e) {
-                throw new RuntimeException(e);
-              }
-            })
-        .as("Should reject writes without ordering")
+                    .append())
         .cause()
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageStartingWith(
+            "Incoming records violate the writer assumption that records are clustered by spec "
+                + "and by partition within each spec. Either cluster the incoming records or switch to fanout writers.");
   }
 
   @Test

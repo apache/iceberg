@@ -135,9 +135,8 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1))
-        .as("unknown snapshot")
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot set "+tagName+" to unknown snapshot: -1");
+        .hasMessage("Cannot set " + tagName + " to unknown snapshot: -1");
 
     sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName);
     table.refresh();
@@ -152,7 +151,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         .hasMessageContaining("already exists");
 
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
-        .as("Non-conforming tag name")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
 
@@ -202,7 +200,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
-        .as("Cannot perform replace tag on branches")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref branch1 is a branch not a tag");
   }
@@ -309,7 +306,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
   @Test
   public void testDropTagNonConformingName() {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
-        .as("Non-conforming tag name")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
   }
@@ -329,7 +325,6 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
 
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
-        .as("Cannot perform drop tag on branch")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref b1 is a branch not a tag");
   }
