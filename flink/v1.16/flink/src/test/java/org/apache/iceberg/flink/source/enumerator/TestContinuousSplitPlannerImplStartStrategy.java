@@ -79,7 +79,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -97,7 +97,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -115,7 +115,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
 
-    // emtpy table
+    // empty table
     Assert.assertFalse(
         ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).isPresent());
 
@@ -139,9 +139,8 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     tableResource.table(), scanContextInvalidSnapshotId))
-        .as("Should detect invalid starting snapshot id")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Start snapshot id not found in history: 1");
+        .hasMessage("Start snapshot id not found in history: 1");
 
     appendThreeSnapshots();
 
@@ -171,9 +170,8 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     tableResource.table(), scanContextInvalidSnapshotTimestamp))
-        .as("Should detect invalid starting snapshot timestamp")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find a snapshot after: ");
+        .hasMessageStartingWith("Cannot find a snapshot after: ");
 
     appendThreeSnapshots();
 

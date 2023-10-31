@@ -232,18 +232,18 @@ public class TestFlinkIcebergSinkV2Base {
 
     if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
       Assertions.assertThatThrownBy(
-              () -> {
-                testChangeLogs(
-                    ImmutableList.of("id"),
-                    row -> row.getField(ROW_ID_POS),
-                    false,
-                    elementsPerCheckpoint,
-                    expectedRecords,
-                    branch);
-              })
-          .as("Should be error because equality field columns don't include all partition keys")
+              () ->
+                  testChangeLogs(
+                      ImmutableList.of("id"),
+                      row -> row.getField(ROW_ID_POS),
+                      false,
+                      elementsPerCheckpoint,
+                      expectedRecords,
+                      branch))
           .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("should be included in equality fields");
+          .hasMessageStartingWith(
+              "In 'hash' distribution mode with equality fields set, partition field")
+          .hasMessageContaining("should be included in equality fields:");
     } else {
       testChangeLogs(
           ImmutableList.of("id"),
@@ -278,16 +278,14 @@ public class TestFlinkIcebergSinkV2Base {
           branch);
     } else {
       Assertions.assertThatThrownBy(
-              () -> {
-                testChangeLogs(
-                    ImmutableList.of("id"),
-                    row -> row.getField(ROW_ID_POS),
-                    true,
-                    elementsPerCheckpoint,
-                    expectedRecords,
-                    branch);
-              })
-          .as("Should be error because equality field columns don't include all partition keys")
+              () ->
+                  testChangeLogs(
+                      ImmutableList.of("id"),
+                      row -> row.getField(ROW_ID_POS),
+                      true,
+                      elementsPerCheckpoint,
+                      expectedRecords,
+                      branch))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("should be included in equality fields");
     }

@@ -91,8 +91,8 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
     Assertions.assertThatThrownBy(() -> flinkCatalog.listPartitions(objectPath))
-        .as("Should not list partitions for unpartitioned table.")
-        .isInstanceOf(TableNotPartitionedException.class);
+        .isInstanceOf(TableNotPartitionedException.class)
+        .hasMessage("Table " + objectPath + " in catalog " + catalogName + " is not partitioned.");
   }
 
   @Test

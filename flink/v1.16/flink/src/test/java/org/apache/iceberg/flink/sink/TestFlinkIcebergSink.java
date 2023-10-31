@@ -198,13 +198,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              testWriteRow(null, DistributionMode.RANGE);
-            })
-        .as("Does not support range distribution-mode now.")
+    Assertions.assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Flink does not support 'range' write distribution mode now.");
+        .hasMessage("Flink does not support 'range' write distribution mode now.");
   }
 
   @Test
@@ -350,15 +346,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              builder.append();
-              // Execute the program.
-              env.execute("Test Iceberg DataStream.");
-            })
-        .as("Should fail with invalid distribution mode.")
+    Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid distribution mode: UNRECOGNIZED");
+        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @Test
@@ -376,15 +366,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              builder.append();
-              // Execute the program.
-              env.execute("Test Iceberg DataStream.");
-            })
-        .as("Should fail with invalid file format.")
+    Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid file format: UNRECOGNIZED");
+        .hasMessage("Invalid file format: UNRECOGNIZED");
   }
 
   @Test

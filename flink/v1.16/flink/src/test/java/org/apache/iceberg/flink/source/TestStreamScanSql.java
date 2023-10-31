@@ -224,9 +224,8 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                 exec(
                     "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
                     TABLE))
-        .as("Cannot scan table using ref for stream yet")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot scan table using ref");
+        .hasMessage("Cannot scan table using ref b1 configured for streaming reader yet");
   }
 
   @Test
@@ -311,8 +310,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                     "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "
                         + "'start-snapshot-id'='%d' )*/",
                     TABLE, tagName, startSnapshotId))
-        .as("START_SNAPSHOT_ID and START_TAG cannot both be set.")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("START_SNAPSHOT_ID and START_TAG cannot both be set.");
+        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
   }
 }

@@ -255,13 +255,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(0)
             .build();
-    Assertions.assertThatThrownBy(
-            () -> {
-              createFunction(scanContext1);
-            })
-        .as("Should throw exception because of invalid config")
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be greater than zero");
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
 
     ScanContext scanContext2 =
         ScanContext.builder()
@@ -269,13 +265,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .maxPlanningSnapshotCount(-10)
             .build();
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              createFunction(scanContext2);
-            })
-        .as("Should throw exception because of invalid config")
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext2))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be greater than zero");
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
 
   @Test

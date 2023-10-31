@@ -408,8 +408,8 @@ public class TestFlinkSchemaUtil {
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
     Assertions.assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
-        .as("Does not support the nested columns in flink schema's primary keys")
         .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Could not create a PRIMARY KEY")
         .hasMessageContaining("Column 'struct.inner' does not exist");
   }
 }

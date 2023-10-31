@@ -363,8 +363,8 @@ public abstract class TestFlinkScan {
                         .put("end-tag", endTag)
                         .put("start-snapshot-id", Long.toString(snapshotId1))
                         .buildOrThrow()))
-        .as("START_SNAPSHOT_ID and START_TAG cannot both be set.")
-        .isInstanceOf(Exception.class);
+        .isInstanceOf(Exception.class)
+        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -374,8 +374,8 @@ public abstract class TestFlinkScan {
                         .put("end-tag", endTag)
                         .put("end-snapshot-id", Long.toString(snapshotId3))
                         .buildOrThrow()))
-        .as("END_SNAPSHOT_ID and END_TAG cannot both be set.")
-        .isInstanceOf(Exception.class);
+        .isInstanceOf(Exception.class)
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
   @Test

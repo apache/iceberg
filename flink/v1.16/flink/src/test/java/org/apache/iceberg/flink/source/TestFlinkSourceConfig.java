@@ -32,12 +32,9 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
   public void testFlinkSessionConfig() {
     getTableEnv().getConfig().set(FlinkReadOptions.STREAMING_OPTION, true);
     Assertions.assertThatThrownBy(
-            () -> {
-              sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE);
-            })
-        .as("Should throw exception because of cannot set snapshot-id option for streaming reader")
+            () -> sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot set as-of-timestamp option for streaming reader");
+        .hasMessage("Cannot set as-of-timestamp option for streaming reader");
   }
 
   @Test

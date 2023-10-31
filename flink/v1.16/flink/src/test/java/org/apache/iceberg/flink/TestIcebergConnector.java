@@ -263,9 +263,8 @@ public class TestIcebergConnector extends FlinkTestBase {
       // Ensure that the table was created under the specific database.
       Assertions.assertThatThrownBy(
               () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
-          .as("Table should already exists")
           .isInstanceOf(org.apache.flink.table.api.TableException.class)
-          .hasMessageContaining("Could not execute CreateTable in path");
+          .hasMessageStartingWith("Could not execute CreateTable in path");
     } finally {
       sql("DROP TABLE IF EXISTS `%s`.`%s`", databaseName(), TABLE_NAME);
       if (!isDefaultDatabaseName()) {
@@ -300,11 +299,12 @@ public class TestIcebergConnector extends FlinkTestBase {
                       FlinkCatalogFactory.DEFAULT_DATABASE_NAME,
                       TABLE_NAME,
                       toWithClause(tableProps)))
-          .as("Cannot create the iceberg connector table in iceberg catalog")
           .cause()
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining(
-              "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog");
+          .hasMessage(
+              "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog, "
+                  + "Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
+                  + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     } finally {
       sql("DROP CATALOG IF EXISTS `test_catalog`");
     }

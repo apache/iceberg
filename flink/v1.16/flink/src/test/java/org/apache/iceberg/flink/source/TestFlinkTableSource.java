@@ -103,7 +103,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testLimitPushDown() {
     Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME))
         .as("Invalid limit number: -1 ")
-        .isInstanceOf(SqlParserException.class);
+        .isInstanceOf(SqlParserException.class)
+        .hasMessageContaining("SQL parse failed. Encountered \"-\"");
 
     Assert.assertEquals(
         "Should have 0 record", 0, sql("SELECT * FROM %s LIMIT 0", TABLE_NAME).size());

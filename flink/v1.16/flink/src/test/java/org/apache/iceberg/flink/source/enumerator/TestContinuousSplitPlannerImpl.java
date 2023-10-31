@@ -338,9 +338,8 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
     Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
-        .as("Should detect invalid starting snapshot id")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Start snapshot id not found in history: 1");
+        .hasMessage("Start snapshot id not found in history: 1");
   }
 
   @Test
@@ -364,9 +363,8 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
     Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
-        .as("Should detect invalid starting snapshot id")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Start snapshot id not found in history: " + invalidSnapshotId);
+        .hasMessage("Start snapshot id not found in history: " + invalidSnapshotId);
   }
 
   @Test
@@ -426,9 +424,8 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
     Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
-        .as("Should detect invalid starting snapshot timestamp")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find a snapshot after: ");
+        .hasMessage("Cannot find a snapshot after: 1");
   }
 
   @Test
@@ -447,9 +444,8 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
     Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
-        .as("Should detect invalid starting snapshot timestamp")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find a snapshot after: ");
+        .hasMessageStartingWith("Cannot find a snapshot after: ");
   }
 
   @Test
