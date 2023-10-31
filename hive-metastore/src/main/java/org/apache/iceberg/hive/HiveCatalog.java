@@ -288,7 +288,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     } catch (AlreadyExistsException e) {
       throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          e, "Namespace '%s' already exists!", namespace);
+          e, "Namespace already exists: %s", namespace);
 
     } catch (TException e) {
       throw new RuntimeException(
