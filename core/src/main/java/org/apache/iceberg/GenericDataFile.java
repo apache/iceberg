@@ -40,7 +40,6 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
       Metrics metrics,
       ByteBuffer keyMetadata,
       List<Long> splitOffsets,
-      int[] equalityFieldIds,
       Integer sortOrderId) {
     super(
         specId,
@@ -57,7 +56,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         metrics.lowerBounds(),
         metrics.upperBounds(),
         splitOffsets,
-        equalityFieldIds,
+        null /* no equality field IDs */,
         sortOrderId,
         keyMetadata);
   }
