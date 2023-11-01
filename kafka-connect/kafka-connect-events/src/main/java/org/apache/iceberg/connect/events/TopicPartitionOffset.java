@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.events;
 
+import java.time.OffsetDateTime;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -26,6 +27,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /** Element representing an offset, with topic name, partition number, and offset. */
 public class TopicPartitionOffset implements IndexedRecord {
@@ -33,7 +35,7 @@ public class TopicPartitionOffset implements IndexedRecord {
   private String topic;
   private Integer partition;
   private Long offset;
-  private Long timestamp;
+  private OffsetDateTime timestamp;
   private final Schema avroSchema;
 
   public static final StructType ICEBERG_SCHEMA =
@@ -51,7 +53,7 @@ public class TopicPartitionOffset implements IndexedRecord {
     this.avroSchema = avroSchema;
   }
 
-  public TopicPartitionOffset(String topic, int partition, Long offset, Long timestamp) {
+  public TopicPartitionOffset(String topic, int partition, Long offset, OffsetDateTime timestamp) {
     this.topic = topic;
     this.partition = partition;
     this.offset = offset;
@@ -71,7 +73,7 @@ public class TopicPartitionOffset implements IndexedRecord {
     return offset;
   }
 
-  public Long timestamp() {
+  public OffsetDateTime timestamp() {
     return timestamp;
   }
 
@@ -93,7 +95,7 @@ public class TopicPartitionOffset implements IndexedRecord {
         this.offset = (Long) v;
         return;
       case 3:
-        this.timestamp = (Long) v;
+        this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -110,7 +112,7 @@ public class TopicPartitionOffset implements IndexedRecord {
       case 2:
         return offset;
       case 3:
-        return timestamp;
+        return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }

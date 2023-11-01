@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.connect.events;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.Schema;
@@ -29,6 +31,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * Class representing all events produced to the control topic. Different event types have different
@@ -38,7 +41,7 @@ public class Event implements IndexedRecord {
 
   private UUID id;
   private PayloadType type;
-  private Long timestamp;
+  private OffsetDateTime timestamp;
   private String groupId;
   private Payload payload;
   private final Schema avroSchema;
@@ -51,7 +54,7 @@ public class Event implements IndexedRecord {
   public Event(String groupId, Payload payload) {
     this.id = UUID.randomUUID();
     this.type = payload.type();
-    this.timestamp = System.currentTimeMillis();
+    this.timestamp = OffsetDateTime.now(ZoneOffset.UTC);
     this.groupId = groupId;
     this.payload = payload;
 
@@ -77,7 +80,7 @@ public class Event implements IndexedRecord {
     return type;
   }
 
-  public Long timestamp() {
+  public OffsetDateTime timestamp() {
     return timestamp;
   }
 
@@ -104,7 +107,7 @@ public class Event implements IndexedRecord {
         this.type = v == null ? null : PayloadType.values()[(Integer) v];
         return;
       case 2:
-        this.timestamp = (Long) v;
+        this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       case 3:
         this.groupId = v == null ? null : v.toString();
@@ -125,7 +128,7 @@ public class Event implements IndexedRecord {
       case 1:
         return type == null ? null : type.id();
       case 2:
-        return timestamp;
+        return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
       case 3:
         return groupId;
       case 4:

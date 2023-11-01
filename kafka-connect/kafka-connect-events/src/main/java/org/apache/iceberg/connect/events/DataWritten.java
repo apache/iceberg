@@ -43,7 +43,8 @@ public class DataWritten implements Payload {
   private StructType icebergSchema;
   private Schema avroSchema;
 
-  // Used by Avro reflection to instantiate this class when reading events
+  // Used by Avro reflection to instantiate this class when reading events, note that this does not
+  // set the partition type so the instance cannot be re-serialized
   public DataWritten(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }

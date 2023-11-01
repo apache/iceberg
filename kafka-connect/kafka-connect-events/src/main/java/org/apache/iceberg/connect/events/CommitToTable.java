@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.events;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.iceberg.types.Types.LongType;
@@ -25,6 +26,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * A control event payload for events sent by a coordinator that indicates it has completed a commit
@@ -36,7 +38,7 @@ public class CommitToTable implements Payload {
   private UUID commitId;
   private TableReference tableReference;
   private Long snapshotId;
-  private Long validThroughTs;
+  private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
 
   private static final StructType ICEBERG_SCHEMA =
@@ -54,7 +56,10 @@ public class CommitToTable implements Payload {
   }
 
   public CommitToTable(
-      UUID commitId, TableReference tableReference, Long snapshotId, Long validThroughTs) {
+      UUID commitId,
+      TableReference tableReference,
+      Long snapshotId,
+      OffsetDateTime validThroughTs) {
     this.commitId = commitId;
     this.tableReference = tableReference;
     this.snapshotId = snapshotId;
@@ -79,7 +84,7 @@ public class CommitToTable implements Payload {
     return snapshotId;
   }
 
-  public Long validThroughTs() {
+  public OffsetDateTime validThroughTs() {
     return validThroughTs;
   }
 
@@ -94,7 +99,6 @@ public class CommitToTable implements Payload {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
       case 0:
@@ -107,7 +111,7 @@ public class CommitToTable implements Payload {
         this.snapshotId = (Long) v;
         return;
       case 3:
-        this.validThroughTs = (Long) v;
+        this.validThroughTs = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -124,7 +128,7 @@ public class CommitToTable implements Payload {
       case 2:
         return snapshotId;
       case 3:
-        return validThroughTs;
+        return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }

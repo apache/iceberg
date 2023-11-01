@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.connect.events;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * A control event payload for events sent by a coordinator that indicates it has completed a commit
@@ -33,7 +35,7 @@ import org.apache.iceberg.types.Types.UUIDType;
 public class CommitComplete implements Payload {
 
   private UUID commitId;
-  private Long validThroughTs;
+  private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
 
   private static final StructType ICEBERG_SCHEMA =
@@ -48,7 +50,7 @@ public class CommitComplete implements Payload {
     this.avroSchema = avroSchema;
   }
 
-  public CommitComplete(UUID commitId, Long validThroughTs) {
+  public CommitComplete(UUID commitId, OffsetDateTime validThroughTs) {
     this.commitId = commitId;
     this.validThroughTs = validThroughTs;
     this.avroSchema = AVRO_SCHEMA;
@@ -67,7 +69,7 @@ public class CommitComplete implements Payload {
    * Valid-through timestamp, which is the min-of-max record timestamps across all workers for the
    * commit.
    */
-  public Long validThroughTs() {
+  public OffsetDateTime validThroughTs() {
     return validThroughTs;
   }
 
@@ -82,14 +84,13 @@ public class CommitComplete implements Payload {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
       case 0:
         this.commitId = (UUID) v;
         return;
       case 1:
-        this.validThroughTs = (Long) v;
+        this.validThroughTs = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -102,7 +103,7 @@ public class CommitComplete implements Payload {
       case 0:
         return commitId;
       case 1:
-        return validThroughTs;
+        return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
