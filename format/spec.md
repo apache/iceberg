@@ -675,10 +675,11 @@ Table metadata consists of the following fields:
 | _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
 |            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
 | _optional_ | _optional_ | **`statistics`** | A list (optional) of [table statistics](#table-statistics). |
+| _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
 
 For serialization details, see Appendix C.
 
-#### Table statistics
+#### Table Statistics
 
 Table statistics files are valid [Puffin files](../puffin-spec). Statistics are informational. A reader can choose to
 ignore statistics information. Statistics support is not required to read the table correctly. A table can contain
@@ -705,6 +706,57 @@ Blob metadata is a struct with the following fields:
 | _required_ | _required_ | **`fields`** | `list<integer>` | Ordered list of fields, given by field ID, on which the statistic was calculated. |
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
+
+#### Partition Statistics
+
+Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
+Partition statistics are not required for reading or planning and readers may ignore them.
+Each table snapshot may be associated with at most one partition statistics file.
+A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
+Partition statistics file must be registered in the table metadata file to be considered as a valid statistics file for the reader.
+
+`partition-statistics` field of table metadata is an optional list of structs with the following fields:
+
+| v1 | v2 | Field name | Type | Description |
+|----|----|------------|------|-------------|
+| _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
+| _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
+| _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
+
+#### Partition Statistics File
+
+Statistics information for each unique partition tuple is stored as a row in any of the data file format of the table (for example, Parquet or ORC).
+These rows must be sorted (in ascending manner with NULL FIRST) by `partition` field to optimize filtering rows while scanning.
+
+The schema of the partition statistics file is as follows:
+
+| v1 | v2 | Field id, name | Type | Description |
+|----|----|----------------|------|-------------|
+| _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the unified partition type considering all specs in a table |
+| _required_ | _required_ | **`2 spec_id`** | `int` | Partition spec id |
+| _required_ | _required_ | **`3 data_record_count`** | `long` | Count of records in data files |
+| _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
+| _required_ | _required_ | **`5 total_data_file_size_in_bytes`** | `long` | Total size of data files in bytes |
+| _optional_ | _optional_ | **`6 position_delete_record_count`** | `long` | Count of records in position delete files |
+| _optional_ | _optional_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
+| _optional_ | _optional_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
+| _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
+| _optional_ | _optional_ | **`10 total_record_count`** | `long` | Accurate count of records in a partition after applying the delete files if any |
+| _optional_ | _optional_ | **`11 last_updated_at`** | `long` | Timestamp in milliseconds from the unix epoch when the partition was last updated |
+| _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
+
+Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
+and sorted by the field ids in ascending order.  
+In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+For example,
+1) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
+The unified partition type looks like Struct<field#1, field#2, field#3>.
+
+2) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has just one field {field#2}.
+The unified partition type looks like Struct<field#1, field#2>.
 
 #### Commit Conflict Resolution and Retry
 
