@@ -705,13 +705,13 @@ Blob metadata is a struct with the following fields:
 
 #### Partition Statistics
 
-Partition statistics files are based on [Partition statistics file spec](#partition-statistics-file). 
+Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
 Partition statistics are not required for reading or planning and readers may ignore them.
-Each table snapshot may be associated with at most one partition statistic file.
+Each table snapshot may be associated with at most one partition statistics file.
 A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
 Partition statistics file must be registered in the table metadata file to be considered as a valid statistics file for the reader.
 
-`partition-statistics` field of table metadata is an optional list of struct with the following fields:
+`partition-statistics` field of table metadata is an optional list of structs with the following fields:
 
 | v1 | v2 | Field name | Type | Description |
 |----|----|------------|------|-------------|
@@ -745,15 +745,14 @@ Note that partition data tuple's schema is based on the partition spec output us
 The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
-
-For Example,
+For example,
 1) spec#0 has two fields {field#1, field#2}
 and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
-The unified partition type looks like Struct<field#1, field#2, field#3>
+The unified partition type looks like Struct<field#1, field#2, field#3>.
 
 2) spec#0 has two fields {field#1, field#2}
 and then the table has evolved into spec#1 which has just one field {field#2}.
-The unified partition type looks like Struct<field#1, field#2>
+The unified partition type looks like Struct<field#1, field#2>.
 
 #### Commit Conflict Resolution and Retry
 
