@@ -365,7 +365,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
     List<Row> rowLevelDeletePartitions =
         spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
-    Assert.assertEquals(2, rowLevelDeletePartitions.size());
+    Assert.assertEquals(
+        "row level delete does not reduce number of partition", 2, rowLevelDeletePartitions.size());
 
     // partition aligned delete
     sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
@@ -377,7 +378,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     List<Row> actualPartitions =
         spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
     Assert.assertEquals(
-        "partition aligned delete result only 1 partition", 1, actualPartitions.size());
+        "partition aligned delete results in 1 partition", 1, actualPartitions.size());
   }
 
   @Test
