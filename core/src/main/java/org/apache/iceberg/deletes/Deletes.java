@@ -144,7 +144,7 @@ public class Deletes {
             deletes ->
                 CloseableIterable.transform(
                     locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    if (positions.size() > 1 && (deleteWorkerPool != null)) {
+    if (positions.size() > 1 && deleteWorkerPool != null) {
       return toPositionIndex(new ParallelIterable<>(positions, deleteWorkerPool));
     } else {
       return toPositionIndex(CloseableIterable.concat(positions));

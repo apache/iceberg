@@ -288,10 +288,10 @@ public class TestPositionFilter {
   }
 
   static Stream<ExecutorService> executorServiceProvider() {
-    ExecutorService executorService =
+    return Stream.of(
+        null,
         MoreExecutors.getExitingExecutorService(
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(4));
-    return Stream.of(null, executorService);
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(4)));
   }
 
   @ParameterizedTest
