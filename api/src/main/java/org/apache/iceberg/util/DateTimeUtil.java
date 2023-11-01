@@ -33,7 +33,7 @@ public class DateTimeUtil {
 
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-  public static final long MICROS_PER_MILLI = 1_000L;
+  public static final long MICROS_PER_MILLIS = 1_000L;
   public static final long MILLIS_PER_SECOND = 1_000L;
   public static final long MICROS_PER_SECOND = 1_000_000L;
   public static final long NANOS_PER_SECOND = 1_000_000_000L;
@@ -76,7 +76,7 @@ public class DateTimeUtil {
     // When the timestamp is negative, i.e before 1970, we need to adjust the milliseconds portion.
     // Example - 1965-01-01 10:11:12.123456 is represented as (-157700927876544) in micro precision.
     // In millis precision the above needs to be represented as (-157700927877).
-    return Math.floorDiv(micros, MICROS_PER_MILLI);
+    return Math.floorDiv(micros, MICROS_PER_MILLIS);
   }
 
   public static long nanosToMillis(long nanos) {

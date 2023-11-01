@@ -202,7 +202,8 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    if (Preconditions.checkNotNull(type.typeId()) == Type.TypeID.TIMESTAMP) {
+    if (Preconditions.checkNotNull(type.typeId(), "Type ID cannot be null")
+        == Type.TypeID.TIMESTAMP) {
       switch (((TimestampType) type).unit()) {
         case MICROS:
           return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
