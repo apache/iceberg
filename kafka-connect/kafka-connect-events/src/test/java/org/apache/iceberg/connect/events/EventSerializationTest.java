@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
 
 public class EventSerializationTest {
@@ -37,9 +35,10 @@ public class EventSerializationTest {
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
 
-    assertThat(result.type()).isEqualTo(event.type());
-    StartCommit payload = (StartCommit) result.payload();
-    assertThat(payload.commitId()).isEqualTo(commitId);
+    assertThat(result)
+        .usingRecursiveComparison()
+        .ignoringFieldsMatchingRegexes(".*avroSchema")
+        .isEqualTo(event);
   }
 
   @Test
@@ -49,7 +48,7 @@ public class EventSerializationTest {
         new Event(
             "cg-connector",
             new DataWritten(
-                StructType.of(),
+                EventTestUtil.SPEC.partitionType(),
                 commitId,
                 new TableReference("catalog", Collections.singletonList("db"), "tbl"),
                 Arrays.asList(EventTestUtil.createDataFile(), EventTestUtil.createDataFile()),
@@ -58,15 +57,11 @@ public class EventSerializationTest {
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
 
-    assertThat(result.type()).isEqualTo(event.type());
-    DataWritten payload = (DataWritten) result.payload();
-    assertThat(payload.commitId()).isEqualTo(commitId);
-    assertThat(payload.tableReference().catalog()).isEqualTo("catalog");
-    assertThat(payload.tableReference().identifier()).isEqualTo(TableIdentifier.parse("db.tbl"));
-    assertThat(payload.dataFiles()).hasSize(2);
-    assertThat(payload.dataFiles()).allMatch(f -> f.specId() == 1);
-    assertThat(payload.deleteFiles()).hasSize(2);
-    assertThat(payload.deleteFiles()).allMatch(f -> f.specId() == 1);
+    assertThat(result)
+        .usingRecursiveComparison()
+        .ignoringFieldsMatchingRegexes(
+            ".*avroSchema", ".*icebergSchema", ".*schema", ".*fromProjectionPos")
+        .isEqualTo(event);
   }
 
   @Test
@@ -84,11 +79,10 @@ public class EventSerializationTest {
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
 
-    assertThat(result.type()).isEqualTo(event.type());
-    DataComplete payload = (DataComplete) result.payload();
-    assertThat(payload.commitId()).isEqualTo(commitId);
-    assertThat(payload.assignments()).hasSize(2);
-    assertThat(payload.assignments()).allMatch(tp -> tp.topic().equals("topic"));
+    assertThat(result)
+        .usingRecursiveComparison()
+        .ignoringFieldsMatchingRegexes(".*avroSchema")
+        .isEqualTo(event);
   }
 
   @Test
@@ -106,13 +100,10 @@ public class EventSerializationTest {
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
 
-    assertThat(result.type()).isEqualTo(event.type());
-    CommitToTable payload = (CommitToTable) result.payload();
-    assertThat(payload.commitId()).isEqualTo(commitId);
-    assertThat(payload.tableReference().catalog()).isEqualTo("catalog");
-    assertThat(payload.tableReference().identifier()).isEqualTo(TableIdentifier.parse("db.tbl"));
-    assertThat(payload.snapshotId()).isEqualTo(1L);
-    assertThat(payload.validThroughTs()).isEqualTo(2L);
+    assertThat(result)
+        .usingRecursiveComparison()
+        .ignoringFieldsMatchingRegexes(".*avroSchema")
+        .isEqualTo(event);
   }
 
   @Test
@@ -123,9 +114,9 @@ public class EventSerializationTest {
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
 
-    assertThat(result.type()).isEqualTo(event.type());
-    CommitComplete payload = (CommitComplete) result.payload();
-    assertThat(payload.commitId()).isEqualTo(commitId);
-    assertThat(payload.validThroughTs()).isEqualTo(2L);
+    assertThat(result)
+        .usingRecursiveComparison()
+        .ignoringFieldsMatchingRegexes(".*avroSchema")
+        .isEqualTo(event);
   }
 }

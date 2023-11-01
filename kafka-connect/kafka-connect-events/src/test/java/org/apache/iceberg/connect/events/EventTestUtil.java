@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
@@ -34,58 +35,55 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 
-public class EventTestUtil {
+class EventTestUtil {
   private EventTestUtil() {}
 
-  public static DataFile createDataFile() {
-    Schema schema =
-        new Schema(ImmutableList.of(Types.NestedField.required(1, "id", Types.LongType.get())));
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").withSpecId(1).build();
-    SortOrder order =
-        SortOrder.builderFor(schema).sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST).build();
+  static final Schema SCHEMA =
+      new Schema(ImmutableList.of(Types.NestedField.required(1, "id", Types.LongType.get())));
 
-    Metrics metrics =
-        new Metrics(
-            1L,
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap());
+  static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("id").withSpecId(1).build();
 
-    return DataFiles.builder(spec)
+  static final SortOrder ORDER =
+      SortOrder.builderFor(SCHEMA).sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST).build();
+
+  static final Metrics METRICS =
+      new Metrics(
+          1L,
+          Collections.emptyMap(),
+          Collections.emptyMap(),
+          Collections.emptyMap(),
+          Collections.emptyMap());
+
+  static DataFile createDataFile() {
+    PartitionData data = new PartitionData(SPEC.partitionType());
+    data.set(0, 1L);
+
+    return DataFiles.builder(SPEC)
         .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[] {0}))
-        .withFileSizeInBytes(1L)
+        .withFileSizeInBytes(100L)
         .withFormat(FileFormat.PARQUET)
-        .withMetrics(metrics)
+        .withMetrics(METRICS)
+        .withPartition(data)
         .withPath("path")
-        .withSortOrder(order)
+        .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
   }
 
-  public static DeleteFile createDeleteFile() {
-    Schema schema =
-        new Schema(ImmutableList.of(Types.NestedField.required(1, "id", Types.LongType.get())));
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").withSpecId(1).build();
-    SortOrder order =
-        SortOrder.builderFor(schema).sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST).build();
+  static DeleteFile createDeleteFile() {
+    PartitionData data = new PartitionData(SPEC.partitionType());
+    data.set(0, 1L);
 
-    Metrics metrics =
-        new Metrics(
-            1L,
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap());
-
-    return FileMetadata.deleteFileBuilder(spec)
+    return FileMetadata.deleteFileBuilder(SPEC)
         .ofEqualityDeletes(1)
         .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[] {0}))
-        .withFileSizeInBytes(1L)
+        .withFileSizeInBytes(100L)
         .withFormat(FileFormat.PARQUET)
-        .withMetrics(metrics)
+        .withMetrics(METRICS)
+        .withPartition(data)
         .withPath("path")
-        .withSortOrder(order)
+        .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
   }
