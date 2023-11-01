@@ -18,19 +18,30 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import org.apache.spark.sql.connector.metric.CustomSumMetric;
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-public class ResultDeleteFiles extends CustomSumMetric {
+public class TaskTotalDeleteManifests implements CustomTaskMetric {
+  private final long value;
 
-  static final String NAME = "resultDeleteFiles";
-
-  @Override
-  public String name() {
-    return NAME;
+  private TaskTotalDeleteManifests(long value) {
+    this.value = value;
   }
 
   @Override
-  public String description() {
-    return "number of result delete files";
+  public String name() {
+    return TotalDeleteManifests.NAME;
+  }
+
+  @Override
+  public long value() {
+    return value;
+  }
+
+  public static TaskTotalDeleteManifests from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().totalDeleteManifests();
+    long value = counter != null ? counter.value() : 0L;
+    return new TaskTotalDeleteManifests(value);
   }
 }

@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class TotalDeleteFileSize extends CustomSumMetric {
 
-  static final String NAME = "deleteFileSize";
+  static final String NAME = "totalDeleteFileSize";
 
   @Override
   public String name() {
@@ -31,6 +31,6 @@ public class TotalDeleteFileSize extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "total delete file size";
+    return "total delete file size in bytes";
   }
 }

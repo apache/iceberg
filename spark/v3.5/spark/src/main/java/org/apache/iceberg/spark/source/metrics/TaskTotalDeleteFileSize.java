@@ -22,16 +22,17 @@ import org.apache.iceberg.metrics.CounterResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-public class TaskScannedDataFiles implements CustomTaskMetric {
+public class TaskTotalDeleteFileSize implements CustomTaskMetric {
+
   private final long value;
 
-  private TaskScannedDataFiles(long value) {
+  private TaskTotalDeleteFileSize(long value) {
     this.value = value;
   }
 
   @Override
   public String name() {
-    return ScannedDataFiles.NAME;
+    return TotalDeleteFileSize.NAME;
   }
 
   @Override
@@ -39,9 +40,9 @@ public class TaskScannedDataFiles implements CustomTaskMetric {
     return value;
   }
 
-  public static TaskScannedDataFiles from(ScanReport scanReport) {
-    CounterResult counter = scanReport.scanMetrics().resultDataFiles();
+  public static TaskTotalDeleteFileSize from(ScanReport scanReport) {
+    CounterResult counter = scanReport.scanMetrics().totalDeleteFileSizeInBytes();
     long value = counter != null ? counter.value() : 0L;
-    return new TaskScannedDataFiles(value);
+    return new TaskTotalDeleteFileSize(value);
   }
 }

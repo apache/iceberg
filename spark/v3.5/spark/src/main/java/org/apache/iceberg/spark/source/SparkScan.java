@@ -42,7 +42,6 @@ import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.spark.source.metrics.PositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.ResultDataFiles;
 import org.apache.iceberg.spark.source.metrics.ResultDeleteFiles;
-import org.apache.iceberg.spark.source.metrics.ScannedDataFiles;
 import org.apache.iceberg.spark.source.metrics.ScannedDataManifests;
 import org.apache.iceberg.spark.source.metrics.ScannedDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
@@ -54,15 +53,20 @@ import org.apache.iceberg.spark.source.metrics.TaskIndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskResultDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskResultDeleteFiles;
-import org.apache.iceberg.spark.source.metrics.TaskScannedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskScannedDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskScannedDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
+import org.apache.iceberg.spark.source.metrics.TotalDataManifests;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
@@ -216,21 +220,31 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
 
     List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
+    // common
     driverMetrics.add(TaskTotalFileSize.from(scanReport));
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
-    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
-    driverMetrics.add(TaskScannedDataFiles.from(scanReport));
-    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
-    driverMetrics.add(TaskScannedDataManifests.from(scanReport));
 
+    // data manifests
+    driverMetrics.add(TaskTotalDataManifests.from(scanReport));
+    driverMetrics.add(TaskScannedDataManifests.from(scanReport));
+    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
+
+    // data files
+    driverMetrics.add(TaskResultDataFiles.from(scanReport));
+    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
+
+    // delete manifests
+    driverMetrics.add(TaskTotalDeleteManifests.from(scanReport));
+    driverMetrics.add(TaskScannedDeleteManifests.from(scanReport));
+    driverMetrics.add(TaskSkippedDeleteManifests.from(scanReport));
+
+    // delete files
+    driverMetrics.add(TaskTotalDeleteFileSize.from(scanReport));
+    driverMetrics.add(TaskResultDeleteFiles.from(scanReport));
     driverMetrics.add(TaskEqualityDeleteFiles.from(scanReport));
     driverMetrics.add(TaskIndexedDeleteFiles.from(scanReport));
     driverMetrics.add(TaskPositionalDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskResultDataFiles.from(scanReport));
-    driverMetrics.add(TaskResultDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskScannedDeleteManifests.from(scanReport));
     driverMetrics.add(TaskSkippedDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskSkippedDeleteManifests.from(scanReport));
 
     return driverMetrics.toArray(new CustomTaskMetric[0]);
   }
@@ -240,20 +254,32 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return new CustomMetric[] {
       new NumSplits(),
       new NumDeletes(),
+
+      // common
       new TotalFileSize(),
       new TotalPlanningDuration(),
+
+      // data manifests
+      new TotalDataManifests(),
       new ScannedDataManifests(),
       new SkippedDataManifests(),
-      new ScannedDataFiles(),
+
+      // data files
+      new ResultDataFiles(),
       new SkippedDataFiles(),
+
+      // delete manifests
+      new TotalDeleteManifests(),
+      new ScannedDeleteManifests(),
+      new SkippedDeleteManifests(),
+
+      // delete files
+      new TotalDeleteFileSize(),
+      new ResultDeleteFiles(),
       new EqualityDeleteFiles(),
       new IndexedDeleteFiles(),
       new PositionalDeleteFiles(),
-      new ResultDataFiles(),
-      new ResultDeleteFiles(),
-      new ScannedDeleteManifests(),
-      new SkippedDeleteFiles(),
-      new SkippedDeleteManifests()
+      new SkippedDeleteFiles()
     };
   }
 
