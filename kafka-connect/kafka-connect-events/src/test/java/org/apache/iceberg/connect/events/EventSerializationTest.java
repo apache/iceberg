@@ -60,7 +60,11 @@ public class EventSerializationTest {
     assertThat(result)
         .usingRecursiveComparison()
         .ignoringFieldsMatchingRegexes(
-            ".*avroSchema", ".*icebergSchema", ".*schema", ".*fromProjectionPos")
+            "payload\\.partitionType",
+            ".*avroSchema",
+            ".*icebergSchema",
+            ".*schema",
+            ".*fromProjectionPos")
         .isEqualTo(event);
   }
 

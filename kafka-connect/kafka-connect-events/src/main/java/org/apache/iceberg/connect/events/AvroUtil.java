@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.avro.AvroEncoderUtil;
@@ -66,9 +67,18 @@ class AvroUtil {
     }
   }
 
-  static Schema convert(Types.StructType icebergSchema) {
+  static Schema convert(Types.StructType icebergSchema, Class<? extends IndexedRecord> javaClass) {
+    return convert(icebergSchema, javaClass, FIELD_ID_TO_CLASS);
+  }
+
+  static Schema convert(
+      Types.StructType icebergSchema,
+      Class<? extends IndexedRecord> javaClass,
+      Map<Integer, String> typeMap) {
     return AvroSchemaUtil.convert(
-        icebergSchema, (fieldId, struct) -> FIELD_ID_TO_CLASS.get(fieldId));
+        icebergSchema,
+        (fieldId, struct) ->
+            struct.equals(icebergSchema) ? javaClass.getName() : typeMap.get(fieldId));
   }
 
   private AvroUtil() {}

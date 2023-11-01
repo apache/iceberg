@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -67,11 +66,7 @@ public class Event implements IndexedRecord {
     Map<Integer, String> typeMap = Maps.newHashMap(AvroUtil.FIELD_ID_TO_CLASS);
     typeMap.put(10_504, payload.getClass().getName());
 
-    this.avroSchema =
-        AvroSchemaUtil.convert(
-            icebergSchema,
-            (fieldId, struct) ->
-                struct.equals(icebergSchema) ? getClass().getName() : typeMap.get(fieldId));
+    this.avroSchema = AvroUtil.convert(icebergSchema, getClass(), typeMap);
   }
 
   public UUID id() {

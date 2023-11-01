@@ -36,7 +36,7 @@ public class StartCommit implements Payload {
   private static final StructType ICEBERG_SCHEMA =
       StructType.of(NestedField.required(10_200, "commit_id", UUIDType.get()));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, StartCommit.class);
 
   // Used by Avro reflection to instantiate this class when reading events
   public StartCommit(Schema avroSchema) {

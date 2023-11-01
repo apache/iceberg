@@ -44,7 +44,7 @@ public class DataComplete implements Payload {
               "assignments",
               ListType.ofRequired(10_102, TopicPartitionOffset.ICEBERG_SCHEMA)));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, DataComplete.class);
 
   // Used by Avro reflection to instantiate this class when reading events
   public DataComplete(Schema avroSchema) {

@@ -41,7 +41,7 @@ public class CommitComplete implements Payload {
           NestedField.required(10_000, "commit_id", UUIDType.get()),
           NestedField.optional(10_001, "valid_through_ts", TimestampType.withZone()));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitComplete.class);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitComplete(Schema avroSchema) {

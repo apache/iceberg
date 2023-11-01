@@ -34,12 +34,14 @@ import org.apache.iceberg.types.Types.UUIDType;
  */
 public class DataWritten implements Payload {
 
+  private StructType partitionType;
+
   private UUID commitId;
   private TableReference tableReference;
   private List<DataFile> dataFiles;
   private List<DeleteFile> deleteFiles;
   private StructType icebergSchema;
-  private final Schema avroSchema;
+  private Schema avroSchema;
 
   // Used by Avro reflection to instantiate this class when reading events
   public DataWritten(Schema avroSchema) {
@@ -52,22 +54,11 @@ public class DataWritten implements Payload {
       TableReference tableReference,
       List<DataFile> dataFiles,
       List<DeleteFile> deleteFiles) {
+    this.partitionType = partitionType;
     this.commitId = commitId;
     this.tableReference = tableReference;
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
-
-    StructType dataFileStruct = DataFile.getType(partitionType);
-
-    this.icebergSchema =
-        StructType.of(
-            NestedField.required(10_300, "commit_id", UUIDType.get()),
-            NestedField.required(10_301, "table_reference", TableReference.ICEBERG_SCHEMA),
-            NestedField.optional(10_302, "data_files", ListType.ofRequired(10_303, dataFileStruct)),
-            NestedField.optional(
-                10_304, "delete_files", ListType.ofRequired(10_305, dataFileStruct)));
-
-    this.avroSchema = AvroUtil.convert(icebergSchema);
   }
 
   @Override
@@ -93,11 +84,27 @@ public class DataWritten implements Payload {
 
   @Override
   public StructType writeSchema() {
+    if (icebergSchema == null) {
+      StructType dataFileStruct = DataFile.getType(partitionType);
+
+      this.icebergSchema =
+          StructType.of(
+              NestedField.required(10_300, "commit_id", UUIDType.get()),
+              NestedField.required(10_301, "table_reference", TableReference.ICEBERG_SCHEMA),
+              NestedField.optional(
+                  10_302, "data_files", ListType.ofRequired(10_303, dataFileStruct)),
+              NestedField.optional(
+                  10_304, "delete_files", ListType.ofRequired(10_305, dataFileStruct)));
+    }
+
     return icebergSchema;
   }
 
   @Override
   public Schema getSchema() {
+    if (avroSchema == null) {
+      this.avroSchema = AvroUtil.convert(writeSchema(), getClass());
+    }
     return avroSchema;
   }
 

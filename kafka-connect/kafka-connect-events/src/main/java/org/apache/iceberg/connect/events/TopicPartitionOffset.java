@@ -43,7 +43,8 @@ public class TopicPartitionOffset implements IndexedRecord {
           NestedField.optional(10_702, "offset", LongType.get()),
           NestedField.optional(10_703, "timestamp", TimestampType.withZone()));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA =
+      AvroUtil.convert(ICEBERG_SCHEMA, TopicPartitionOffset.class);
 
   // Used by Avro reflection to instantiate this class when reading events
   public TopicPartitionOffset(Schema avroSchema) {

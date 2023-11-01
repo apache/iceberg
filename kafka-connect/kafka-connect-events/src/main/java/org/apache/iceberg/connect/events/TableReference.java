@@ -46,7 +46,7 @@ public class TableReference implements IndexedRecord {
           NestedField.required(10_601, "namespace", ListType.ofRequired(10_602, StringType.get())),
           NestedField.required(10_603, "name", StringType.get()));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, TableReference.class);
 
   public static TableReference of(String catalog, TableIdentifier tableIdentifier) {
     return new TableReference(

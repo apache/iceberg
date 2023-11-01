@@ -46,7 +46,7 @@ public class CommitToTable implements Payload {
           NestedField.optional(10_402, "snapshot_id", LongType.get()),
           NestedField.optional(10_403, "valid_through_ts", TimestampType.withZone()));
 
-  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA);
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitToTable.class);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitToTable(Schema avroSchema) {
