@@ -25,6 +25,9 @@ import org.apache.iceberg.spark.SparkSessionCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
+import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
+import org.apache.spark.sql.catalyst.analysis.V2ViewDescription
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
@@ -41,13 +44,31 @@ import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowViews
+import org.apache.spark.sql.catalyst.plans.logical.views.AlterV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.DescribeV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
+import org.apache.spark.sql.catalyst.plans.logical.views.RenameV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowCreateV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowV2ViewProperties
+import org.apache.spark.sql.connector.catalog.CatalogManager
+import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.OrderAwareCoalesceExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.jdk.CollectionConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
+  val catalogManager: CatalogManager = spark.sessionState.catalogManager
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
@@ -90,7 +111,48 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case OrderAwareCoalesce(numPartitions, coalescer, child) =>
       OrderAwareCoalesceExec(numPartitions, coalescer, planLater(child)) :: Nil
 
+    case CreateV2View(
+      IcebergViewCatalogAndIdentifier(catalog, ident), sql, comment, viewSchema, queryColumnNames,
+    columnAliases, columnComments, properties, allowExisting, replace) =>
+      CreateV2ViewExec(catalog, ident, sql, catalogManager.currentCatalog.name,
+        catalogManager.currentNamespace, comment, viewSchema, queryColumnNames,
+        columnAliases, columnComments, properties, allowExisting, replace) :: Nil
+
+    case d@DescribeV2View(desc, isExtended) =>
+      DescribeV2ViewExec(d.output, desc, isExtended) :: Nil
+
+    case show@ShowCreateV2View(view) =>
+      ShowCreateV2ViewExec(show.output, view) :: Nil
+
+    case show@ShowCreateTable(ResolvedV2View(_, ident, view), _, _) =>
+      ShowCreateV2ViewExec(show.output, V2ViewDescription(ident.quoted, view)) :: Nil
+
+    case show@ShowV2ViewProperties(view, propertyKey) =>
+      ShowV2ViewPropertiesExec(show.output, view, propertyKey) :: Nil
+
+    case ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output) =>
+      ShowV2ViewsExec(output, asViewCatalog(catalog), ns, pattern) :: Nil
+
+    case ShowViews(ResolvedNamespace(catalog, ns), pattern, output) =>
+      ShowV2ViewsExec(output, asViewCatalog(catalog), ns, pattern) :: Nil
+
+    case DropIcebergView(ResolvedIdentifier(catalog, ident), ifExists) =>
+      DropV2ViewExec(asViewCatalog(catalog), ident, ifExists) :: Nil
+
+    case RenameV2View(catalog, oldIdent, newIdent) =>
+      RenameV2ViewExec(catalog, oldIdent, newIdent) :: Nil
+
+    case AlterV2View(catalog, ident, changes) =>
+      AlterV2ViewExec(catalog, ident, changes) :: Nil
+
     case _ => Nil
+  }
+
+  private def asViewCatalog(plugin: CatalogPlugin): ViewCatalog = plugin match {
+    case viewCatalog: ViewCatalog =>
+      viewCatalog
+    case _ =>
+      throw QueryCompilationErrors.missingCatalogAbilityError(plugin, "views")
   }
 
   private def buildInternalRow(exprs: Seq[Expression]): InternalRow = {
@@ -103,6 +165,20 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
   private object IcebergCatalogAndIdentifier {
     def unapply(identifier: Seq[String]): Option[(TableCatalog, Identifier)] = {
+      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier.asJava)
+      catalogAndIdentifier.catalog match {
+        case icebergCatalog: SparkCatalog =>
+          Some((icebergCatalog, catalogAndIdentifier.identifier))
+        case icebergCatalog: SparkSessionCatalog[_] =>
+          Some((icebergCatalog, catalogAndIdentifier.identifier))
+        case _ =>
+          None
+      }
+    }
+  }
+
+  private object IcebergViewCatalogAndIdentifier {
+    def unapply(identifier: Seq[String]): Option[(ViewCatalog, Identifier)] = {
       val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier.asJava)
       catalogAndIdentifier.catalog match {
         case icebergCatalog: SparkCatalog =>

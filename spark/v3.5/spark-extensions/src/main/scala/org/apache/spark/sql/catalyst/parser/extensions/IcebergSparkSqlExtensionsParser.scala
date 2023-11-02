@@ -29,33 +29,58 @@ import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
 import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
+import org.apache.spark.sql.catalyst.analysis
+import org.apache.spark.sql.catalyst.analysis.AnalysisContext
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
+import org.apache.spark.sql.catalyst.analysis.ResolvedPersistentView
+import org.apache.spark.sql.catalyst.analysis.ResolvedTable
+import org.apache.spark.sql.catalyst.analysis.ResolvedTempView
+import org.apache.spark.sql.catalyst.analysis.SimpleAnalyzer.resolver
+import org.apache.spark.sql.catalyst.analysis.UnresolvedIdentifier
+import org.apache.spark.sql.catalyst.analysis.UnresolvedNamespace
+import org.apache.spark.sql.catalyst.analysis.UnresolvedTableOrView
+import org.apache.spark.sql.catalyst.analysis.UnresolvedView
+import org.apache.spark.sql.catalyst.catalog.CatalogTableType
+import org.apache.spark.sql.catalyst.catalog.TemporaryViewRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
+import org.apache.spark.sql.catalyst.plans.logical.CreateView
+import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ShowViews
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
+import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
+import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
+import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.rules.RuleExecutor
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.catalog.{View => V2View}
+import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.CatalogV2Util
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.V1Table
+import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface with ExtendedParser {
 
   import IcebergSparkSqlExtensionsParser._
 
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
+  private lazy val maxIterations = SQLConf.get.analyzerMaxIterations
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -122,37 +147,132 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      delegate.parsePlan(sqlText)
+      ViewSubstitutionExecutor.execute(delegate.parsePlan(sqlText))
     }
   }
 
-  object UnresolvedIcebergTable {
+  private object ViewSubstitutionExecutor extends RuleExecutor[LogicalPlan] {
+    private val fixedPoint = FixedPoint(
+      maxIterations,
+      errorOnExceed = true,
+      maxIterationsSetting = SQLConf.ANALYZER_MAX_ITERATIONS.key)
 
-    def unapply(plan: LogicalPlan): Option[LogicalPlan] = {
-      EliminateSubqueryAliases(plan) match {
-        case UnresolvedRelation(multipartIdentifier, _, _) if isIcebergTable(multipartIdentifier) =>
-          Some(plan)
-        case _ =>
+    override protected def batches: Seq[Batch] = Seq(Batch("pre-substitution", fixedPoint, V2ViewSubstitution))
+  }
+
+  private object V2ViewSubstitution extends Rule[LogicalPlan] {
+    import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
+    // the reason for handling these cases here is because ResolveSessionCatalog exits early for v2 commands
+    override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsUp {
+      case u@UnresolvedView(identifier, _, _, _) =>
+        lookupTableOrView(identifier, viewOnly = true).getOrElse(u)
+
+      case u@UnresolvedTableOrView(identifier, _, _) =>
+        lookupTableOrView(identifier).getOrElse(u)
+
+      case CreateView(UnresolvedIdentifier(nameParts, allowTemp), userSpecifiedColumns,
+      comment, properties, originalText, query, allowExisting, replace) =>
+        CreateIcebergView(UnresolvedIdentifier(nameParts, allowTemp), userSpecifiedColumns,
+          comment, properties, originalText, query, allowExisting, replace)
+
+      case ShowViews(UnresolvedNamespace(multipartIdentifier), pattern, output) =>
+        ShowIcebergViews(UnresolvedNamespace(multipartIdentifier), pattern, output)
+
+      case DropView(UnresolvedIdentifier(nameParts, allowTemp), ifExists) =>
+        DropIcebergView(UnresolvedIdentifier(nameParts, allowTemp), ifExists)
+    }
+
+    private def expandIdentifier(nameParts: Seq[String]): Seq[String] = {
+      if (!isResolvingView || isReferredTempViewName(nameParts)) return nameParts
+
+      if (nameParts.length == 1) {
+        AnalysisContext.get.catalogAndNamespace :+ nameParts.head
+      } else if (SparkSession.active.sessionState.catalogManager.isCatalogRegistered(nameParts.head)) {
+        nameParts
+      } else {
+        AnalysisContext.get.catalogAndNamespace.head +: nameParts
+      }
+    }
+
+    /**
+     * Resolves relations to `ResolvedTable` or `Resolved[Temp/Persistent]View`. This is
+     * for resolving DDL and misc commands. Code is copied from Spark's Analyzer, but performs
+     * a view lookup before performing a table lookup.
+     */
+    private def lookupTableOrView(
+                                   identifier: Seq[String],
+                                   viewOnly: Boolean = false): Option[LogicalPlan] = {
+      lookupTempView(identifier).map { tempView =>
+        ResolvedTempView(identifier.asIdentifier, tempView.tableMeta.schema)
+      }.orElse {
+        val multipartIdent = expandIdentifier(identifier)
+        val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(SparkSession.active, multipartIdent.asJava)
+        if (null != catalogAndIdentifier) {
+          lookupView(SparkSession.active.sessionState.catalogManager.currentCatalog,
+            catalogAndIdentifier.identifier())
+            .orElse(lookupTable(SparkSession.active.sessionState.catalogManager.currentCatalog,
+              catalogAndIdentifier.identifier()))
+        } else {
           None
+        }
       }
     }
 
-    private def isIcebergTable(multipartIdent: Seq[String]): Boolean = {
-      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(SparkSession.active, multipartIdent.asJava)
-      catalogAndIdentifier.catalog match {
-        case tableCatalog: TableCatalog =>
-          Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
-            .map(isIcebergTable)
-            .getOrElse(false)
+    private def isResolvingView: Boolean = AnalysisContext.get.catalogAndNamespace.nonEmpty
 
-        case _ =>
-          false
+    private def isReferredTempViewName(nameParts: Seq[String]): Boolean = {
+      AnalysisContext.get.referredTempViewNames.exists { n =>
+        (n.length == nameParts.length) && n.zip(nameParts).forall {
+          case (a, b) => resolver(a, b)
+        }
       }
     }
 
-    private def isIcebergTable(table: Table): Boolean = table match {
-      case _: SparkTable => true
-      case _ => false
+    private def lookupTempView(identifier: Seq[String]): Option[TemporaryViewRelation] = {
+      // We are resolving a view and this name is not a temp view when that view was created. We
+      // return None earlier here.
+      if (isResolvingView && !isReferredTempViewName(identifier)) return None
+      SparkSession.active.sessionState.catalogManager.v1SessionCatalog.getRawLocalOrGlobalTempView(identifier)
+    }
+
+
+    private def lookupView(catalog: CatalogPlugin, ident: Identifier): Option[LogicalPlan] =
+      loadView(catalog, ident).map {
+        case view if CatalogV2Util.isSessionCatalog(catalog) =>
+          ResolvedPersistentView(catalog, ident, view.schema)
+        case view =>
+          ResolvedV2View(ViewHelper(catalog).asViewCatalog, ident, view)
+      }
+
+    private def lookupTable(catalog: CatalogPlugin, ident: Identifier): Option[LogicalPlan] =
+      CatalogV2Util.loadTable(catalog, ident).map {
+        case v1Table: V1Table if CatalogV2Util.isSessionCatalog(catalog) &&
+          v1Table.v1Table.tableType == CatalogTableType.VIEW =>
+          val v1Ident = v1Table.catalogTable.identifier
+          val v2Ident = Identifier.of(v1Ident.database.toArray, v1Ident.identifier)
+          analysis.ResolvedPersistentView(catalog, v2Ident, v1Table.catalogTable.schema)
+        case table =>
+          ResolvedTable.create(catalog.asTableCatalog, ident, table)
+      }
+
+    def loadView(catalog: CatalogPlugin, ident: Identifier): Option[V2View] = catalog match {
+      case viewCatalog: ViewCatalog =>
+        try {
+          Option(viewCatalog.loadView(ident))
+        } catch {
+          case _: NoSuchViewException => None
+        }
+      case _ => None
+    }
+  }
+
+  implicit class ViewHelper(plugin: CatalogPlugin) {
+    def asViewCatalog: ViewCatalog = plugin match {
+      case viewCatalog: ViewCatalog =>
+        viewCatalog
+      case _ =>
+        throw QueryCompilationErrors.missingCatalogAbilityError(plugin, "views")
     }
   }
 
