@@ -32,7 +32,7 @@ public class TestParquetReadProjection extends TestReadProjection {
   protected GenericData.Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
-    File file = temp.newFile(desc + ".parquet");
+    File file = temp.resolve(desc + ".parquet").toFile();
     file.delete();
 
     try (FileAppender<GenericData.Record> appender =
