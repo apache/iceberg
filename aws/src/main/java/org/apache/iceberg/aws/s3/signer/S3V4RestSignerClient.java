@@ -206,7 +206,8 @@ public abstract class S3V4RestSignerClient
                       tokenRefreshExecutor(),
                       token,
                       expiresAtMillis(properties()),
-                      new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE, tokenUri())));
+                      new AuthSession(
+                          ImmutableMap.of(), token, null, credential(), SCOPE, tokenUri())));
     }
 
     if (credentialProvided()) {
@@ -218,7 +219,8 @@ public abstract class S3V4RestSignerClient
                     new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE, tokenUri());
                 long startTimeMillis = System.currentTimeMillis();
                 OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE, tokenUri());
+                    OAuth2Util.fetchToken(
+                        httpClient(), session.headers(), credential(), SCOPE, tokenUri());
                 return AuthSession.fromTokenResponse(
                     httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });
