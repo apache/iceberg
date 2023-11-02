@@ -21,6 +21,8 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -33,9 +35,13 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FilterIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
@@ -145,6 +151,39 @@ public class Deletes {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }
+  }
+
+  public static <T extends StructLike> Map<String, PositionDeleteIndex> toPositionIndexMap(
+      Set<CharSequence> dataLocations, List<CloseableIterable<T>> deleteFiles) {
+    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocations);
+    List<CloseableIterable<T>> positions =
+        Lists.transform(
+            deleteFiles, deletes -> CloseableIterable.filter(deletes, locationFilter::shouldKeep));
+
+    try (CloseableIterable<T> deletes = CloseableIterable.concat(positions)) {
+      Map<String, PositionDeleteIndex> positionDeleteIndex = Maps.newHashMap();
+      deletes.forEach(
+          row ->
+              positionDeleteIndex
+                  .computeIfAbsent(
+                      (String) FILENAME_ACCESSOR.get(row), f -> new BitmapPositionDeleteIndex())
+                  .delete((Long) POSITION_ACCESSOR.get(row)));
+      return ImmutableMap.copyOf(positionDeleteIndex);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+  }
+
+  public static <T extends StructLike> Map<String, PositionDeleteIndex> toPositionIndexMap(
+      CloseableIterable<T> deletes) {
+    Map<String, PositionDeleteIndex> positionDeleteIndex = Maps.newHashMap();
+    deletes.forEach(
+        row ->
+            positionDeleteIndex
+                .computeIfAbsent(
+                    (String) FILENAME_ACCESSOR.get(row), f -> new BitmapPositionDeleteIndex())
+                .delete((Long) POSITION_ACCESSOR.get(row)));
+    return positionDeleteIndex;
   }
 
   public static <T> CloseableIterable<T> streamingFilter(
@@ -345,42 +384,22 @@ public class Deletes {
     }
   }
 
-  private static class DataFileFilter<T extends StructLike> extends Filter<T> {
-    private final CharSequence dataLocation;
+  private static final class DataFileFilter<T extends StructLike> extends Filter<T> {
+    private final Set<CharSequence> dataLocations;
+
+    DataFileFilter(Set<CharSequence> dataLocation) {
+      this.dataLocations = dataLocation;
+    }
 
     DataFileFilter(CharSequence dataLocation) {
-      this.dataLocation = dataLocation;
+      this.dataLocations =
+          CharSequenceSet.of(ImmutableList.of(dataLocation), Comparators.filePath());
     }
 
+    @SuppressWarnings("CollectionUndefinedEquality")
     @Override
     protected boolean shouldKeep(T posDelete) {
-      return charSeqEquals(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete));
-    }
-
-    private boolean charSeqEquals(CharSequence s1, CharSequence s2) {
-      if (s1 == s2) {
-        return true;
-      }
-
-      int count = s1.length();
-      if (count != s2.length()) {
-        return false;
-      }
-
-      if (s1 instanceof String && s2 instanceof String && s1.hashCode() != s2.hashCode()) {
-        return false;
-      }
-
-      // File paths inside a delete file normally have more identical chars at the beginning. For
-      // example, a typical
-      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
-      // The uuid is where the difference starts. So it's faster to find the first diff backward.
-      for (int i = count - 1; i >= 0; i--) {
-        if (s1.charAt(i) != s2.charAt(i)) {
-          return false;
-        }
-      }
-      return true;
+      return dataLocations.contains(FILENAME_ACCESSOR.get(posDelete));
     }
   }
 }

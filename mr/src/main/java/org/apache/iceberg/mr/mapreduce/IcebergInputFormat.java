@@ -18,15 +18,18 @@
  */
 package org.apache.iceberg.mr.mapreduce;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -56,6 +59,7 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
@@ -72,6 +76,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -199,6 +204,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         "org.apache.iceberg.mr.hive.vector.HiveVectorizedReader";
     private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
 
+    private static final Cache<CharSequence, Map<String, PositionDeleteIndex>>
+        DELETE_POS_INDEX_CACHE =
+            Caffeine.newBuilder()
+                .expireAfterAccess(10, TimeUnit.MINUTES)
+                .softValues()
+                .maximumSize(1000L)
+                .build();
+
     static {
       if (HiveVersion.min(HiveVersion.HIVE_3)) {
         HIVE_VECTORIZED_READER_BUILDER =
@@ -222,7 +235,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private boolean reuseContainers;
     private boolean caseSensitive;
     private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
-    private Iterator<FileScanTask> tasks;
+    private Iterable<FileScanTask> tasks;
     private T current;
     private CloseableIterator<T> currentIterator;
     private FileIO io;
@@ -239,7 +252,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
       this.io = table.io();
       this.encryptionManager = table.encryption();
-      this.tasks = task.files().iterator();
+      this.tasks = task.files();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       this.caseSensitive =
@@ -250,22 +263,25 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.inMemoryDataModel =
           conf.getEnum(
               InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
-      this.currentIterator = open(tasks.next(), expectedSchema).iterator();
+      this.currentIterator = nextTask();
+    }
+
+    private CloseableIterator<T> nextTask() {
+      Function<DeleteFilter<T>, Map<String, PositionDeleteIndex>> posIndex =
+          filter -> filter.createPosIndexMap(DELETE_POS_INDEX_CACHE, tasks);
+      return CloseableIterable.concat(
+              Iterables.transform(tasks, task -> open(task, expectedSchema, posIndex)))
+          .iterator();
     }
 
     @Override
     public boolean nextKeyValue() throws IOException {
-      while (true) {
-        if (currentIterator.hasNext()) {
-          current = currentIterator.next();
-          return true;
-        } else if (tasks.hasNext()) {
-          currentIterator.close();
-          currentIterator = open(tasks.next(), expectedSchema).iterator();
-        } else {
-          currentIterator.close();
-          return false;
-        }
+      if (currentIterator.hasNext()) {
+        current = currentIterator.next();
+        return true;
+      } else {
+        currentIterator.close();
+        return false;
       }
     }
 
@@ -327,7 +343,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> open(
+        FileScanTask currentTask,
+        Schema readSchema,
+        Function<DeleteFilter<T>, Map<String, PositionDeleteIndex>> posIndex) {
       switch (inMemoryDataModel) {
         case PIG:
           // TODO: Support Pig and Hive object models for IcebergInputFormat
@@ -337,7 +356,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case GENERIC:
           DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
           Schema requiredSchema = deletes.requiredSchema();
-          return deletes.filter(openTask(currentTask, requiredSchema));
+          return deletes.filter(openTask(currentTask, requiredSchema), posIndex.apply(deletes));
         default:
           throw new UnsupportedOperationException("Unsupported memory model");
       }

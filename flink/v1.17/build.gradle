@@ -55,6 +55,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.codehaus.jackson'
     }
 
+    compileOnly libs.caffeine
     compileOnly libs.avro.avro
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {

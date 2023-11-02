@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.deletes;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 class BitmapPositionDeleteIndex implements PositionDeleteIndex {
@@ -45,5 +46,19 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   @Override
   public boolean isEmpty() {
     return roaring64Bitmap.isEmpty();
+  }
+
+  @Override
+  public PositionDeleteIndex or(PositionDeleteIndex deleteIndex) {
+    Preconditions.checkArgument(
+        deleteIndex instanceof BitmapPositionDeleteIndex,
+        "argument should be of type: series[float] PositionDeleteIndex");
+    roaring64Bitmap.or(((BitmapPositionDeleteIndex) deleteIndex).roaring64Bitmap);
+    return this;
+  }
+
+  @Override
+  public String toString() {
+    return roaring64Bitmap.toString();
   }
 }
