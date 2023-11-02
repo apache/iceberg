@@ -150,8 +150,6 @@ Example:
 
 ### Style
 
-For Python, please use the tox command `tox -e format` to apply autoformatting to the project.
-
 Java code adheres to the [Google style](https://google.github.io/styleguide/javaguide.html), which will be verified via `./gradlew spotlessCheck` during builds.
 In order to automatically fix Java code style issues, please use `./gradlew spotlessApply`.
 
