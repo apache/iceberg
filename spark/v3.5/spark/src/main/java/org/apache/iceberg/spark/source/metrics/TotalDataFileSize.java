@@ -18,31 +18,19 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import org.apache.iceberg.metrics.CounterResult;
-import org.apache.iceberg.metrics.ScanReport;
-import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class TaskTotalFileSize implements CustomTaskMetric {
+public class TotalDataFileSize extends CustomSumMetric {
 
-  private final long value;
-
-  private TaskTotalFileSize(long value) {
-    this.value = value;
-  }
+  static final String NAME = "totalDataFileSize";
 
   @Override
   public String name() {
-    return TotalFileSize.NAME;
+    return NAME;
   }
 
   @Override
-  public long value() {
-    return value;
-  }
-
-  public static TaskTotalFileSize from(ScanReport scanReport) {
-    CounterResult counter = scanReport.scanMetrics().totalFileSizeInBytes();
-    long value = counter != null ? counter.value() : 0L;
-    return new TaskTotalFileSize(value);
+  public String description() {
+    return "total data file size (bytes)";
   }
 }

@@ -59,15 +59,15 @@ import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDataFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteManifests;
-import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
+import org.apache.iceberg.spark.source.metrics.TotalDataFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalDataManifests;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
-import org.apache.iceberg.spark.source.metrics.TotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -220,8 +220,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
 
     List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
+
     // common
-    driverMetrics.add(TaskTotalFileSize.from(scanReport));
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
 
     // data manifests
@@ -232,6 +232,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     // data files
     driverMetrics.add(TaskResultDataFiles.from(scanReport));
     driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
+    driverMetrics.add(TaskTotalDataFileSize.from(scanReport));
 
     // delete manifests
     driverMetrics.add(TaskTotalDeleteManifests.from(scanReport));
@@ -252,11 +253,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public CustomMetric[] supportedCustomMetrics() {
     return new CustomMetric[] {
+      // task metrics
       new NumSplits(),
       new NumDeletes(),
 
       // common
-      new TotalFileSize(),
       new TotalPlanningDuration(),
 
       // data manifests
@@ -267,6 +268,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       // data files
       new ResultDataFiles(),
       new SkippedDataFiles(),
+      new TotalDataFileSize(),
 
       // delete manifests
       new TotalDeleteManifests(),

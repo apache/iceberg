@@ -31,6 +31,6 @@ public class TotalDeleteFileSize extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "total delete file size in bytes";
+    return "total delete file size (bytes)";
   }
 }

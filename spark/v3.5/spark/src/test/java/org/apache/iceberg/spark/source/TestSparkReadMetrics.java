@@ -57,7 +57,6 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
     // Common
-    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
     Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
@@ -68,6 +67,7 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     // data files
     Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
     Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
@@ -101,7 +101,6 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
     // Common
-    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
     Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
@@ -112,6 +111,7 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     // data files
     Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
     Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
@@ -152,7 +152,6 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
     // Common
-    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
     Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
@@ -163,6 +162,7 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     // data files
     Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
     Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
     Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(1);
