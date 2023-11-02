@@ -105,6 +105,8 @@ public class RESTCatalogAdapter implements RESTClient {
 
   enum Route {
     TOKENS(HTTPMethod.POST, "v1/oauth/tokens", null, OAuthTokenResponse.class),
+    SEPARATE_AUTH_TOKENS_URI(
+        HTTPMethod.POST, "https://auth-server.com/token", null, OAuthTokenResponse.class),
     CONFIG(HTTPMethod.GET, "v1/config", null, ConfigResponse.class),
     LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces", null, ListNamespacesResponse.class),
     CREATE_NAMESPACE(
@@ -228,6 +230,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
     switch (route) {
       case TOKENS:
+      case SEPARATE_AUTH_TOKENS_URI:
         {
           @SuppressWarnings("unchecked")
           Map<String, String> request = (Map<String, String>) castRequest(Map.class, body);

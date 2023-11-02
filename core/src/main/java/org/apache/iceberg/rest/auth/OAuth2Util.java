@@ -134,7 +134,8 @@ public class OAuth2Util {
       Map<String, String> headers,
       String subjectToken,
       String subjectTokenType,
-      String scope) {
+      String scope,
+      String tokenUri) {
     Map<String, String> request =
         tokenExchangeRequest(
             subjectToken,
@@ -143,7 +144,36 @@ public class OAuth2Util {
 
     OAuthTokenResponse response =
         client.postForm(
-            ResourcePaths.tokens(),
+            tokenUri,
+            request,
+            OAuthTokenResponse.class,
+            headers,
+            ErrorHandlers.oauthErrorHandler());
+    response.validate();
+
+    return response;
+  }
+
+  public static OAuthTokenResponse exchangeToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String subjectToken,
+      String subjectTokenType,
+      String actorToken,
+      String actorTokenType,
+      String scope,
+      String tokenUri) {
+    Map<String, String> request =
+        tokenExchangeRequest(
+            subjectToken,
+            subjectTokenType,
+            actorToken,
+            actorTokenType,
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+
+    OAuthTokenResponse response =
+        client.postForm(
+            tokenUri,
             request,
             OAuthTokenResponse.class,
             headers,
@@ -161,17 +191,30 @@ public class OAuth2Util {
       String actorToken,
       String actorTokenType,
       String scope) {
+    return exchangeToken(
+        client,
+        headers,
+        subjectToken,
+        subjectTokenType,
+        actorToken,
+        actorTokenType,
+        scope,
+        ResourcePaths.tokens());
+  }
+
+  public static OAuthTokenResponse fetchToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String credential,
+      String scope,
+      String tokenUri) {
     Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            actorToken,
-            actorTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+        clientCredentialsRequest(
+            credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
     OAuthTokenResponse response =
         client.postForm(
-            ResourcePaths.tokens(),
+            tokenUri,
             request,
             OAuthTokenResponse.class,
             headers,
@@ -183,20 +226,8 @@ public class OAuth2Util {
 
   public static OAuthTokenResponse fetchToken(
       RESTClient client, Map<String, String> headers, String credential, String scope) {
-    Map<String, String> request =
-        clientCredentialsRequest(
-            credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
-    OAuthTokenResponse response =
-        client.postForm(
-            ResourcePaths.tokens(),
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
-    response.validate();
-
-    return response;
+    return fetchToken(client, headers, credential, scope, ResourcePaths.tokens());
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -361,6 +392,23 @@ public class OAuth2Util {
     private final String credential;
     private final String scope;
     private volatile boolean keepRefreshed = true;
+    private final String tokenUri;
+
+    public AuthSession(
+        Map<String, String> baseHeaders,
+        String token,
+        String tokenType,
+        String credential,
+        String scope,
+        String tokenUri) {
+      this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
+      this.token = token;
+      this.tokenType = tokenType;
+      this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
+      this.credential = credential;
+      this.scope = scope;
+      this.tokenUri = tokenUri;
+    }
 
     public AuthSession(
         Map<String, String> baseHeaders,
@@ -374,6 +422,7 @@ public class OAuth2Util {
       this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
       this.credential = credential;
       this.scope = scope;
+      this.tokenUri = ResourcePaths.tokens();
     }
 
     public Map<String, String> headers() {
@@ -404,6 +453,10 @@ public class OAuth2Util {
       return credential;
     }
 
+    public String tokenUri() {
+      return tokenUri;
+    }
+
     @VisibleForTesting
     static void setTokenRefreshNumRetries(int retries) {
       tokenRefreshNumRetries = retries;
@@ -415,7 +468,8 @@ public class OAuth2Util {
      * @return A new {@link AuthSession} with empty headers.
      */
     public static AuthSession empty() {
-      return new AuthSession(ImmutableMap.of(), null, null, null, OAuth2Properties.CATALOG_SCOPE);
+      return new AuthSession(
+          ImmutableMap.of(), null, null, null, OAuth2Properties.CATALOG_SCOPE, null);
     }
 
     /**
@@ -470,14 +524,14 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(client, headers(), token, tokenType, scope);
+        return refreshToken(client, headers(), token, tokenType, scope, tokenUri);
       }
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential != null) {
         Map<String, String> basicHeaders = RESTUtil.merge(headers(), basicAuthHeaders(credential));
-        return refreshToken(client, basicHeaders, token, tokenType, scope);
+        return refreshToken(client, basicHeaders, token, tokenType, scope, tokenUri);
       }
 
       return null;
@@ -533,7 +587,8 @@ public class OAuth2Util {
               token,
               OAuth2Properties.ACCESS_TOKEN_TYPE,
               parent.credential(),
-              parent.scope());
+              parent.scope(),
+              parent.tokenUri());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -571,7 +626,7 @@ public class OAuth2Util {
         AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
       OAuthTokenResponse response =
-          fetchToken(client, parent.headers(), credential, parent.scope());
+          fetchToken(client, parent.headers(), credential, parent.scope(), parent.tokenUri());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
     }
 
@@ -598,7 +653,8 @@ public class OAuth2Util {
               response.token(),
               response.issuedTokenType(),
               credential,
-              parent.scope());
+              parent.scope(),
+              parent.tokenUri());
 
       Long expiresAtMillis = session.expiresAtMillis();
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {
@@ -627,7 +683,8 @@ public class OAuth2Util {
               tokenType,
               parent.token(),
               parent.tokenType(),
-              parent.scope());
+              parent.scope(),
+              parent.tokenUri());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent);
     }
   }

@@ -111,6 +111,12 @@ public abstract class S3V4RestSignerClient
     return properties().get(OAuth2Properties.CREDENTIAL);
   }
 
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  @Value.Lazy
+  public String tokenUri() {
+    return properties().getOrDefault(OAuth2Properties.TOKEN_URI, ResourcePaths.tokens());
+  }
+
   /** A Bearer token supplier which will be used for interaction with the server. */
   @Value.Default
   public Supplier<String> token() {
@@ -199,7 +205,7 @@ public abstract class S3V4RestSignerClient
                       tokenRefreshExecutor(),
                       token,
                       expiresAtMillis(properties()),
-                      new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE)));
+                      new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE, tokenUri())));
     }
 
     if (credentialProvided()) {
@@ -208,10 +214,10 @@ public abstract class S3V4RestSignerClient
               credential(),
               id -> {
                 AuthSession session =
-                    new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE);
+                    new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE, tokenUri());
                 long startTimeMillis = System.currentTimeMillis();
                 OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
+                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE, tokenUri());
                 return AuthSession.fromTokenResponse(
                     httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });

@@ -186,8 +186,21 @@ public class HTTPClient implements RESTClient {
     throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
-  private URI buildUri(String path, Map<String, String> params) {
+  private String buildBaseUri(String path) {
+    // if full path is provided, use the input path as baseUri
+    if (path.startsWith("https://")) {
+      return path;
+    }
+    // else concatenate client default uri with path
+    if (path.startsWith("/")) {
+      throw new RESTException(
+          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
+    }
     String baseUri = String.format("%s/%s", uri, path);
+    return baseUri;
+  }
+
+  private URI buildUri(String baseUri, Map<String, String> params) {
     try {
       URIBuilder builder = new URIBuilder(baseUri);
       if (params != null) {
@@ -205,7 +218,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param baseUri - URI to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -217,14 +230,14 @@ public class HTTPClient implements RESTClient {
    */
   private <T> T execute(
       Method method,
-      String path,
+      String baseUri,
       Map<String, String> queryParams,
       Object requestBody,
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     return execute(
-        method, path, queryParams, requestBody, responseType, headers, errorHandler, h -> {});
+        method, baseUri, queryParams, requestBody, responseType, headers, errorHandler, h -> {});
   }
 
   /**
@@ -232,7 +245,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param baseUri - URL to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -245,19 +258,15 @@ public class HTTPClient implements RESTClient {
    */
   private <T> T execute(
       Method method,
-      String path,
+      String baseUri,
       Map<String, String> queryParams,
       Object requestBody,
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    if (path.startsWith("/")) {
-      throw new RESTException(
-          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
-    }
-
-    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
+    HttpUriRequestBase request =
+        new HttpUriRequestBase(method.name(), buildUri(baseUri, queryParams));
 
     if (requestBody instanceof Map) {
       // encode maps as form data, application/x-www-form-urlencoded
@@ -294,8 +303,8 @@ public class HTTPClient implements RESTClient {
 
       if (responseBody == null) {
         throw new RESTException(
-            "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
-            responseType.getSimpleName(), method.name(), path, response.getCode());
+            "Invalid (null) response body for request (expected %s): method=%s, baseUri=%s, status=%d",
+            responseType.getSimpleName(), method.name(), baseUri, response.getCode());
       }
 
       try {
@@ -314,7 +323,7 @@ public class HTTPClient implements RESTClient {
 
   @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, null, headers, errorHandler);
+    execute(Method.HEAD, buildBaseUri(path), null, null, null, headers, errorHandler);
   }
 
   @Override
@@ -324,7 +333,8 @@ public class HTTPClient implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
+    return execute(
+        Method.GET, buildBaseUri(path), queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
@@ -334,7 +344,8 @@ public class HTTPClient implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
+    return execute(
+        Method.POST, buildBaseUri(path), null, body, responseType, headers, errorHandler);
   }
 
   @Override
@@ -346,7 +357,14 @@ public class HTTPClient implements RESTClient {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
     return execute(
-        Method.POST, path, null, body, responseType, headers, errorHandler, responseHeaders);
+        Method.POST,
+        buildBaseUri(path),
+        null,
+        body,
+        responseType,
+        headers,
+        errorHandler,
+        responseHeaders);
   }
 
   @Override
@@ -355,7 +373,8 @@ public class HTTPClient implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
+    return execute(
+        Method.DELETE, buildBaseUri(path), null, null, responseType, headers, errorHandler);
   }
 
   @Override
@@ -365,7 +384,8 @@ public class HTTPClient implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, queryParams, null, responseType, headers, errorHandler);
+    return execute(
+        Method.DELETE, buildBaseUri(path), queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
@@ -375,7 +395,8 @@ public class HTTPClient implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
+    return execute(
+        Method.POST, buildBaseUri(path), null, formData, responseType, headers, errorHandler);
   }
 
   private void addRequestHeaders(

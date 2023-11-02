@@ -351,8 +351,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogCredential() {
+  public void testCatalogCredentialNoTokenUri() {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -370,7 +369,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq("v1/token/oauth"),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -398,8 +397,64 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogBearerTokenWithClientCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogCredential(String tokenUri) {
+    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            "token-uri",
+            tokenUri));
+
+    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+
+    // no token or credential for catalog token exchange
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.POST),
+            eq(tokenUri),
+            any(),
+            any(),
+            eq(OAuthTokenResponse.class),
+            eq(emptyHeaders),
+            any());
+    // no token or credential for config
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            eq(catalogHeaders),
+            any());
+    // use the catalog token for all interactions
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/namespaces/ns/tables/table"),
+            any(),
+            any(),
+            eq(LoadTableResponse.class),
+            eq(catalogHeaders),
+            any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogBearerTokenWithClientCredential(String tokenUri) {
     Map<String, String> contextHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user");
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer bearer-token");
@@ -415,7 +470,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", "bearer-token"));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI, "ignored", "token", "bearer-token", "token-uri", tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -433,7 +490,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -451,8 +508,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogCredentialWithClientCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogCredentialWithClientCredential(String tokenUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> contextHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user");
@@ -470,7 +528,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            "token-uri",
+            tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -478,7 +543,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -498,7 +563,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -516,8 +581,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogBearerTokenAndCredentialWithClientCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogBearerTokenAndCredentialWithClientCredential(String tokenUri) {
     Map<String, String> contextHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user");
     Map<String, String> initHeaders = ImmutableMap.of("Authorization", "Bearer bearer-token");
@@ -542,7 +608,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "credential",
             "catalog:secret",
             "token",
-            "bearer-token"));
+            "bearer-token",
+            "token-uri",
+            tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -550,7 +618,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -570,7 +638,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -588,8 +656,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testClientBearerToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientBearerToken(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -600,11 +669,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "urn:ietf:params:oauth:token-type:jwt", "jwt-token",
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
-        ImmutableMap.of("Authorization", "Bearer client-bearer-token"));
+        ImmutableMap.of("Authorization", "Bearer client-bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientCredential(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -614,11 +685,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "urn:ietf:params:oauth:token-type:jwt", "jwt-token",
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
-        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user"));
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientIDToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientIDToken(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -628,11 +701,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
         ImmutableMap.of(
-            "Authorization", "Bearer token-exchange-token:sub=id-token,act=bearer-token"));
+            "Authorization", "Bearer token-exchange-token:sub=id-token,act=bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientAccessToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientAccessToken(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -641,11 +716,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
         ImmutableMap.of(
-            "Authorization", "Bearer token-exchange-token:sub=access-token,act=bearer-token"));
+            "Authorization", "Bearer token-exchange-token:sub=access-token,act=bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientJWTToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientJWTToken(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -653,31 +730,39 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
         ImmutableMap.of(
-            "Authorization", "Bearer token-exchange-token:sub=jwt-token,act=bearer-token"));
+            "Authorization", "Bearer token-exchange-token:sub=jwt-token,act=bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientSAML2Token() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientSAML2Token(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
             "urn:ietf:params:oauth:token-type:saml2", "saml2-token",
             "urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
         ImmutableMap.of(
-            "Authorization", "Bearer token-exchange-token:sub=saml2-token,act=bearer-token"));
+            "Authorization", "Bearer token-exchange-token:sub=saml2-token,act=bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testClientSAML1Token() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testClientSAML1Token(String tokenUri) {
     testClientAuth(
         "bearer-token",
         ImmutableMap.of("urn:ietf:params:oauth:token-type:saml1", "saml1-token"),
         ImmutableMap.of(
-            "Authorization", "Bearer token-exchange-token:sub=saml1-token,act=bearer-token"));
+            "Authorization", "Bearer token-exchange-token:sub=saml1-token,act=bearer-token"),
+        tokenUri);
   }
 
   private void testClientAuth(
-      String catalogToken, Map<String, String> credentials, Map<String, String> expectedHeaders) {
+      String catalogToken,
+      Map<String, String> credentials,
+      Map<String, String> expectedHeaders,
+      String tokenUri) {
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + catalogToken);
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
@@ -688,7 +773,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", catalogToken));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI, "ignored", "token", catalogToken, "token-uri", tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -708,7 +795,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Mockito.verify(adapter)
           .execute(
               eq(HTTPMethod.POST),
-              eq("v1/oauth/tokens"),
+              eq(tokenUri),
               any(),
               any(),
               eq(OAuthTokenResponse.class),
@@ -727,18 +814,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testTableBearerToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testTableBearerToken(String tokenUri) {
     testTableAuth(
         "catalog",
         ImmutableMap.of("urn:ietf:params:oauth:token-type:id_token", "id-token"),
         ImmutableMap.of("token", "table-bearer-token"),
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
-        ImmutableMap.of("Authorization", "Bearer table-bearer-token"));
+        ImmutableMap.of("Authorization", "Bearer table-bearer-token"),
+        tokenUri);
   }
 
-  @Test
-  public void testTableIDToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testTableIDToken(String tokenUri) {
     testTableAuth(
         "catalog",
         ImmutableMap.of("urn:ietf:params:oauth:token-type:id_token", "id-token"),
@@ -746,17 +836,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
         ImmutableMap.of(
             "Authorization",
-            "Bearer token-exchange-token:sub=table-id-token,act=token-exchange-token:sub=id-token,act=catalog"));
+            "Bearer token-exchange-token:sub=table-id-token,act=token-exchange-token:sub=id-token,act=catalog"),
+        tokenUri);
   }
 
-  @Test
-  public void testTableCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testTableCredential(String tokenUri) {
     testTableAuth(
         "catalog",
         ImmutableMap.of("urn:ietf:params:oauth:token-type:id_token", "id-token"),
         ImmutableMap.of("credential", "table-user:secret"),
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
-        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=table-user"));
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=table-user"),
+        tokenUri);
   }
 
   @Test
@@ -1053,7 +1146,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Map<String, String> credentials,
       Map<String, String> tableConfig,
       Map<String, String> expectedContextHeaders,
-      Map<String, String> expectedTableHeaders) {
+      Map<String, String> expectedTableHeaders,
+      String tokenUri) {
     TableIdentifier ident = TableIdentifier.of("ns", "table");
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + catalogToken);
 
@@ -1098,7 +1192,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", catalogToken));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI, "ignored", "token", catalogToken, "token-uri", tokenUri));
 
     Schema expectedSchema =
         new Schema(
@@ -1130,7 +1226,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1154,7 +1250,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Mockito.verify(adapter, times(2))
           .execute(
               eq(HTTPMethod.POST),
-              eq("v1/oauth/tokens"),
+              eq(tokenUri),
               any(),
               any(),
               eq(OAuthTokenResponse.class),
