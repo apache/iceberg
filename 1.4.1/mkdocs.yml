@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-site_name: docs/nightly
+site_name: docs/1.4.1
 
 plugins:
   - search
@@ -66,5 +66,5 @@ nav:
     - java-api-quickstart.md
     - api.md
     - custom-catalog.md
-  - Javadoc: ../../javadoc/nightly/
+  - Javadoc: ../../javadoc/1.4.1/
   - PyIceberg: https://py.iceberg.apache.org/
