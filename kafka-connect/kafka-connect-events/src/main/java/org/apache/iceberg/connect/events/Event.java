@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.events;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.Schema;
@@ -54,7 +55,7 @@ public class Event implements IndexedRecord {
   public Event(String groupId, Payload payload) {
     this.id = UUID.randomUUID();
     this.type = payload.type();
-    this.timestamp = OffsetDateTime.now(ZoneOffset.UTC);
+    this.timestamp = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
     this.groupId = groupId;
     this.payload = payload;
 

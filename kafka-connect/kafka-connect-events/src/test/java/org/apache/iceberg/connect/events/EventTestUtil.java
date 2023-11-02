@@ -19,6 +19,9 @@
 package org.apache.iceberg.connect.events;
 
 import java.nio.ByteBuffer;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -54,6 +57,10 @@ class EventTestUtil {
           Collections.emptyMap(),
           Collections.emptyMap(),
           Collections.emptyMap());
+
+  static OffsetDateTime now() {
+    return OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
+  }
 
   static DataFile createDataFile() {
     PartitionData data = new PartitionData(SPEC.partitionType());

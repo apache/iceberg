@@ -20,8 +20,6 @@ package org.apache.iceberg.connect.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
@@ -79,7 +77,7 @@ public class EventSerializationTest {
             new DataComplete(
                 commitId,
                 Arrays.asList(
-                    new TopicPartitionOffset("topic", 1, 1L, OffsetDateTime.now(ZoneOffset.UTC)),
+                    new TopicPartitionOffset("topic", 1, 1L, EventTestUtil.now()),
                     new TopicPartitionOffset("topic", 2, null, null))));
 
     byte[] data = AvroUtil.encode(event);
@@ -101,7 +99,7 @@ public class EventSerializationTest {
                 commitId,
                 new TableReference("catalog", Collections.singletonList("db"), "tbl"),
                 1L,
-                OffsetDateTime.now(ZoneOffset.UTC)));
+                EventTestUtil.now()));
 
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
@@ -115,8 +113,7 @@ public class EventSerializationTest {
   @Test
   public void testCommitCompleteSerialization() {
     UUID commitId = UUID.randomUUID();
-    Event event =
-        new Event("cg-connector", new CommitComplete(commitId, OffsetDateTime.now(ZoneOffset.UTC)));
+    Event event = new Event("cg-connector", new CommitComplete(commitId, EventTestUtil.now()));
 
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);
