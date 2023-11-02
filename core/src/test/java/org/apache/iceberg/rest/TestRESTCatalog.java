@@ -415,7 +415,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "ignored",
             "credential",
             "catalog:secret",
-            "token-uri",
+            OAuth2Properties.TOKEN_URI,
             tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
@@ -472,7 +472,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "ignored", "token", "bearer-token", "token-uri", tokenUri));
+            CatalogProperties.URI,
+            "ignored",
+            "token",
+            "bearer-token",
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -534,7 +539,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "ignored",
             "credential",
             "catalog:secret",
-            "token-uri",
+            OAuth2Properties.TOKEN_URI,
             tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
@@ -609,7 +614,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "catalog:secret",
             "token",
             "bearer-token",
-            "token-uri",
+            OAuth2Properties.TOKEN_URI,
             tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
@@ -775,7 +780,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "ignored", "token", catalogToken, "token-uri", tokenUri));
+            CatalogProperties.URI,
+            "ignored",
+            "token",
+            catalogToken,
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -1194,7 +1204,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "ignored", "token", catalogToken, "token-uri", tokenUri));
+            CatalogProperties.URI,
+            "ignored",
+            "token",
+            catalogToken,
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Schema expectedSchema =
         new Schema(
@@ -1292,8 +1307,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogTokenRefresh() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogTokenRefresh(String tokenUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -1316,7 +1332,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1330,7 +1346,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
@@ -1340,7 +1363,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       any(),
                       eq(OAuthTokenResponse.class),
@@ -1368,7 +1391,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1390,7 +1413,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(secondRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1399,8 +1422,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             });
   }
 
-  @Test
-  public void testCatalogRefreshedTokenIsUsed() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogRefreshedTokenIsUsed(String tokenUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -1423,7 +1447,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1437,7 +1461,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
@@ -1451,7 +1482,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       any(),
                       eq(OAuthTokenResponse.class),
@@ -1479,7 +1510,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1572,8 +1603,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", token));
   }
 
-  @Test
-  public void testCatalogExpiredBearerTokenIsRefreshedWithCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogExpiredBearerTokenIsRefreshedWithCredential(String tokenUri) {
     // expires at epoch second = 1
     String token =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.gQADTbdEv-rpDWKSkGLbmafyB5UUjTdm9B_1izpuZ6E";
@@ -1592,7 +1624,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     // the init token at the catalog level is a valid token
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", credential));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            credential,
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
@@ -1600,7 +1639,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1626,7 +1665,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             Mockito.argThat(firstRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
@@ -1643,7 +1682,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             Mockito.argThat(secondRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
@@ -1703,8 +1742,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogTokenRefreshFailsAndUsesCredentialForRefresh() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogTokenRefreshFailsAndUsesCredentialForRefresh(String tokenUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -1730,7 +1770,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1749,7 +1789,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             Mockito.argThat(firstRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
@@ -1766,7 +1806,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", credential));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            credential,
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
@@ -1780,7 +1827,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       any(),
                       eq(OAuthTokenResponse.class),
@@ -1803,7 +1850,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter, times(2))
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1815,7 +1862,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1839,8 +1886,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             });
   }
 
-  @Test
-  public void testCatalogWithCustomTokenScope() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogWithCustomTokenScope(String tokenUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -1863,7 +1911,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1885,7 +1933,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "credential",
             "catalog:secret",
             OAuth2Properties.SCOPE,
-            scope));
+            scope,
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
@@ -1895,7 +1945,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       any(),
                       eq(OAuthTokenResponse.class),
@@ -1923,7 +1973,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       eq(HTTPMethod.POST),
-                      eq("v1/oauth/tokens"),
+                      eq(tokenUri),
                       any(),
                       Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
@@ -1932,7 +1982,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             });
   }
 
-  public void testCatalogTokenRefreshDisabledWithToken() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogTokenRefreshDisabledWithToken(String tokenUri) {
     String token = "some-token";
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + token);
 
@@ -1954,7 +2006,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
@@ -1975,7 +2027,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.TOKEN,
             token,
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
-            "false"));
+            "false",
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     Mockito.verify(adapter)
         .execute(
@@ -1988,8 +2042,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  @Test
-  public void testCatalogTokenRefreshDisabledWithCredential() {
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogTokenRefreshDisabledWithCredential(String tokenUri) {
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
 
@@ -2008,7 +2063,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.CREDENTIAL,
             "catalog:12345",
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
-            "false"));
+            "false",
+            OAuth2Properties.TOKEN_URI,
+            tokenUri));
 
     // fetch token from client credential
     Map<String, String> fetchTokenFromCredential =
@@ -2024,7 +2081,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/oauth/tokens"),
+            eq(tokenUri),
             any(),
             Mockito.argThat(fetchTokenFromCredential::equals),
             eq(OAuthTokenResponse.class),
