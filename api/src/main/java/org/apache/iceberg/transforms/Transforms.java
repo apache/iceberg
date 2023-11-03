@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -131,14 +132,18 @@ public class Transforms {
       case DATE:
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        switch (((TimestampType) type).unit()) {
+        ChronoUnit unit = ((TimestampType) type).unit();
+        switch (unit) {
           case MICROS:
             return (Transform<T, Integer>) Timestamps.YEAR_FROM_MICROS;
           case NANOS:
             return (Transform<T, Integer>) Timestamps.YEAR_FROM_NANOS;
+          default:
+            throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
         }
+      default:
+        throw new IllegalArgumentException("Cannot partition type " + type + " by year");
     }
-    throw new IllegalArgumentException("Cannot partition type " + type + " by year");
   }
 
   /**
@@ -156,14 +161,18 @@ public class Transforms {
       case DATE:
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        switch (((TimestampType) type).unit()) {
+        ChronoUnit unit = ((TimestampType) type).unit();
+        switch (unit) {
           case MICROS:
             return (Transform<T, Integer>) Timestamps.MONTH_FROM_MICROS;
           case NANOS:
             return (Transform<T, Integer>) Timestamps.MONTH_FROM_NANOS;
+          default:
+            throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
         }
+      default:
+        throw new IllegalArgumentException("Cannot partition type " + type + " by month");
     }
-    throw new IllegalArgumentException("Cannot partition type " + type + " by month");
   }
 
   /**
@@ -181,14 +190,18 @@ public class Transforms {
       case DATE:
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        switch (((TimestampType) type).unit()) {
+        ChronoUnit unit = ((TimestampType) type).unit();
+        switch (unit) {
           case MICROS:
             return (Transform<T, Integer>) Timestamps.DAY_FROM_MICROS;
           case NANOS:
             return (Transform<T, Integer>) Timestamps.DAY_FROM_NANOS;
+          default:
+            throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
         }
+      default:
+        throw new IllegalArgumentException("Cannot partition type " + type + " by day");
     }
-    throw new IllegalArgumentException("Cannot partition type " + type + " by day");
   }
 
   /**
@@ -204,11 +217,14 @@ public class Transforms {
   public static <T> Transform<T, Integer> hour(Type type) {
     if (Preconditions.checkNotNull(type.typeId(), "Type ID cannot be null")
         == Type.TypeID.TIMESTAMP) {
-      switch (((TimestampType) type).unit()) {
+      ChronoUnit unit = ((TimestampType) type).unit();
+      switch (unit) {
         case MICROS:
           return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
         case NANOS:
           return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
+        default:
+          throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
       }
     }
     throw new IllegalArgumentException("Cannot partition type " + type + " by hour");

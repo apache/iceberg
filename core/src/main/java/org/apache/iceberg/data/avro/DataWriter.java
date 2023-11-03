@@ -113,16 +113,14 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
             return GenericWriters.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptz();
-            }
-            return GenericWriters.timestamps();
+            return AvroSchemaUtil.isTimestamptz(primitive)
+                ? GenericWriters.timestamptz()
+                : GenericWriters.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptzns();
-            }
-            return GenericWriters.timestampns();
+            return AvroSchemaUtil.isTimestamptz(primitive)
+                ? GenericWriters.timestamptzns()
+                : GenericWriters.timestampns();
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;

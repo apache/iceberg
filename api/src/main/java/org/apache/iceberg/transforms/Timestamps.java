@@ -86,6 +86,8 @@ class Timestamps implements Transform<Long, Integer> {
             return HOUR_FROM_NANOS;
         }
         break;
+      default:
+        throw new UnsupportedOperationException("Unsupported timestamp unit: " + type.unit());
     }
     throw new IllegalArgumentException(
         "Unsupported source/result type units: " + type + "->" + resultTypeUnit);

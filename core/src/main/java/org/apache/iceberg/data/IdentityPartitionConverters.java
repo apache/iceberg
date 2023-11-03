@@ -43,18 +43,16 @@ public class IdentityPartitionConverters {
         Types.TimestampType timestamp = (Types.TimestampType) type;
         switch (timestamp.unit()) {
           case MICROS:
-            if (timestamp.shouldAdjustToUTC()) {
-              return DateTimeUtil.timestamptzFromMicros((Long) value);
-            }
-            return DateTimeUtil.timestampFromMicros((Long) value);
+            return timestamp.shouldAdjustToUTC()
+                ? DateTimeUtil.timestamptzFromMicros((Long) value)
+                : DateTimeUtil.timestampFromMicros((Long) value);
           case NANOS:
-            if (timestamp.shouldAdjustToUTC()) {
-              return DateTimeUtil.timestamptzFromNanos((Long) value);
-            }
-            return DateTimeUtil.timestampFromNanos((Long) value);
+            return timestamp.shouldAdjustToUTC()
+                ? DateTimeUtil.timestamptzFromNanos((Long) value)
+                : DateTimeUtil.timestampFromNanos((Long) value);
           default:
             throw new UnsupportedOperationException(
-                "Cannot convert timestamp with unit: " + timestamp.unit());
+                "Unsupported timestamp unit: " + timestamp.unit());
         }
       case FIXED:
         if (value instanceof GenericData.Fixed) {

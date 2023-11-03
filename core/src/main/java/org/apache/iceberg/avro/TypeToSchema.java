@@ -213,18 +213,11 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         Types.TimestampType timestamp = (Types.TimestampType) primitive;
         switch (timestamp.unit()) {
           case MICROS:
-            if (timestamp.shouldAdjustToUTC()) {
-              primitiveSchema = TIMESTAMPTZ_SCHEMA;
-            } else {
-              primitiveSchema = TIMESTAMP_SCHEMA;
-            }
+            primitiveSchema = timestamp.shouldAdjustToUTC() ? TIMESTAMPTZ_SCHEMA : TIMESTAMP_SCHEMA;
             break;
           case NANOS:
-            if (timestamp.shouldAdjustToUTC()) {
-              primitiveSchema = TIMESTAMPTZNS_SCHEMA;
-            } else {
-              primitiveSchema = TIMESTAMPNS_SCHEMA;
-            }
+            primitiveSchema =
+                timestamp.shouldAdjustToUTC() ? TIMESTAMPTZNS_SCHEMA : TIMESTAMPNS_SCHEMA;
             break;
           default:
             throw new UnsupportedOperationException(

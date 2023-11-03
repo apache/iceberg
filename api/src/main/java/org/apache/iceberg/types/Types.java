@@ -265,24 +265,13 @@ public class Types {
 
     @Override
     public String toString() {
-      if (shouldAdjustToUTC()) {
-        switch (unit) {
-          case MICROS:
-            return "timestamptz";
-          case NANOS:
-            return "timestamptz_ns";
-          default:
-            throw new IllegalArgumentException("Unsupported unit: " + unit);
-        }
-      } else {
-        switch (unit) {
-          case MICROS:
-            return "timestamp";
-          case NANOS:
-            return "timestamp_ns";
-          default:
-            throw new IllegalArgumentException("Unsupported unit: " + unit);
-        }
+      switch (unit) {
+        case MICROS:
+          return shouldAdjustToUTC() ? "timestamptz" : "timestamp";
+        case NANOS:
+          return shouldAdjustToUTC() ? "timestamptz_ns" : "timestamp_ns";
+        default:
+          throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
       }
     }
 

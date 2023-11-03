@@ -96,17 +96,13 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
           Types.TimestampType timestampType = (Types.TimestampType) iPrimitive;
           switch (timestampType.unit()) {
             case MICROS:
-              if (timestampType.shouldAdjustToUTC()) {
-                return GenericOrcWriters.timestampTz();
-              } else {
-                return GenericOrcWriters.timestamp();
-              }
+              return timestampType.shouldAdjustToUTC()
+                  ? GenericOrcWriters.timestampTz()
+                  : GenericOrcWriters.timestamp();
             case NANOS:
-              if (timestampType.shouldAdjustToUTC()) {
-                return GenericOrcWriters.timestampnsTz();
-              } else {
-                return GenericOrcWriters.timestampns();
-              }
+              return timestampType.shouldAdjustToUTC()
+                  ? GenericOrcWriters.timestampnsTz()
+                  : GenericOrcWriters.timestampns();
             default:
               throw new IllegalArgumentException("Invalid timestamp unit: " + timestampType.unit());
           }
