@@ -56,9 +56,10 @@ public class Days<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return ((Timestamps) other).getResultTypeUnit() == ChronoUnit.DAYS
-          || ((Timestamps) other).getResultTypeUnit() == ChronoUnit.MONTHS
-          || ((Timestamps) other).getResultTypeUnit() == ChronoUnit.YEARS;
+      ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
+      return otherResultTypeUnit == ChronoUnit.DAYS
+          || otherResultTypeUnit == ChronoUnit.MONTHS
+          || otherResultTypeUnit == ChronoUnit.YEARS;
     } else if (other instanceof Dates) {
       return Dates.DAY.satisfiesOrderOf(other);
     } else {
