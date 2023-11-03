@@ -73,8 +73,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p>By default, this action rewrites all manifests for the current partition spec and writes the
  * result to the metadata folder. The behavior can be modified by passing a custom predicate to
- * {@link #rewriteIf(Predicate)} and a custom spec id to {@link #specId(int)}. In addition, there is
- * a way to configure a custom location for new manifests via {@link #stagingLocation}.
+ * {@link #rewriteIf(Predicate)} and a custom spec ID to {@link #specId(int)}. In addition, there is
+ * a way to configure a custom location for staged manifests via {@link #stagingLocation(String)}.
+ * The provided staging location will be ignored if snapshot ID inheritance is enabled. In such
+ * cases, the manifests are always written to the metadata folder and committed without staging.
  */
 public class RewriteManifestsSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteManifestsSparkAction> implements RewriteManifests {
@@ -88,10 +90,11 @@ public class RewriteManifestsSparkAction
   private final Table table;
   private final int formatVersion;
   private final long targetManifestSizeBytes;
+  private final boolean shouldStageManifests;
 
   private PartitionSpec spec = null;
   private Predicate<ManifestFile> predicate = manifest -> true;
-  private String stagingLocation = null;
+  private String outputLocation = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -104,13 +107,20 @@ public class RewriteManifestsSparkAction
             TableProperties.MANIFEST_TARGET_SIZE_BYTES,
             TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
 
-    // default the staging location to the metadata location
+    // default the output location to the metadata location
     TableOperations ops = ((HasTableOperations) table).operations();
     Path metadataFilePath = new Path(ops.metadataFileLocation("file"));
-    this.stagingLocation = metadataFilePath.getParent().toString();
+    this.outputLocation = metadataFilePath.getParent().toString();
 
     // use the current table format version for new manifests
     this.formatVersion = ops.current().formatVersion();
+
+    boolean snapshotIdInheritanceEnabled =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.shouldStageManifests = formatVersion == 1 && !snapshotIdInheritanceEnabled;
   }
 
   @Override
@@ -133,15 +143,17 @@ public class RewriteManifestsSparkAction
 
   @Override
   public RewriteManifestsSparkAction stagingLocation(String newStagingLocation) {
-    this.stagingLocation = newStagingLocation;
+    if (shouldStageManifests) {
+      this.outputLocation = newStagingLocation;
+    } else {
+      LOG.warn("Ignoring provided staging location as new manifests will be committed directly");
+    }
     return this;
   }
 
   @Override
   public RewriteManifests.Result execute() {
-    String desc =
-        String.format(
-            "Rewriting manifests (staging location=%s) of %s", stagingLocation, table.name());
+    String desc = String.format("Rewriting manifests in %s", table.name());
     JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
@@ -236,7 +248,7 @@ public class RewriteManifestsSparkAction
             toManifests(
                 tableBroadcast,
                 maxNumManifestEntries,
-                stagingLocation,
+                outputLocation,
                 formatVersion,
                 combinedPartitionType,
                 spec,
@@ -267,7 +279,7 @@ public class RewriteManifestsSparkAction
                   toManifests(
                       tableBroadcast,
                       maxNumManifestEntries,
-                      stagingLocation,
+                      outputLocation,
                       formatVersion,
                       combinedPartitionType,
                       spec,
@@ -320,18 +332,12 @@ public class RewriteManifestsSparkAction
   private void replaceManifests(
       Iterable<ManifestFile> deletedManifests, Iterable<ManifestFile> addedManifests) {
     try {
-      boolean snapshotIdInheritanceEnabled =
-          PropertyUtil.propertyAsBoolean(
-              table.properties(),
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
-
       org.apache.iceberg.RewriteManifests rewriteManifests = table.rewriteManifests();
       deletedManifests.forEach(rewriteManifests::deleteManifest);
       addedManifests.forEach(rewriteManifests::addManifest);
       commit(rewriteManifests);
 
-      if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
+      if (shouldStageManifests) {
         // delete new manifests as they were rewritten before the commit
         deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
       }
