@@ -53,7 +53,7 @@ public class TestORCSchemaUtil {
           required(25, "floatCol", Types.FloatType.get()),
           optional(30, "dateCol", Types.DateType.get()),
           required(32, "timeCol", Types.TimeType.get()),
-          required(34, "timestampCol", Types.TimestampType.withZone()),
+          required(34, "timestampCol", Types.TimestampType.microsWithZone()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
@@ -125,7 +125,7 @@ public class TestORCSchemaUtil {
             required(25, "floatCol", Types.FloatType.get()),
             optional(30, "dateCol", Types.DateType.get()),
             required(32, "timeCol", Types.TimeType.get()),
-            required(34, "timestampCol", Types.TimestampType.withZone()),
+            required(34, "timestampCol", Types.TimestampType.microsWithZone()),
             required(35, "listPrimCol", Types.ListType.ofRequired(135, Types.LongType.get())),
             required(36, "listPrimNestCol", Types.ListType.ofRequired(136, structPrimTypeForList)),
             required(37, "listNestedCol", Types.ListType.ofRequired(137, nestedStructTypeForList)),

@@ -168,12 +168,30 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DateType.get());
         break;
       case TIMESTAMP:
-        foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
+        String unitAttributeValue =
+            primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_TIMESTAMP_UNIT_ATTRIBUTE);
+        ORCSchemaUtil.TimestampUnit unit =
+            unitAttributeValue == null
+                ? ORCSchemaUtil.TimestampUnit.MICROS
+                : ORCSchemaUtil.TimestampUnit.valueOf(unitAttributeValue);
+        switch (unit) {
+          case MICROS:
+            foundField =
+                Types.NestedField.of(
+                    icebergID, isOptional, name, Types.TimestampType.microsWithoutZone());
+            break;
+          case NANOS:
+            foundField =
+                Types.NestedField.of(
+                    icebergID, isOptional, name, Types.TimestampType.nanosWithoutZone());
+            break;
+          default:
+            throw new IllegalStateException("Invalid Timestamp unit found in ORC type attribute");
+        }
         break;
       case TIMESTAMP_INSTANT:
         foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
+            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.microsWithZone());
         break;
       case DECIMAL:
         foundField =

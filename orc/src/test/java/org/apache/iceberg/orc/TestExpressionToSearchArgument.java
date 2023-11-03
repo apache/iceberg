@@ -76,8 +76,8 @@ public class TestExpressionToSearchArgument {
             required(6, "string", Types.StringType.get()),
             required(7, "date", Types.DateType.get()),
             required(8, "time", Types.TimeType.get()),
-            required(9, "tsTz", Types.TimestampType.withZone()),
-            required(10, "ts", Types.TimestampType.withoutZone()),
+            required(9, "tsTz", Types.TimestampType.microsWithZone()),
+            required(10, "ts", Types.TimestampType.microsWithoutZone()),
             required(11, "decimal", Types.DecimalType.of(38, 2)),
             required(12, "float2", Types.FloatType.get()),
             required(13, "double2", Types.DoubleType.get()));
@@ -151,8 +151,8 @@ public class TestExpressionToSearchArgument {
         Schema schema =
             new Schema(
                 required(1, "date", Types.DateType.get()),
-                required(2, "tsTz", Types.TimestampType.withZone()),
-                required(3, "ts", Types.TimestampType.withoutZone()));
+                required(2, "tsTz", Types.TimestampType.microsWithZone()),
+                required(3, "ts", Types.TimestampType.microsWithoutZone()));
 
         Expression expr =
             and(
@@ -480,7 +480,7 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testExpressionContainsNonReferenceTerm() {
-    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
+    Schema schema = new Schema(required(1, "ts", Types.TimestampType.microsWithoutZone()));
 
     // all operations for these types should resolve to YES_NO_NULL
     Expression expr = equal(year("ts"), 10);

@@ -171,7 +171,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
       case FIXED_LEN_BYTE_ARRAY:
         return Types.FixedType.ofLength(primitive.getTypeLength());
       case INT96:
-        return Types.TimestampType.withZone();
+        return Types.TimestampType.microsWithZone();
       case BINARY:
         return Types.BinaryType.get();
     }
@@ -215,8 +215,21 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      return Optional.of(
-          timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+      switch (timestampType.getUnit()) {
+        case MICROS:
+          return Optional.of(
+              timestampType.isAdjustedToUTC()
+                  ? TimestampType.microsWithZone()
+                  : TimestampType.microsWithoutZone());
+        case NANOS:
+          return Optional.of(
+              timestampType.isAdjustedToUTC()
+                  ? TimestampType.nanosWithZone()
+                  : TimestampType.nanosWithoutZone());
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot convert unsupported timestamp unit: " + timestampType.getUnit());
+      }
     }
 
     @Override

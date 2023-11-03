@@ -72,6 +72,10 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
   }
 
+  public static long nanosFromInstant(Instant instant) {
+    return ChronoUnit.NANOS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
+  }
+
   public static long microsFromTimestamp(LocalDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
   }

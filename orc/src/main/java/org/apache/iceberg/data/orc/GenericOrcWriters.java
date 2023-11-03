@@ -117,8 +117,16 @@ public class GenericOrcWriters {
     return TimestampTzWriter.INSTANCE;
   }
 
+  public static OrcValueWriter<OffsetDateTime> timestampnsTz() {
+    return TimestampnsTzWriter.INSTANCE;
+  }
+
   public static OrcValueWriter<LocalDateTime> timestamp() {
     return TimestampWriter.INSTANCE;
+  }
+
+  public static OrcValueWriter<LocalDateTime> timestampns() {
+    return TimestampnsWriter.INSTANCE;
   }
 
   public static OrcValueWriter<BigDecimal> decimal(int precision, int scale) {
@@ -335,6 +343,18 @@ public class GenericOrcWriters {
     }
   }
 
+  private static class TimestampnsTzWriter implements OrcValueWriter<OffsetDateTime> {
+    private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampnsTzWriter();
+
+    @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
+    public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.time[rowId] = data.toInstant().toEpochMilli();
+      cv.nanos[rowId] = data.getNano();
+    }
+  }
+
   private static class TimestampWriter implements OrcValueWriter<LocalDateTime> {
     private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampWriter();
 
@@ -346,6 +366,19 @@ public class GenericOrcWriters {
       cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
       cv.nanos[rowId] =
           (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
+    }
+  }
+
+  private static class TimestampnsWriter implements OrcValueWriter<LocalDateTime> {
+    private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampnsWriter();
+
+    @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
+    public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.setIsUTC(true);
+      cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli();
+      cv.nanos[rowId] = data.getNano();
     }
   }
 

@@ -48,9 +48,9 @@ public class TestEstimateOrcAvgWidthVisitor {
   protected static final Types.NestedField BOOLEAN_FIELD =
       optional(12, "boolean", Types.BooleanType.get());
   protected static final Types.NestedField TIMESTAMP_ZONE_FIELD =
-      optional(13, "timestampZone", Types.TimestampType.withZone());
+      optional(13, "timestampZone", Types.TimestampType.microsWithZone());
   protected static final Types.NestedField TIMESTAMP_FIELD =
-      optional(14, "timestamp", Types.TimestampType.withoutZone());
+      optional(14, "timestamp", Types.TimestampType.microsWithoutZone());
   protected static final Types.NestedField DATE_FIELD = optional(15, "date", Types.DateType.get());
   protected static final Types.NestedField UUID_FIELD = required(16, "uuid", Types.UUIDType.get());
 
@@ -71,7 +71,7 @@ public class TestEstimateOrcAvgWidthVisitor {
           Types.StructType.of(
               required(24, "booleanField", Types.BooleanType.get()),
               optional(25, "date", Types.DateType.get()),
-              optional(27, "timestamp", Types.TimestampType.withZone())));
+              optional(27, "timestamp", Types.TimestampType.microsWithZone())));
 
   @Test
   public void testEstimateIntegerWidth() {

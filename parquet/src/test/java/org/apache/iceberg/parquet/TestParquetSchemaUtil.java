@@ -52,7 +52,7 @@ public class TestParquetSchemaUtil {
           optional(105, "f", Types.FloatType.get()),
           required(106, "d", Types.DoubleType.get()),
           optional(107, "date", Types.DateType.get()),
-          required(108, "ts", Types.TimestampType.withZone()),
+          required(108, "ts", Types.TimestampType.microsWithZone()),
           required(110, "s", Types.StringType.get()),
           required(112, "fixed", Types.FixedType.ofLength(7)),
           optional(113, "bytes", Types.BinaryType.get()),

@@ -56,6 +56,10 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMP_NANOS =
+      LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.NANOS);
+  private static final LogicalTypeAnnotation TIMESTAMPTZ_NANOS =
+      LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.NANOS);
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -136,10 +140,19 @@ public class TypeToMessageType {
       case TIME:
         return Types.primitive(INT64, repetition).as(TIME_MICROS).id(id).named(name);
       case TIMESTAMP:
-        if (((TimestampType) primitive).shouldAdjustToUTC()) {
-          return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name);
-        } else {
-          return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        TimestampType timestamp = (TimestampType) primitive;
+        switch (timestamp.unit()) {
+          case MICROS:
+            return timestamp.shouldAdjustToUTC()
+                ? Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name)
+                : Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+          case NANOS:
+            return timestamp.shouldAdjustToUTC()
+                ? Types.primitive(INT64, repetition).as(TIMESTAMPTZ_NANOS).id(id).named(name)
+                : Types.primitive(INT64, repetition).as(TIMESTAMP_NANOS).id(id).named(name);
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported timestamp unit: " + timestamp.unit().toString());
         }
       case STRING:
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);

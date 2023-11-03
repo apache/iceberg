@@ -46,6 +46,7 @@ public class SingleValueParser {
   private static final String KEYS = "keys";
   private static final String VALUES = "values";
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Object fromJson(Type type, JsonNode defaultValue) {
     if (defaultValue == null || defaultValue.isNull()) {
       return null;
@@ -249,7 +250,7 @@ public class SingleValueParser {
     return JsonUtil.generate(gen -> toJson(type, defaultValue, gen), pretty);
   }
 
-  @SuppressWarnings("checkstyle:MethodLength")
+  @SuppressWarnings({"checkstyle:MethodLength", "checkstyle:CyclomaticComplexity"})
   public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
     if (defaultValue == null) {

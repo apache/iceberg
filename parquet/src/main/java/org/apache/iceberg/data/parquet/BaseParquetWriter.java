@@ -204,14 +204,20 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      Preconditions.checkArgument(
-          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
-          "Cannot write timestamp in %s, only MICROS is supported",
-          timestampType.getUnit());
-      if (timestampType.isAdjustedToUTC()) {
-        return Optional.of(new TimestamptzWriter(desc));
-      } else {
-        return Optional.of(new TimestampWriter(desc));
+      switch (timestampType.getUnit()) {
+        case MICROS:
+          return Optional.of(
+              timestampType.isAdjustedToUTC()
+                  ? new TimestamptzWriter(desc)
+                  : new TimestampWriter(desc));
+        case NANOS:
+          return Optional.of(
+              timestampType.isAdjustedToUTC()
+                  ? new TimestamptznsWriter(desc)
+                  : new TimestampnsWriter(desc));
+        default:
+          throw new IllegalArgumentException(
+              "Timestamp unit %s not supported" + timestampType.getUnit());
       }
     }
 
@@ -278,6 +284,19 @@ public abstract class BaseParquetWriter<T> {
     }
   }
 
+  private static class TimestampnsWriter
+      extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
+    private TimestampnsWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalDateTime value) {
+      column.writeLong(
+          repetitionLevel, ChronoUnit.NANOS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+    }
+  }
+
   private static class TimestamptzWriter
       extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
     private TimestamptzWriter(ColumnDescriptor desc) {
@@ -287,6 +306,18 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public void write(int repetitionLevel, OffsetDateTime value) {
       column.writeLong(repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value));
+    }
+  }
+
+  private static class TimestamptznsWriter
+      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+    private TimestamptznsWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, OffsetDateTime value) {
+      column.writeLong(repetitionLevel, ChronoUnit.NANOS.between(EPOCH, value));
     }
   }
 

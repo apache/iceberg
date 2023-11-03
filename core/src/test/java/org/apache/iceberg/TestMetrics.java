@@ -243,7 +243,7 @@ public abstract class TestMetrics {
     assertCounts(10, 2L, 0L, metrics);
     assertBounds(10, TimestampType.microsWithoutZone(), 0L, 900L, metrics);
     assertCounts(11, 2L, 0L, metrics);
-    assertBounds(11, TimestampType.nanosWithoutZone(), 0L, 900L, metrics);
+    assertBounds(11, TimestampType.nanosWithoutZone(), 0L, 900_000L, metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(
         12, FixedType.ofLength(4), ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
@@ -259,7 +259,7 @@ public abstract class TestMetrics {
       // ORC-342: ORC writer creates inaccurate timestamp data and stats 1 sec below epoch
       // Values in the range `[1969-12-31 23:59:59.000,1969-12-31 23:59:59.999]` will have 1 sec
       // added to them
-      // So the upper bound value of -7_000 micros becomes 993_000 micros
+      // So the upper bound value of -7 millis becomes +993 millis
       assertBounds(14, TimestampType.microsWithoutZone(), -1_900_300L, 993_000L, metrics);
       assertBounds(15, TimestampType.nanosWithoutZone(), -1_900_300_000L, 993_000_000L, metrics);
     } else {
@@ -799,9 +799,9 @@ public abstract class TestMetrics {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 
-    Assert.assertEquals(
-        lowerBound,
-        lowerBounds.containsKey(fieldId) ? fromByteBuffer(type, lowerBounds.get(fieldId)) : null);
+    T metricLowerBound =
+        lowerBounds.containsKey(fieldId) ? fromByteBuffer(type, lowerBounds.get(fieldId)) : null;
+    Assert.assertEquals(lowerBound, metricLowerBound);
     Assert.assertEquals(
         upperBound,
         upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);

@@ -207,6 +207,7 @@ public class OrcMetrics {
         upperBounds);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Optional<ByteBuffer> fromOrcMin(
       Type type,
       ColumnStatistics columnStats,
@@ -249,10 +250,16 @@ public class OrcMetrics {
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
-      min =
-          Optional.ofNullable(minValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+      if (minValue != null) {
+        switch (((Types.TimestampType) type).unit()) {
+          case MICROS:
+            min = DateTimeUtil.microsFromInstant(minValue.toInstant());
+            break;
+          case NANOS:
+            min = DateTimeUtil.nanosFromInstant(minValue.toInstant());
+            break;
+        }
+      }
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       min = booleanStats.getFalseCount() <= 0;
@@ -262,6 +269,7 @@ public class OrcMetrics {
         Conversions.toByteBuffer(type, truncateIfNeeded(Bound.LOWER, type, min, metricsMode)));
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Optional<ByteBuffer> fromOrcMax(
       Type type,
       ColumnStatistics columnStats,
@@ -304,10 +312,16 @@ public class OrcMetrics {
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
-      max =
-          Optional.ofNullable(maxValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+      if (maxValue != null) {
+        switch (((Types.TimestampType) type).unit()) {
+          case MICROS:
+            max = DateTimeUtil.microsFromInstant(maxValue.toInstant());
+            break;
+          case NANOS:
+            max = DateTimeUtil.nanosFromInstant(maxValue.toInstant());
+            break;
+        }
+      }
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       max = booleanStats.getTrueCount() > 0;

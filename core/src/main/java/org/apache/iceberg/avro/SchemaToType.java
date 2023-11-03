@@ -162,6 +162,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Type primitive(Schema primitive) {
     // first check supported logical types
     LogicalType logical = primitive.getLogicalType();

@@ -47,6 +47,11 @@ public final class ORCSchemaUtil {
     LONG
   }
 
+  public enum TimestampUnit {
+    MICROS,
+    NANOS
+  }
+
   private static class OrcField {
     private final String name;
     private final TypeDescription type;
@@ -78,6 +83,12 @@ public final class ORCSchemaUtil {
    * to an ORC long type. The values for this attribute are denoted in {@code LongType}.
    */
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
+  /**
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit
+   * corresponding to an ORC timestamp type. The values for this attribute are denoted in {@code
+   * TimestampUnit}.
+   */
+  public static final String ICEBERG_TIMESTAMP_UNIT_ATTRIBUTE = "iceberg.timestamp-unit";
 
   static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
@@ -146,6 +157,16 @@ public final class ORCSchemaUtil {
           orcType = TypeDescription.createTimestampInstant();
         } else {
           orcType = TypeDescription.createTimestamp();
+        }
+        switch (tsType.unit()) {
+          case MICROS:
+            orcType.setAttribute(ICEBERG_TIMESTAMP_UNIT_ATTRIBUTE, TimestampUnit.MICROS.toString());
+            break;
+          case NANOS:
+            orcType.setAttribute(ICEBERG_TIMESTAMP_UNIT_ATTRIBUTE, TimestampUnit.NANOS.toString());
+            break;
+          default:
+            throw new IllegalArgumentException("Unhandled timestamp unit " + tsType.unit().name());
         }
         break;
       case STRING:
