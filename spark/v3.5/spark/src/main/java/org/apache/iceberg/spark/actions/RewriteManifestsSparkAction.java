@@ -75,8 +75,8 @@ import org.slf4j.LoggerFactory;
  * result to the metadata folder. The behavior can be modified by passing a custom predicate to
  * {@link #rewriteIf(Predicate)} and a custom spec ID to {@link #specId(int)}. In addition, there is
  * a way to configure a custom location for staged manifests via {@link #stagingLocation(String)}.
- * The provided staging location will be ignored if new manifests are committed directly. In such
- * cases, the manifests are always written to the metadata folder.
+ * The provided staging location will be ignored if snapshot ID inheritance is enabled. In such
+ * cases, the manifests are always written to the metadata folder and committed without staging.
  */
 public class RewriteManifestsSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteManifestsSparkAction> implements RewriteManifests {
