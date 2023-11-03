@@ -228,7 +228,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
                   : TimestampType.nanosWithoutZone());
         default:
           throw new UnsupportedOperationException(
-              "Cannot convert unsupported timestamp unit: " + timestampType.getUnit());
+              "Unsupported timestamp unit: " + timestampType.getUnit());
       }
     }
 

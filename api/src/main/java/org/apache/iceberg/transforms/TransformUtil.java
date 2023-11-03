@@ -63,7 +63,7 @@ class TransformUtil {
         case NANOS:
           return ChronoUnit.NANOS.addTo(EPOCH, value).toString();
         default:
-          throw new IllegalArgumentException("Invalid timestamp unit: " + tsType.unit());
+          throw new UnsupportedOperationException("Unsupported timestamp unit: " + tsType.unit());
       }
     } else {
       switch (tsType.unit()) {
@@ -72,7 +72,7 @@ class TransformUtil {
         case NANOS:
           return ChronoUnit.NANOS.addTo(EPOCH, value).toLocalDateTime().toString();
         default:
-          throw new IllegalArgumentException("Invalid timestamp unit: " + tsType.unit());
+          throw new UnsupportedOperationException("Unsupported timestamp unit: " + tsType.unit());
       }
     }
   }

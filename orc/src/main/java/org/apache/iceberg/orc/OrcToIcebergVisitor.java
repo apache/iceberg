@@ -186,7 +186,7 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                     icebergID, isOptional, name, Types.TimestampType.nanosWithoutZone());
             break;
           default:
-            throw new IllegalStateException("Invalid Timestamp unit found in ORC type attribute");
+            throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
         }
         break;
       case TIMESTAMP_INSTANT:

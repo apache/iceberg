@@ -216,8 +216,8 @@ public abstract class BaseParquetWriter<T> {
                   ? new TimestamptznsWriter(desc)
                   : new TimestampnsWriter(desc));
         default:
-          throw new IllegalArgumentException(
-              "Timestamp unit %s not supported" + timestampType.getUnit());
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit" + timestampType.getUnit());
       }
     }
 

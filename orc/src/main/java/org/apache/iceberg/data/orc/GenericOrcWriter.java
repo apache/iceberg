@@ -104,7 +104,8 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
                   ? GenericOrcWriters.timestampnsTz()
                   : GenericOrcWriters.timestampns();
             default:
-              throw new IllegalArgumentException("Invalid timestamp unit: " + timestampType.unit());
+              throw new UnsupportedOperationException(
+                  "Unsupported timestamp unit: " + timestampType.unit());
           }
         case STRING:
           return GenericOrcWriters.strings();
