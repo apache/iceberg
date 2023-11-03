@@ -241,6 +241,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   @Override
   protected synchronized List<ScanTaskGroup<T>> taskGroups() {
+    this.incrementTaskCreationVersion();
     if (taskGroups == null) {
       if (groupingKeyType().fields().isEmpty()) {
         CloseableIterable<ScanTaskGroup<T>> plannedTaskGroups =

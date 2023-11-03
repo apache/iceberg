@@ -78,10 +78,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final List<Expression> runtimeFilterExpressions;
   private volatile boolean hasPushedBroadcastVar = false;
   private final Map<BroadcastHRUnboundPredicate<?>, Integer> broadcastVarAdded = Maps.newHashMap();
-
-  private final List<Expression> broadcastVarDataExpressions;
-
-  private final List<Expression> broadcastVarPartitionExpressions;
   private volatile int taskCreationVersionNum = 0;
 
   SparkBatchQueryScan(
@@ -210,16 +206,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         partitionAndNonPartitionBased.getOrDefault(Boolean.TRUE, Collections.emptyList());
     List<Expression> nonPartitionBasedBroadcastVar =
         partitionAndNonPartitionBased.getOrDefault(Boolean.FALSE, Collections.emptyList());
-
-    if (!netNewBroadcastVarFilters.isEmpty()) {
-      // just collect non partition based data filters do not use it for pruning tasks now
-      this.broadcastVarDataExpressions.addAll(nonPartitionBasedBroadcastVar);
-      // since partition based broadcast vars may have transforms and hence may be used in data
-      // pruning
-      // add those too again in the list of data filters
-      this.broadcastVarPartitionExpressions.addAll(partitionBasedBroadcastVar);
-    }
-
+    List<PartitionScanTask> filteredTasks=
+        addAsDataFilters(broadcastVarPartitionExpressions, broadcastVarDataExpressions);
     // first filter tasks on the basis of partition filters
     Expression netPartitionFilter = Expressions.alwaysTrue();
     if (nonBroadcastVarPartitionFilters != Expressions.alwaysTrue()
@@ -231,9 +219,10 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
                   .reduce(Expressions.alwaysTrue(), Expressions::and));
     }
 
-    List<PartitionScanTask> filteredTasks =
-        filterFilesAtManifestLevelAndAddToRuntimeFilters(netPartitionFilter);
-
+    filteredTasks = filterFilesAtManifestLevelAndAddToRuntimeFilters(filteredTasks,
+        netPartitionFilter);
+    filteredTasks = filterFilesAtDataFileLevelUsingBounds(
+            netNewExprFilters, nonPartitionBasedBroadcastVar, filteredTasks);
     LOG.info(
         "{} of {} task(s) for table {} matched runtime filter {}",
         filteredTasks.size(),
@@ -298,26 +287,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     return filteredFiles;
   }
 
-  @Override
-  public void callbackBeforeOpeningIterator() {
-    if (!this.broadcastVarDataExpressions.isEmpty()
-        || !this.broadcastVarPartitionExpressions.isEmpty()) {
-      // initialize the variable
-      List<PartitionScanTask> filteredTasks;
-      filteredTasks =
-          addAsDataFilters(this.broadcastVarPartitionExpressions, this.broadcastVarDataExpressions);
-      List<Expression> netNewExprFilters = Lists.newArrayList();
-      netNewExprFilters.addAll(this.broadcastVarDataExpressions);
-      netNewExprFilters.addAll(this.broadcastVarPartitionExpressions);
-      filteredTasks =
-          filterFilesAtDataFileLevelUsingBounds(
-              netNewExprFilters, this.broadcastVarDataExpressions, filteredTasks);
-      this.resetTasks(filteredTasks);
-    }
-  }
-
   private List<PartitionScanTask> filterFilesAtManifestLevelAndAddToRuntimeFilters(
-      Expression netPartitionFilter) {
+      List<PartitionScanTask> filteredTasks, Expression netPartitionFilter) {
     if (netPartitionFilter != Expressions.alwaysTrue()) {
       // save the evaluated filter for equals/hashCode
       runtimeFilterExpressions.add(netPartitionFilter);
@@ -336,7 +307,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         evaluatorsBySpecId.put(spec.specId(), inclusive);
       }
 
-      return tasks().stream()
+      return filteredTasks.stream()
           .filter(
               task -> {
                 Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
@@ -344,7 +315,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
               })
           .collect(Collectors.toList());
     }
-    return tasks();
+    return filteredTasks;
   }
 
   // at this moment, Spark can only pass IN filters for a single attribute
