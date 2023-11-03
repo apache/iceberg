@@ -218,10 +218,14 @@ public class Types {
     private static final TimestampType INSTANCE_NANOS_WITHOUT_ZONE =
         new TimestampType(false, ChronoUnit.NANOS);
 
+    /** @deprecated use {@link #microsWithZone()} instead. */
+    @Deprecated
     public static TimestampType withZone() {
       return INSTANCE_MICROS_WITH_ZONE;
     }
 
+    /** @deprecated use {@link #microsWithoutZone()} instead. */
+    @Deprecated
     public static TimestampType withoutZone() {
       return INSTANCE_MICROS_WITHOUT_ZONE;
     }
