@@ -1370,3 +1370,16 @@ Writing v2 metadata:
     * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
+
+## Appendix F: Implementation Notes
+
+This section covers topics not required by the specification but recommendations for systems implementing the Iceberg specification
+to help maintain a uniform experience.
+
+### Point in Time Reads (Time Travel)
+
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+might not be consistent for determining a table states at a given point in time due to a variety of table operations (e.g. branch-merge table workflows OR forcing the current state of table to specific snapshot ID).
+
+When processing point in time queries the Iceberg community has chosen to use "snapshot-log" metadata lookup the table state
+at the given point in time.  For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table.
