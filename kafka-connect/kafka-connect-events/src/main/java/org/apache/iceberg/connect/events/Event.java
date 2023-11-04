@@ -46,10 +46,18 @@ public class Event implements IndexedRecord {
   private String groupId;
   private Payload payload;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int ID = 10_500;
+  static final int TYPE = 10_501;
+  static final int TIMESTAMP = 10_502;
+  static final int GROUP_ID = 10_503;
+  static final int PAYLOAD = 10_504;
 
   // Used by Avro reflection to instantiate this class when reading events
   public Event(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public Event(String groupId, Payload payload) {
@@ -61,16 +69,17 @@ public class Event implements IndexedRecord {
 
     StructType icebergSchema =
         StructType.of(
-            NestedField.required(10_500, "id", UUIDType.get()),
-            NestedField.required(10_501, "type", IntegerType.get()),
-            NestedField.required(10_502, "timestamp", TimestampType.withZone()),
-            NestedField.required(10_503, "group_id", StringType.get()),
-            NestedField.required(10_504, "payload", payload.writeSchema()));
+            NestedField.required(ID, "id", UUIDType.get()),
+            NestedField.required(TYPE, "type", IntegerType.get()),
+            NestedField.required(TIMESTAMP, "timestamp", TimestampType.withZone()),
+            NestedField.required(GROUP_ID, "group_id", StringType.get()),
+            NestedField.required(PAYLOAD, "payload", payload.writeSchema()));
 
     Map<Integer, String> typeMap = Maps.newHashMap(AvroUtil.FIELD_ID_TO_CLASS);
-    typeMap.put(10_504, payload.getClass().getName());
+    typeMap.put(PAYLOAD, payload.getClass().getName());
 
     this.avroSchema = AvroUtil.convert(icebergSchema, getClass(), typeMap);
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public UUID id() {
@@ -100,20 +109,20 @@ public class Event implements IndexedRecord {
 
   @Override
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case ID:
         this.id = (UUID) v;
         return;
-      case 1:
+      case TYPE:
         this.type = v == null ? null : PayloadType.values()[(Integer) v];
         return;
-      case 2:
+      case TIMESTAMP:
         this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
-      case 3:
+      case GROUP_ID:
         this.groupId = v == null ? null : v.toString();
         return;
-      case 4:
+      case PAYLOAD:
         this.payload = (Payload) v;
         return;
       default:
@@ -123,16 +132,16 @@ public class Event implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case ID:
         return id;
-      case 1:
+      case TYPE:
         return type == null ? null : type.id();
-      case 2:
+      case TIMESTAMP:
         return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
-      case 3:
+      case GROUP_ID:
         return groupId;
-      case 4:
+      case PAYLOAD:
         return payload;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

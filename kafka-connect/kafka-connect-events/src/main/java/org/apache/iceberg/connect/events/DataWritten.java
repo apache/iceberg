@@ -41,12 +41,21 @@ public class DataWritten implements Payload {
   private List<DataFile> dataFiles;
   private List<DeleteFile> deleteFiles;
   private StructType icebergSchema;
-  private Schema avroSchema;
+  private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int COMMIT_ID = 10_300;
+  static final int TABLE_REFERENCE = 10_301;
+  static final int DATA_FILES = 10_302;
+  static final int DATA_FILES_ELEMENT = 10_303;
+  static final int DELETE_FILES = 10_304;
+  static final int DELETE_FILES_ELEMENT = 10_304;
 
   // Used by Avro reflection to instantiate this class when reading events, note that this does not
   // set the partition type so the instance cannot be re-serialized
   public DataWritten(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public DataWritten(
@@ -60,6 +69,8 @@ public class DataWritten implements Payload {
     this.tableReference = tableReference;
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
+    this.avroSchema = AvroUtil.convert(writeSchema(), getClass());
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   @Override
@@ -90,12 +101,17 @@ public class DataWritten implements Payload {
 
       this.icebergSchema =
           StructType.of(
-              NestedField.required(10_300, "commit_id", UUIDType.get()),
-              NestedField.required(10_301, "table_reference", TableReference.ICEBERG_SCHEMA),
+              NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()),
+              NestedField.required(
+                  TABLE_REFERENCE, "table_reference", TableReference.ICEBERG_SCHEMA),
               NestedField.optional(
-                  10_302, "data_files", ListType.ofRequired(10_303, dataFileStruct)),
+                  DATA_FILES,
+                  "data_files",
+                  ListType.ofRequired(DATA_FILES_ELEMENT, dataFileStruct)),
               NestedField.optional(
-                  10_304, "delete_files", ListType.ofRequired(10_305, dataFileStruct)));
+                  DELETE_FILES,
+                  "delete_files",
+                  ListType.ofRequired(DELETE_FILES_ELEMENT, dataFileStruct)));
     }
 
     return icebergSchema;
@@ -103,26 +119,23 @@ public class DataWritten implements Payload {
 
   @Override
   public Schema getSchema() {
-    if (avroSchema == null) {
-      this.avroSchema = AvroUtil.convert(writeSchema(), getClass());
-    }
     return avroSchema;
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
-      case 1:
+      case TABLE_REFERENCE:
         this.tableReference = (TableReference) v;
         return;
-      case 2:
+      case DATA_FILES:
         this.dataFiles = (List<DataFile>) v;
         return;
-      case 3:
+      case DELETE_FILES:
         this.deleteFiles = (List<DeleteFile>) v;
         return;
       default:
@@ -132,14 +145,14 @@ public class DataWritten implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         return commitId;
-      case 1:
+      case TABLE_REFERENCE:
         return tableReference;
-      case 2:
+      case DATA_FILES:
         return dataFiles;
-      case 3:
+      case DELETE_FILES:
         return deleteFiles;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

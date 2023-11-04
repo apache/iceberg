@@ -37,23 +37,29 @@ public class CommitComplete implements Payload {
   private UUID commitId;
   private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int COMMIT_ID = 10_000;
+  static final int VALID_THROUGH_TS = 10_001;
 
   private static final StructType ICEBERG_SCHEMA =
       StructType.of(
-          NestedField.required(10_000, "commit_id", UUIDType.get()),
-          NestedField.optional(10_001, "valid_through_ts", TimestampType.withZone()));
-
+          NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()),
+          NestedField.optional(VALID_THROUGH_TS, "valid_through_ts", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitComplete.class);
+  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitComplete(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public CommitComplete(UUID commitId, OffsetDateTime validThroughTs) {
     this.commitId = commitId;
     this.validThroughTs = validThroughTs;
     this.avroSchema = AVRO_SCHEMA;
+    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -85,11 +91,11 @@ public class CommitComplete implements Payload {
 
   @Override
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
-      case 1:
+      case VALID_THROUGH_TS:
         this.validThroughTs = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
@@ -99,10 +105,10 @@ public class CommitComplete implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         return commitId;
-      case 1:
+      case VALID_THROUGH_TS:
         return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

@@ -35,26 +35,33 @@ public class DataComplete implements Payload {
   private UUID commitId;
   private List<TopicPartitionOffset> assignments;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int COMMIT_ID = 10_100;
+  static final int ASSIGNMENTS = 10_101;
+  static final int ASSIGNMENTS_ELEMENT = 10_102;
 
   private static final StructType ICEBERG_SCHEMA =
       StructType.of(
-          NestedField.required(10_100, "commit_id", UUIDType.get()),
+          NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()),
           NestedField.optional(
-              10_101,
+              ASSIGNMENTS,
               "assignments",
-              ListType.ofRequired(10_102, TopicPartitionOffset.ICEBERG_SCHEMA)));
-
+              ListType.ofRequired(ASSIGNMENTS_ELEMENT, TopicPartitionOffset.ICEBERG_SCHEMA)));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, DataComplete.class);
+  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public DataComplete(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public DataComplete(UUID commitId, List<TopicPartitionOffset> assignments) {
     this.commitId = commitId;
     this.assignments = assignments;
     this.avroSchema = AVRO_SCHEMA;
+    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -83,11 +90,11 @@ public class DataComplete implements Payload {
   @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
-      case 1:
+      case ASSIGNMENTS:
         this.assignments = (List<TopicPartitionOffset>) v;
         return;
       default:
@@ -97,10 +104,10 @@ public class DataComplete implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         return commitId;
-      case 1:
+      case ASSIGNMENTS:
         return assignments;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

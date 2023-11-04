@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.events;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -35,17 +36,17 @@ import org.apache.iceberg.types.Types;
 class AvroUtil {
   static final Map<Integer, String> FIELD_ID_TO_CLASS =
       ImmutableMap.of(
-          10_102,
+          DataComplete.ASSIGNMENTS_ELEMENT,
           TopicPartitionOffset.class.getName(),
           DataFile.PARTITION_ID,
           PartitionData.class.getName(),
-          10_301,
+          DataWritten.TABLE_REFERENCE,
           TableReference.class.getName(),
-          10_303,
+          DataWritten.DATA_FILES_ELEMENT,
           "org.apache.iceberg.GenericDataFile",
-          10_305,
+          DataWritten.DELETE_FILES_ELEMENT,
           "org.apache.iceberg.GenericDeleteFile",
-          10_401,
+          CommitToTable.TABLE_REFERENCE,
           TableReference.class.getName());
 
   public static byte[] encode(Event event) {
@@ -79,6 +80,16 @@ class AvroUtil {
         icebergSchema,
         (fieldId, struct) ->
             struct.equals(icebergSchema) ? javaClass.getName() : typeMap.get(fieldId));
+  }
+
+  static int[] positionsToIds(Schema avroSchema) {
+    int[] result = new int[avroSchema.getFields().size()];
+    List<Schema.Field> fields = avroSchema.getFields();
+    for (int i = 0; i < result.length; i++) {
+      Object val = fields.get(i).getObjectProp(AvroSchemaUtil.FIELD_ID_PROP);
+      result[i] = val == null ? -1 : (int) val;
+    }
+    return result;
   }
 
   private AvroUtil() {}

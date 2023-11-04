@@ -37,20 +37,27 @@ public class TopicPartitionOffset implements IndexedRecord {
   private Long offset;
   private OffsetDateTime timestamp;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int TOPIC = 10_700;
+  static final int PARTITION = 10_701;
+  static final int OFFSET = 10_702;
+  static final int TIMESTAMP = 10_703;
 
   public static final StructType ICEBERG_SCHEMA =
       StructType.of(
-          NestedField.required(10_700, "topic", StringType.get()),
-          NestedField.required(10_701, "partition", IntegerType.get()),
-          NestedField.optional(10_702, "offset", LongType.get()),
-          NestedField.optional(10_703, "timestamp", TimestampType.withZone()));
-
+          NestedField.required(TOPIC, "topic", StringType.get()),
+          NestedField.required(PARTITION, "partition", IntegerType.get()),
+          NestedField.optional(OFFSET, "offset", LongType.get()),
+          NestedField.optional(TIMESTAMP, "timestamp", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA =
       AvroUtil.convert(ICEBERG_SCHEMA, TopicPartitionOffset.class);
+  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public TopicPartitionOffset(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public TopicPartitionOffset(String topic, int partition, Long offset, OffsetDateTime timestamp) {
@@ -59,6 +66,7 @@ public class TopicPartitionOffset implements IndexedRecord {
     this.offset = offset;
     this.timestamp = timestamp;
     this.avroSchema = AVRO_SCHEMA;
+    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   public String topic() {
@@ -84,17 +92,17 @@ public class TopicPartitionOffset implements IndexedRecord {
 
   @Override
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case TOPIC:
         this.topic = v == null ? null : v.toString();
         return;
-      case 1:
+      case PARTITION:
         this.partition = (Integer) v;
         return;
-      case 2:
+      case OFFSET:
         this.offset = (Long) v;
         return;
-      case 3:
+      case TIMESTAMP:
         this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
@@ -104,14 +112,14 @@ public class TopicPartitionOffset implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case TOPIC:
         return topic;
-      case 1:
+      case PARTITION:
         return partition;
-      case 2:
+      case OFFSET:
         return offset;
-      case 3:
+      case TIMESTAMP:
         return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

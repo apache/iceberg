@@ -40,19 +40,26 @@ public class CommitToTable implements Payload {
   private Long snapshotId;
   private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int COMMIT_ID = 10_400;
+  static final int TABLE_REFERENCE = 10_401;
+  static final int SNAPSHOT_ID = 10_402;
+  static final int VALID_THROUGH_TS = 10_403;
 
   private static final StructType ICEBERG_SCHEMA =
       StructType.of(
-          NestedField.required(10_400, "commit_id", UUIDType.get()),
-          NestedField.required(10_401, "table_reference", TableReference.ICEBERG_SCHEMA),
-          NestedField.optional(10_402, "snapshot_id", LongType.get()),
-          NestedField.optional(10_403, "valid_through_ts", TimestampType.withZone()));
-
+          NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()),
+          NestedField.required(TABLE_REFERENCE, "table_reference", TableReference.ICEBERG_SCHEMA),
+          NestedField.optional(SNAPSHOT_ID, "snapshot_id", LongType.get()),
+          NestedField.optional(VALID_THROUGH_TS, "valid_through_ts", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitToTable.class);
+  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitToTable(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public CommitToTable(
@@ -65,6 +72,7 @@ public class CommitToTable implements Payload {
     this.snapshotId = snapshotId;
     this.validThroughTs = validThroughTs;
     this.avroSchema = AVRO_SCHEMA;
+    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -100,17 +108,17 @@ public class CommitToTable implements Payload {
 
   @Override
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
-      case 1:
+      case TABLE_REFERENCE:
         this.tableReference = (TableReference) v;
         return;
-      case 2:
+      case SNAPSHOT_ID:
         this.snapshotId = (Long) v;
         return;
-      case 3:
+      case VALID_THROUGH_TS:
         this.validThroughTs = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
         return;
       default:
@@ -120,14 +128,14 @@ public class CommitToTable implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case COMMIT_ID:
         return commitId;
-      case 1:
+      case TABLE_REFERENCE:
         return tableReference;
-      case 2:
+      case SNAPSHOT_ID:
         return snapshotId;
-      case 3:
+      case VALID_THROUGH_TS:
         return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);

@@ -39,14 +39,20 @@ public class TableReference implements IndexedRecord {
   private List<String> namespace;
   private String name;
   private final Schema avroSchema;
+  private final int[] positionsToIds;
+
+  static final int CATALOG = 10_600;
+  static final int NAMESPACE = 10_601;
+  static final int NAME = 10_603;
 
   public static final StructType ICEBERG_SCHEMA =
       StructType.of(
-          NestedField.required(10_600, "catalog", StringType.get()),
-          NestedField.required(10_601, "namespace", ListType.ofRequired(10_602, StringType.get())),
-          NestedField.required(10_603, "name", StringType.get()));
-
+          NestedField.required(CATALOG, "catalog", StringType.get()),
+          NestedField.required(
+              NAMESPACE, "namespace", ListType.ofRequired(NAMESPACE + 1, StringType.get())),
+          NestedField.required(NAME, "name", StringType.get()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, TableReference.class);
+  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   public static TableReference of(String catalog, TableIdentifier tableIdentifier) {
     return new TableReference(
@@ -56,6 +62,7 @@ public class TableReference implements IndexedRecord {
   // Used by Avro reflection to instantiate this class when reading events
   public TableReference(Schema avroSchema) {
     this.avroSchema = avroSchema;
+    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public TableReference(String catalog, List<String> namespace, String name) {
@@ -63,6 +70,7 @@ public class TableReference implements IndexedRecord {
     this.namespace = namespace;
     this.name = name;
     this.avroSchema = AVRO_SCHEMA;
+    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   public String catalog() {
@@ -82,15 +90,15 @@ public class TableReference implements IndexedRecord {
   @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case CATALOG:
         this.catalog = v == null ? null : v.toString();
         return;
-      case 1:
+      case NAMESPACE:
         this.namespace =
             v == null ? null : ((List<Utf8>) v).stream().map(Utf8::toString).collect(toList());
         return;
-      case 2:
+      case NAME:
         this.name = v == null ? null : v.toString();
         return;
       default:
@@ -100,12 +108,12 @@ public class TableReference implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (positionsToIds[i]) {
+      case CATALOG:
         return catalog;
-      case 1:
+      case NAMESPACE:
         return namespace;
-      case 2:
+      case NAME:
         return name;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
