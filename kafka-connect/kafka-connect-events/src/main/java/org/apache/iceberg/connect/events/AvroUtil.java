@@ -29,6 +29,7 @@ import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.avro.DecoderResolver;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
@@ -82,14 +83,11 @@ class AvroUtil {
             struct.equals(icebergSchema) ? javaClass.getName() : typeMap.get(fieldId));
   }
 
-  static int[] positionsToIds(Schema avroSchema) {
-    int[] result = new int[avroSchema.getFields().size()];
+  static int positionToId(int position, Schema avroSchema) {
     List<Schema.Field> fields = avroSchema.getFields();
-    for (int i = 0; i < result.length; i++) {
-      Object val = fields.get(i).getObjectProp(AvroSchemaUtil.FIELD_ID_PROP);
-      result[i] = val == null ? -1 : (int) val;
-    }
-    return result;
+    Preconditions.checkArgument(position < fields.size(), "Invalid field position: " + position);
+    Object val = fields.get(position).getObjectProp(AvroSchemaUtil.FIELD_ID_PROP);
+    return val == null ? -1 : (int) val;
   }
 
   private AvroUtil() {}

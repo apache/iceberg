@@ -37,7 +37,6 @@ public class CommitComplete implements Payload {
   private UUID commitId;
   private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int COMMIT_ID = 10_000;
   static final int VALID_THROUGH_TS = 10_001;
@@ -47,19 +46,16 @@ public class CommitComplete implements Payload {
           NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()),
           NestedField.optional(VALID_THROUGH_TS, "valid_through_ts", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitComplete.class);
-  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitComplete(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public CommitComplete(UUID commitId, OffsetDateTime validThroughTs) {
     this.commitId = commitId;
     this.validThroughTs = validThroughTs;
     this.avroSchema = AVRO_SCHEMA;
-    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -91,7 +87,7 @@ public class CommitComplete implements Payload {
 
   @Override
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
@@ -105,7 +101,7 @@ public class CommitComplete implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         return commitId;
       case VALID_THROUGH_TS:

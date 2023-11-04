@@ -32,25 +32,21 @@ public class StartCommit implements Payload {
 
   private UUID commitId;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int COMMIT_ID = 10_200;
 
   private static final StructType ICEBERG_SCHEMA =
       StructType.of(NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, StartCommit.class);
-  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public StartCommit(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public StartCommit(UUID commitId) {
     this.commitId = commitId;
     this.avroSchema = AVRO_SCHEMA;
-    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -74,7 +70,7 @@ public class StartCommit implements Payload {
 
   @Override
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
@@ -85,7 +81,7 @@ public class StartCommit implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         return commitId;
       default:

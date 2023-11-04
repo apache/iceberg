@@ -37,7 +37,6 @@ public class TopicPartitionOffset implements IndexedRecord {
   private Long offset;
   private OffsetDateTime timestamp;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int TOPIC = 10_700;
   static final int PARTITION = 10_701;
@@ -52,12 +51,10 @@ public class TopicPartitionOffset implements IndexedRecord {
           NestedField.optional(TIMESTAMP, "timestamp", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA =
       AvroUtil.convert(ICEBERG_SCHEMA, TopicPartitionOffset.class);
-  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public TopicPartitionOffset(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public TopicPartitionOffset(String topic, int partition, Long offset, OffsetDateTime timestamp) {
@@ -66,7 +63,6 @@ public class TopicPartitionOffset implements IndexedRecord {
     this.offset = offset;
     this.timestamp = timestamp;
     this.avroSchema = AVRO_SCHEMA;
-    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   public String topic() {
@@ -92,7 +88,7 @@ public class TopicPartitionOffset implements IndexedRecord {
 
   @Override
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case TOPIC:
         this.topic = v == null ? null : v.toString();
         return;
@@ -112,7 +108,7 @@ public class TopicPartitionOffset implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case TOPIC:
         return topic;
       case PARTITION:

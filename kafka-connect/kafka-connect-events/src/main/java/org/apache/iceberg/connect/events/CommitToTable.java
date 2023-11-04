@@ -40,7 +40,6 @@ public class CommitToTable implements Payload {
   private Long snapshotId;
   private OffsetDateTime validThroughTs;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int COMMIT_ID = 10_400;
   static final int TABLE_REFERENCE = 10_401;
@@ -54,12 +53,10 @@ public class CommitToTable implements Payload {
           NestedField.optional(SNAPSHOT_ID, "snapshot_id", LongType.get()),
           NestedField.optional(VALID_THROUGH_TS, "valid_through_ts", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, CommitToTable.class);
-  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   // Used by Avro reflection to instantiate this class when reading events
   public CommitToTable(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public CommitToTable(
@@ -72,7 +69,6 @@ public class CommitToTable implements Payload {
     this.snapshotId = snapshotId;
     this.validThroughTs = validThroughTs;
     this.avroSchema = AVRO_SCHEMA;
-    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   @Override
@@ -108,7 +104,7 @@ public class CommitToTable implements Payload {
 
   @Override
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
@@ -128,7 +124,7 @@ public class CommitToTable implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         return commitId;
       case TABLE_REFERENCE:

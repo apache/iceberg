@@ -42,7 +42,6 @@ public class DataWritten implements Payload {
   private List<DeleteFile> deleteFiles;
   private StructType icebergSchema;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int COMMIT_ID = 10_300;
   static final int TABLE_REFERENCE = 10_301;
@@ -55,7 +54,6 @@ public class DataWritten implements Payload {
   // set the partition type so the instance cannot be re-serialized
   public DataWritten(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public DataWritten(
@@ -70,7 +68,6 @@ public class DataWritten implements Payload {
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
     this.avroSchema = AvroUtil.convert(writeSchema(), getClass());
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   @Override
@@ -125,7 +122,7 @@ public class DataWritten implements Payload {
   @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         this.commitId = (UUID) v;
         return;
@@ -145,7 +142,7 @@ public class DataWritten implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case COMMIT_ID:
         return commitId;
       case TABLE_REFERENCE:

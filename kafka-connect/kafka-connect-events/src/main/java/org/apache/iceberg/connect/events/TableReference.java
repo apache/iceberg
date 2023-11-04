@@ -39,7 +39,6 @@ public class TableReference implements IndexedRecord {
   private List<String> namespace;
   private String name;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int CATALOG = 10_600;
   static final int NAMESPACE = 10_601;
@@ -52,7 +51,6 @@ public class TableReference implements IndexedRecord {
               NAMESPACE, "namespace", ListType.ofRequired(NAMESPACE + 1, StringType.get())),
           NestedField.required(NAME, "name", StringType.get()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, TableReference.class);
-  private static final int[] POSITIONS_TO_IDS = AvroUtil.positionsToIds(AVRO_SCHEMA);
 
   public static TableReference of(String catalog, TableIdentifier tableIdentifier) {
     return new TableReference(
@@ -62,7 +60,6 @@ public class TableReference implements IndexedRecord {
   // Used by Avro reflection to instantiate this class when reading events
   public TableReference(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public TableReference(String catalog, List<String> namespace, String name) {
@@ -70,7 +67,6 @@ public class TableReference implements IndexedRecord {
     this.namespace = namespace;
     this.name = name;
     this.avroSchema = AVRO_SCHEMA;
-    this.positionsToIds = POSITIONS_TO_IDS;
   }
 
   public String catalog() {
@@ -90,7 +86,7 @@ public class TableReference implements IndexedRecord {
   @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case CATALOG:
         this.catalog = v == null ? null : v.toString();
         return;
@@ -108,7 +104,7 @@ public class TableReference implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case CATALOG:
         return catalog;
       case NAMESPACE:

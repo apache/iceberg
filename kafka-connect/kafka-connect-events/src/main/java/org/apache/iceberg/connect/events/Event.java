@@ -46,7 +46,6 @@ public class Event implements IndexedRecord {
   private String groupId;
   private Payload payload;
   private final Schema avroSchema;
-  private final int[] positionsToIds;
 
   static final int ID = 10_500;
   static final int TYPE = 10_501;
@@ -57,7 +56,6 @@ public class Event implements IndexedRecord {
   // Used by Avro reflection to instantiate this class when reading events
   public Event(Schema avroSchema) {
     this.avroSchema = avroSchema;
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public Event(String groupId, Payload payload) {
@@ -79,7 +77,6 @@ public class Event implements IndexedRecord {
     typeMap.put(PAYLOAD, payload.getClass().getName());
 
     this.avroSchema = AvroUtil.convert(icebergSchema, getClass(), typeMap);
-    this.positionsToIds = AvroUtil.positionsToIds(avroSchema);
   }
 
   public UUID id() {
@@ -109,7 +106,7 @@ public class Event implements IndexedRecord {
 
   @Override
   public void put(int i, Object v) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case ID:
         this.id = (UUID) v;
         return;
@@ -132,7 +129,7 @@ public class Event implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (positionsToIds[i]) {
+    switch (AvroUtil.positionToId(i, avroSchema)) {
       case ID:
         return id;
       case TYPE:
