@@ -2156,20 +2156,30 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             stagingLocation);
 
         // validate we get the expected results back
-        List<Row> expected = spark.table("parquet_table").select("tmp_col").collectAsList();
-        List<Row> actual =
-            spark
-                .read()
-                .format("iceberg")
-                .load(loadLocation(tableIdentifier))
-                .select("tmp_col")
-                .collectAsList();
-        Assertions.assertThat(actual)
-            .as("Rows must match")
-            .containsExactlyInAnyOrderElementsOf(expected);
+        testWithFilter("tmp_col < to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col <= to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col == to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col > to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col >= to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
         dropTable(tableIdentifier);
       }
     }
+  }
+
+  private void testWithFilter(String filterExpr, TableIdentifier tableIdentifier) {
+    List<Row> expected =
+        spark.table("parquet_table").select("tmp_col").filter(filterExpr).collectAsList();
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier))
+            .select("tmp_col")
+            .filter(filterExpr)
+            .collectAsList();
+    Assertions.assertThat(actual)
+        .as("Rows must match")
+        .containsExactlyInAnyOrderElementsOf(expected);
   }
 
   private GenericData.Record manifestRecord(
