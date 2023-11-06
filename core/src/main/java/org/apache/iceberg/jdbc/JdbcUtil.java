@@ -25,14 +25,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-import org.apache.iceberg.BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP;
 
 final class JdbcUtil {
   // property to control strict-mode (aka check if namespace exists when creating a table)
@@ -48,9 +47,9 @@ final class JdbcUtil {
       "UPDATE "
           + CATALOG_TABLE_NAME
           + " SET "
-          + METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
           + " = ? , "
-          + PREVIOUS_METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + " = ? "
           + " WHERE "
           + CATALOG_NAME
@@ -59,7 +58,7 @@ final class JdbcUtil {
           + " = ? AND "
           + TABLE_NAME
           + " = ? AND "
-          + METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
           + " = ?";
   static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE "
@@ -71,9 +70,9 @@ final class JdbcUtil {
           + " VARCHAR(255) NOT NULL,"
           + TABLE_NAME
           + " VARCHAR(255) NOT NULL,"
-          + METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
           + " VARCHAR(1000),"
-          + PREVIOUS_METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
@@ -164,9 +163,9 @@ final class JdbcUtil {
           + ", "
           + TABLE_NAME
           + ", "
-          + METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
           + ", "
-          + PREVIOUS_METADATA_LOCATION_PROP
+          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + ") "
           + " VALUES (?,?,?,?,null)";
 
