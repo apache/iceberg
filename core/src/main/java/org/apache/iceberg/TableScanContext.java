@@ -30,7 +30,6 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.ThreadPools;
 import org.immutables.value.Value;
 
@@ -61,10 +60,8 @@ abstract class TableScanContext {
     return false;
   }
 
-  @Value.Default
-  public Set<Integer> columnsToKeepStats() {
-    return ImmutableSet.of();
-  }
+  @Nullable
+  public abstract Set<Integer> columnsToKeepStats();
 
   @Nullable
   public abstract Collection<String> selectedColumns();

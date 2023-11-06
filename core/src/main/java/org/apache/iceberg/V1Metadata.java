@@ -487,8 +487,8 @@ class V1Metadata {
     }
 
     @Override
-    public DataFile copyWithStats(Set<Integer> columnsToKeepStats) {
-      return wrapped.copyWithStats(columnsToKeepStats);
+    public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return wrapped.copyWithStats(requestedColumnIds);
     }
 
     @Override

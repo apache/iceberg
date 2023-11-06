@@ -20,9 +20,9 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.Preconditions;
@@ -33,7 +33,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /** Context object with optional arguments for a Flink Scan. */
 @Internal
@@ -64,7 +63,7 @@ public class ScanContext implements Serializable {
   private final List<Expression> filters;
   private final long limit;
   private final boolean includeColumnStats;
-  private final Set<Integer> columnsToKeepStats;
+  private final Collection<String> includeStatsForColumns;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
   private final int maxAllowedPlanningFailures;
@@ -87,7 +86,7 @@ public class ScanContext implements Serializable {
       List<Expression> filters,
       long limit,
       boolean includeColumnStats,
-      Set<Integer> columnsToKeepStats,
+      Collection<String> includeStatsForColumns,
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
@@ -118,7 +117,7 @@ public class ScanContext implements Serializable {
     this.filters = filters;
     this.limit = limit;
     this.includeColumnStats = includeColumnStats;
-    this.columnsToKeepStats = columnsToKeepStats;
+    this.includeStatsForColumns = includeStatsForColumns;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
@@ -253,8 +252,8 @@ public class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
-  public Set<Integer> columnStatsToKeep() {
-    return columnsToKeepStats;
+  public Collection<String> includeStatsForColumns() {
+    return includeStatsForColumns;
   }
 
   public boolean exposeLocality() {
@@ -294,7 +293,7 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
-        .columnsToKeepStats(columnsToKeepStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
@@ -323,7 +322,7 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
-        .columnsToKeepStats(columnsToKeepStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
@@ -360,7 +359,7 @@ public class ScanContext implements Serializable {
     private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
     private boolean includeColumnStats =
         FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
-    private Set<Integer> columnsToKeepStats = ImmutableSet.of();
+    private Collection<String> includeStatsForColumns = null;
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
@@ -476,8 +475,8 @@ public class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder columnsToKeepStats(Set<Integer> newColumnsToKeepStats) {
-      this.columnsToKeepStats = newColumnsToKeepStats;
+    public Builder includeColumnStats(Collection<String> newIncludeStatsForColumns) {
+      this.includeStatsForColumns = newIncludeStatsForColumns;
       return this;
     }
 
@@ -548,7 +547,7 @@ public class ScanContext implements Serializable {
           filters,
           limit,
           includeColumnStats,
-          columnsToKeepStats,
+          includeStatsForColumns,
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,

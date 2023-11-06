@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -170,11 +171,16 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   @Override
-  public ThisT columnsToKeepStats(Set<Integer> columnsToIncludeStats) {
+  public ThisT includeColumnStats(Collection<String> requestedColumns) {
     return newRefinedScan(
         table,
         schema,
-        context.shouldReturnColumnStats(true).columnsToKeepStats(columnsToIncludeStats));
+        context
+            .shouldReturnColumnStats(true)
+            .columnsToKeepStats(
+                requestedColumns.stream()
+                    .map(c -> schema.findField(c).fieldId())
+                    .collect(Collectors.toSet())));
   }
 
   @Override

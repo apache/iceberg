@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -80,17 +79,17 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
 
   /**
    * Create a new scan from this that loads the column stats for the specific columns with each data
-   * file. If the columns set is empty or <code>null</code> then all column stats will be kept, if
-   * {@link #includeColumnStats()} is set.
+   * file.
    *
    * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
    *
-   * @param columnsToKeepStats column ids from the table's schema
+   * @param requestedColumns column names for which to keep the stats. If <code>null</code> then all
+   *     column stats will be kept, when {@link #includeColumnStats()} is set.
    * @return a new scan based on this that loads column stats for specific columns.
    */
-  default ThisT columnsToKeepStats(Set<Integer> columnsToKeepStats) {
+  default ThisT includeColumnStats(Collection<String> requestedColumns) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement columnsToKeepStats");
+        this.getClass().getName() + " doesn't implement includeColumnStats");
   }
 
   /**

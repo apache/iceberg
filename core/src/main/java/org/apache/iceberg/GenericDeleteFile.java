@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 
 class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
@@ -70,12 +69,12 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
    *
    * @param toCopy a generic data file to copy.
    * @param copyStats whether to copy all fields or to drop column-level stats.
-   * @param columnsToKeepStats a set of column ids to keep stats. If empty or <code>null</code> then
-   *     every column stat is kept.
+   * @param requestedColumnIds column ids for which to keep stats. If <code>null</code> then every
+   *     column stat is kept.
    */
   private GenericDeleteFile(
-      GenericDeleteFile toCopy, boolean copyStats, Set<Integer> columnsToKeepStats) {
-    super(toCopy, copyStats, columnsToKeepStats);
+      GenericDeleteFile toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
+    super(toCopy, copyStats, requestedColumnIds);
   }
 
   /** Constructor for Java serialization. */
@@ -83,17 +82,17 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
 
   @Override
   public DeleteFile copyWithoutStats() {
-    return new GenericDeleteFile(this, false /* drop stats */, ImmutableSet.of());
+    return new GenericDeleteFile(this, false /* drop stats */, null);
   }
 
   @Override
-  public DeleteFile copyWithStats(Set<Integer> columnsToKeepStats) {
-    return new GenericDeleteFile(this, true, columnsToKeepStats);
+  public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
+    return new GenericDeleteFile(this, true, requestedColumnIds);
   }
 
   @Override
   public DeleteFile copy() {
-    return new GenericDeleteFile(this, true /* full copy */, ImmutableSet.of());
+    return new GenericDeleteFile(this, true /* full copy */, null);
   }
 
   @Override

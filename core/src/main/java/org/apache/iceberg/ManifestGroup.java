@@ -157,7 +157,8 @@ class ManifestGroup {
   }
 
   ManifestGroup columnsToKeepStats(Set<Integer> newColumnsToKeepStats) {
-    this.columnsToKeepStats = Sets.newHashSet(newColumnsToKeepStats);
+    this.columnsToKeepStats =
+        newColumnsToKeepStats == null ? null : Sets.newHashSet(newColumnsToKeepStats);
     return this;
   }
 

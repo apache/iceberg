@@ -138,7 +138,7 @@ public class TestScanDataFileColumns {
   public void testColumnStatsPartial() {
     // stats columns should be suppressed by default
     for (FileScanTask fileTask :
-        table.newScan().columnsToKeepStats(ImmutableSet.of(1)).planFiles()) {
+        table.newScan().includeColumnStats(ImmutableSet.of("id")).planFiles()) {
       Assert.assertEquals(1, fileTask.file().valueCounts().size());
       Assert.assertEquals(1, fileTask.file().nullValueCounts().size());
       Assert.assertEquals(1, fileTask.file().lowerBounds().size());
