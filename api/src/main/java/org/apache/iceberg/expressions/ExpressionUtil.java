@@ -49,10 +49,15 @@ public class ExpressionUtil {
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
   private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
   private static final Pattern TIMESTAMP =
-      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
+  private static final Pattern TIMESTAMPNS =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?");
   private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
-          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?([-+]\\d{2}:\\d{2}|Z)");
+  private static final Pattern TIMESTAMPTZNS =
+      Pattern.compile(
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?([-+]\\d{2}:\\d{2}|Z)");
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
   private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
@@ -534,10 +539,8 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.DateLiteral) {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
-      return sanitizeTimestamp(
-          ((Literals.TimestampLiteral) literal).unit(),
-          ((Literals.TimestampLiteral) literal).value(),
-          nowMillis);
+      Literals.TimestampLiteral tsLiteral = ((Literals.TimestampLiteral) literal);
+      return sanitizeTimestamp(tsLiteral.unit(), tsLiteral.value(), nowMillis);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
@@ -609,9 +612,15 @@ public class ExpressionUtil {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
       } else if (TIMESTAMP.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.microsWithoutZone());
+        return sanitizeTimestamp(ChronoUnit.MICROS, ts.value(), nowMillis);
+      } else if (TIMESTAMPNS.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.nanosWithoutZone());
         return sanitizeTimestamp(ChronoUnit.NANOS, ts.value(), nowMillis);
       } else if (TIMESTAMPTZ.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.microsWithZone());
+        return sanitizeTimestamp(ChronoUnit.MICROS, ts.value(), nowMillis);
+      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.nanosWithZone());
         return sanitizeTimestamp(ChronoUnit.NANOS, ts.value(), nowMillis);
       } else if (TIME.matcher(value).matches()) {
