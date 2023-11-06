@@ -50,9 +50,6 @@ services:
     depends_on:
       - rest
       - minio
-    volumes:
-      - ./warehouse:/home/iceberg/warehouse
-      - ./notebooks:/home/iceberg/notebooks/notebooks
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
@@ -90,6 +87,9 @@ services:
     ports:
       - 9001:9001
       - 9000:9000
+    volumes:
+      - ./warehouse:/data/warehouse
+      - ./notebooks:/data/notebooks
     command: ["server", "/data", "--console-address", ":9001"]
   mc:
     depends_on:
@@ -340,3 +340,4 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
 #### Learn More
 
 Now that you're up an running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!
+
