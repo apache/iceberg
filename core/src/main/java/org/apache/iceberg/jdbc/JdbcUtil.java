@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -47,9 +46,9 @@ final class JdbcUtil {
       "UPDATE "
           + CATALOG_TABLE_NAME
           + " SET "
-          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+          + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ? , "
-          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+          + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + " = ? "
           + " WHERE "
           + CATALOG_NAME
@@ -58,7 +57,7 @@ final class JdbcUtil {
           + " = ? AND "
           + TABLE_NAME
           + " = ? AND "
-          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+          + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ?";
   static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE "
@@ -70,9 +69,9 @@ final class JdbcUtil {
           + " VARCHAR(255) NOT NULL,"
           + TABLE_NAME
           + " VARCHAR(255) NOT NULL,"
-          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+          + JdbcTableOperations.METADATA_LOCATION_PROP
           + " VARCHAR(1000),"
-          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+          + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
@@ -163,9 +162,9 @@ final class JdbcUtil {
           + ", "
           + TABLE_NAME
           + ", "
-          + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+          + JdbcTableOperations.METADATA_LOCATION_PROP
           + ", "
-          + BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+          + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + ") "
           + " VALUES (?,?,?,?,null)";
 
