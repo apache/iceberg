@@ -85,7 +85,8 @@ class AvroUtil {
 
   static int positionToId(int position, Schema avroSchema) {
     List<Schema.Field> fields = avroSchema.getFields();
-    Preconditions.checkArgument(position < fields.size(), "Invalid field position: " + position);
+    Preconditions.checkArgument(
+        position >= 0 && position < fields.size(), "Invalid field position: " + position);
     Object val = fields.get(position).getObjectProp(AvroSchemaUtil.FIELD_ID_PROP);
     return val == null ? -1 : (int) val;
   }

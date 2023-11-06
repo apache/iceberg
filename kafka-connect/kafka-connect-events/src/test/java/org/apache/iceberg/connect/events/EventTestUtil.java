@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -36,6 +35,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
 class EventTestUtil {
@@ -53,10 +53,12 @@ class EventTestUtil {
   static final Metrics METRICS =
       new Metrics(
           1L,
-          Collections.emptyMap(),
-          Collections.emptyMap(),
-          Collections.emptyMap(),
-          Collections.emptyMap());
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, ByteBuffer.wrap(new byte[10])),
+          ImmutableMap.of(1, ByteBuffer.wrap(new byte[10])));
 
   static OffsetDateTime now() {
     return OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
@@ -72,7 +74,7 @@ class EventTestUtil {
         .withFormat(FileFormat.PARQUET)
         .withMetrics(METRICS)
         .withPartition(data)
-        .withPath("path")
+        .withPath("path/to/file.parquet")
         .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
@@ -89,7 +91,7 @@ class EventTestUtil {
         .withFormat(FileFormat.PARQUET)
         .withMetrics(METRICS)
         .withPartition(data)
-        .withPath("path")
+        .withPath("path/to/file.parquet")
         .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
