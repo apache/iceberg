@@ -92,7 +92,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    String newMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
+    String newMetadataLocation = table.get(METADATA_LOCATION_PROP);
     Preconditions.checkState(
         newMetadataLocation != null,
         "Invalid table %s: metadata location is null",
@@ -204,7 +204,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void validateMetadataLocation(Map<String, String> table, TableMetadata base) {
-    String catalogMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
+    String catalogMetadataLocation = table.get(METADATA_LOCATION_PROP);
     String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
 
     if (!Objects.equals(baseMetadataLocation, catalogMetadataLocation)) {
@@ -240,10 +240,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
               table.put(JdbcUtil.CATALOG_NAME, rs.getString(JdbcUtil.CATALOG_NAME));
               table.put(JdbcUtil.TABLE_NAMESPACE, rs.getString(JdbcUtil.TABLE_NAMESPACE));
               table.put(JdbcUtil.TABLE_NAME, rs.getString(JdbcUtil.TABLE_NAME));
-              table.put(JdbcUtil.METADATA_LOCATION, rs.getString(JdbcUtil.METADATA_LOCATION));
+              table.put(METADATA_LOCATION_PROP, rs.getString(METADATA_LOCATION_PROP));
               table.put(
-                  JdbcUtil.PREVIOUS_METADATA_LOCATION,
-                  rs.getString(JdbcUtil.PREVIOUS_METADATA_LOCATION));
+                  PREVIOUS_METADATA_LOCATION_PROP, rs.getString(PREVIOUS_METADATA_LOCATION_PROP));
             }
 
             rs.close();
