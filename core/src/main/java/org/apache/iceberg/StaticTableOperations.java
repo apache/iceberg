@@ -42,12 +42,15 @@ public class StaticTableOperations implements TableOperations {
   }
 
   public StaticTableOperations(
-          String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+      String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
     this(null, metadataFileLocation, io, locationProvider);
   }
 
   public StaticTableOperations(
-          TableMetadata staticMetadata, String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+      TableMetadata staticMetadata,
+      String metadataFileLocation,
+      FileIO io,
+      LocationProvider locationProvider) {
     this.staticMetadata = staticMetadata;
     this.io = io;
     this.metadataFileLocation = metadataFileLocation;
