@@ -34,11 +34,21 @@ public class StaticTableOperations implements TableOperations {
 
   /** Creates a StaticTableOperations tied to a specific static version of the TableMetadata */
   public StaticTableOperations(String metadataFileLocation, FileIO io) {
-    this(metadataFileLocation, io, null);
+    this(null, metadataFileLocation, io, null);
+  }
+
+  public StaticTableOperations(TableMetadata staticMetadata, FileIO io) {
+    this(staticMetadata, staticMetadata.metadataFileLocation(), io, null);
   }
 
   public StaticTableOperations(
-      String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+          String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+    this(null, metadataFileLocation, io, locationProvider);
+  }
+
+  public StaticTableOperations(
+          TableMetadata staticMetadata, String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+    this.staticMetadata = staticMetadata;
     this.io = io;
     this.metadataFileLocation = metadataFileLocation;
     this.locationProvider = locationProvider;
