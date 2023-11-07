@@ -328,19 +328,19 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry<DataFile> manifestEntry(
-      ManifestEntry.Status status, Long snapshotId, DataFile file) {
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
+      ManifestEntry.Status status, Long snapshotId, F file) {
     return manifestEntry(status, snapshotId, 0L, 0L, file);
   }
 
-  ManifestEntry<DataFile> manifestEntry(
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
       ManifestEntry.Status status,
       Long snapshotId,
       Long dataSequenceNumber,
       Long fileSequenceNumber,
-      DataFile file) {
+      F file) {
 
-    GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
+    GenericManifestEntry<F> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {

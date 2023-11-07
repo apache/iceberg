@@ -36,8 +36,11 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -1103,6 +1106,499 @@ public class TestRewriteManifests extends TableTestBase {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
+  }
+
+  @Test
+  public void testRewriteDataManifestsPreservesDeletes() {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    Table table = load();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
+
+    table.rewriteManifests().clusterBy(file -> file.path().toString()).commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    validateSummary(rewriteSnapshot, 1, 1, 2, 2);
+
+    List<ManifestFile> dataManifests = sortedDataManifests(table.io(), rewriteSnapshot);
+    Assertions.assertThat(dataManifests).hasSize(2);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateManifest(
+        dataManifests.get(1),
+        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
+    ManifestFile deleteManifest = Iterables.getOnlyElement(deleteManifests);
+    validateDeleteManifest(
+        deleteManifest,
+        dataSeqs(deleteSnapshot.sequenceNumber(), deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber(), deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(FILE_A_DELETES, FILE_A2_DELETES),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+  }
+
+  @Test
+  public void testReplaceDeleteManifestsOnly() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    Table table = load();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
+
+    ManifestFile originalDeleteManifest =
+        Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
+    ManifestFile newDeleteManifest1 =
+        writeManifest(
+            "delete-manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A_DELETES));
+    ManifestFile newDeleteManifest2 =
+        writeManifest(
+            "delete-manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    table
+        .rewriteManifests()
+        .deleteManifest(originalDeleteManifest)
+        .addManifest(newDeleteManifest1)
+        .addManifest(newDeleteManifest2)
+        .commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    ManifestFile dataManifest = Iterables.getOnlyElement(rewriteSnapshot.dataManifests(table.io()));
+    validateManifest(
+        dataManifest,
+        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+
+    List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
+    Assertions.assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A2_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testReplaceDataAndDeleteManifests() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    Table table = load();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
+    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
+
+    ManifestFile originalDataManifest =
+        Iterables.getOnlyElement(deleteSnapshot.dataManifests(table.io()));
+    ManifestFile newDataManifest1 =
+        writeManifest(
+            "manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                appendSnapshot.snapshotId(),
+                appendSnapshot.sequenceNumber(),
+                appendSnapshot.sequenceNumber(),
+                FILE_A));
+    ManifestFile newDataManifest2 =
+        writeManifest(
+            "manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                appendSnapshot.snapshotId(),
+                appendSnapshot.sequenceNumber(),
+                appendSnapshot.sequenceNumber(),
+                FILE_B));
+
+    ManifestFile originalDeleteManifest =
+        Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
+    ManifestFile newDeleteManifest1 =
+        writeManifest(
+            "delete-manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A_DELETES));
+    ManifestFile newDeleteManifest2 =
+        writeManifest(
+            "delete-manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    table
+        .rewriteManifests()
+        .deleteManifest(originalDataManifest)
+        .addManifest(newDataManifest1)
+        .addManifest(newDataManifest2)
+        .deleteManifest(originalDeleteManifest)
+        .addManifest(newDeleteManifest1)
+        .addManifest(newDeleteManifest2)
+        .commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    List<ManifestFile> dataManifests = sortedDataManifests(table.io(), rewriteSnapshot);
+    Assertions.assertThat(dataManifests).hasSize(2);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateManifest(
+        dataManifests.get(1),
+        dataSeqs(appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
+    Assertions.assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A2_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+
+    ManifestFile originalDeleteManifest =
+        Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
+    ManifestFile newDeleteManifest1 =
+        writeManifest(
+            "delete-manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A_DELETES));
+    ManifestFile newDeleteManifest2 =
+        writeManifest(
+            "delete-manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot.snapshotId(),
+                deleteSnapshot.sequenceNumber(),
+                deleteSnapshot.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(originalDeleteManifest);
+    rewriteManifests.addManifest(newDeleteManifest1);
+    rewriteManifests.addManifest(newDeleteManifest2);
+
+    table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
+
+    Snapshot concurrentSnapshot = table.currentSnapshot();
+    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
+
+    rewriteManifests.commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    validateSummary(rewriteSnapshot, 1, 2, 2, 0);
+
+    List<ManifestFile> dataManifests = rewriteSnapshot.dataManifests(table.io());
+    Assertions.assertThat(dataManifests).hasSize(2);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(concurrentSnapshot.sequenceNumber(), concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber(), concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId(), concurrentSnapshot.snapshotId()),
+        files(FILE_C, FILE_D),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+    validateManifest(
+        dataManifests.get(1),
+        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
+        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+
+    List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
+    Assertions.assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(deleteSnapshot.sequenceNumber()),
+        fileSeqs(deleteSnapshot.sequenceNumber()),
+        ids(deleteSnapshot.snapshotId()),
+        files(FILE_A2_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_B_DELETES).addDeletes(FILE_C2_DELETES).commit();
+
+    Snapshot deleteSnapshot2 = table.currentSnapshot();
+
+    ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
+    ManifestFile newDeleteManifest1 =
+        writeManifest(
+            "delete-manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot1.snapshotId(),
+                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshot1.sequenceNumber(),
+                FILE_A_DELETES));
+    ManifestFile newDeleteManifest2 =
+        writeManifest(
+            "delete-manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot1.snapshotId(),
+                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshot1.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(originalDeleteManifest);
+    rewriteManifests.addManifest(newDeleteManifest1);
+    rewriteManifests.addManifest(newDeleteManifest2);
+
+    table.newRewrite().deleteFile(FILE_B_DELETES).commit();
+
+    Snapshot concurrentSnapshot = table.currentSnapshot();
+    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
+
+    rewriteManifests.commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    validateSummary(rewriteSnapshot, 1, 2, 2, 0);
+
+    List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
+    Assertions.assertThat(deleteManifests).hasSize(3);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(deleteSnapshot1.sequenceNumber()),
+        fileSeqs(deleteSnapshot1.sequenceNumber()),
+        ids(deleteSnapshot1.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(deleteSnapshot1.sequenceNumber()),
+        fileSeqs(deleteSnapshot1.sequenceNumber()),
+        ids(deleteSnapshot1.snapshotId()),
+        files(FILE_A2_DELETES),
+        statuses(ManifestEntry.Status.EXISTING));
+    validateDeleteManifest(
+        deleteManifests.get(2),
+        dataSeqs(deleteSnapshot2.sequenceNumber(), deleteSnapshot2.sequenceNumber()),
+        fileSeqs(deleteSnapshot2.sequenceNumber(), deleteSnapshot2.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId(), deleteSnapshot2.snapshotId()),
+        files(FILE_B_DELETES, FILE_C2_DELETES),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot1 = table.currentSnapshot();
+
+    ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
+    ManifestFile newDeleteManifest1 =
+        writeManifest(
+            "delete-manifest-file-1.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot1.snapshotId(),
+                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshot1.sequenceNumber(),
+                FILE_A_DELETES));
+    ManifestFile newDeleteManifest2 =
+        writeManifest(
+            "delete-manifest-file-2.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot1.snapshotId(),
+                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshot1.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(originalDeleteManifest);
+    rewriteManifests.addManifest(newDeleteManifest1);
+    rewriteManifests.addManifest(newDeleteManifest2);
+
+    table.newRewrite().deleteFile(FILE_A_DELETES).commit();
+
+    Snapshot concurrentSnapshot = table.currentSnapshot();
+    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(2);
+
+    Assertions.assertThatThrownBy(rewriteManifests::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Manifest is missing");
+  }
+
+  @Test
+  public void testDeleteManifestReplacementFailure() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+
+    Snapshot deleteSnapshot1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+
+    Snapshot deleteSnapshot2 = table.currentSnapshot();
+    List<ManifestFile> originalDeleteManifests = deleteSnapshot2.deleteManifests(table.io());
+    Assertions.assertThat(originalDeleteManifests).hasSize(2);
+
+    ManifestFile newDeleteManifest =
+        writeManifest(
+            "delete-manifest-file.avro",
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot1.snapshotId(),
+                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshot1.sequenceNumber(),
+                FILE_A_DELETES),
+            manifestEntry(
+                ManifestEntry.Status.EXISTING,
+                deleteSnapshot2.snapshotId(),
+                deleteSnapshot2.sequenceNumber(),
+                deleteSnapshot2.sequenceNumber(),
+                FILE_A2_DELETES));
+
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
+
+    table.ops().failCommits(5);
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    for (ManifestFile originalDeleteManifest : originalDeleteManifests) {
+      rewriteManifests.deleteManifest(originalDeleteManifest);
+    }
+    rewriteManifests.addManifest(newDeleteManifest);
+
+    Assertions.assertThatThrownBy(rewriteManifests::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    Assertions.assertThat(new File(newDeleteManifest.path())).exists();
+  }
+
+  private List<ManifestFile> sortedDataManifests(FileIO io, Snapshot snapshot) {
+    List<ManifestFile> manifests = Lists.newArrayList(snapshot.dataManifests(io));
+    manifests.sort(Comparator.comparing(ManifestFile::path));
+    return manifests;
   }
 
   private void validateSummary(

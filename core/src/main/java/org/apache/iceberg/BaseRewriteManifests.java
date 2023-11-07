@@ -168,7 +168,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
+    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -190,7 +190,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
-    apply.addAll(base.currentSnapshot().deleteManifests(ops.io()));
 
     return apply;
   }
@@ -242,7 +241,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
           .executeWith(workerPool())
           .run(
               manifest -> {
-                if (predicate != null && !predicate.test(manifest)) {
+                if (containsDeletes(manifest) || !matchesPredicate(manifest)) {
                   keptManifests.add(manifest);
                 } else {
                   rewrittenManifests.add(manifest);
@@ -266,6 +265,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     } finally {
       Tasks.foreach(writers.values()).executeWith(workerPool()).run(WriterWrapper::close);
     }
+  }
+
+  private boolean containsDeletes(ManifestFile manifest) {
+    return manifest.content() == ManifestContent.DELETES;
+  }
+
+  private boolean matchesPredicate(ManifestFile manifest) {
+    return predicate == null || predicate.test(manifest);
   }
 
   private void validateDeletedManifests(Set<ManifestFile> currentManifests) {
