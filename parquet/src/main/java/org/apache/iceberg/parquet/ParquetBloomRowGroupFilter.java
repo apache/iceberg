@@ -48,8 +48,12 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetBloomRowGroupFilter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetBloomRowGroupFilter.class);
   private final Schema schema;
   private final Expression expr;
   private final boolean caseSensitive;
@@ -120,6 +124,9 @@ public class ParquetBloomRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
+      LOG.info(
+          "Bloom Filters are used. The following fields have bloom filters : {}",
+          fieldsWithBloomFilter);
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
