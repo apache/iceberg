@@ -508,15 +508,39 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Iterable<Snapshot> snapshots = table.snapshots();
-    for (Snapshot s : snapshots) {
-      System.out.println(s.snapshotId());
-    }
-
     Assert.assertEquals(
         6,
         microBatchCount(
             ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+  }
+
+  @Test
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    Assert.assertEquals(
+        2,
+        microBatchCount(
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")));
+  }
+
+  @Test
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    Assert.assertEquals(
+        6,
+        microBatchCount(
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4",
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
   }
 
   @Test
@@ -527,11 +551,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     makeRewriteDataFiles();
     makeRewriteDataFiles();
-
-    Iterable<Snapshot> snapshots = table.snapshots();
-    for (Snapshot s : snapshots) {
-      System.out.println(s.snapshotId());
-    }
 
     Assert.assertEquals(
         6,
@@ -549,11 +568,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
 
     appendDataAsMultipleSnapshots(expected);
-
-    Iterable<Snapshot> snapshots = table.snapshots();
-    for (Snapshot s : snapshots) {
-      System.out.println(s.snapshotId());
-    }
 
     Assert.assertEquals(
         12,

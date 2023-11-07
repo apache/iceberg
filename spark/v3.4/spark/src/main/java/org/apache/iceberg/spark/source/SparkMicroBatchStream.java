@@ -309,8 +309,17 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
   }
 
-  private Snapshot nextSnapshotSkippingOverNoneProcessable(Snapshot curSnapshot) {
+  /**
+   * Get the next snapshot skiping over rewrite and delete snapshots.
+   * @param nextValidSnapshot
+   * @return the next valid snapshot (not a rewrite or delete snapshot), 
+   *         returns null if all remaining snapshots should be skipped.
+   */
+  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
+    Preconditions.checkArgument(curSnapshot != null, "Sanity check, curSnapshot should not be null");
+    
     curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    // skip over rewrite and delete snapshots
     while (!shouldProcess(curSnapshot)) {
       LOG.debug("Skipping snapshot: {} of table {}", curSnapshot.snapshotId(), table.name());
       // if the currentSnapShot was also the mostRecentSnapshot then break
@@ -405,9 +414,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
       // if everything was OK and we consumed complete snapshot then move to next snapshot
       if (shouldContinueReading) {
-        Snapshot nextValid = nextSnapshotSkippingOverNoneProcessable(curSnapshot);
+        Snapshot nextValid = nextValidSnapshot(curSnapshot);
         if (nextValid == null) {
-          // all the remaining snapshots should be skipped.
+          // nextValide is null, this implies all the remaining snapshots should be skipped.
           shouldContinueReading = false;
           break;
         }
