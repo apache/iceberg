@@ -273,7 +273,7 @@ To read a table, simply use the Iceberg table's name.
 
 Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
 Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`. In this guide,
-we use JDBC, but you can follow these instructions to configure other catalog types. To learn more, check out
+we use hive, but you can follow these instructions to configure other catalog types. To learn more, check out
 the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
 
 This configuration creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
