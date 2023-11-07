@@ -265,6 +265,10 @@ public class TestHelpers {
     }
   }
 
+  public static ExpectedSpecBuilder newExpectedSpecBuilder() {
+    return new ExpectedSpecBuilder();
+  }
+
   public static class KryoHelpers {
     private KryoHelpers() {}
 
@@ -665,6 +669,42 @@ public class TestHelpers {
     @Override
     public List<Long> splitOffsets() {
       return null;
+    }
+  }
+
+  public static class ExpectedSpecBuilder {
+    private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
+
+    private Schema schema;
+
+    private ExpectedSpecBuilder() {
+      this.unboundPartitionSpecBuilder = UnboundPartitionSpec.builder();
+    }
+
+    public ExpectedSpecBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    public ExpectedSpecBuilder withSpecId(int newSpecId) {
+      unboundPartitionSpecBuilder.withSpecId(newSpecId);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(
+        String transformAsString, int sourceId, int partitionId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
+      return this;
+    }
+
+    public PartitionSpec build() {
+      Preconditions.checkNotNull(schema, "Field schema is missing");
+      return unboundPartitionSpecBuilder.build().bind(schema);
     }
   }
 }
