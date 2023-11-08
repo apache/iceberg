@@ -227,7 +227,11 @@ class ViewHistoryEntry(BaseModel):
 class ViewVersion(BaseModel):
     version_id: int = Field(..., alias='version-id')
     timestamp_ms: int = Field(..., alias='timestamp-ms')
-    schema_id: int = Field(..., alias='schema-id')
+    schema_id: int = Field(
+        ...,
+        alias='schema-id',
+        description='Schema ID to set as current, or -1 to set last added schema',
+    )
     summary: Dict[str, str]
     representations: List[ViewRepresentation]
     default_catalog: Optional[str] = Field(None, alias='default-catalog')

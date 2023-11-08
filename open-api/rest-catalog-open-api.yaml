@@ -2077,6 +2077,7 @@ components:
           format: int64
         schema-id:
           type: integer
+          description: Schema ID to set as current, or -1 to set last added schema
         summary:
           type: object
           additionalProperties:

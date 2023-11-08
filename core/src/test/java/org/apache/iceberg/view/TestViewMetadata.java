@@ -28,6 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -289,21 +290,21 @@ public class TestViewMetadata {
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionOne);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionOne).schemaId(-1).build());
 
     assertThat(changes)
         .element(4)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionTwo);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionTwo).schemaId(-1).build());
 
     assertThat(changes)
         .element(5)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionThree).schemaId(-1).build());
 
     assertThat(changes)
         .element(6)
@@ -409,7 +410,7 @@ public class TestViewMetadata {
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionThree).schemaId(-1).build());
 
     assertThat(changes)
         .element(8)
@@ -783,5 +784,19 @@ public class TestViewMetadata {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version: Cannot add multiple queries for dialect spark");
+  }
+
+  @Test
+  public void lastAddedSchemaFailure() {
+    ViewVersion viewVersion = newViewVersion(1, -1, "select * from ns.tbl");
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .addVersion(viewVersion)
+                    .setCurrentVersionId(1)
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set last added schema: no schema has been added");
   }
 }

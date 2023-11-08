@@ -1559,7 +1559,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     ReplaceViewVersion replaceViewVersion =
         view.replaceVersion()
             .withQuery("trino", "select count(*) from ns.tbl")
-            .withSchema(OTHER_SCHEMA)
+            .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace());
 
     ReplaceViewVersion replaceViewVersionConcurrent =
@@ -1611,7 +1611,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             ImmutableViewVersion.builder()
                 .timestampMillis(updatedView.version(3).timestampMillis())
                 .versionId(3)
-                .schemaId(1)
+                .schemaId(0)
                 .summary(updatedView.version(3).summary())
                 .defaultNamespace(identifier.namespace())
                 .addRepresentations(
