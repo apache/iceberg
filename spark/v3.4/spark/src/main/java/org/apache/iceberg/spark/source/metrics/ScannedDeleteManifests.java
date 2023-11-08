@@ -20,9 +20,9 @@ package org.apache.iceberg.spark.source.metrics;
 
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class ScannedDataFiles extends CustomSumMetric {
+public class ScannedDeleteManifests extends CustomSumMetric {
 
-  static final String NAME = "scannedDataFiles";
+  static final String NAME = "scannedDeleteManifests";
 
   @Override
   public String name() {
@@ -31,6 +31,6 @@ public class ScannedDataFiles extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "number of scanned data files";
+    return "number of scanned delete manifests";
   }
 }
