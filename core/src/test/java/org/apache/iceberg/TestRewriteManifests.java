@@ -1117,12 +1117,16 @@ public class TestRewriteManifests extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+    long appendSnapshotSeq = appendSnapshot.sequenceNumber();
     Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
+    long deleteSnapshotId = deleteSnapshot.snapshotId();
+    long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
     Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
@@ -1136,16 +1140,16 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(dataManifests).hasSize(2);
     validateManifest(
         dataManifests.get(0),
-        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId),
         files(FILE_A),
         statuses(ManifestEntry.Status.EXISTING));
     validateManifest(
         dataManifests.get(1),
-        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId),
         files(FILE_B),
         statuses(ManifestEntry.Status.EXISTING));
 
@@ -1153,9 +1157,9 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestFile deleteManifest = Iterables.getOnlyElement(deleteManifests);
     validateDeleteManifest(
         deleteManifest,
-        dataSeqs(deleteSnapshot.sequenceNumber(), deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber(), deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq, deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq, deleteSnapshotSeq),
+        ids(deleteSnapshotId, deleteSnapshotId),
         files(FILE_A_DELETES, FILE_A2_DELETES),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
@@ -1169,12 +1173,16 @@ public class TestRewriteManifests extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+    long appendSnapshotSeq = appendSnapshot.sequenceNumber();
     Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
+    long deleteSnapshotId = deleteSnapshot.snapshotId();
+    long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
     Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
@@ -1185,18 +1193,18 @@ public class TestRewriteManifests extends TableTestBase {
             "delete-manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A_DELETES));
     ManifestFile newDeleteManifest2 =
         writeManifest(
             "delete-manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
     table
@@ -1211,9 +1219,9 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestFile dataManifest = Iterables.getOnlyElement(rewriteSnapshot.dataManifests(table.io()));
     validateManifest(
         dataManifest,
-        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId, appendSnapshotId),
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
@@ -1221,16 +1229,16 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
     validateDeleteManifest(
         deleteManifests.get(1),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A2_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
   }
@@ -1244,12 +1252,16 @@ public class TestRewriteManifests extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+    long appendSnapshotSeq = appendSnapshot.sequenceNumber();
     Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
+    long deleteSnapshotId = deleteSnapshot.snapshotId();
+    long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
     Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
     Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
@@ -1260,18 +1272,18 @@ public class TestRewriteManifests extends TableTestBase {
             "manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                appendSnapshot.snapshotId(),
-                appendSnapshot.sequenceNumber(),
-                appendSnapshot.sequenceNumber(),
+                appendSnapshotId,
+                appendSnapshotSeq,
+                appendSnapshotSeq,
                 FILE_A));
     ManifestFile newDataManifest2 =
         writeManifest(
             "manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                appendSnapshot.snapshotId(),
-                appendSnapshot.sequenceNumber(),
-                appendSnapshot.sequenceNumber(),
+                appendSnapshotId,
+                appendSnapshotSeq,
+                appendSnapshotSeq,
                 FILE_B));
 
     ManifestFile originalDeleteManifest =
@@ -1281,18 +1293,18 @@ public class TestRewriteManifests extends TableTestBase {
             "delete-manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A_DELETES));
     ManifestFile newDeleteManifest2 =
         writeManifest(
             "delete-manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
     table
@@ -1311,16 +1323,16 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(dataManifests).hasSize(2);
     validateManifest(
         dataManifests.get(0),
-        dataSeqs(appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq),
+        ids(appendSnapshotId),
         files(FILE_A),
         statuses(ManifestEntry.Status.EXISTING));
     validateManifest(
         dataManifests.get(1),
-        dataSeqs(appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq),
+        ids(appendSnapshotId),
         files(FILE_B),
         statuses(ManifestEntry.Status.EXISTING));
 
@@ -1328,16 +1340,16 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
     validateDeleteManifest(
         deleteManifests.get(1),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A2_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
   }
@@ -1349,10 +1361,14 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+    long appendSnapshotSeq = appendSnapshot.sequenceNumber();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
+    long deleteSnapshotId = deleteSnapshot.snapshotId();
+    long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
 
     ManifestFile originalDeleteManifest =
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
@@ -1361,18 +1377,18 @@ public class TestRewriteManifests extends TableTestBase {
             "delete-manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A_DELETES));
     ManifestFile newDeleteManifest2 =
         writeManifest(
             "delete-manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot.snapshotId(),
-                deleteSnapshot.sequenceNumber(),
-                deleteSnapshot.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -1383,6 +1399,8 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
 
     Snapshot concurrentSnapshot = table.currentSnapshot();
+    long concurrentSnapshotSeq = concurrentSnapshot.sequenceNumber();
+    long concurrentSnapshotId = concurrentSnapshot.snapshotId();
     Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
 
     rewriteManifests.commit();
@@ -1393,18 +1411,19 @@ public class TestRewriteManifests extends TableTestBase {
 
     List<ManifestFile> dataManifests = rewriteSnapshot.dataManifests(table.io());
     Assertions.assertThat(dataManifests).hasSize(2);
+
     validateManifest(
         dataManifests.get(0),
-        dataSeqs(concurrentSnapshot.sequenceNumber(), concurrentSnapshot.sequenceNumber()),
-        fileSeqs(concurrentSnapshot.sequenceNumber(), concurrentSnapshot.sequenceNumber()),
-        ids(concurrentSnapshot.snapshotId(), concurrentSnapshot.snapshotId()),
+        dataSeqs(concurrentSnapshotSeq, concurrentSnapshotSeq),
+        fileSeqs(concurrentSnapshotSeq, concurrentSnapshotSeq),
+        ids(concurrentSnapshotId, concurrentSnapshotId),
         files(FILE_C, FILE_D),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
     validateManifest(
         dataManifests.get(1),
-        dataSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        fileSeqs(appendSnapshot.sequenceNumber(), appendSnapshot.sequenceNumber()),
-        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId, appendSnapshotId),
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
@@ -1412,16 +1431,16 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
     validateDeleteManifest(
         deleteManifests.get(1),
-        dataSeqs(deleteSnapshot.sequenceNumber()),
-        fileSeqs(deleteSnapshot.sequenceNumber()),
-        ids(deleteSnapshot.snapshotId()),
+        dataSeqs(deleteSnapshotSeq),
+        fileSeqs(deleteSnapshotSeq),
+        ids(deleteSnapshotId),
         files(FILE_A2_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
   }
@@ -1435,10 +1454,14 @@ public class TestRewriteManifests extends TableTestBase {
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot1 = table.currentSnapshot();
+    long deleteSnapshotId1 = deleteSnapshot1.snapshotId();
+    long deleteSnapshotSeq1 = deleteSnapshot1.sequenceNumber();
 
     table.newRowDelta().addDeletes(FILE_B_DELETES).addDeletes(FILE_C2_DELETES).commit();
 
     Snapshot deleteSnapshot2 = table.currentSnapshot();
+    long deleteSnapshotId2 = deleteSnapshot2.snapshotId();
+    long deleteSnapshotSeq2 = deleteSnapshot2.sequenceNumber();
 
     ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
@@ -1446,18 +1469,18 @@ public class TestRewriteManifests extends TableTestBase {
             "delete-manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot1.snapshotId(),
-                deleteSnapshot1.sequenceNumber(),
-                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshotId1,
+                deleteSnapshotSeq1,
+                deleteSnapshotSeq1,
                 FILE_A_DELETES));
     ManifestFile newDeleteManifest2 =
         writeManifest(
             "delete-manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot1.snapshotId(),
-                deleteSnapshot1.sequenceNumber(),
-                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshotId1,
+                deleteSnapshotSeq1,
+                deleteSnapshotSeq1,
                 FILE_A2_DELETES));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -1468,6 +1491,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.newRewrite().deleteFile(FILE_B_DELETES).commit();
 
     Snapshot concurrentSnapshot = table.currentSnapshot();
+    long concurrentSnapshotId = concurrentSnapshot.snapshotId();
     Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
 
     rewriteManifests.commit();
@@ -1480,23 +1504,23 @@ public class TestRewriteManifests extends TableTestBase {
     Assertions.assertThat(deleteManifests).hasSize(3);
     validateDeleteManifest(
         deleteManifests.get(0),
-        dataSeqs(deleteSnapshot1.sequenceNumber()),
-        fileSeqs(deleteSnapshot1.sequenceNumber()),
-        ids(deleteSnapshot1.snapshotId()),
+        dataSeqs(deleteSnapshotSeq1),
+        fileSeqs(deleteSnapshotSeq1),
+        ids(deleteSnapshotId1),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
     validateDeleteManifest(
         deleteManifests.get(1),
-        dataSeqs(deleteSnapshot1.sequenceNumber()),
-        fileSeqs(deleteSnapshot1.sequenceNumber()),
-        ids(deleteSnapshot1.snapshotId()),
+        dataSeqs(deleteSnapshotSeq1),
+        fileSeqs(deleteSnapshotSeq1),
+        ids(deleteSnapshotId1),
         files(FILE_A2_DELETES),
         statuses(ManifestEntry.Status.EXISTING));
     validateDeleteManifest(
         deleteManifests.get(2),
-        dataSeqs(deleteSnapshot2.sequenceNumber(), deleteSnapshot2.sequenceNumber()),
-        fileSeqs(deleteSnapshot2.sequenceNumber(), deleteSnapshot2.sequenceNumber()),
-        ids(concurrentSnapshot.snapshotId(), deleteSnapshot2.snapshotId()),
+        dataSeqs(deleteSnapshotSeq2, deleteSnapshotSeq2),
+        fileSeqs(deleteSnapshotSeq2, deleteSnapshotSeq2),
+        ids(concurrentSnapshotId, deleteSnapshotId2),
         files(FILE_B_DELETES, FILE_C2_DELETES),
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
@@ -1509,26 +1533,28 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
-    Snapshot deleteSnapshot1 = table.currentSnapshot();
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    long deleteSnapshotId = deleteSnapshot.snapshotId();
+    long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
 
-    ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
+    ManifestFile originalDeleteManifest = deleteSnapshot.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
         writeManifest(
             "delete-manifest-file-1.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot1.snapshotId(),
-                deleteSnapshot1.sequenceNumber(),
-                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A_DELETES));
     ManifestFile newDeleteManifest2 =
         writeManifest(
             "delete-manifest-file-2.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot1.snapshotId(),
-                deleteSnapshot1.sequenceNumber(),
-                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshotId,
+                deleteSnapshotSeq,
+                deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -1555,10 +1581,15 @@ public class TestRewriteManifests extends TableTestBase {
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
     Snapshot deleteSnapshot1 = table.currentSnapshot();
+    long deleteSnapshotId1 = deleteSnapshot1.snapshotId();
+    long deleteSnapshotSeq1 = deleteSnapshot1.sequenceNumber();
 
     table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
 
     Snapshot deleteSnapshot2 = table.currentSnapshot();
+    long deleteSnapshotId2 = deleteSnapshot2.snapshotId();
+    long deleteSnapshotSeq2 = deleteSnapshot2.sequenceNumber();
+
     List<ManifestFile> originalDeleteManifests = deleteSnapshot2.deleteManifests(table.io());
     Assertions.assertThat(originalDeleteManifests).hasSize(2);
 
@@ -1567,15 +1598,15 @@ public class TestRewriteManifests extends TableTestBase {
             "delete-manifest-file.avro",
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot1.snapshotId(),
-                deleteSnapshot1.sequenceNumber(),
-                deleteSnapshot1.sequenceNumber(),
+                deleteSnapshotId1,
+                deleteSnapshotSeq1,
+                deleteSnapshotSeq1,
                 FILE_A_DELETES),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
-                deleteSnapshot2.snapshotId(),
-                deleteSnapshot2.sequenceNumber(),
-                deleteSnapshot2.sequenceNumber(),
+                deleteSnapshotId2,
+                deleteSnapshotSeq2,
+                deleteSnapshotSeq2,
                 FILE_A2_DELETES));
 
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
