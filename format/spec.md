@@ -1000,10 +1000,10 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
 | **`date`**         | `date`              |                                                      |                                                                                         |
 | **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp`         |                                                      | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
-| **`timestamptz`**  | `timestamp_instant` |                                                      | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
-| **`timestamp_ns`** | `timestamp`         |                                                      | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
-| **`timestamptz_ns`** | `timestamp_instant` |                                                    | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
+| **`timestamp`**    | `timestamp`         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
+| **`timestamptz`**  | `timestamp_instant` | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
+| **`timestamp_ns`** | `timestamp`         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
+| **`timestamptz_ns`** | `timestamp_instant` | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
 | **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
 | **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
 | **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
@@ -1015,7 +1015,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 Notes:
 
 1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
-2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds.
+2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds. `iceberg.timestamp-unit` is assumed to be `MICROS` if not present.
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would be inconvenient.
 
