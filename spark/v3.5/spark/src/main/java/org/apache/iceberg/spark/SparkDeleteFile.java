@@ -18,29 +18,23 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.List;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.StructType;
 
-public class SparkDataFile extends SparkContentFile<DataFile> implements DataFile {
+public class SparkDeleteFile extends SparkContentFile<DeleteFile> implements DeleteFile {
 
-  public SparkDataFile(Types.StructType type, StructType sparkType) {
+  public SparkDeleteFile(Types.StructType type, StructType sparkType) {
     super(type, null, sparkType);
   }
 
-  public SparkDataFile(
+  public SparkDeleteFile(
       Types.StructType type, Types.StructType projectedType, StructType sparkType) {
     super(type, projectedType, sparkType);
   }
 
   @Override
-  protected DataFile asFile() {
+  protected DeleteFile asFile() {
     return this;
-  }
-
-  @Override
-  public List<Integer> equalityFieldIds() {
-    return null;
   }
 }
