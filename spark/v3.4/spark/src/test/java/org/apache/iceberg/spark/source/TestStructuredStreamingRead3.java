@@ -508,10 +508,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assert.assertEquals(
-        6,
+    Assertions.assertThat(
         microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
   }
 
   @Test
@@ -522,10 +521,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assert.assertEquals(
-        2,
+    Assertions.assertThat(
         microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")));
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"))).isEqualTo(2);
   }
 
   @Test
@@ -536,11 +534,10 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assert.assertEquals(
-        6,
+    Assertions.assertThat(
         microBatchCount(
             ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4",
-            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
   }
 
   @Test
@@ -552,10 +549,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
     makeRewriteDataFiles();
 
-    Assert.assertEquals(
-        6,
+    Assertions.assertThat(
         microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
   }
 
   @Test
@@ -569,10 +565,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     appendDataAsMultipleSnapshots(expected);
 
-    Assert.assertEquals(
-        12,
+    Assertions.assertThat(
         microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(12);
   }
 
   @Test
