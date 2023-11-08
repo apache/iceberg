@@ -1,5 +1,7 @@
 ---
 title: "Branching and Tagging"
+search:
+ exclude: true
 ---
 
 <!--
