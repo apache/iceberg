@@ -1379,7 +1379,7 @@ to help maintain a uniform experience.
 ### Point in Time Reads (Time Travel)
 
 Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
-might not be consistent for determining a table states at a given point in time due to a variety of table operations (e.g. branch-merge table workflows OR forcing the current state of table to specific snapshot ID).
+might indicate different snapshot IDs for a specific timestamp. The discrepencies can be caused by a variety of table operations (e.g. branch-merge table workflows or forcing the current state of table to specific snapshot ID).
 
 When processing point in time queries the Iceberg community has chosen to use "snapshot-log" metadata to lookup the table state
 at the given point in time.  For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table.
