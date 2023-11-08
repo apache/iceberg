@@ -309,28 +309,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
   }
 
-  /**
-   * Get the next snapshot skiping over rewrite and delete snapshots.
-   * @param nextValidSnapshot
-   * @return the next valid snapshot (not a rewrite or delete snapshot), 
-   *         returns null if all remaining snapshots should be skipped.
-   */
-  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Preconditions.checkArgument(curSnapshot != null, "Sanity check, curSnapshot should not be null");
-    
-    curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    // skip over rewrite and delete snapshots
-    while (!shouldProcess(curSnapshot)) {
-      LOG.debug("Skipping snapshot: {} of table {}", curSnapshot.snapshotId(), table.name());
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    }
-    return curSnapshot;
-  }
-
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
@@ -434,6 +412,29 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
   }
+
+  /**
+   * Get the next snapshot skiping over rewrite and delete snapshots.
+   * @param nextValidSnapshot
+   * @return the next valid snapshot (not a rewrite or delete snapshot), 
+   *         returns null if all remaining snapshots should be skipped.
+   */
+  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
+    Preconditions.checkArgument(curSnapshot != null, "Sanity check, curSnapshot should not be null");
+    
+    curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    // skip over rewrite and delete snapshots
+    while (!shouldProcess(curSnapshot)) {
+      LOG.debug("Skipping snapshot: {} of table {}", curSnapshot.snapshotId(), table.name());
+      // if the currentSnapShot was also the mostRecentSnapshot then break
+      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    }
+    return curSnapshot;
+  }
+
 
   private long addedFilesCount(Snapshot snapshot) {
     long addedFilesCount =
