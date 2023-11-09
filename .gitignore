@@ -2,7 +2,6 @@
 .DS_Store
 .cache
 tmp/
-site
 
 # intellij files
 .idea
@@ -64,13 +63,4 @@ metastore_db/
 # Spark/metastore files
 spark-warehouse/
 derby.log
-
-# Python stuff
-python/.mypy_cache/
-python/htmlcov
-python/coverage.xml
-
-python/pyiceberg/avro/decoder_fast.c
-python/pyiceberg/avro/*.html
-python/pyiceberg/avro/*.so
 

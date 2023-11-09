@@ -82,9 +82,6 @@ abstract class BaseFile<F>
   // cached schema
   private transient Schema avroSchema = null;
 
-  // lazy variables
-  private transient volatile List<Long> splitOffsetList = null;
-
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
     this.avroSchema = avroSchema;
@@ -463,15 +460,27 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    if (splitOffsetList == null && splitOffsets != null) {
-      this.splitOffsetList = ArrayUtil.toUnmodifiableLongList(splitOffsets);
+    if (hasWellDefinedOffsets()) {
+      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
     }
 
-    return splitOffsetList;
+    return null;
   }
 
   long[] splitOffsetArray() {
-    return splitOffsets;
+    if (hasWellDefinedOffsets()) {
+      return splitOffsets;
+    }
+
+    return null;
+  }
+
+  private boolean hasWellDefinedOffsets() {
+    // If the last split offset is past the file size this means the split offsets are corrupted and
+    // should not be used
+    return splitOffsets != null
+        && splitOffsets.length != 0
+        && splitOffsets[splitOffsets.length - 1] < fileSizeInBytes;
   }
 
   @Override

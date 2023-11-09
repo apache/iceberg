@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,13 +50,13 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -65,7 +64,18 @@ import org.junit.Test;
 public class TestDataStatisticsOperator {
   private final RowType rowType = RowType.of(new VarCharType());
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-
+  private final GenericRowData genericRowDataA = GenericRowData.of(StringData.fromString("a"));
+  private final GenericRowData genericRowDataB = GenericRowData.of(StringData.fromString("b"));
+  // When operator hands events from coordinator, DataStatisticsUtil#deserializeDataStatistics
+  // deserializes bytes into BinaryRowData
+  private final BinaryRowData binaryRowDataA =
+      new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
+  private final BinaryRowData binaryRowDataB =
+      new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
+  private final BinaryRowData binaryRowDataC =
+      new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("c")));
+  private final TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
+      statisticsSerializer = MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
   private DataStatisticsOperator<MapDataStatistics, Map<RowData, Long>> operator;
 
   private Environment getTestingEnvironment() {
@@ -101,9 +111,8 @@ public class TestDataStatisticsOperator {
           }
         };
 
-    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
-        MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
-    return new DataStatisticsOperator<>(keySelector, mockGateway, statisticsSerializer);
+    return new DataStatisticsOperator<>(
+        "testOperator", keySelector, mockGateway, statisticsSerializer);
   }
 
   @After
@@ -118,20 +127,16 @@ public class TestDataStatisticsOperator {
         testHarness = createHarness(this.operator)) {
       StateInitializationContext stateContext = getStateContext();
       operator.initializeState(stateContext);
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
-      assertTrue(operator.localDataStatistics() instanceof MapDataStatistics);
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataB));
+      assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
       MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
       Map<RowData, Long> statsMap = mapDataStatistics.statistics();
       assertThat(statsMap).hasSize(2);
       assertThat(statsMap)
           .containsExactlyInAnyOrderEntriesOf(
-              ImmutableMap.of(
-                  GenericRowData.of(StringData.fromString("a")),
-                  2L,
-                  GenericRowData.of(StringData.fromString("b")),
-                  1L));
+              ImmutableMap.of(genericRowDataA, 2L, genericRowDataB, 1L));
       testHarness.endInput();
     }
   }
@@ -141,9 +146,9 @@ public class TestDataStatisticsOperator {
     try (OneInputStreamOperatorTestHarness<
             RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
         testHarness = createHarness(this.operator)) {
-      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
-      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
-      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
+      testHarness.processElement(new StreamRecord<>(genericRowDataA));
+      testHarness.processElement(new StreamRecord<>(genericRowDataB));
+      testHarness.processElement(new StreamRecord<>(genericRowDataB));
 
       List<RowData> recordsOutput =
           testHarness.extractOutputValues().stream()
@@ -152,10 +157,7 @@ public class TestDataStatisticsOperator {
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(
-              ImmutableList.of(
-                  GenericRowData.of(StringData.fromString("a")),
-                  GenericRowData.of(StringData.fromString("b")),
-                  GenericRowData.of(StringData.fromString("b"))));
+              ImmutableList.of(genericRowDataA, genericRowDataB, genericRowDataB));
     }
   }
 
@@ -167,21 +169,16 @@ public class TestDataStatisticsOperator {
         testHarness1 = createHarness(this.operator)) {
       DataStatistics<MapDataStatistics, Map<RowData, Long>> mapDataStatistics =
           new MapDataStatistics();
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("b")));
-      mapDataStatistics.add(GenericRowData.of(StringData.fromString("c")));
-      operator.handleOperatorEvent(new DataStatisticsEvent(0, mapDataStatistics));
+      mapDataStatistics.add(binaryRowDataA);
+      mapDataStatistics.add(binaryRowDataA);
+      mapDataStatistics.add(binaryRowDataB);
+      mapDataStatistics.add(binaryRowDataC);
+      operator.handleOperatorEvent(
+          DataStatisticsEvent.create(0, mapDataStatistics, statisticsSerializer));
       assertThat(operator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
-      assertThat(((MapDataStatistics) operator.globalDataStatistics()).statistics())
+      assertThat(operator.globalDataStatistics().statistics())
           .containsExactlyInAnyOrderEntriesOf(
-              ImmutableMap.of(
-                  GenericRowData.of(StringData.fromString("a")),
-                  2L,
-                  GenericRowData.of(StringData.fromString("b")),
-                  1L,
-                  GenericRowData.of(StringData.fromString("c")),
-                  1L));
+              ImmutableMap.of(binaryRowDataA, 2L, binaryRowDataB, 1L, binaryRowDataC, 1L));
       snapshot = testHarness1.snapshot(1L, 0);
     }
 
@@ -195,22 +192,9 @@ public class TestDataStatisticsOperator {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
       assertThat(restoredOperator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
-      // restored RowData is BinaryRowData. convert to GenericRowData for comparison
-      Map<RowData, Long> restoredStatistics = Maps.newHashMap();
-      ((MapDataStatistics) restoredOperator.globalDataStatistics())
-          .statistics()
-          .forEach(
-              (rowData, count) ->
-                  restoredStatistics.put(GenericRowData.of(rowData.getString(0)), count));
-      assertThat(restoredStatistics)
+      assertThat(restoredOperator.globalDataStatistics().statistics())
           .containsExactlyInAnyOrderEntriesOf(
-              ImmutableMap.of(
-                  GenericRowData.of(StringData.fromString("a")),
-                  2L,
-                  GenericRowData.of(StringData.fromString("b")),
-                  1L,
-                  GenericRowData.of(StringData.fromString("c")),
-                  1L));
+              ImmutableMap.of(binaryRowDataA, 2L, binaryRowDataB, 1L, binaryRowDataC, 1L));
     }
   }
 

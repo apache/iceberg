@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -197,6 +198,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
+  }
+
+  @Override
+  public UUID uuid() {
+    return UUID.randomUUID();
   }
 
   @Override

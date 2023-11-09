@@ -112,7 +112,7 @@ class SparkBatch implements Batch {
   private boolean parquetBatchReadsEnabled() {
     return readConf.parquetVectorizationEnabled()
         && // vectorization enabled
-        expectedSchema.columns().size() > 0
+        !expectedSchema.columns().isEmpty()
         && // at least one column is projected
         expectedSchema.columns().stream()
             .allMatch(c -> c.type().isPrimitiveType()); // only primitives

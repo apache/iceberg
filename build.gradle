@@ -35,7 +35,7 @@ buildscript {
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.1'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
@@ -88,6 +88,11 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
   throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
 }
 
 apply plugin: 'com.gorylenko.gradle-git-properties'
@@ -143,7 +148,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.3.0"
+      oldVersion = "1.4.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -152,7 +157,7 @@ subprojects {
                 "\nAPI/ABI breaks detected.\n" +
                 "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
                 "\nPlease make sure to follow the deprecation rules defined in\n" +
-                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "https://github.com/apache/iceberg/blob/main/CONTRIBUTING.md#semantic-versioning.\n" +
                 "==================================================================================")
       }
       onlyIf {
@@ -303,6 +308,7 @@ project(':iceberg-api') {
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.awaitility
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -502,6 +508,7 @@ project(':iceberg-aws') {
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 
   sourceSets {
@@ -723,6 +730,7 @@ project(':iceberg-hive-metastore') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 }
 

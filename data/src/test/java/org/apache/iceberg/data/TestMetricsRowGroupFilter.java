@@ -740,7 +740,7 @@ public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
             .filter(expression)
             .caseSensitive(caseSensitive)
             .build()) {
-      return Lists.newArrayList(reader).size() > 0;
+      return !Lists.newArrayList(reader).isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

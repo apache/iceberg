@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.assertTableRecords;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -39,13 +41,11 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.HadoopTableResource;
-import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
@@ -96,11 +96,6 @@ public class TestIcebergSourceFailover {
 
   protected List<Record> generateRecords(int numRecords, long seed) {
     return RandomGenericData.generate(schema(), numRecords, seed);
-  }
-
-  protected void assertRecords(
-      Table table, List<Record> expectedRecords, Duration interval, int maxCount) throws Exception {
-    SimpleDataUtil.assertTableRecords(table, expectedRecords, interval, maxCount);
   }
 
   @Test
@@ -156,7 +151,7 @@ public class TestIcebergSourceFailover {
         RecordCounterToFail::continueProcessing,
         miniClusterResource.getMiniCluster());
 
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    assertTableRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -219,7 +214,7 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    assertTableRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   // ------------------------------------------------------------------------

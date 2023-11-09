@@ -38,13 +38,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutablesStyle")
 @Value.Immutable(builder = false)
-@Value.Style(allParameters = true, visibility = ImplementationVisibility.PACKAGE)
+@Value.Style(allParameters = true, visibilityString = "PACKAGE")
 public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
@@ -321,14 +320,15 @@ public interface ViewMetadata extends Serializable {
 
     /**
      * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the summary.
+     * id, the creation timestamp, and the operation.
      *
      * @param one the view version to compare
      * @param two the view version to compare
      * @return true if the given view versions would behave the same
      */
     private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
-      return Objects.equals(one.representations(), two.representations())
+      return Objects.equals(one.summary(), two.summary())
+          && Objects.equals(one.representations(), two.representations())
           && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
           && one.schemaId() == two.schemaId();
@@ -413,7 +413,7 @@ public interface ViewMetadata extends Serializable {
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+      Preconditions.checkArgument(!versions.isEmpty(), "Invalid view: no versions were added");
 
       // when associated with a metadata file, metadata must have no changes so that the metadata
       // matches exactly what is in the metadata file, which does not store changes. metadata

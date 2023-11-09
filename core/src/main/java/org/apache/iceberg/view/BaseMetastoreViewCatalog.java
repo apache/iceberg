@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -161,7 +162,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putSummary("operation", "create")
+              .putAllSummary(EnvironmentContext.get())
               .build();
 
       ViewMetadata viewMetadata =
@@ -206,7 +207,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putSummary("operation", "replace")
+              .putAllSummary(EnvironmentContext.get())
               .build();
 
       ViewMetadata.Builder builder =

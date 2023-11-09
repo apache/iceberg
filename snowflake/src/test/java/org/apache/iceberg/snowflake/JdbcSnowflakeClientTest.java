@@ -57,6 +57,7 @@ public class JdbcSnowflakeClientTest {
 
   private JdbcSnowflakeClient snowflakeClient;
 
+  @SuppressWarnings("unchecked")
   @BeforeEach
   public void before() throws SQLException, InterruptedException {
     snowflakeClient = new JdbcSnowflakeClient(mockClientPool);
@@ -83,6 +84,7 @@ public class JdbcSnowflakeClientTest {
         .withMessageContaining("JdbcClientPool must be non-null");
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testDatabaseExists() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(false);
@@ -134,6 +136,7 @@ public class JdbcSnowflakeClientTest {
         .withCause(injectedException);
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testDatabaseFailureWithInterruptedException()
       throws SQLException, InterruptedException {
@@ -146,6 +149,7 @@ public class JdbcSnowflakeClientTest {
         .withCause(injectedException);
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testSchemaExists() throws SQLException {
     when(mockResultSet.next())
@@ -231,6 +235,7 @@ public class JdbcSnowflakeClientTest {
         .withCause(injectedException);
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testSchemaFailureWithInterruptedException()
       throws SQLException, InterruptedException {
@@ -244,6 +249,7 @@ public class JdbcSnowflakeClientTest {
         .withCause(injectedException);
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void testListDatabasesInAccount() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
@@ -268,6 +274,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as a
    * UncheckedSQLException when listing databases at Root level.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListDatabasesSQLExceptionAtRootLevel() throws SQLException, InterruptedException {
     Exception injectedException =
@@ -284,6 +291,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as an
    * UncheckedSQLException when listing databases if there is no error code.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListDatabasesSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
@@ -300,6 +308,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected InterruptedException from the underlying connection will propagate out as an
    * UncheckedInterruptedException when listing databases.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListDatabasesInterruptedException() throws SQLException, InterruptedException {
     Exception injectedException = new InterruptedException("Fake interrupted exception");
@@ -315,6 +324,7 @@ public class JdbcSnowflakeClientTest {
    * For the root scope, expect an underlying query to list schemas at the ACCOUNT level with no
    * query parameters.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasInAccount() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
@@ -348,6 +358,7 @@ public class JdbcSnowflakeClientTest {
    * For a DATABASE scope, expect an underlying query to list schemas at the DATABASE level and
    * supply the database as a query param in an IDENTIFIER.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasInDatabase() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(false);
@@ -374,6 +385,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as an
    * UncheckedSQLException when listing schemas at Root level.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasSQLExceptionAtRootLevel() throws SQLException, InterruptedException {
     Exception injectedException =
@@ -390,6 +402,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException with specific error codes from the underlying connection will
    * propagate out as a NoSuchNamespaceException when listing schemas at Database level.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasSQLExceptionAtDatabaseLevel()
       throws SQLException, InterruptedException {
@@ -425,6 +438,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as an
    * UncheckedSQLException when listing schemas if there is no error code.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
@@ -441,6 +455,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected InterruptedException from the underlying connection will propagate out as an
    * UncheckedInterruptedException when listing schemas.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListSchemasInterruptedException() throws SQLException, InterruptedException {
     Exception injectedException = new InterruptedException("Fake interrupted exception");
@@ -456,6 +471,7 @@ public class JdbcSnowflakeClientTest {
    * For the root/empty scope, expect an underlying query to list tables at the ACCOUNT level with
    * no query parameters.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesInAccount() throws SQLException {
     when(mockResultSet.next())
@@ -502,6 +518,7 @@ public class JdbcSnowflakeClientTest {
    * For a DATABASE scope, expect an underlying query to list tables at the DATABASE level and
    * supply the database as a query param in an IDENTIFIER.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesInDatabase() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
@@ -539,6 +556,7 @@ public class JdbcSnowflakeClientTest {
    * For a SCHEMA scope, expect an underlying query to list tables at the SCHEMA level and supply
    * the schema as a query param in an IDENTIFIER.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesInSchema() throws SQLException {
     when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(false);
@@ -566,6 +584,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as an
    * UncheckedSQLException when listing tables at Root level
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesSQLExceptionAtRootLevel()
       throws SQLException, InterruptedException {
@@ -583,6 +602,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException with specific error codes from the underlying connection will
    * propagate out as a NoSuchNamespaceException when listing tables at Database level
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesSQLExceptionAtDatabaseLevel()
       throws SQLException, InterruptedException {
@@ -610,6 +630,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException with specific error codes from the underlying connection will
    * propagate out as a NoSuchNamespaceException when listing tables at Schema level
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesSQLExceptionAtSchemaLevel()
       throws SQLException, InterruptedException {
@@ -639,6 +660,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException without error code from the underlying connection will propagate
    * out as an UncheckedSQLException when listing tables.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
@@ -655,6 +677,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected InterruptedException from the underlying connection will propagate out as an
    * UncheckedInterruptedException when listing tables.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListIcebergTablesInterruptedException()
       throws SQLException, InterruptedException {
@@ -671,6 +694,7 @@ public class JdbcSnowflakeClientTest {
    * Test parsing of table metadata JSON from a GET_ICEBERG_TABLE_INFORMATION call, with the S3 path
    * unaltered between snowflake/iceberg path representations.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetS3TableMetadata() throws SQLException {
     when(mockResultSet.next()).thenReturn(true);
@@ -702,6 +726,7 @@ public class JdbcSnowflakeClientTest {
    * Test parsing of table metadata JSON from a GET_ICEBERG_TABLE_INFORMATION call, with the Azure
    * path translated from an azure:// format to a wasbs:// format.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetAzureTableMetadata() throws SQLException {
     when(mockResultSet.next()).thenReturn(true);
@@ -733,6 +758,7 @@ public class JdbcSnowflakeClientTest {
    * Test parsing of table metadata JSON from a GET_ICEBERG_TABLE_INFORMATION call, with the GCS
    * path translated from a gcs:// format to a gs:// format.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetGcsTableMetadata() throws SQLException {
     when(mockResultSet.next()).thenReturn(true);
@@ -777,6 +803,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException with specific error codes from the underlying connection will
    * propagate out as a NoSuchTableException when getting table metadata.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetTableMetadataSQLException() throws SQLException, InterruptedException {
     for (Integer errorCode : TABLE_NOT_FOUND_ERROR_CODES) {
@@ -805,6 +832,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected SQLException from the underlying connection will propagate out as an
    * UncheckedSQLException when getting table metadata.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetTableMetadataSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
@@ -824,6 +852,7 @@ public class JdbcSnowflakeClientTest {
    * Any unexpected InterruptedException from the underlying connection will propagate out as an
    * UncheckedInterruptedException when getting table metadata.
    */
+  @SuppressWarnings("unchecked")
   @Test
   public void testGetTableMetadataInterruptedException() throws SQLException, InterruptedException {
     Exception injectedException = new InterruptedException("Fake interrupted exception");

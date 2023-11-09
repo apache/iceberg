@@ -31,7 +31,7 @@ menu:
 
 The latest version of Iceberg is [{{% icebergVersion %}}](../../../releases).
 
-Spark is currently the most feature-rich compute engine for Iceberg operations. 
+Spark is currently the most feature-rich compute engine for Iceberg operations.
 We recommend you to get started with Spark to understand Iceberg concepts and features with examples.
 You can also view documentations of using Iceberg with other compute engine under the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support) page.
 
@@ -69,7 +69,7 @@ To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark
 
 ```sql
 -- local is the path-based catalog defined above
-CREATE TABLE local.db.table (id bigint, data string) USING iceberg
+CREATE TABLE local.db.table (id bigint, data string) USING iceberg;
 ```
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
@@ -93,7 +93,7 @@ Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](../spark-writes
 ```sql
 MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
 WHEN MATCHED THEN UPDATE SET t.count = t.count + u.count
-WHEN NOT MATCHED THEN INSERT *
+WHEN NOT MATCHED THEN INSERT *;
 ```
 
 Iceberg supports writing DataFrames using the new [v2 DataFrame write API](../spark-writes#writing-with-dataframes):
@@ -107,17 +107,17 @@ The old `write` API is supported, but _not_ recommended.
 
 ### Reading
 
-To read with SQL, use the an Iceberg table name in a `SELECT` query:
+To read with SQL, use the Iceberg table's name in a `SELECT` query:
 
 ```sql
 SELECT count(1) as count, data
 FROM local.db.table
-GROUP BY data
+GROUP BY data;
 ```
 
-SQL is also the recommended way to [inspect tables](../spark-queries#inspecting-tables). To view all of the snapshots in a table, use the `snapshots` metadata table:
+SQL is also the recommended way to [inspect tables](../spark-queries#inspecting-tables). To view all snapshots in a table, use the `snapshots` metadata table:
 ```sql
-SELECT * FROM local.db.table.snapshots
+SELECT * FROM local.db.table.snapshots;
 ```
 ```
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+

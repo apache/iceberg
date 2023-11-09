@@ -34,11 +34,11 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -75,9 +75,11 @@ public class TestSparkMetadataColumns extends SparkTestBase {
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(1)
+          .addField("zero", 1, "id_zero")
+          .build();
 
   @Parameterized.Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {

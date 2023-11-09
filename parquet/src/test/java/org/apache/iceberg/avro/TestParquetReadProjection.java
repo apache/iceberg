@@ -26,6 +26,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetReadProjection extends TestReadProjection {
   @Override
@@ -45,4 +47,29 @@ public class TestParquetReadProjection extends TestReadProjection {
 
     return Iterables.getOnlyElement(records);
   }
+
+  @Override
+  @Test
+  @Disabled("Empty struct read is not supported for Parquet")
+  public void testEmptyStructProjection() throws Exception {}
+
+  @Override
+  @Test
+  @Disabled("Empty struct read is not supported for Parquet")
+  public void testEmptyStructRequiredProjection() throws Exception {}
+
+  @Override
+  @Test
+  @Disabled("Empty struct read is not supported for Parquet")
+  public void testRequiredEmptyStructInRequiredStruct() throws Exception {}
+
+  @Override
+  @Test
+  @Disabled("Empty struct read is not supported for Parquet")
+  public void testEmptyNestedStructProjection() throws Exception {}
+
+  @Override
+  @Test
+  @Disabled("Empty struct read is not supported for Parquet")
+  public void testEmptyNestedStructRequiredProjection() throws Exception {}
 }

@@ -38,10 +38,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -627,9 +627,11 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     Table table = validationCatalog.loadTable(tableIdent);
 
     PartitionSpec unknownSpec =
-        PartitionSpecParser.fromJson(
-            table.schema(),
-            "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+        TestHelpers.newExpectedSpecBuilder()
+            .withSchema(table.schema())
+            .withSpecId(1)
+            .addField("zero", 1, "id_zero")
+            .build();
 
     // replace the table spec to include an unknown transform
     TableOperations ops = ((HasTableOperations) table).operations();

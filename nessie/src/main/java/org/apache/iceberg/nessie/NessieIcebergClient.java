@@ -426,11 +426,24 @@ public class NessieIcebergClient implements AutoCloseable {
     return !threw;
   }
 
+  /** @deprecated will be removed after 1.5.0 */
+  @Deprecated
   public void commitTable(
       TableMetadata base,
       TableMetadata metadata,
       String newMetadataLocation,
       IcebergTable expectedContent,
+      ContentKey key)
+      throws NessieConflictException, NessieNotFoundException {
+    String contentId = expectedContent == null ? null : expectedContent.getId();
+    commitTable(base, metadata, newMetadataLocation, contentId, key);
+  }
+
+  public void commitTable(
+      TableMetadata base,
+      TableMetadata metadata,
+      String newMetadataLocation,
+      String contentId,
       ContentKey key)
       throws NessieConflictException, NessieNotFoundException {
     UpdateableReference updateableReference = getRef();
@@ -447,15 +460,13 @@ public class NessieIcebergClient implements AutoCloseable {
       }
     }
 
-    ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
-    if (expectedContent != null) {
-      newTableBuilder.id(expectedContent.getId());
-    }
     Snapshot snapshot = metadata.currentSnapshot();
     long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
 
+    ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
     IcebergTable newTable =
         newTableBuilder
+            .id(contentId)
             .snapshotId(snapshotId)
             .schemaId(metadata.currentSchemaId())
             .specId(metadata.defaultSpecId())
@@ -477,7 +488,7 @@ public class NessieIcebergClient implements AutoCloseable {
     Branch branch =
         getApi()
             .commitMultipleOperations()
-            .operation(Operation.Put.of(key, newTable, expectedContent))
+            .operation(Operation.Put.of(key, newTable))
             .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
             .branch(expectedHead)
             .commit();

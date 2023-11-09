@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.aws.glue.GlueCatalog;
@@ -27,6 +28,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -42,6 +44,7 @@ import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
 import software.amazon.awssdk.services.iam.model.DeleteRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.GetRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -100,7 +103,7 @@ public class TestAssumeRoleAwsClientFactory {
   }
 
   @Test
-  public void testAssumeRoleGlueCatalog() throws Exception {
+  public void testAssumeRoleGlueCatalog() {
     String glueArnPrefix = "arn:aws:glue:*:" + AwsIntegTestUtil.testAccountId();
     iam.putRolePolicy(
         PutRolePolicyRequest.builder()
@@ -189,7 +192,19 @@ public class TestAssumeRoleAwsClientFactory {
     Assert.assertFalse("should be able to access file", inputFile.exists());
   }
 
-  private void waitForIamConsistency() throws Exception {
-    Thread.sleep(10000); // sleep to make sure IAM up to date
+  private void waitForIamConsistency() {
+    Awaitility.await("wait for IAM role policy to update.")
+        .pollDelay(Duration.ofSeconds(1))
+        .atMost(Duration.ofSeconds(10))
+        .ignoreExceptions()
+        .untilAsserted(
+            () ->
+                Assertions.assertThat(
+                        iam.getRolePolicy(
+                            GetRolePolicyRequest.builder()
+                                .roleName(roleName)
+                                .roleName(policyName)
+                                .build()))
+                    .isNotNull());
   }
 }

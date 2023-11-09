@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
@@ -67,6 +68,7 @@ public class SerializableTable implements Table, Serializable {
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
+  private final UUID uuid;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -83,6 +85,7 @@ public class SerializableTable implements Table, Serializable {
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
+    this.uuid = table.uuid();
   }
 
   /**
@@ -245,6 +248,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
+  }
+
+  @Override
+  public UUID uuid() {
+    return uuid;
   }
 
   @Override

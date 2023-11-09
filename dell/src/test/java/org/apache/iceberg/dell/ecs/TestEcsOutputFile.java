@@ -29,12 +29,12 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.assertj.core.api.Assertions;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsOutputFile {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testFileWrite() throws IOException {
