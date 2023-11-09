@@ -197,7 +197,6 @@ public class NessieIcebergClient implements AutoCloseable {
         org.projectnessie.model.Namespace.of(key.getElements(), metadata);
 
     try {
-
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
       Content existing = contentMap.get(key);
@@ -206,11 +205,8 @@ public class NessieIcebergClient implements AutoCloseable {
       }
 
       try {
-
         commitRetry("create namespace " + key, Operation.Put.of(key, content));
-
       } catch (NessieReferenceConflictException e) {
-
         NessieConflictHandler.handleSingle(
             e,
             (conflictType, contentKey) -> {
@@ -248,7 +244,6 @@ public class NessieIcebergClient implements AutoCloseable {
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
 
     try {
-
       org.projectnessie.model.Namespace root =
           org.projectnessie.model.Namespace.of(namespace.levels());
 
@@ -301,12 +296,9 @@ public class NessieIcebergClient implements AutoCloseable {
     ContentKey key = ContentKey.of(namespace.levels());
 
     try {
-
       commitRetry("drop namespace " + key, Operation.Delete.of(key));
       return true;
-
     } catch (NessieReferenceConflictException e) {
-
       if (!NessieConflictHandler.handleSingle(
           e,
           (conflictType, contentKey) -> {
