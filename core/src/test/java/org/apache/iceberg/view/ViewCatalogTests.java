@@ -36,7 +36,6 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
@@ -401,16 +400,14 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(viewIdentifier)).as("View should exist").isTrue();
 
-    // replace transaction requires table existence
-    // TODO: replace should check whether the table exists as a view
     assertThatThrownBy(
             () ->
                 tableCatalog()
                     .buildTable(viewIdentifier, SCHEMA)
                     .replaceTransaction()
                     .commitTransaction())
-        .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: ns.view");
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("View with same name already exists: ns.view");
   }
 
   @Test
@@ -464,8 +461,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
-    // replace view requires the view to exist
-    // TODO: replace should check whether the view exists as a table
     assertThatThrownBy(
             () ->
                 catalog()
@@ -474,8 +469,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .withDefaultNamespace(tableIdentifier.namespace())
                     .withQuery("spark", "select * from ns.tbl")
                     .replace())
-        .isInstanceOf(NoSuchViewException.class)
-        .hasMessageStartingWith("View does not exist: ns.table");
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Table with same name already exists: ns.table");
   }
 
   @Test
