@@ -1114,30 +1114,35 @@ public class TestRewriteManifests extends TableTestBase {
 
     Table table = load();
 
+    // commit data files
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    // save the append snapshot info
     Snapshot appendSnapshot = table.currentSnapshot();
     long appendSnapshotId = appendSnapshot.snapshotId();
     long appendSnapshotSeq = appendSnapshot.sequenceNumber();
-    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
+    // commit delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the delete snapshot info
     Snapshot deleteSnapshot = table.currentSnapshot();
     long deleteSnapshotId = deleteSnapshot.snapshotId();
     long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
-    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
+    // there must be 1 data and 1 delete manifest before the rewrite
+    assertManifestCounts(table, 1, 1);
+
+    // rewrite manifests and cluster entries by file path
     table.rewriteManifests().clusterBy(file -> file.path().toString()).commit();
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 
     validateSummary(rewriteSnapshot, 1, 1, 2, 2);
 
+    // the rewrite must replace the original data manifest with 2 new data manifests
     List<ManifestFile> dataManifests = sortedDataManifests(table.io(), rewriteSnapshot);
-    Assertions.assertThat(dataManifests).hasSize(2);
+    assertThat(dataManifests).hasSize(2);
     validateManifest(
         dataManifests.get(0),
         dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
@@ -1153,6 +1158,7 @@ public class TestRewriteManifests extends TableTestBase {
         files(FILE_B),
         statuses(ManifestEntry.Status.EXISTING));
 
+    // the rewrite must preserve the original delete manifest (rewriting is not supported yet)
     List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
     ManifestFile deleteManifest = Iterables.getOnlyElement(deleteManifests);
     validateDeleteManifest(
@@ -1170,22 +1176,26 @@ public class TestRewriteManifests extends TableTestBase {
 
     Table table = load();
 
+    // commit data files
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    // save the append snapshot info
     Snapshot appendSnapshot = table.currentSnapshot();
     long appendSnapshotId = appendSnapshot.snapshotId();
     long appendSnapshotSeq = appendSnapshot.sequenceNumber();
-    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
+    // commit delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the delete snapshot info
     Snapshot deleteSnapshot = table.currentSnapshot();
     long deleteSnapshotId = deleteSnapshot.snapshotId();
     long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
-    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
+    // there must be 1 data and 1 delete manifest before the rewrite
+    assertManifestCounts(table, 1, 1);
+
+    // split the original delete manifest into 2 new delete manifests
     ManifestFile originalDeleteManifest =
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
@@ -1207,6 +1217,7 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
+    // replace the original delete manifest with the new delete manifests
     table
         .rewriteManifests()
         .deleteManifest(originalDeleteManifest)
@@ -1216,6 +1227,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 
+    // the rewrite must preserve the original data manifest
     ManifestFile dataManifest = Iterables.getOnlyElement(rewriteSnapshot.dataManifests(table.io()));
     validateManifest(
         dataManifest,
@@ -1225,8 +1237,9 @@ public class TestRewriteManifests extends TableTestBase {
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
+    // the rewrite must replace the original delete manifest with 2 new delete manifests
     List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
-    Assertions.assertThat(deleteManifests).hasSize(2);
+    assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
         dataSeqs(deleteSnapshotSeq),
@@ -1249,22 +1262,26 @@ public class TestRewriteManifests extends TableTestBase {
 
     Table table = load();
 
+    // commit data files
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    // save the append snapshot info
     Snapshot appendSnapshot = table.currentSnapshot();
     long appendSnapshotId = appendSnapshot.snapshotId();
     long appendSnapshotSeq = appendSnapshot.sequenceNumber();
-    Assertions.assertThat(appendSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(appendSnapshot.deleteManifests(table.io())).isEmpty();
 
+    // commit delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the delete snapshot info
     Snapshot deleteSnapshot = table.currentSnapshot();
     long deleteSnapshotId = deleteSnapshot.snapshotId();
     long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
-    Assertions.assertThat(deleteSnapshot.dataManifests(table.io())).hasSize(1);
-    Assertions.assertThat(deleteSnapshot.deleteManifests(table.io())).hasSize(1);
 
+    // there must be 1 data and 1 delete manifest before the rewrite
+    assertManifestCounts(table, 1, 1);
+
+    // split the original data manifest into 2 new data manifests
     ManifestFile originalDataManifest =
         Iterables.getOnlyElement(deleteSnapshot.dataManifests(table.io()));
     ManifestFile newDataManifest1 =
@@ -1286,6 +1303,7 @@ public class TestRewriteManifests extends TableTestBase {
                 appendSnapshotSeq,
                 FILE_B));
 
+    // split the original delete manifest into 2 new delete manifests
     ManifestFile originalDeleteManifest =
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
@@ -1307,6 +1325,7 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
+    // replace the original data and delete manifests with new ones
     table
         .rewriteManifests()
         .deleteManifest(originalDataManifest)
@@ -1319,8 +1338,9 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 
+    // the rewrite must replace the original data manifest with 2 new data manifests
     List<ManifestFile> dataManifests = sortedDataManifests(table.io(), rewriteSnapshot);
-    Assertions.assertThat(dataManifests).hasSize(2);
+    assertThat(dataManifests).hasSize(2);
     validateManifest(
         dataManifests.get(0),
         dataSeqs(appendSnapshotSeq),
@@ -1336,8 +1356,9 @@ public class TestRewriteManifests extends TableTestBase {
         files(FILE_B),
         statuses(ManifestEntry.Status.EXISTING));
 
+    // the rewrite must replace the original delete manifest with 2 new delete manifests
     List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
-    Assertions.assertThat(deleteManifests).hasSize(2);
+    assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
         dataSeqs(deleteSnapshotSeq),
@@ -1358,18 +1379,23 @@ public class TestRewriteManifests extends TableTestBase {
   public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
     Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
+    // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    // save the initial append snapshot info
     Snapshot appendSnapshot = table.currentSnapshot();
     long appendSnapshotId = appendSnapshot.snapshotId();
     long appendSnapshotSeq = appendSnapshot.sequenceNumber();
 
+    // commit delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the delete snapshot info
     Snapshot deleteSnapshot = table.currentSnapshot();
     long deleteSnapshotId = deleteSnapshot.snapshotId();
     long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
 
+    // split the original delete manifest into 2 new delete manifests
     ManifestFile originalDeleteManifest =
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
@@ -1391,27 +1417,33 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
+    // start the rewrite
     RewriteManifests rewriteManifests = table.rewriteManifests();
     rewriteManifests.deleteManifest(originalDeleteManifest);
     rewriteManifests.addManifest(newDeleteManifest1);
     rewriteManifests.addManifest(newDeleteManifest2);
 
+    // commit another append concurrently
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
 
+    // save the concurrent snapshot info
     Snapshot concurrentSnapshot = table.currentSnapshot();
     long concurrentSnapshotSeq = concurrentSnapshot.sequenceNumber();
     long concurrentSnapshotId = concurrentSnapshot.snapshotId();
-    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
 
+    // there must be 2 data manifests and 1 delete manifest before the rewrite is committed
+    assertManifestCounts(table, 2, 1);
+
+    // commit the rewrite successfully as operations are not in conflict
     rewriteManifests.commit();
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 
     validateSummary(rewriteSnapshot, 1, 2, 2, 0);
 
+    // the rewrite must preserve the original and added concurrently data manifests
     List<ManifestFile> dataManifests = rewriteSnapshot.dataManifests(table.io());
-    Assertions.assertThat(dataManifests).hasSize(2);
-
+    assertThat(dataManifests).hasSize(2);
     validateManifest(
         dataManifests.get(0),
         dataSeqs(concurrentSnapshotSeq, concurrentSnapshotSeq),
@@ -1427,8 +1459,9 @@ public class TestRewriteManifests extends TableTestBase {
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
+    // the rewrite must replace the original delete manifest with 2 new delete manifests
     List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
-    Assertions.assertThat(deleteManifests).hasSize(2);
+    assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
         dataSeqs(deleteSnapshotSeq),
@@ -1449,20 +1482,31 @@ public class TestRewriteManifests extends TableTestBase {
   public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
     Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
+    // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
 
+    // save the initial append snapshot info
+    Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+    long appendSnapshotSeq = appendSnapshot.sequenceNumber();
+
+    // commit the first set of delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the first delete snapshot info
     Snapshot deleteSnapshot1 = table.currentSnapshot();
     long deleteSnapshotId1 = deleteSnapshot1.snapshotId();
     long deleteSnapshotSeq1 = deleteSnapshot1.sequenceNumber();
 
+    // commit the second set of delete files
     table.newRowDelta().addDeletes(FILE_B_DELETES).addDeletes(FILE_C2_DELETES).commit();
 
+    // save the second delete snapshot info
     Snapshot deleteSnapshot2 = table.currentSnapshot();
     long deleteSnapshotId2 = deleteSnapshot2.snapshotId();
     long deleteSnapshotSeq2 = deleteSnapshot2.sequenceNumber();
 
+    // split the original delete manifest into 2 new delete manifests
     ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
         writeManifest(
@@ -1483,25 +1527,42 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq1,
                 FILE_A2_DELETES));
 
+    // start the rewrite
     RewriteManifests rewriteManifests = table.rewriteManifests();
     rewriteManifests.deleteManifest(originalDeleteManifest);
     rewriteManifests.addManifest(newDeleteManifest1);
     rewriteManifests.addManifest(newDeleteManifest2);
 
+    // commit the third set of delete files concurrently
     table.newRewrite().deleteFile(FILE_B_DELETES).commit();
 
     Snapshot concurrentSnapshot = table.currentSnapshot();
     long concurrentSnapshotId = concurrentSnapshot.snapshotId();
-    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(3);
 
+    // there must be 1 data manifest and 2 delete manifests before the rewrite is committed
+    assertManifestCounts(table, 1, 2);
+
+    // commit the rewrite successfully as operations are not in conflict
     rewriteManifests.commit();
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 
     validateSummary(rewriteSnapshot, 1, 2, 2, 0);
 
+    // the rewrite must preserve the original data manifest
+    ManifestFile dataManifest = Iterables.getOnlyElement(rewriteSnapshot.dataManifests(table.io()));
+    validateManifest(
+        dataManifest,
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId, appendSnapshotId, appendSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    // the rewrite must replace the first delete manifest with 2 new delete manifests
+    // the rewrite must also keep the second delete manifest modified concurrently
     List<ManifestFile> deleteManifests = rewriteSnapshot.deleteManifests(table.io());
-    Assertions.assertThat(deleteManifests).hasSize(3);
+    assertThat(deleteManifests).hasSize(3);
     validateDeleteManifest(
         deleteManifests.get(0),
         dataSeqs(deleteSnapshotSeq1),
@@ -1529,14 +1590,18 @@ public class TestRewriteManifests extends TableTestBase {
   public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
     Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
+    // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
 
+    // commit delete files
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
+    // save the delete snapshot info
     Snapshot deleteSnapshot = table.currentSnapshot();
     long deleteSnapshotId = deleteSnapshot.snapshotId();
     long deleteSnapshotSeq = deleteSnapshot.sequenceNumber();
 
+    // split the original delete manifest into 2 new delete manifests
     ManifestFile originalDeleteManifest = deleteSnapshot.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
         writeManifest(
@@ -1557,16 +1622,16 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq,
                 FILE_A2_DELETES));
 
+    // start the rewrite
     RewriteManifests rewriteManifests = table.rewriteManifests();
     rewriteManifests.deleteManifest(originalDeleteManifest);
     rewriteManifests.addManifest(newDeleteManifest1);
     rewriteManifests.addManifest(newDeleteManifest2);
 
+    // modify the original delete manifest concurrently
     table.newRewrite().deleteFile(FILE_A_DELETES).commit();
 
-    Snapshot concurrentSnapshot = table.currentSnapshot();
-    Assertions.assertThat(concurrentSnapshot.allManifests(table.io())).hasSize(2);
-
+    // the rewrite must fail as the original delete manifest was replaced concurrently
     Assertions.assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Manifest is missing");
@@ -1576,23 +1641,29 @@ public class TestRewriteManifests extends TableTestBase {
   public void testDeleteManifestReplacementFailure() throws IOException {
     Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
+    // commit a data file
     table.newFastAppend().appendFile(FILE_A).commit();
 
+    // commit the first delete file
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
+    // save the first delete snapshot info
     Snapshot deleteSnapshot1 = table.currentSnapshot();
     long deleteSnapshotId1 = deleteSnapshot1.snapshotId();
     long deleteSnapshotSeq1 = deleteSnapshot1.sequenceNumber();
 
+    // commit the second delete file
     table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
 
+    // save the second delete snapshot info
     Snapshot deleteSnapshot2 = table.currentSnapshot();
     long deleteSnapshotId2 = deleteSnapshot2.snapshotId();
     long deleteSnapshotSeq2 = deleteSnapshot2.sequenceNumber();
 
-    List<ManifestFile> originalDeleteManifests = deleteSnapshot2.deleteManifests(table.io());
-    Assertions.assertThat(originalDeleteManifests).hasSize(2);
+    // there must be 1 data manifest and 2 delete manifests before the rewrite
+    assertManifestCounts(table, 1, 2);
 
+    // combine the original delete manifests into 1 new delete manifest
     ManifestFile newDeleteManifest =
         writeManifest(
             "delete-manifest-file.avro",
@@ -1609,21 +1680,32 @@ public class TestRewriteManifests extends TableTestBase {
                 deleteSnapshotSeq2,
                 FILE_A2_DELETES));
 
+    // configure the table operations to fail
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
-
     table.ops().failCommits(5);
 
+    // start the rewrite
     RewriteManifests rewriteManifests = table.rewriteManifests();
+    List<ManifestFile> originalDeleteManifests = deleteSnapshot2.deleteManifests(table.io());
     for (ManifestFile originalDeleteManifest : originalDeleteManifests) {
       rewriteManifests.deleteManifest(originalDeleteManifest);
     }
     rewriteManifests.addManifest(newDeleteManifest);
 
+    // the rewrite must fail
     Assertions.assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assertions.assertThat(new File(newDeleteManifest.path())).exists();
+    // the new manifest must not be deleted as the commit hasn't succeeded
+    assertThat(new File(newDeleteManifest.path())).exists();
+  }
+
+  private void assertManifestCounts(
+      Table table, int expectedDataManifestCount, int expectedDeleteManifestCount) {
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot.dataManifests(table.io())).hasSize(expectedDataManifestCount);
+    assertThat(snapshot.deleteManifests(table.io())).hasSize(expectedDeleteManifestCount);
   }
 
   private List<ManifestFile> sortedDataManifests(FileIO io, Snapshot snapshot) {
