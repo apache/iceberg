@@ -415,13 +415,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
   /**
    * Get the next snapshot skiping over rewrite and delete snapshots.
+   *
    * @param nextValidSnapshot
-   * @return the next valid snapshot (not a rewrite or delete snapshot), 
-   *         returns null if all remaining snapshots should be skipped.
+   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
+   *     remaining snapshots should be skipped.
    */
   private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Preconditions.checkArgument(curSnapshot != null, "Sanity check, curSnapshot should not be null");
-    
+    Preconditions.checkArgument(
+        curSnapshot != null, "Sanity check, curSnapshot should not be null");
+
     curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
     // skip over rewrite and delete snapshots
     while (!shouldProcess(curSnapshot)) {
@@ -434,7 +436,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
     return curSnapshot;
   }
-
 
   private long addedFilesCount(Snapshot snapshot) {
     long addedFilesCount =

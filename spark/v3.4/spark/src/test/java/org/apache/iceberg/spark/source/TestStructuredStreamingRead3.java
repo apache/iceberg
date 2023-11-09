@@ -509,12 +509,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
 
     Assertions.assertThat(
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(6);
   }
 
   @Test
-  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows() throws Exception {
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows()
+      throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
@@ -522,12 +524,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
 
     Assertions.assertThat(
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"))).isEqualTo(2);
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
+        .isEqualTo(2);
   }
 
   @Test
-  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows() throws Exception {
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows()
+      throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
@@ -535,9 +539,13 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
 
     Assertions.assertThat(
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4",
-            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
+            microBatchCount(
+                ImmutableMap.of(
+                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+                    "4",
+                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+                    "1")))
+        .isEqualTo(6);
   }
 
   @Test
@@ -550,8 +558,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     makeRewriteDataFiles();
 
     Assertions.assertThat(
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(6);
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(6);
   }
 
   @Test
@@ -566,8 +575,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     appendDataAsMultipleSnapshots(expected);
 
     Assertions.assertThat(
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"))).isEqualTo(12);
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(12);
   }
 
   @Test
