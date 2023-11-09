@@ -166,13 +166,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Namespace already exists: 'a'");
 
-    Schema schema =
-        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-    TableMetadata table =
-        TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, Map.of());
     client.commitTable(
-        null, table, "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, newTable(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "tbl"), Map.of()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -265,7 +260,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  public void testDropNamespaceInvalid() throws NessieConflictException, NessieNotFoundException {
+  public void testDropNamespaceNotEmpty() throws NessieConflictException, NessieNotFoundException {
     String branch = "dropNamespaceInvalidBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
@@ -275,13 +270,43 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a")))
         .hasMessageContaining("Namespace 'a' is not empty.");
+  }
 
-    IcebergTable table = IcebergTable.of("file:///tmp/iceberg", 1, 1, 1, 1);
-    commit(branch, "create table a.tbl", Operation.Put.of(ContentKey.of("a", "tbl"), table));
+  @Test
+  public void testDropNamespaceConflict() throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    client.commitTable(
+        null, newTable(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
 
     Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a", "tbl")))
+        .hasMessageContaining("Content object with name 'a.tbl' is not a Namespace.");
+  }
+
+  @Test
+  public void testDropNamespaceExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceExternalConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    org.projectnessie.model.Namespace original = fetchNamespace(ContentKey.of("a"), branch);
+    org.projectnessie.model.Namespace updated =
+        org.projectnessie.model.Namespace.builder()
+            .from(original)
+            .properties(Map.of("k1", "v1"))
+            .build();
+    commit(branch, "update namespace a", Operation.Put.of(ContentKey.of("a"), updated));
+
+    Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a")))
         .hasMessageContaining(
-            "Cannot drop Namespace 'a.tbl': Payload of existing and expected content for key 'a.tbl' are different");
+            "Cannot drop Namespace 'a': Values of existing and expected content for key 'a' are different.");
   }
 
   @Test
@@ -336,8 +361,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testSetPropertiesConflict() throws NessieConflictException, NessieNotFoundException {
-    String branch = "setPropertiesConflictBranch";
+  void testSetPropertiesExternalConflict() throws NessieConflictException, NessieNotFoundException {
+    String branch = "setPropertiesExternalConflictBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
 
@@ -434,8 +459,9 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testRemovePropertiesConflict() throws NessieConflictException, NessieNotFoundException {
-    String branch = "removePropertiesConflictBranch";
+  void testRemovePropertiesExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "removePropertiesExternalConflictBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
 
@@ -518,5 +544,12 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Reference reference = api.getReference().refName(branch).get();
     Content content = api.getContent().key(key).reference(reference).get().get(key);
     return content.unwrap(org.projectnessie.model.Namespace.class).orElseThrow();
+  }
+
+  private static TableMetadata newTable() {
+    Schema schema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    return TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, Map.of());
   }
 }

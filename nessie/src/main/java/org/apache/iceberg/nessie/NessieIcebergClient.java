@@ -296,22 +296,33 @@ public class NessieIcebergClient implements AutoCloseable {
     ContentKey key = ContentKey.of(namespace.levels());
 
     try {
-      commitRetry("drop namespace " + key, Operation.Delete.of(key));
-      return true;
-    } catch (NessieReferenceConflictException e) {
-      if (!NessieConflictHandler.handleSingle(
-          e,
-          (conflictType, contentKey) -> {
-            switch (conflictType) {
-              case KEY_DOES_NOT_EXIST:
-                return true; // OK, continue
-              case NAMESPACE_NOT_EMPTY:
-                throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty.", namespace);
-            }
-            return false;
-          })) {
-        throw new RuntimeException(
-            String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+      Map<ContentKey, Content> contentMap =
+          api.getContent().reference(getReference()).key(key).get();
+      Content existing = contentMap.get(key);
+      if (existing != null && !(existing instanceof org.projectnessie.model.Namespace)) {
+        throw new NoSuchNamespaceException(
+            "Content object with name '%s' is not a Namespace.", namespace);
+      }
+
+      try {
+        commitRetry("drop namespace " + key, Operation.Delete.of(key));
+        return true;
+      } catch (NessieReferenceConflictException e) {
+        if (!NessieConflictHandler.handleSingle(
+            e,
+            (conflictType, contentKey) -> {
+              switch (conflictType) {
+                case KEY_DOES_NOT_EXIST:
+                  return true; // OK, continue
+                case NAMESPACE_NOT_EMPTY:
+                  throw new NamespaceNotEmptyException(
+                      e, "Namespace '%s' is not empty.", namespace);
+              }
+              return false;
+            })) {
+          throw new RuntimeException(
+              String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+        }
       }
 
     } catch (NessieNotFoundException e) {
