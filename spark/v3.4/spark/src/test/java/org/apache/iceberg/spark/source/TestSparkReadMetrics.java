@@ -43,7 +43,7 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
   @Test
   public void testReadMetricsForV1Table() throws NoSuchTableException {
     sql(
-        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='2')",
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='1')",
         tableName);
 
     spark.range(10000).coalesce(1).writeTo(tableName).append();
@@ -56,12 +56,31 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
+    // Common
     Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+
+    // data manifests
+    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+
+    // data files
+    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+
+    // delete manifests
+    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+
+    // delete files
+    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 
   @Test
@@ -80,11 +99,82 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("scannedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("totalFileSize").value()).isNotEqualTo(0);
+
+    // Common
     Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+
+    // data manifests
+    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+
+    // data files
+    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+
+    // delete manifests
+    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+
+    // delete files
+    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
+  }
+
+  @Test
+  public void testDeleteMetrics() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT)"
+            + " USING iceberg"
+            + " TBLPROPERTIES (\n"
+            + "    'write.delete.mode'='merge-on-read',\n"
+            + "    'write.update.mode'='merge-on-read',\n"
+            + "    'write.merge.mode'='merge-on-read',\n"
+            + "    'format-version'='2'\n"
+            + "  )",
+        tableName);
+
+    spark.range(10000).coalesce(1).writeTo(tableName).append();
+
+    spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName)).collect();
+    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    df.collect();
+
+    List<SparkPlan> sparkPlans =
+        seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
+    Map<String, SQLMetric> metricsMap =
+        JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+
+    // Common
+    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+
+    // data manifests
+    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+
+    // data files
+    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+
+    // delete manifests
+    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+
+    // delete files
+    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isNotEqualTo(0);
+    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(1);
+    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 }
