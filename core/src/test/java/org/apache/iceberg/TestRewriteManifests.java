@@ -1483,7 +1483,7 @@ public class TestRewriteManifests extends TableTestBase {
     assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     // save the initial append snapshot info
     Snapshot appendSnapshot = table.currentSnapshot();
@@ -1553,11 +1553,11 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestFile dataManifest = Iterables.getOnlyElement(rewriteSnapshot.dataManifests(table.io()));
     validateManifest(
         dataManifest,
-        dataSeqs(appendSnapshotSeq, appendSnapshotSeq, appendSnapshotSeq),
-        fileSeqs(appendSnapshotSeq, appendSnapshotSeq, appendSnapshotSeq),
-        ids(appendSnapshotId, appendSnapshotId, appendSnapshotId),
-        files(FILE_A, FILE_B, FILE_C),
-        statuses(ManifestEntry.Status.EXISTING));
+        dataSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        fileSeqs(appendSnapshotSeq, appendSnapshotSeq),
+        ids(appendSnapshotId, appendSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
     // the rewrite must replace the first delete manifest with 2 new delete manifests
     // the rewrite must also keep the second delete manifest modified concurrently
