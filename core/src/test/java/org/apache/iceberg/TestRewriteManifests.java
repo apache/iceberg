@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +41,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -1110,7 +1110,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testRewriteDataManifestsPreservesDeletes() {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
 
@@ -1172,7 +1172,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testReplaceDeleteManifestsOnly() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
 
@@ -1258,7 +1258,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testReplaceDataAndDeleteManifests() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
 
@@ -1377,7 +1377,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -1480,7 +1480,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
@@ -1588,7 +1588,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
@@ -1639,7 +1639,7 @@ public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testDeleteManifestReplacementFailure() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     // commit a data file
     table.newFastAppend().appendFile(FILE_A).commit();
