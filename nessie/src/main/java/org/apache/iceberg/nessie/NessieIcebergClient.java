@@ -187,15 +187,12 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     getRef().checkMutable();
-
     if (namespace.isEmpty()) {
       throw new IllegalArgumentException("Creating empty namespaces is not supported");
     }
-
     ContentKey key = ContentKey.of(namespace.levels());
     org.projectnessie.model.Namespace content =
         org.projectnessie.model.Namespace.of(key.getElements(), metadata);
-
     try {
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
@@ -203,7 +200,6 @@ public class NessieIcebergClient implements AutoCloseable {
       if (existing != null) {
         throw namespaceAlreadyExists(key, existing, null);
       }
-
       try {
         commitRetry("create namespace " + key, Operation.Put.of(key, content));
       } catch (NessieReferenceConflictException e) {
@@ -228,7 +224,6 @@ public class NessieIcebergClient implements AutoCloseable {
         throw new RuntimeException(
             String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
-
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
@@ -242,31 +237,25 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-
     try {
       org.projectnessie.model.Namespace root =
           org.projectnessie.model.Namespace.of(namespace.levels());
-
       String filter =
           namespace.isEmpty()
               ? "size(entry.keyElements) == 1"
               : String.format(
                   "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
                   root.getElementCount() + 1, root.name());
-
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
               .filter(e -> Content.Type.NAMESPACE.equals(e.getType()))
               .map(EntriesResponse.Entry::getName)
               .collect(Collectors.toList());
-
       if (entries.isEmpty()) {
         return Collections.emptyList();
       }
-
       GetContentBuilder getContent = withReference(api.getContent());
       entries.forEach(getContent::key);
-
       return getContent.get().values().stream()
           .map(v -> v.unwrap(org.projectnessie.model.Namespace.class))
           .filter(Optional::isPresent)
@@ -274,7 +263,6 @@ public class NessieIcebergClient implements AutoCloseable {
           .map(v -> Namespace.of(v.getElements().toArray(new String[0])))
           .filter(v -> v.length() == namespace.length() + 1) // only direct children
           .collect(Collectors.toList());
-
     } catch (NessieNotFoundException e) {
       if (namespace.isEmpty()) {
         throw new NoSuchNamespaceException(
@@ -291,10 +279,8 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
-
     try {
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
@@ -303,7 +289,6 @@ public class NessieIcebergClient implements AutoCloseable {
         throw new NoSuchNamespaceException(
             "Content object with name '%s' is not a Namespace.", namespace);
       }
-
       try {
         commitRetry("drop namespace " + key, Operation.Delete.of(key));
         return true;
@@ -324,7 +309,6 @@ public class NessieIcebergClient implements AutoCloseable {
               String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
         }
       }
-
     } catch (NessieNotFoundException e) {
       LOG.error(
           "Cannot drop Namespace '{}': ref '{}' is no longer valid.",
@@ -368,7 +352,6 @@ public class NessieIcebergClient implements AutoCloseable {
   private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
-
     try {
       commitRetry(
           "update namespace " + key,
@@ -392,10 +375,8 @@ public class NessieIcebergClient implements AutoCloseable {
             commitBuilder.operation(Operation.Put.of(key, updatedNamespace));
             return commitBuilder;
           });
-
       // always successful, otherwise an exception is thrown
       return true;
-
     } catch (NessieReferenceConflictException e) {
       NessieConflictHandler.handleSingle(
           e,
@@ -435,12 +416,10 @@ public class NessieIcebergClient implements AutoCloseable {
     }
 
     try {
-
       commitRetry(
           String.format("Iceberg rename table from '%s' to '%s'", from, to),
           Operation.Delete.of(NessieUtil.toKey(from)),
           Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
-
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it
       // would imply that the
@@ -488,11 +467,9 @@ public class NessieIcebergClient implements AutoCloseable {
 
     // We try to drop the table. Simple retry after ref update.
     try {
-
       commitRetry(
           String.format("Iceberg delete table %s", identifier),
           Operation.Delete.of(NessieUtil.toKey(identifier)));
-
       return true;
     } catch (NessieConflictException e) {
       LOG.error(
@@ -629,14 +606,12 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private void commitRetry(String message, boolean retryConflicts, CommitEnhancer commitEnhancer)
       throws BaseNessieClientServerException {
-
     // Retry all errors except for NessieNotFoundException and also NessieConflictException, unless
     // retryConflicts is set to true.
     Predicate<Exception> shouldRetry =
         e ->
             !(e instanceof NessieNotFoundException)
                 && (!(e instanceof NessieConflictException) || retryConflicts);
-
     Tasks.range(1)
         .retry(5)
         .shouldRetryTest(shouldRetry)
