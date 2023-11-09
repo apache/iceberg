@@ -281,9 +281,15 @@ public class NessieIcebergClient implements AutoCloseable {
           .collect(Collectors.toList());
 
     } catch (NessieNotFoundException e) {
+      if (namespace.isEmpty()) {
+        throw new NoSuchNamespaceException(
+            e,
+            "Cannot list top-level Namespaces: ref '%s' is no longer valid.",
+            getRef().getName());
+      }
       throw new RuntimeException(
           String.format(
-              "Cannot list Namespaces starting from '%s': ref '%s' is no longer valid.",
+              "Cannot list child Namespaces from '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     }

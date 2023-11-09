@@ -86,10 +86,10 @@ public class TestMultipleClients extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> catalog.listNamespaces())
         .hasMessageContaining(
-            "Cannot list Namespaces starting from '': ref '%s' is no longer valid", branch);
-    Assertions.assertThatThrownBy(() -> anotherCatalog.listNamespaces())
+            "Cannot list top-level Namespaces: ref '%s' is no longer valid", branch);
+    Assertions.assertThatThrownBy(() -> anotherCatalog.listNamespaces(Namespace.of("db1")))
         .hasMessageContaining(
-            "Cannot list Namespaces starting from '': ref '%s' is no longer valid", branch);
+            "Cannot list child Namespaces from 'db1': ref '%s' is no longer valid", branch);
   }
 
   @Test
