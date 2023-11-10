@@ -424,17 +424,17 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     Preconditions.checkArgument(
         curSnapshot != null, "Sanity check, curSnapshot should not be null");
 
-    curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
     // skip over rewrite and delete snapshots
-    while (!shouldProcess(curSnapshot)) {
-      LOG.debug("Skipping snapshot: {} of table {}", curSnapshot.snapshotId(), table.name());
+    while (!shouldProcess(nextSnapshot)) {
+      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
       // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
         return null;
       }
-      curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
-    return curSnapshot;
+    return nextSnapshot;
   }
 
   private long addedFilesCount(Snapshot snapshot) {
