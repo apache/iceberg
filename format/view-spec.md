@@ -239,7 +239,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 
 Each change creates a new metadata JSON file.
-For example, SQL is modified with identifier having catalog name and namespace as below.
+In the below example, the underlying SQL is modified by specifying the fully-qualified table name.
 
 ```sql
 USE prod.other_db;
