@@ -343,6 +343,11 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThat(client.setProperties(ns, Map.of("k1", "v1b", "k2", "v2"))).isTrue();
 
+    Assertions.assertThat(client.loadNamespaceMetadata(ns))
+        .hasSize(2)
+        .containsEntry("k1", "v1b")
+        .containsEntry("k2", "v2");
+
     List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
     Assertions.assertThat(entries)
         .isNotEmpty()
@@ -356,13 +361,6 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
                   .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
                   .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
             });
-
-    ContentKey key = ContentKey.of("a");
-    org.projectnessie.model.Namespace updated = fetchNamespace(key, branch);
-    Assertions.assertThat(updated.getProperties())
-        .hasSize(2)
-        .containsEntry("k1", "v1b")
-        .containsEntry("k2", "v2");
   }
 
   @Test
@@ -375,22 +373,18 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     client.createNamespace(ns, Map.of("k1", "v1a"));
 
     ContentKey key = ContentKey.of("a");
-
     org.projectnessie.model.Namespace original = fetchNamespace(key, branch);
-
     org.projectnessie.model.Namespace updated =
         org.projectnessie.model.Namespace.builder()
             .from(original)
             .properties(Map.of("k1", "v1b", "k2", "v2"))
             .build();
-
     commit(branch, "update namespace a", Operation.Put.of(key, updated));
 
     // will generate a conflict and a retry
     Assertions.assertThat(client.setProperties(ns, Map.of("k1", "v1c", "k3", "v3"))).isTrue();
 
-    updated = fetchNamespace(key, branch);
-    Assertions.assertThat(updated.getProperties())
+    Assertions.assertThat(client.loadNamespaceMetadata(ns))
         .hasSize(3)
         .containsEntry("k1", "v1c")
         .containsEntry("k2", "v2")
@@ -446,8 +440,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThat(client.removeProperties(ns, Set.of("k1"))).isTrue();
 
-    org.projectnessie.model.Namespace content = fetchNamespace(key, branch);
-    Assertions.assertThat(content.getProperties()).hasSize(1).containsOnlyKeys("k2");
+    Assertions.assertThat(client.loadNamespaceMetadata(ns)).hasSize(1).containsOnlyKeys("k2");
 
     List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
     Assertions.assertThat(entries)
@@ -476,20 +469,17 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     ContentKey key = ContentKey.of("a");
     org.projectnessie.model.Namespace original = fetchNamespace(key, branch);
-
     org.projectnessie.model.Namespace updated =
         org.projectnessie.model.Namespace.builder()
             .from(original)
             .properties(Map.of("k2", "v2", "k3", "v3"))
             .build();
-
     commit(branch, "update namespace a", Operation.Put.of(key, updated));
 
     // will generate a conflict and a retry
     Assertions.assertThat(client.removeProperties(ns, Set.of("k2"))).isTrue();
 
-    updated = fetchNamespace(key, branch);
-    Assertions.assertThat(updated.getProperties()).hasSize(1).containsOnlyKeys("k3");
+    Assertions.assertThat(client.loadNamespaceMetadata(ns)).hasSize(1).containsOnlyKeys("k3");
   }
 
   @Test
