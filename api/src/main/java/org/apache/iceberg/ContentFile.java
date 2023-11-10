@@ -167,13 +167,13 @@ public interface ContentFile<F> {
   F copyWithoutStats();
 
   /**
-   * Copies this file with only specific column stats. Manifest readers can reuse file instances;
-   * use this method to copy data and only copy specific stats when collecting files.
+   * Copies this file with column stats only for specific columns. Manifest readers can reuse file
+   * instances; use this method to copy data with stats only for specific columns when collecting
+   * files.
    *
-   * @param requestedColumnIds column ids for which to keep stats. If <code>null</code> then every
-   *     column stat is kept.
-   * @return a copy of this data file, with stats lower bounds, upper bounds, value counts, null
-   *     value counts, and nan value counts for only specific columns.
+   * @param requestedColumnIds column IDs for which to keep stats.
+   * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
+   *     and nan value counts for only specific columns.
    */
   default F copyWithStats(Set<Integer> requestedColumnIds) {
     throw new UnsupportedOperationException(

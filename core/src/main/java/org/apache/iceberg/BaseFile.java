@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -191,24 +189,29 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (copyStats) {
-      this.columnSizes =
-          filterColumnsStats(toCopy.columnSizes, requestedColumnIds, SerializableMap::copyOf);
-      this.valueCounts =
-          filterColumnsStats(toCopy.valueCounts, requestedColumnIds, SerializableMap::copyOf);
-      this.nullValueCounts =
-          filterColumnsStats(toCopy.nullValueCounts, requestedColumnIds, SerializableMap::copyOf);
-      this.nanValueCounts =
-          filterColumnsStats(toCopy.nanValueCounts, requestedColumnIds, SerializableMap::copyOf);
-      this.lowerBounds =
-          filterColumnsStats(
-              toCopy.lowerBounds,
-              requestedColumnIds,
-              m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
-      this.upperBounds =
-          filterColumnsStats(
-              toCopy.upperBounds,
-              requestedColumnIds,
-              m -> SerializableByteBufferMap.wrap(SerializableMap.copyOf(m)));
+      if (requestedColumnIds == null) {
+        this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
+        this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
+        this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
+        this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
+        this.lowerBounds =
+            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
+        this.upperBounds =
+            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
+      } else {
+        this.columnSizes = SerializableMap.filteredCopyOf(toCopy.columnSizes, requestedColumnIds);
+        this.valueCounts = SerializableMap.filteredCopyOf(toCopy.valueCounts, requestedColumnIds);
+        this.nullValueCounts =
+            SerializableMap.filteredCopyOf(toCopy.nullValueCounts, requestedColumnIds);
+        this.nanValueCounts =
+            SerializableMap.filteredCopyOf(toCopy.nanValueCounts, requestedColumnIds);
+        this.lowerBounds =
+            SerializableByteBufferMap.wrap(
+                SerializableMap.filteredCopyOf(toCopy.lowerBounds, requestedColumnIds));
+        this.upperBounds =
+            SerializableByteBufferMap.wrap(
+                SerializableMap.filteredCopyOf(toCopy.upperBounds, requestedColumnIds));
+      }
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -519,24 +522,6 @@ abstract class BaseFile<F>
     } else {
       return Collections.unmodifiableMap(map);
     }
-  }
-
-  private static <TypeT> Map<Integer, TypeT> filterColumnsStats(
-      Map<Integer, TypeT> map,
-      Set<Integer> columnIds,
-      Function<Map<Integer, TypeT>, Map<Integer, TypeT>> copyFunction) {
-    if (columnIds == null || columnIds.isEmpty()) {
-      return copyFunction.apply(map);
-    }
-
-    if (map == null) {
-      return null;
-    }
-
-    return copyFunction.apply(
-        columnIds.stream()
-            .filter(map::containsKey)
-            .collect(Collectors.toMap(Function.identity(), map::get)));
   }
 
   @Override
