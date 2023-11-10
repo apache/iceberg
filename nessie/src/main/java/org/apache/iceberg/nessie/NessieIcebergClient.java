@@ -203,24 +203,20 @@ public class NessieIcebergClient implements AutoCloseable {
       try {
         commitRetry("create namespace " + key, Operation.Put.of(key, content));
       } catch (NessieReferenceConflictException e) {
-        NessieConflictHandler.handleSingle(
-            e,
-            (conflictType, contentKey) -> {
-              switch (conflictType) {
-                case KEY_EXISTS:
-                  Content conflicting =
-                      withReference(api.getContent()).key(contentKey).get().get(contentKey);
-                  throw namespaceAlreadyExists(contentKey, conflicting, e);
-                case NAMESPACE_ABSENT:
-                  throw new NoSuchNamespaceException(
-                      e,
-                      "Cannot create Namespace '%s': parent namespace '%s' does not exist",
-                      namespace,
-                      contentKey);
-                default:
-                  return false;
-              }
-            });
+        Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+        if (conflict.isPresent()) {
+          switch (conflict.get().conflictType()) {
+            case KEY_EXISTS:
+              Content conflicting = withReference(api.getContent()).key(key).get().get(key);
+              throw namespaceAlreadyExists(key, conflicting, e);
+            case NAMESPACE_ABSENT:
+              throw new NoSuchNamespaceException(
+                  e,
+                  "Cannot create Namespace '%s': parent namespace '%s' does not exist",
+                  namespace,
+                  conflict.get().key());
+          }
+        }
         throw new RuntimeException(
             String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
       }
@@ -293,21 +289,18 @@ public class NessieIcebergClient implements AutoCloseable {
         commitRetry("drop namespace " + key, Operation.Delete.of(key));
         return true;
       } catch (NessieReferenceConflictException e) {
-        if (!NessieConflictHandler.handleSingle(
-            e,
-            (conflictType, contentKey) -> {
-              switch (conflictType) {
-                case KEY_DOES_NOT_EXIST:
-                  return true; // OK, continue
-                case NAMESPACE_NOT_EMPTY:
-                  throw new NamespaceNotEmptyException(
-                      e, "Namespace '%s' is not empty.", namespace);
-              }
+        Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+        if (conflict.isPresent()) {
+          Conflict.ConflictType conflictType = conflict.get().conflictType();
+          switch (conflictType) {
+            case KEY_DOES_NOT_EXIST:
               return false;
-            })) {
-          throw new RuntimeException(
-              String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+            case NAMESPACE_NOT_EMPTY:
+              throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty.", namespace);
+          }
         }
+        throw new RuntimeException(
+            String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
       LOG.error(
@@ -375,14 +368,11 @@ public class NessieIcebergClient implements AutoCloseable {
       // always successful, otherwise an exception is thrown
       return true;
     } catch (NessieReferenceConflictException e) {
-      NessieConflictHandler.handleSingle(
-          e,
-          (conflictType, contentKey) -> {
-            if (conflictType == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
-              throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
-            }
-            return false;
-          });
+      Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+      if (conflict.isPresent()
+          && conflict.get().conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
+        throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+      }
       throw new RuntimeException(
           String.format(
               "Cannot update properties on Namespace '%s': %s", namespace, e.getMessage()));

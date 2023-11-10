@@ -165,22 +165,27 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   private static void maybeThrowSpecializedException(NessieReferenceConflictException ex) {
-    NessieConflictHandler.handleSingle(
-        ex,
-        (conflictType, contentKey) -> {
-          switch (conflictType) {
-            case NAMESPACE_ABSENT:
-              throw new NoSuchNamespaceException(ex, "Namespace does not exist: %s", contentKey);
-            case NAMESPACE_NOT_EMPTY:
-              throw new NamespaceNotEmptyException(ex, "Namespace not empty: %s", contentKey);
-            case KEY_DOES_NOT_EXIST:
-              throw new NoSuchTableException(ex, "Table or view does not exist: %s", contentKey);
-            case KEY_EXISTS:
-              throw new AlreadyExistsException(ex, "Table or view already exists: %s", contentKey);
-            default:
-              return false;
-          }
-        });
+    NessieUtil.extractSingleConflict(ex)
+        .ifPresent(
+            conflict -> {
+              switch (conflict.conflictType()) {
+                case NAMESPACE_ABSENT:
+                  throw new NoSuchNamespaceException(
+                      ex, "Namespace does not exist: %s", conflict.key());
+                case NAMESPACE_NOT_EMPTY:
+                  throw new NamespaceNotEmptyException(
+                      ex, "Namespace not empty: %s", conflict.key());
+                case KEY_DOES_NOT_EXIST:
+                  throw new NoSuchTableException(
+                      ex, "Table or view does not exist: %s", conflict.key());
+                case KEY_EXISTS:
+                  throw new AlreadyExistsException(
+                      ex, "Table or view already exists: %s", conflict.key());
+                default:
+                  // Explicit fall-through
+                  break;
+              }
+            });
   }
 
   @Override
