@@ -239,12 +239,14 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 
 Each change creates a new metadata JSON file.
+In the below example, the underlying SQL is modified by specifying the fully-qualified table name.
 
 ```sql
 USE prod.other_db;
 CREATE OR REPLACE VIEW default.event_agg (
-    event_count,
+    event_count COMMENT 'Count of events',
     event_date)
+COMMENT 'Daily event counts'
 AS
 SELECT
     COUNT(1), CAST(event_ts AS DATE)
