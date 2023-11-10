@@ -285,7 +285,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
       Content existing = contentMap.get(key);
-      if (existing != null && !(existing instanceof org.projectnessie.model.Namespace)) {
+      if (existing != null && !existing.getType().equals(Content.Type.NAMESPACE)) {
         throw new NoSuchNamespaceException(
             "Content object with name '%s' is not a Namespace.", namespace);
       }
