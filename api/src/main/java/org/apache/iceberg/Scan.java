@@ -83,8 +83,7 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    *
    * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
    *
-   * @param requestedColumns column names for which to keep the stats. If <code>null</code> then all
-   *     column stats will be kept, when {@link #includeColumnStats()} is set.
+   * @param requestedColumns column names for which to keep the stats.
    * @return a new scan based on this that loads column stats for specific columns.
    */
   default ThisT includeColumnStats(Collection<String> requestedColumns) {

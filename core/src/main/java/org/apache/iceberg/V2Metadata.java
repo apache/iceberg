@@ -563,7 +563,7 @@ class V2Metadata {
 
     @Override
     public F copyWithStats(Set<Integer> requestedColumnIds) {
-      return wrapped.copyWithStats(requestedColumnIds);
+      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
 
     @Override
