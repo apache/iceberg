@@ -126,7 +126,7 @@ public class ParquetBloomRowGroupFilter {
           // with ROWS_MIGHT_MATCH
           return ROWS_MIGHT_MATCH;
         } else {
-          LOG.info(
+          LOG.debug(
               "Bloom filters are used. The following fields have filters and Bloom filters : {}",
               overlappedBloomFilters);
         }
