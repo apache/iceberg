@@ -176,7 +176,7 @@ To read appended data incrementally, use:
 
 ```scala
 // get the data added after start-snapshot-id (10963874102873L) until end-snapshot-id (63874143573109L)
-spark.read()
+spark.read
   .format("iceberg")
   .option("start-snapshot-id", "10963874102873")
   .option("end-snapshot-id", "63874143573109")
