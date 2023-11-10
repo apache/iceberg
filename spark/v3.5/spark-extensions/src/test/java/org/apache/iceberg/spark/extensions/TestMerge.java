@@ -69,6 +69,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -2943,5 +2944,78 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   private RowLevelOperationMode mode(Table table) {
     String modeName = table.properties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
     return RowLevelOperationMode.fromName(modeName);
+  }
+
+  @Test
+  public void multipleMergeIntoWithSerializableIsolation() throws InterruptedException {
+    // cannot run tests with concurrency for Hadoop tables without atomic renames
+    Assumptions.assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
+    // if caching is off, the table is eagerly refreshed during runtime filtering
+    // this can cause a validation exception as concurrent changes would be visible
+    Assumptions.assumeThat(cachingCatalogEnabled()).isTrue();
+
+    createAndInitTable("id INT, class INT, value INT");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, MERGE_ISOLATION_LEVEL, "serializable");
+
+    sql("INSERT INTO TABLE %s VALUES (1001, 1, 10)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1002, 1, 20)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1003, 2, 100)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1004, 2, 200)", tableName);
+    createBranchIfNeeded();
+
+    Thread t1 =
+        new Thread(
+            () ->
+                sql(
+                    "MERGE INTO %s t USING (\n"
+                        + "  SELECT 1005 as id, 2 as class, SUM(value)  as value FROM %s WHERE class = 1\n"
+                        + ") u \n"
+                        + "ON t.id = u.id\n"
+                        + "WHEN MATCHED THEN UPDATE SET t.value = u.value\n"
+                        + "WHEN NOT MATCHED THEN INSERT (id, class, value) VALUES (u.id, u.class, u.value);",
+                    commitTarget(), commitTarget()));
+
+    Thread t2 =
+        new Thread(
+            () ->
+                sql(
+                    "MERGE INTO %s t USING (\n"
+                        + "  SELECT 1006 as id, 1 as class, SUM(value)  as value FROM %s WHERE class = 2\n"
+                        + ") u \n"
+                        + "ON t.id = u.id\n"
+                        + "WHEN MATCHED THEN UPDATE SET t.value = u.value\n"
+                        + "WHEN NOT MATCHED THEN INSERT (id, class, value) VALUES (u.id, u.class, u.value);",
+                    commitTarget(), commitTarget()));
+    t1.start();
+    t2.start();
+    t1.join();
+    t2.join();
+
+    Assertions.assertThat(sql("SELECT id, value FROM %s ORDER BY id", selectTarget()))
+        .as(
+            "This is a test which should have correct results "
+                + "for serializable isolation (we should not have (1005, 30) and (1006, 300). "
+                + "A serializable ordering would yield either "
+                + "1.) (1005,30) OR "
+                + "2.) (1006,300)")
+        .satisfiesAnyOf(
+            result ->
+                Assertions.assertThat((List<Object[]>) result)
+                    .containsExactly(
+                        row(1001, 10),
+                        row(1002, 20),
+                        row(1003, 100),
+                        row(1004, 200),
+                        row(1005, 30)),
+            result ->
+                Assertions.assertThat((List<Object[]>) result)
+                    .containsExactly(
+                        row(1001, 10),
+                        row(1002, 20),
+                        row(1003, 100),
+                        row(1004, 200),
+                        row(1006, 300)));
   }
 }
