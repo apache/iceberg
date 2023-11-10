@@ -285,7 +285,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
       Content existing = contentMap.get(key);
-      if (existing != null && !existing.getType().equals(Content.Type.NAMESPACE)) {
+      if (existing != null && !unwrapNamespace(existing).isPresent()) {
         throw new NoSuchNamespaceException(
             "Content object with name '%s' is not a Namespace.", namespace);
       }
@@ -327,11 +327,10 @@ public class NessieIcebergClient implements AutoCloseable {
     ContentKey key = ContentKey.of(namespace.levels());
     try {
       Map<ContentKey, Content> contentMap = withReference(api.getContent()).key(key).get();
-      Content existing = contentMap.get(key);
-      if (!(existing instanceof org.projectnessie.model.Namespace)) {
-        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-      }
-      return ((org.projectnessie.model.Namespace) existing).getProperties();
+      return unwrapNamespace(contentMap.get(key))
+          .orElseThrow(
+              () -> new NoSuchNamespaceException("Namespace does not exist: %s", namespace))
+          .getProperties();
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
@@ -359,12 +358,10 @@ public class NessieIcebergClient implements AutoCloseable {
           commitBuilder -> {
             Map<ContentKey, Content> contentMap =
                 api.getContent().reference(getReference()).key(key).get();
-            Content existing = contentMap.get(key);
-            if (!(existing instanceof org.projectnessie.model.Namespace)) {
-              throw new NessieContentNotFoundException(key, getReference().getName());
-            }
             org.projectnessie.model.Namespace oldNamespace =
-                (org.projectnessie.model.Namespace) existing;
+                unwrapNamespace(contentMap.get(key))
+                    .orElseThrow(
+                        () -> new NessieContentNotFoundException(key, getReference().getName()));
             Map<String, String> newProperties = Maps.newHashMap(oldNamespace.getProperties());
             action.accept(newProperties);
             org.projectnessie.model.Namespace updatedNamespace =
@@ -647,7 +644,14 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
+  private static Optional<org.projectnessie.model.Namespace> unwrapNamespace(Content content) {
+    return content == null
+        ? Optional.empty()
+        : content.unwrap(org.projectnessie.model.Namespace.class);
+  }
+
   private interface CommitEnhancer {
+
     CommitMultipleOperationsBuilder enhance(CommitMultipleOperationsBuilder builder)
         throws BaseNessieClientServerException;
   }
