@@ -507,6 +507,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     @Override
+    public boolean useCommitCoordinator() {
+      return false;
+    }
+
+    @Override
     public final void commit(long epochId, WriterCommitMessage[] messages) {
       LOG.info("Committing epoch {} for query {} in {} mode", epochId, queryId, mode());
 
