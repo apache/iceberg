@@ -416,7 +416,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   /**
    * Get the next snapshot skiping over rewrite and delete snapshots.
    *
-   * @param nextValidSnapshot
+   * @param curSnapshot the current snapshot
    * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
    *     remaining snapshots should be skipped.
    */
