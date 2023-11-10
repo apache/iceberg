@@ -54,6 +54,7 @@ import org.slf4j.LoggerFactory;
 public class ParquetBloomRowGroupFilter {
 
   private static final Logger LOG = LoggerFactory.getLogger(ParquetBloomRowGroupFilter.class);
+
   private final Schema schema;
   private final Expression expr;
   private final boolean caseSensitive;
