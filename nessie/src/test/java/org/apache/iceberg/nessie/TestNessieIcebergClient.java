@@ -329,7 +329,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testSetProperties() throws NessieConflictException, NessieNotFoundException {
+  public void testSetProperties() throws NessieConflictException, NessieNotFoundException {
     String branch = "setPropertiesBranch";
     createBranch(branch);
     Map<String, String> catalogOptions =
@@ -364,7 +364,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testSetPropertiesExternalConflict() throws NessieConflictException, NessieNotFoundException {
+  public void testSetPropertiesExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
     String branch = "setPropertiesExternalConflictBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
@@ -392,7 +393,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testSetPropertiesNonExistingNs() throws NessieConflictException, NessieNotFoundException {
+  public void testSetPropertiesNonExistingNs()
+      throws NessieConflictException, NessieNotFoundException {
     String branch = "setPropertiesNonExistingNsBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
@@ -408,7 +410,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testSetPropertiesNonExistingRef() throws NessieConflictException, NessieNotFoundException {
+  public void testSetPropertiesNonExistingRef()
+      throws NessieConflictException, NessieNotFoundException {
     String branch = "setPropertiesNonExistingRefBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
@@ -424,7 +427,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testRemoveProperties() throws NessieConflictException, NessieNotFoundException {
+  public void testRemoveProperties() throws NessieConflictException, NessieNotFoundException {
     String branch = "removePropertiesBranch";
     createBranch(branch);
     Map<String, String> catalogOptions =
@@ -458,7 +461,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testRemovePropertiesExternalConflict()
+  public void testRemovePropertiesExternalConflict()
       throws NessieConflictException, NessieNotFoundException {
     String branch = "removePropertiesExternalConflictBranch";
     createBranch(branch);
@@ -483,7 +486,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testRemovePropertiesNonExistingNs() throws NessieConflictException, NessieNotFoundException {
+  public void testRemovePropertiesNonExistingNs()
+      throws NessieConflictException, NessieNotFoundException {
     String branch = "removePropertiesNonExistingNsBranch";
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
@@ -498,7 +502,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  void testRemovePropertiesNonExistingRef()
+  public void testRemovePropertiesNonExistingRef()
       throws NessieConflictException, NessieNotFoundException {
     String branch = "removePropertiesNonExistingRefBranch";
     createBranch(branch);
