@@ -20,9 +20,9 @@ package org.apache.iceberg.spark.source.metrics;
 
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class TotalFileSize extends CustomSumMetric {
+public class SkippedDeleteManifests extends CustomSumMetric {
 
-  static final String NAME = "totalFileSize";
+  static final String NAME = "skippedDeleteManifests";
 
   @Override
   public String name() {
@@ -31,6 +31,6 @@ public class TotalFileSize extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "total file size (bytes)";
+    return "number of skipped delete manifest";
   }
 }

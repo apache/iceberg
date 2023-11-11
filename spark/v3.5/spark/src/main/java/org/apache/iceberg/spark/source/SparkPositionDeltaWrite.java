@@ -172,6 +172,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     }
 
     @Override
+    public boolean useCommitCoordinator() {
+      return false;
+    }
+
+    @Override
     public void commit(WriterCommitMessage[] messages) {
       RowDelta rowDelta = table.newRowDelta();
 

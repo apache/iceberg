@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 
-/** Represents a manifest file that can be scanned to find data files in a table. */
+/** Represents a manifest file that can be scanned to find files in a table. */
 public interface ManifestFile {
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
@@ -141,10 +141,10 @@ public interface ManifestFile {
     return addedFilesCount() == null || addedFilesCount() > 0;
   }
 
-  /** Returns the number of data files with status ADDED in the manifest file. */
+  /** Returns the number of files with status ADDED in the manifest file. */
   Integer addedFilesCount();
 
-  /** Returns the total number of rows in all data files with status ADDED in the manifest file. */
+  /** Returns the total number of rows in all files with status ADDED in the manifest file. */
   Long addedRowsCount();
 
   /**
@@ -156,12 +156,10 @@ public interface ManifestFile {
     return existingFilesCount() == null || existingFilesCount() > 0;
   }
 
-  /** Returns the number of data files with status EXISTING in the manifest file. */
+  /** Returns the number of files with status EXISTING in the manifest file. */
   Integer existingFilesCount();
 
-  /**
-   * Returns the total number of rows in all data files with status EXISTING in the manifest file.
-   */
+  /** Returns the total number of rows in all files with status EXISTING in the manifest file. */
   Long existingRowsCount();
 
   /**
@@ -173,12 +171,10 @@ public interface ManifestFile {
     return deletedFilesCount() == null || deletedFilesCount() > 0;
   }
 
-  /** Returns the number of data files with status DELETED in the manifest file. */
+  /** Returns the number of files with status DELETED in the manifest file. */
   Integer deletedFilesCount();
 
-  /**
-   * Returns the total number of rows in all data files with status DELETED in the manifest file.
-   */
+  /** Returns the total number of rows in all files with status DELETED in the manifest file. */
   Long deletedRowsCount();
 
   /**
@@ -214,12 +210,12 @@ public interface ManifestFile {
       return PARTITION_SUMMARY_TYPE;
     }
 
-    /** Returns true if at least one data file in the manifest has a null value for the field. */
+    /** Returns true if at least one file in the manifest has a null value for the field. */
     boolean containsNull();
 
     /**
-     * Returns true if at least one data file in the manifest has a NaN value for the field. Null if
-     * this information doesn't exist.
+     * Returns true if at least one file in the manifest has a NaN value for the field. Null if this
+     * information doesn't exist.
      *
      * <p>Default to return null to ensure backward compatibility.
      */
