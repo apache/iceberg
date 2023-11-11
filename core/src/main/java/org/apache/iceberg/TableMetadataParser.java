@@ -84,6 +84,7 @@ public class TableMetadataParser {
   private TableMetadataParser() {}
 
   // visible for testing
+  static final String METADATA_FILE_LOCATION = "metadata-file-location";
   static final String FORMAT_VERSION = "format-version";
   static final String TABLE_UUID = "table-uuid";
   static final String LOCATION = "location";
@@ -161,6 +162,7 @@ public class TableMetadataParser {
   public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
+    generator.writeStringField(METADATA_FILE_LOCATION, metadata.metadataFileLocation());
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
@@ -311,6 +313,13 @@ public class TableMetadataParser {
   public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
+
+    String metadataFileLocation;
+    if (metadataLocation != null) {
+      metadataFileLocation = metadataLocation;
+    } else {
+      metadataFileLocation = JsonUtil.getString(METADATA_FILE_LOCATION, node);
+    }
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
     Preconditions.checkArgument(
@@ -506,7 +515,7 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(
-        metadataLocation,
+        metadataFileLocation,
         formatVersion,
         uuid,
         location,
