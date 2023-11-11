@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.hive;
 
-import static org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +33,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
@@ -76,7 +75,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   static final String ICEBERG_TYPE_FILTER =
       String.format(
           "%s%s = \"%s\"",
-          HIVE_FILTER_FIELD_PARAMS,
+          hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS,
           BaseMetastoreTableOperations.TABLE_TYPE_PROP,
           BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
 
