@@ -72,9 +72,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
   static final String ICEBERG_TYPE_FILTER =
-          String.format("%s = \"%s\"",
-                  BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-                  BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+      String.format(
+          "%s = \"%s\"",
+          BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+          BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -135,12 +136,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
                 .collect(Collectors.toList());
       } else {
         List<String> tableObjects =
-                clients.run(
-                        client ->
-                                client.listTableNamesByFilter(
-                                        database,
-                                        ICEBERG_TYPE_FILTER,
-                                        (short) -1));
+            clients.run(
+                client -> client.listTableNamesByFilter(database, ICEBERG_TYPE_FILTER, (short) -1));
         tableIdentifiers =
             tableObjects.stream()
                 .map(t -> TableIdentifier.of(namespace, t))
