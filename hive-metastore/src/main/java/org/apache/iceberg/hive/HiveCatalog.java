@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,7 +75,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   static final String ICEBERG_TYPE_FILTER =
       String.format(
-          "%s = \"%s\"",
+          "%s%s = \"%s\"",
+          HIVE_FILTER_FIELD_PARAMS,
           BaseMetastoreTableOperations.TABLE_TYPE_PROP,
           BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
 
