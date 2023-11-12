@@ -39,7 +39,7 @@ findbugs-jsr305 = "3.0.2"
 flink115 = { strictly = "[1.15, 1.16[", prefer = "1.15.0"} # see rich version usage explanation above
 flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
 flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
-google-libraries-bom = "26.26.0"
+google-libraries-bom = "26.27.0"
 guava = "32.1.3-jre"
 hadoop2 = "2.7.3"
 hadoop3-client = "3.3.6"
