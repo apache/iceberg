@@ -16,7 +16,7 @@
 # under the License.
 
 mkdocs-awesome-pages-plugin==2.9.2
-mkdocs-macros-plugin==1.0.4
+mkdocs-macros-plugin==1.0.5
 mkdocs-material==9.1.21
 mkdocs-material-extensions==1.1.1
 mkdocs-monorepo-plugin==1.0.5
