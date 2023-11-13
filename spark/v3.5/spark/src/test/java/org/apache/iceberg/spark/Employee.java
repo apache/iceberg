@@ -16,38 +16,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.deletes;
+package org.apache.iceberg.spark;
 
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+import java.util.Objects;
 
-class BitmapPositionDeleteIndex implements PositionDeleteIndex {
-  private final Roaring64Bitmap roaring64Bitmap;
+public class Employee {
+  private Integer id;
+  private String dep;
 
-  BitmapPositionDeleteIndex() {
-    roaring64Bitmap = new Roaring64Bitmap();
+  public Employee() {}
+
+  public Employee(Integer id, String dep) {
+    this.id = id;
+    this.dep = dep;
   }
 
-  void merge(BitmapPositionDeleteIndex that) {
-    roaring64Bitmap.or(that.roaring64Bitmap);
+  public Integer getId() {
+    return id;
+  }
+
+  public void setId(Integer id) {
+    this.id = id;
+  }
+
+  public String getDep() {
+    return dep;
+  }
+
+  public void setDep(String dep) {
+    this.dep = dep;
   }
 
   @Override
-  public void delete(long position) {
-    roaring64Bitmap.add(position);
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    Employee employee = (Employee) other;
+    return Objects.equals(id, employee.id) && Objects.equals(dep, employee.dep);
   }
 
   @Override
-  public void delete(long posStart, long posEnd) {
-    roaring64Bitmap.add(posStart, posEnd);
-  }
-
-  @Override
-  public boolean isDeleted(long position) {
-    return roaring64Bitmap.contains(position);
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return roaring64Bitmap.isEmpty();
+  public int hashCode() {
+    return Objects.hash(id, dep);
   }
 }

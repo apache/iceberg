@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.SortedMerge;
@@ -126,6 +127,35 @@ public class Deletes {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close equality delete source", e);
     }
+  }
+
+  /**
+   * Builds a map of position delete indexes by path.
+   *
+   * <p>Unlike {@link #toPositionIndex(CharSequence, List)}, this method builds a position delete
+   * index for each referenced data file and does not filter deletes. This can be useful when the
+   * entire delete file content is needed (e.g. caching).
+   *
+   * @param posDeletes position deletes
+   * @return the map of position delete indexes by path
+   */
+  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+      CloseableIterable<T> posDeletes) {
+    CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+
+    try (CloseableIterable<T> deletes = posDeletes) {
+      for (T delete : deletes) {
+        CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
+        long position = (long) POSITION_ACCESSOR.get(delete);
+        PositionDeleteIndex index =
+            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex());
+        index.delete(position);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+
+    return indexes;
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
