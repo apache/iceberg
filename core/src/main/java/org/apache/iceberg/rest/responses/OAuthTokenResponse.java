@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -76,6 +77,23 @@ public class OAuthTokenResponse implements RESTResponse {
 
   public static Builder builder() {
     return new Builder();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    OAuthTokenResponse that = (OAuthTokenResponse) o;
+    return Objects.equals(accessToken, that.accessToken)
+        && Objects.equals(issuedTokenType, that.issuedTokenType)
+        && Objects.equals(tokenType, that.tokenType)
+        && Objects.equals(expiresIn, that.expiresIn)
+        && Objects.equals(scope, that.scope);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(accessToken, issuedTokenType, tokenType, expiresIn, scope);
   }
 
   public static class Builder {

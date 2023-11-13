@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -52,6 +53,19 @@ public class ListTablesResponse implements RESTResponse {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("identifiers", identifiers).toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ListTablesResponse that = (ListTablesResponse) o;
+    return Objects.equals(identifiers, that.identifiers);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(identifiers);
   }
 
   public static Builder builder() {

@@ -107,4 +107,23 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
     resp.validate();
     return resp;
   }
+
+  @Test
+  public void testEqualsCheck() {
+    ListNamespacesResponse resp1 = createExampleInstance();
+    ListNamespacesResponse resp2 = createExampleInstance();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    ListNamespacesResponse resp1 = createExampleInstance();
+    ListNamespacesResponse resp2 =
+        ListNamespacesResponse.builder().add(Namespace.of("ns1", "ts1")).build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
 }

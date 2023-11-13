@@ -114,6 +114,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
+  @SuppressWarnings("ReferenceEquality")
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {

@@ -129,4 +129,23 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     resp.validate();
     return resp;
   }
+
+  @Test
+  public void testEqualsCheck() {
+    ListTablesResponse resp1 = createExampleInstance();
+    ListTablesResponse resp2 = createExampleInstance();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    ListTablesResponse resp1 = createExampleInstance();
+    ListTablesResponse resp2 =
+        ListTablesResponse.builder().add(TableIdentifier.of("ns1", "t1")).build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
 }

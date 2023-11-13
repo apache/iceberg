@@ -222,6 +222,30 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
         .doesNotContainValue(null);
   }
 
+  @Test
+  public void testEqualsCheck() {
+    ConfigResponse resp =
+        ConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(OVERRIDES).build();
+    ConfigResponse resp2 =
+        ConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(OVERRIDES).build();
+
+    Assertions.assertThat(resp).isEqualTo(resp2);
+
+    Assertions.assertThat(resp.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    ConfigResponse resp =
+        ConfigResponse.builder().withDefaults(OVERRIDES).withOverrides(DEFAULTS).build();
+    ConfigResponse resp2 =
+        ConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(OVERRIDES).build();
+
+    Assertions.assertThat(resp).isNotEqualTo(resp2);
+
+    Assertions.assertThat(resp.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
     return new String[] {"defaults", "overrides"};

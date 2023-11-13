@@ -128,6 +128,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
+  @SuppressWarnings("ReferenceEquality")
   public void commit(TableMetadata base, TableMetadata metadata) {
     Pair<Integer, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {

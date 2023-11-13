@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -75,6 +76,21 @@ public class LoadTableResponse implements RESTResponse {
         .add("metadata", metadata)
         .add("config", config)
         .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    LoadTableResponse that = (LoadTableResponse) o;
+    return Objects.equals(metadataLocation, that.metadataLocation)
+        && Objects.equals(metadata, that.metadata)
+        && Objects.equals(config, that.config);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(metadataLocation, metadata, config);
   }
 
   public static Builder builder() {

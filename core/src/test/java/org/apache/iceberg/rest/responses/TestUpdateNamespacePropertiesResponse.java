@@ -260,4 +260,27 @@ public class TestUpdateNamespacePropertiesResponse
     resp.validate();
     return resp;
   }
+
+  @Test
+  public void testEqualsCheck() {
+    UpdateNamespacePropertiesResponse resp1 = createExampleInstance();
+    UpdateNamespacePropertiesResponse resp2 = createExampleInstance();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    UpdateNamespacePropertiesResponse resp1 = createExampleInstance();
+    UpdateNamespacePropertiesResponse resp2 =
+        UpdateNamespacePropertiesResponse.builder()
+            .addUpdated(REMOVED)
+            .addMissing(UPDATED)
+            .addRemoved(MISSING)
+            .build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
 }

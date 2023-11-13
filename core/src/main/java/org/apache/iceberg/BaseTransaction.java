@@ -337,6 +337,7 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  @SuppressWarnings("ReferenceEquality")
   private void commitReplaceTransaction(boolean orCreate) {
     Map<String, String> props = base != null ? base.properties() : current.properties();
 
@@ -393,6 +394,7 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  @SuppressWarnings("ReferenceEquality")
   private void commitSimpleTransaction() {
     // if there were no changes, don't try to commit
     if (base == current) {
@@ -488,6 +490,7 @@ public class BaseTransaction implements Transaction {
             });
   }
 
+  @SuppressWarnings("ReferenceEquality")
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
       // use refreshed the metadata
@@ -540,7 +543,7 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    @SuppressWarnings("ConsistentOverrides")
+    @SuppressWarnings({"ConsistentOverrides", "ReferenceEquality"})
     public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
       if (underlyingBase != current) {
         // trigger a refresh and retry

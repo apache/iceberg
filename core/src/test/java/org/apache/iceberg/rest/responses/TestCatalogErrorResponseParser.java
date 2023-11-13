@@ -121,9 +121,6 @@ public class TestCatalogErrorResponseParser {
   }
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
-    Assertions.assertThat(actual.message()).isEqualTo(expected.message());
-    Assertions.assertThat(actual.type()).isEqualTo(expected.type());
-    Assertions.assertThat(actual.code()).isEqualTo(expected.code());
-    Assertions.assertThat(actual.stack()).isEqualTo(expected.stack());
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 }

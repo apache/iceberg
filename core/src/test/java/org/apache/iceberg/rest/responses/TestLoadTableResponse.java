@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -261,5 +262,50 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   private String readTableMetadataInputFile(String fileName) throws Exception {
     Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
     return String.join("", java.nio.file.Files.readAllLines(path));
+  }
+
+  @Test
+  public void testEqualsCheck() {
+    String uuid = UUID.randomUUID().toString();
+    TableMetadata metadata1 = TableMetadata.buildFrom(
+                    TableMetadata.newTableMetadata(
+                            SCHEMA_7, SPEC_5, SORT_ORDER_3, TEST_TABLE_LOCATION, TABLE_PROPS))
+            .discardChanges()
+            .withMetadataLocation(TEST_METADATA_LOCATION)
+            .assignUUID(uuid)
+            .build();
+    LoadTableResponse resp1 = LoadTableResponse.builder().withTableMetadata(metadata1).build();
+
+    TableMetadata metadata2 = TableMetadata.buildFrom(
+                    TableMetadata.newTableMetadata(
+                            SCHEMA_7, SPEC_5, SORT_ORDER_3, TEST_TABLE_LOCATION, TABLE_PROPS))
+            .discardChanges()
+            .withMetadataLocation(TEST_METADATA_LOCATION)
+            .assignUUID(uuid)
+            .build();
+    LoadTableResponse resp2 = LoadTableResponse.builder().withTableMetadata(metadata2).build();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    LoadTableResponse resp1 = createExampleInstance();
+
+    // Creating another response
+    TableMetadata metadata =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    SCHEMA_7, SPEC_5, SORT_ORDER_3, TEST_TABLE_LOCATION, TABLE_PROPS))
+            .discardChanges()
+            .withMetadataLocation("s3://bucket/new/location2/metadata/v2.metadata.json")
+            .build();
+
+    LoadTableResponse resp2 =
+        LoadTableResponse.builder().withTableMetadata(metadata).addAllConfig(CONFIG).build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -71,6 +72,21 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
         .add("updates", updated)
         .add("missing", missing)
         .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    UpdateNamespacePropertiesResponse that = (UpdateNamespacePropertiesResponse) o;
+    return Objects.equals(removed, that.removed)
+        && Objects.equals(updated, that.updated)
+        && Objects.equals(missing, that.missing);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(removed, updated, missing);
   }
 
   public static Builder builder() {

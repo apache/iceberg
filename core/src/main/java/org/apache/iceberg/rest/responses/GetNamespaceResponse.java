@@ -64,6 +64,19 @@ public class GetNamespaceResponse implements RESTResponse {
         .toString();
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    GetNamespaceResponse that = (GetNamespaceResponse) o;
+    return Objects.equals(namespace, that.namespace) && Objects.equals(properties, that.properties);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(namespace, properties);
+  }
+
   public static Builder builder() {
     return new Builder();
   }

@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,6 +52,19 @@ public class ListNamespacesResponse implements RESTResponse {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("namespaces", namespaces()).toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ListNamespacesResponse that = (ListNamespacesResponse) o;
+    return Objects.equals(namespaces, that.namespaces);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(namespaces);
   }
 
   public static Builder builder() {

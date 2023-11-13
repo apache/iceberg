@@ -110,6 +110,19 @@ public class ConfigResponse implements RESTResponse {
         .toString();
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ConfigResponse that = (ConfigResponse) o;
+    return Objects.equals(defaults, that.defaults) && Objects.equals(overrides, that.overrides);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(defaults, overrides);
+  }
+
   public static Builder builder() {
     return new Builder();
   }

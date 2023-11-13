@@ -62,8 +62,7 @@ public class TestOAuthErrorResponseParser {
   }
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
-    Assertions.assertThat(actual.code()).isEqualTo(expected.code());
-    Assertions.assertThat(actual.type()).isEqualTo(expected.type());
-    Assertions.assertThat(actual.message()).isEqualTo(expected.message());
+    Assertions.assertThat(actual).isEqualTo(expected);
+    Assertions.assertThat(actual.hashCode()).isEqualTo(expected.hashCode());
   }
 }

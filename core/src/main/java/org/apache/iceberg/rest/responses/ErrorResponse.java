@@ -22,6 +22,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
@@ -81,6 +82,22 @@ public class ErrorResponse implements RESTResponse {
     }
 
     return sb.toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ErrorResponse that = (ErrorResponse) o;
+    return code == that.code
+        && Objects.equals(message, that.message)
+        && Objects.equals(type, that.type)
+        && Objects.equals(stack, that.stack);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(message, type, code, stack);
   }
 
   public static Builder builder() {
