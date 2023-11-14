@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp;
 
+import com.google.api.client.util.Preconditions;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
+
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
@@ -40,6 +42,8 @@ public class GCPProperties implements Serializable {
 
   public static final String GCS_OAUTH2_TOKEN = "gcs.oauth2.token";
   public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
+  // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
+  public static final String GCS_NO_AUTH = "gcs.no-auth";
 
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
@@ -60,6 +64,7 @@ public class GCPProperties implements Serializable {
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
 
+  private boolean gcsNoAuth;
   private String gcsOAuth2Token;
   private Date gcsOAuth2TokenExpiresAt;
 
@@ -90,6 +95,10 @@ public class GCPProperties implements Serializable {
       gcsOAuth2TokenExpiresAt =
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
+    gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
+    Preconditions.checkState(
+        !(gcsOAuth2Token != null && gcsNoAuth),
+        "Must not configure " + GCS_NO_AUTH + " and " + GCS_OAUTH2_TOKEN);
 
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
@@ -130,6 +139,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> oauth2Token() {
     return Optional.ofNullable(gcsOAuth2Token);
+  }
+
+  public boolean noAuth() {
+    return gcsNoAuth;
   }
 
   public Optional<Date> oauth2TokenExpiresAt() {
