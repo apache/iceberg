@@ -438,7 +438,6 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
 
     Namespace ns = Namespace.of("a");
-    ContentKey key = ContentKey.of("a");
 
     client.createNamespace(ns, Map.of("k1", "v1", "k2", "v2"));
 
