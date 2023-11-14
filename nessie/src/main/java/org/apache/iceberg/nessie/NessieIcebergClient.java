@@ -603,7 +603,7 @@ public class NessieIcebergClient implements AutoCloseable {
         .retry(5)
         .shouldRetryTest(shouldRetry)
         .throwFailureWhenFinished()
-        .onFailure((o, exception) -> refresh()) // FIXME is this necessary?
+        .onFailure((o, exception) -> refresh())
         .run(
             i -> {
               try {
