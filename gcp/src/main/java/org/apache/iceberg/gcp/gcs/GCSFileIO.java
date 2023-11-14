@@ -56,7 +56,6 @@ import org.slf4j.LoggerFactory;
  * Overview</a>
  */
 public class GCSFileIO implements DelegateFileIO {
-
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
