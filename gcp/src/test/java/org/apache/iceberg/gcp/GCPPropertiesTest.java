@@ -29,13 +29,20 @@ public class GCPPropertiesTest {
 
   @Test
   public void testOAuthWithNoAuth() {
-    Assertions.assertThatIllegalStateException().isThrownBy(() -> new GCPProperties(ImmutableMap.of(
-        GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "true"))).withMessage(
-        String.format("Invalid auth settings: must not configure %s and %s", GCS_NO_AUTH,
-            GCS_OAUTH2_TOKEN));
-    Assertions.assertThatNoException().isThrownBy(() -> new GCPProperties(ImmutableMap.of(
-        GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "false")));
-    Assertions.assertThatNoException().isThrownBy(() -> new GCPProperties(ImmutableMap.of(
-        GCS_NO_AUTH, "true")));
+    Assertions.assertThatIllegalStateException()
+        .isThrownBy(
+            () ->
+                new GCPProperties(ImmutableMap.of(GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "true")))
+        .withMessage(
+            String.format(
+                "Invalid auth settings: must not configure %s and %s",
+                GCS_NO_AUTH, GCS_OAUTH2_TOKEN));
+    Assertions.assertThatNoException()
+        .isThrownBy(
+            () ->
+                new GCPProperties(
+                    ImmutableMap.of(GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "false")));
+    Assertions.assertThatNoException()
+        .isThrownBy(() -> new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true")));
   }
 }

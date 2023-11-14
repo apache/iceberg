@@ -45,9 +45,7 @@ public class GCPProperties implements Serializable {
   // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
   public static final String GCS_NO_AUTH = "gcs.no-auth";
 
-  /**
-   * Configure the batch size used when deleting multiple files from a given GCS bucket
-   */
+  /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
   /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
@@ -72,8 +70,7 @@ public class GCPProperties implements Serializable {
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  public GCPProperties() {
-  }
+  public GCPProperties() {}
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
@@ -101,7 +98,9 @@ public class GCPProperties implements Serializable {
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
     Preconditions.checkState(
         !(gcsOAuth2Token != null && gcsNoAuth),
-        "Invalid auth settings: must not configure %s and %s", GCS_NO_AUTH, GCS_OAUTH2_TOKEN);
+        "Invalid auth settings: must not configure %s and %s",
+        GCS_NO_AUTH,
+        GCS_OAUTH2_TOKEN);
 
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
