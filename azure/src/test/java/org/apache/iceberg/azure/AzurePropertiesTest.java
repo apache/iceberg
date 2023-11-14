@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.azure;
 
+import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.verify;
 import com.azure.core.credential.TokenCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class AzurePropertiesTest {
@@ -89,5 +92,35 @@ public class AzurePropertiesTest {
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account", clientBuilder);
     verify(clientBuilder).endpoint("https://account");
+  }
+
+  @Test
+  public void testSharedKe() {
+    Assertions.assertThatIllegalStateException()
+        .isThrownBy(
+            () ->
+                new AzureProperties(
+                    ImmutableMap.of(
+                        ADLS_SHARED_KEY_ACCOUNT_KEY, "not-really-base64-encoded-key-here")))
+        .withMessage(
+            String.format(
+                "Azure authentication: shared-key requires both %s and %s",
+                ADLS_SHARED_KEY_ACCOUNT_NAME, ADLS_SHARED_KEY_ACCOUNT_KEY));
+    Assertions.assertThatIllegalStateException()
+        .isThrownBy(
+            () -> new AzureProperties(ImmutableMap.of(ADLS_SHARED_KEY_ACCOUNT_NAME, "account")))
+        .withMessage(
+            String.format(
+                "Azure authentication: shared-key requires both %s and %s",
+                ADLS_SHARED_KEY_ACCOUNT_NAME, ADLS_SHARED_KEY_ACCOUNT_KEY));
+    Assertions.assertThatNoException()
+        .isThrownBy(
+            () ->
+                new AzureProperties(
+                    ImmutableMap.of(
+                        ADLS_SHARED_KEY_ACCOUNT_NAME,
+                        "account",
+                        ADLS_SHARED_KEY_ACCOUNT_KEY,
+                        "not-really-base64-encoded-key-here")));
   }
 }

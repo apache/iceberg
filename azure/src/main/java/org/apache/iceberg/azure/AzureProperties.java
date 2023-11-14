@@ -19,11 +19,13 @@
 package org.apache.iceberg.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
@@ -31,9 +33,12 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_CONNECTION_STRING_PREFIX = "adls.connection-string.";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
+  public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
+  public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
 
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Map<String, String> adlsConnectionStrings = Collections.emptyMap();
+  private StorageSharedKeyCredential namedKeyCreds;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
@@ -43,6 +48,18 @@ public class AzureProperties implements Serializable {
     this.adlsSasTokens = PropertyUtil.propertiesWithPrefix(properties, ADLS_SAS_TOKEN_PREFIX);
     this.adlsConnectionStrings =
         PropertyUtil.propertiesWithPrefix(properties, ADLS_CONNECTION_STRING_PREFIX);
+
+    String sharedKeyAccountName = properties.get(ADLS_SHARED_KEY_ACCOUNT_NAME);
+    String sharedKeyAccountKey = properties.get(ADLS_SHARED_KEY_ACCOUNT_KEY);
+    if (sharedKeyAccountName != null || sharedKeyAccountKey != null) {
+      Preconditions.checkArgument(
+          sharedKeyAccountName != null && sharedKeyAccountKey != null,
+          "Azure authentication: shared-key requires both %s and %s",
+          ADLS_SHARED_KEY_ACCOUNT_NAME,
+          ADLS_SHARED_KEY_ACCOUNT_KEY);
+      this.namedKeyCreds =
+          new StorageSharedKeyCredential(sharedKeyAccountName, sharedKeyAccountKey);
+    }
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
       this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
@@ -64,6 +81,8 @@ public class AzureProperties implements Serializable {
     String sasToken = adlsSasTokens.get(account);
     if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
+    } else if (namedKeyCreds != null) {
+      builder.credential(namedKeyCreds);
     } else {
       builder.credential(new DefaultAzureCredentialBuilder().build());
     }
