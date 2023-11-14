@@ -26,7 +26,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class SerializableMap<K, V> implements Map<K, V>, Serializable {
-  private static final long serialVersionUID = 1L;
+  private static final long serialVersionUID = -3377238354349859240L;
 
   private final Map<K, V> copiedMap;
   private transient volatile Map<K, V> immutableMap;

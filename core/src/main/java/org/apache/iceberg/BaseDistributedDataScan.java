@@ -369,14 +369,16 @@ abstract class BaseDistributedDataScan
           ScanMetricsUtil.fileTask(scanMetrics(), dataFile, deleteFiles);
 
           return new BaseFileScanTask(
-              copyDataFiles
-                  ? ContentFileUtil.copy(dataFile, shouldReturnColumnStats(), columnsToKeepStats())
-                  : dataFile,
+              copyDataFiles ? copy(dataFile) : dataFile,
               deleteFiles,
               schemaString,
               specString,
               residuals);
         });
+  }
+
+  private <F extends ContentFile<F>> F copy(F file) {
+    return ContentFileUtil.copy(file, shouldReturnColumnStats(), columnsToKeepStats());
   }
 
   private ManifestEvaluator newManifestEvaluator(PartitionSpec spec) {

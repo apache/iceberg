@@ -79,7 +79,7 @@ class BaseIncrementalChangelogScan
             .filterData(filter())
             .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
             .ignoreExisting()
-            .columnsToKeepStats(context().columnsToKeepStats());
+            .columnsToKeepStats(columnsToKeepStats());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();

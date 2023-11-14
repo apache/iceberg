@@ -189,29 +189,12 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (copyStats) {
-      if (requestedColumnIds == null) {
-        this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
-        this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
-        this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
-        this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
-        this.lowerBounds =
-            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
-        this.upperBounds =
-            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
-      } else {
-        this.columnSizes = SerializableMap.filteredCopyOf(toCopy.columnSizes, requestedColumnIds);
-        this.valueCounts = SerializableMap.filteredCopyOf(toCopy.valueCounts, requestedColumnIds);
-        this.nullValueCounts =
-            SerializableMap.filteredCopyOf(toCopy.nullValueCounts, requestedColumnIds);
-        this.nanValueCounts =
-            SerializableMap.filteredCopyOf(toCopy.nanValueCounts, requestedColumnIds);
-        this.lowerBounds =
-            SerializableByteBufferMap.wrap(
-                SerializableMap.filteredCopyOf(toCopy.lowerBounds, requestedColumnIds));
-        this.upperBounds =
-            SerializableByteBufferMap.wrap(
-                SerializableMap.filteredCopyOf(toCopy.upperBounds, requestedColumnIds));
-      }
+      this.columnSizes = copyMap(toCopy.columnSizes, requestedColumnIds);
+      this.valueCounts = copyMap(toCopy.valueCounts, requestedColumnIds);
+      this.nullValueCounts = copyMap(toCopy.nullValueCounts, requestedColumnIds);
+      this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
+      this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
+      this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -502,6 +485,15 @@ abstract class BaseFile<F>
   @Override
   public Integer sortOrderId() {
     return sortOrderId;
+  }
+
+  private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
+    return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
+  }
+
+  private static Map<Integer, ByteBuffer> copyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    return SerializableByteBufferMap.wrap(copyMap(map, keys));
   }
 
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {

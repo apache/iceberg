@@ -103,7 +103,7 @@ class IncrementalDataTableScan extends DataTableScan {
                         && manifestEntry.status() == ManifestEntry.Status.ADDED)
             .specsById(table().specs())
             .ignoreDeleted()
-            .columnsToKeepStats(context().columnsToKeepStats());
+            .columnsToKeepStats(columnsToKeepStats());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
