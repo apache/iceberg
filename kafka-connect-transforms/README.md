@@ -29,7 +29,7 @@ _(Experimental)_
 
 The `DmsTransform` SMT transforms an AWS DMS formatted message for use by the sink's CDC feature.
 It will promote the `data` element fields to top level and add the following metadata fields:
-`_cdc_op`, `_cdc_ts`, and `_cdc_table`.
+`_cdc.op`, `_cdc.ts`, and `_cdc.source`.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ _(Experimental)_
 
 The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
 It will promote the `before` or `after` element fields to top level and add the following metadata fields:
-`_cdc_op`, `_cdc_ts`, `_cdc_table`, `_cdc_key`, and `_cdc_target`.
+`_cdc.op`, `_cdc.ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
 
 ## Configuration
 
