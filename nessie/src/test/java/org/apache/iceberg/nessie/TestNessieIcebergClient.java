@@ -147,6 +147,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Creating empty namespaces is not supported");
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
