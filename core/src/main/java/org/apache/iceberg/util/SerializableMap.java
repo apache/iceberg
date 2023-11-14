@@ -26,6 +26,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class SerializableMap<K, V> implements Map<K, V>, Serializable {
+  private static final long serialVersionUID = -3377238354349859240L;
 
   private final Map<K, V> copiedMap;
   private transient volatile Map<K, V> immutableMap;
@@ -39,8 +40,24 @@ public class SerializableMap<K, V> implements Map<K, V>, Serializable {
     this.copiedMap.putAll(map);
   }
 
+  private SerializableMap(Map<K, V> map, Set<K> keys) {
+    Map<K, V> filteredMap = Maps.newHashMapWithExpectedSize(keys.size());
+
+    for (K key : keys) {
+      if (map.containsKey(key)) {
+        filteredMap.put(key, map.get(key));
+      }
+    }
+
+    this.copiedMap = filteredMap;
+  }
+
   public static <K, V> SerializableMap<K, V> copyOf(Map<K, V> map) {
     return map == null ? null : new SerializableMap<>(map);
+  }
+
+  public static <K, V> SerializableMap<K, V> filteredCopyOf(Map<K, V> map, Set<K> keys) {
+    return map == null ? null : new SerializableMap<>(map, keys);
   }
 
   public Map<K, V> immutableMap() {

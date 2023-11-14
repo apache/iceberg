@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
@@ -62,6 +63,7 @@ public class ScanContext implements Serializable {
   private final List<Expression> filters;
   private final long limit;
   private final boolean includeColumnStats;
+  private final Collection<String> includeStatsForColumns;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
   private final int maxAllowedPlanningFailures;
@@ -84,6 +86,7 @@ public class ScanContext implements Serializable {
       List<Expression> filters,
       long limit,
       boolean includeColumnStats,
+      Collection<String> includeStatsForColumns,
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
@@ -114,6 +117,7 @@ public class ScanContext implements Serializable {
     this.filters = filters;
     this.limit = limit;
     this.includeColumnStats = includeColumnStats;
+    this.includeStatsForColumns = includeStatsForColumns;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
@@ -248,6 +252,10 @@ public class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
+  public Collection<String> includeStatsForColumns() {
+    return includeStatsForColumns;
+  }
+
   public boolean exposeLocality() {
     return exposeLocality;
   }
@@ -285,6 +293,7 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
@@ -313,6 +322,7 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
@@ -349,6 +359,7 @@ public class ScanContext implements Serializable {
     private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
     private boolean includeColumnStats =
         FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
+    private Collection<String> includeStatsForColumns = null;
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
@@ -464,6 +475,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder includeColumnStats(Collection<String> newIncludeStatsForColumns) {
+      this.includeStatsForColumns = newIncludeStatsForColumns;
+      return this;
+    }
+
     public Builder exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;
@@ -531,6 +547,7 @@ public class ScanContext implements Serializable {
           filters,
           limit,
           includeColumnStats,
+          includeStatsForColumns,
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,
