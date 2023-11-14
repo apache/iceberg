@@ -80,8 +80,12 @@ public class LoadTableResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     LoadTableResponse that = (LoadTableResponse) o;
     return Objects.equals(metadataLocation, that.metadataLocation)
         && Objects.equals(metadata, that.metadata)

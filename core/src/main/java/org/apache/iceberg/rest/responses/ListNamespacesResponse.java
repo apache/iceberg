@@ -56,8 +56,12 @@ public class ListNamespacesResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     ListNamespacesResponse that = (ListNamespacesResponse) o;
     return Objects.equals(namespaces, that.namespaces);
   }

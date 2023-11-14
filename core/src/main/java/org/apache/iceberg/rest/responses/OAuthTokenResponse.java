@@ -81,8 +81,12 @@ public class OAuthTokenResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     OAuthTokenResponse that = (OAuthTokenResponse) o;
     return Objects.equals(accessToken, that.accessToken)
         && Objects.equals(issuedTokenType, that.issuedTokenType)

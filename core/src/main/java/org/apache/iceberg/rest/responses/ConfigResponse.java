@@ -112,8 +112,12 @@ public class ConfigResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     ConfigResponse that = (ConfigResponse) o;
     return Objects.equals(defaults, that.defaults) && Objects.equals(overrides, that.overrides);
   }

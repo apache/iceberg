@@ -66,8 +66,12 @@ public class CreateNamespaceResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     CreateNamespaceResponse that = (CreateNamespaceResponse) o;
     return Objects.equals(namespace, that.namespace) && Objects.equals(properties, that.properties);
   }

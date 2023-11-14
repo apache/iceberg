@@ -76,8 +76,12 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     UpdateNamespacePropertiesResponse that = (UpdateNamespacePropertiesResponse) o;
     return Objects.equals(removed, that.removed)
         && Objects.equals(updated, that.updated)

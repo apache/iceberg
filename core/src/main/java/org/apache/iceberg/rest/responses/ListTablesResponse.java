@@ -57,8 +57,12 @@ public class ListTablesResponse implements RESTResponse {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     ListTablesResponse that = (ListTablesResponse) o;
     return Objects.equals(identifiers, that.identifiers);
   }
