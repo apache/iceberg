@@ -440,7 +440,10 @@ public class TestRemoveSnapshots extends TableTestBase {
       t3 = System.currentTimeMillis();
     }
 
-    // Retain last 2 snapshots
+    Assert.assertEquals(
+        "Should be 3 manifest lists", 3, listManifestLists(table.location()).size());
+
+    // Retain last 2 snapshots, which means 1 is deleted.
     Transaction tx = table.newTransaction();
     removeSnapshots(tx.table()).expireOlderThan(t3).retainLast(2).commit();
     tx.commitTransaction();
@@ -449,6 +452,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         "Should have two snapshots.", 2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals(
         "First snapshot should not present.", null, table.snapshot(firstSnapshotId));
+    Assert.assertEquals(
+        "Should be 2 manifest lists", 2, listManifestLists(table.location()).size());
   }
 
   @Test
