@@ -45,6 +45,11 @@ abstract class TableScanContext {
   }
 
   @Value.Default
+  public boolean skipPlanDeletes() {
+    return false;
+  }
+
+  @Value.Default
   public boolean ignoreResiduals() {
     return false;
   }
@@ -105,6 +110,10 @@ abstract class TableScanContext {
 
   TableScanContext filterRows(Expression filter) {
     return ImmutableTableScanContext.builder().from(this).rowFilter(filter).build();
+  }
+
+  TableScanContext skipPlanDeletes(boolean skip) {
+    return ImmutableTableScanContext.builder().from(this).skipPlanDeletes(skip).build();
   }
 
   TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {

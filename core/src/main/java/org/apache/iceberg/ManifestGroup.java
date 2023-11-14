@@ -59,10 +59,17 @@ class ManifestGroup {
   private boolean ignoreDeleted;
   private boolean ignoreExisting;
   private boolean ignoreResiduals;
+  private boolean skipPlanDeletes;
   private List<String> columns;
   private boolean caseSensitive;
   private ExecutorService executorService;
   private ScanMetrics scanMetrics;
+
+  private DeleteIndexTable deleteIndexTable;
+
+  public DeleteIndexTable deleteIndexTable() {
+    return deleteIndexTable;
+  }
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this(
@@ -82,6 +89,7 @@ class ManifestGroup {
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
     this.ignoreResiduals = false;
+    this.skipPlanDeletes = false;
     this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
@@ -103,6 +111,11 @@ class ManifestGroup {
 
   ManifestGroup filterFiles(Expression newFileFilter) {
     this.fileFilter = Expressions.and(fileFilter, newFileFilter);
+    return this;
+  }
+
+  ManifestGroup skipPlanDeletes(boolean skip) {
+    this.skipPlanDeletes = skip;
     return this;
   }
 
@@ -181,6 +194,7 @@ class ManifestGroup {
                 });
 
     DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
+    this.deleteIndexTable = new DeleteIndexTable(deleteFiles);
 
     boolean dropStats = ManifestReader.dropStats(columns);
     if (!deleteFiles.isEmpty()) {
@@ -193,7 +207,8 @@ class ManifestGroup {
                 specId -> {
                   PartitionSpec spec = specsById.get(specId);
                   ResidualEvaluator residuals = residualCache.get(specId);
-                  return new TaskContext(spec, deleteFiles, residuals, dropStats, scanMetrics);
+                  return new TaskContext(
+                      spec, deleteFiles, residuals, dropStats, skipPlanDeletes, scanMetrics);
                 });
 
     Iterable<CloseableIterable<T>> tasks =
@@ -362,8 +377,14 @@ class ManifestGroup {
         entries,
         entry -> {
           DataFile dataFile = entry.file().copy(ctx.shouldKeepStats());
-          DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
-          ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
+          DeleteFile[] deleteFiles;
+          if (ctx.skipPlanDeletes) {
+            // if skip plan deletes then delete files will be assigned empty
+            deleteFiles = new DeleteFile[0];
+          } else {
+            deleteFiles = ctx.deletes().forEntry(entry);
+            ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
+          }
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });
@@ -381,6 +402,7 @@ class ManifestGroup {
     private final DeleteFileIndex deletes;
     private final ResidualEvaluator residuals;
     private final boolean dropStats;
+    private final boolean skipPlanDeletes;
     private final ScanMetrics scanMetrics;
 
     TaskContext(
@@ -388,12 +410,14 @@ class ManifestGroup {
         DeleteFileIndex deletes,
         ResidualEvaluator residuals,
         boolean dropStats,
+        boolean skipPlanDeletesThat,
         ScanMetrics scanMetrics) {
       this.schemaAsString = SchemaParser.toJson(spec.schema());
       this.specAsString = PartitionSpecParser.toJson(spec);
       this.deletes = deletes;
       this.residuals = residuals;
       this.dropStats = dropStats;
+      this.skipPlanDeletes = skipPlanDeletesThat;
       this.scanMetrics = scanMetrics;
     }
 

@@ -114,6 +114,16 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   Expression filter();
 
   /**
+   * do not plan delete files during planning
+   *
+   * @param that whether to plan delete files
+   * @return a new scan based on this
+   */
+  default ThisT skipPlanDeletes(boolean that) {
+    throw new UnsupportedOperationException("skipPlanDeletes not implemented");
+  }
+
+  /**
    * Create a new scan from this that applies data filtering to files but not to rows in those
    * files.
    *

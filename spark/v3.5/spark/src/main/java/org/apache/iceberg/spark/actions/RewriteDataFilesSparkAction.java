@@ -33,11 +33,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteIndexTable;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -95,6 +97,7 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
+  private boolean skipPlanDeletes = false;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -112,7 +115,12 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction binPack() {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
-    this.rewriter = new SparkBinPackDataRewriter(spark(), table);
+    if (skipPlanDeletes) {
+      // when skip plan tests, need to use join pack to consider delete tables
+      this.rewriter = new SparkJoinedBinPackDataRewriter(spark(), table);
+    } else {
+      this.rewriter = new SparkBinPackDataRewriter(spark(), table);
+    }
     return this;
   }
 
@@ -147,6 +155,12 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles skipPlanDeletes(boolean skip) {
+    this.skipPlanDeletes = skip;
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
@@ -156,21 +170,18 @@ public class RewriteDataFilesSparkAction
 
     // Default to BinPack if no strategy selected
     if (this.rewriter == null) {
-      this.rewriter = new SparkBinPackDataRewriter(spark(), table);
+      binPack();
     }
 
     validateAndInitOptions();
 
-    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-        planFileGroups(startingSnapshotId);
-    RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
-
+    RewriteExecutionContext ctx = planFileGroups(startingSnapshotId);
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
       return EMPTY_RESULT;
     }
 
-    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
+    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, ctx.fileGroupsByPartition);
 
     if (partialProgressEnabled) {
       return doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
@@ -179,20 +190,25 @@ public class RewriteDataFilesSparkAction
     }
   }
 
-  StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
-    CloseableIterable<FileScanTask> fileScanTasks =
+  RewriteExecutionContext planFileGroups(long startingSnapshotId) {
+    TableScan tableScan =
         table
             .newScan()
             .useSnapshot(startingSnapshotId)
             .filter(filter)
-            .ignoreResiduals()
-            .planFiles();
-
+            .skipPlanDeletes(skipPlanDeletes)
+            .ignoreResiduals();
+    CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles();
+    DeleteIndexTable deleteIndexTable = (DeleteIndexTable) tableScan.deleteIndexTable();
     try {
       StructType partitionType = table.spec().partitionType();
       StructLikeMap<List<FileScanTask>> filesByPartition =
           groupByPartition(partitionType, fileScanTasks);
-      return fileGroupsByPartition(filesByPartition);
+      StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
+          fileGroupsByPartition(filesByPartition);
+      RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
+      ctx.setDeleteIndexTable(deleteIndexTable);
+      return ctx;
     } finally {
       try {
         fileScanTasks.close();
@@ -247,6 +263,20 @@ public class RewriteDataFilesSparkAction
     return fileGroup;
   }
 
+  @VisibleForTesting
+  RewriteFileGroup rewriteFilesJoin(RewriteExecutionContext ctx, RewriteFileGroup fileGroup) {
+    String desc = jobDesc(fileGroup, ctx);
+    Set<DataFile> addedFiles =
+        withJobGroupInfo(
+            newJobGroupInfo("REWRITE-DEL-FILES-JOIN", desc),
+            () -> rewriter.rewrite(fileGroup.fileScans()));
+
+    fileGroup.setOutputFiles(addedFiles);
+    LOG.info("Rewrite Files Ready to be Committed - {}", desc);
+    LOG.info("Rewrite added {} files", addedFiles.size());
+    return fileGroup;
+  }
+
   private ExecutorService rewriteService() {
     return MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor)
@@ -282,7 +312,14 @@ public class RewriteDataFilesSparkAction
     try {
       rewriteTaskBuilder.run(
           fileGroup -> {
-            rewrittenGroups.add(rewriteFiles(ctx, fileGroup));
+            if (skipPlanDeletes && rewriter instanceof SparkJoinedBinPackDataRewriter) {
+              SparkJoinedBinPackDataRewriter joinRewriter =
+                  (SparkJoinedBinPackDataRewriter) rewriter;
+              joinRewriter.setDeleteIndexTable(ctx.deleteIndexTable);
+              rewrittenGroups.add(rewriteFilesJoin(ctx, fileGroup));
+            } else {
+              rewrittenGroups.add(rewriteFiles(ctx, fileGroup));
+            }
           });
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
@@ -352,7 +389,17 @@ public class RewriteDataFilesSparkAction
                       .dataFilesCount(fileGroup.numFiles())
                       .build());
             })
-        .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
+        .run(
+            fileGroup -> {
+              if (skipPlanDeletes && rewriter instanceof SparkJoinedBinPackDataRewriter) {
+                SparkJoinedBinPackDataRewriter ditRewriter =
+                    (SparkJoinedBinPackDataRewriter) rewriter;
+                ditRewriter.setDeleteIndexTable(ctx.deleteIndexTable);
+                commitService.offer(rewriteFilesJoin(ctx, fileGroup));
+              } else {
+                commitService.offer(rewriteFiles(ctx, fileGroup));
+              }
+            });
     rewriteService.shutdown();
 
     // stop commit service
@@ -482,12 +529,15 @@ public class RewriteDataFilesSparkAction
     private final int totalGroupCount;
     private final Map<StructLike, Integer> partitionIndexMap;
     private final AtomicInteger groupIndex;
+    private DeleteIndexTable deleteIndexTable;
+    private StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition;
 
     RewriteExecutionContext(StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition) {
       this.numGroupsByPartition = fileGroupsByPartition.transformValues(List::size);
       this.totalGroupCount = numGroupsByPartition.values().stream().reduce(Integer::sum).orElse(0);
       this.partitionIndexMap = Maps.newConcurrentMap();
       this.groupIndex = new AtomicInteger(1);
+      this.fileGroupsByPartition = fileGroupsByPartition;
     }
 
     public int currentGlobalIndex() {
@@ -504,6 +554,18 @@ public class RewriteDataFilesSparkAction
 
     public int totalGroupCount() {
       return totalGroupCount;
+    }
+
+    public void setDeleteIndexTable(DeleteIndexTable that) {
+      this.deleteIndexTable = that;
+    }
+
+    public DeleteIndexTable deleteIndexTable() {
+      return deleteIndexTable;
+    }
+
+    public StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition() {
+      return fileGroupsByPartition;
     }
   }
 }

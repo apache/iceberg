@@ -1429,7 +1429,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
     StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
+        rewrite.planFileGroups(table.currentSnapshot().snapshotId()).fileGroupsByPartition();
 
     return rewrite.toGroupStream(
         new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);

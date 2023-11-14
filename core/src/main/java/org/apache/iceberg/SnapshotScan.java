@@ -112,6 +112,15 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }
 
+  public boolean skipPlanDeletes() {
+    return context().skipPlanDeletes();
+  }
+
+  @Override
+  public ThisT skipPlanDeletes(boolean skip) {
+    return newRefinedScan(table(), tableSchema(), context().skipPlanDeletes(skip));
+  }
+
   @Override
   public CloseableIterable<T> planFiles() {
     Snapshot snapshot = snapshot();
