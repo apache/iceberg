@@ -390,7 +390,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         filter = Expressions.and(filter, expr);
       }
 
-      return filter;
+      return SERIALIZABLE == isolationLevel ? Expressions.alwaysTrue() : filter;
     }
 
     @Override
