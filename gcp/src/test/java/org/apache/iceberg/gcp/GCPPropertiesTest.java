@@ -21,7 +21,7 @@ package org.apache.iceberg.gcp;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
