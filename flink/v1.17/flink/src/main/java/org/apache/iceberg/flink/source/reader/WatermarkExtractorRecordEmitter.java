@@ -53,6 +53,7 @@ class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T>
             lastSplit,
             split.splitId());
       }
+
       watermark = newWatermark;
       output.emitWatermark(new Watermark(watermark));
       lastSplit = split.splitId();

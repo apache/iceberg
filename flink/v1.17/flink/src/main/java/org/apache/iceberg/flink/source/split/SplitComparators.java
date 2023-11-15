@@ -60,7 +60,7 @@ public class SplitComparators {
 
   /** Comparator which orders the splits based on watermark of the splits */
   public static SerializableComparator<IcebergSourceSplit> watermarksAwareComparator(
-      IcebergWatermarkExtractor<?> watermarkExtractor) {
+      IcebergWatermarkExtractor watermarkExtractor) {
     return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
       long watermark1 = watermarkExtractor.extractWatermark(o1);
       long watermark2 = watermarkExtractor.extractWatermark(o2);

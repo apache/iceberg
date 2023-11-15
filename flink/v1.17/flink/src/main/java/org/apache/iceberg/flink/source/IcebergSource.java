@@ -65,11 +65,13 @@ import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
+import org.apache.iceberg.flink.source.reader.TimestampBasedWatermarkExtractor;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -223,7 +225,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
-    private IcebergWatermarkExtractor<T> watermarkExtractor;
+    private String watermarkColumn;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -246,8 +248,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> assignerFactory(SplitAssignerFactory assignerFactory) {
       Preconditions.checkArgument(
-          watermarkExtractor == null,
-          "WatermarkExtractor and SplitAssigner should not be set in the same source");
+          watermarkColumn == null,
+          "Watermark column and SplitAssigner should not be set in the same source");
       this.splitAssignerFactory = assignerFactory;
       return this;
     }
@@ -441,16 +443,14 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
-     * Sets the {@link IcebergWatermarkExtractor} to retrieve the split watermark before emitting
-     * the records for a given split. The {@link
-     * IcebergWatermarkExtractor#extractWatermark(IcebergSourceSplit)} is also used for ordering the
-     * splits for read.
+     * Emits watermarks once per split based on the file statistics for the given split. The
+     * watermarks generated this way are also used for ordering the splits for read.
      */
-    public Builder<T> watermarkExtractor(IcebergWatermarkExtractor<T> newWatermarkExtractor) {
+    public Builder<T> watermarkColumn(String columnName) {
       Preconditions.checkArgument(
           splitAssignerFactory == null,
-          "WatermarkExtractor and SplitAssigner should not be set in the same source");
-      this.watermarkExtractor = newWatermarkExtractor;
+          "Watermark column and SplitAssigner should not be set in the same source");
+      this.watermarkColumn = columnName;
       return this;
     }
 
@@ -476,6 +476,19 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
+      }
+
+      SerializableRecordEmitter<T> emitter = SerializableRecordEmitter.defaultEmitter();
+      if (watermarkColumn != null) {
+        // Column statistics is needed for watermark generation
+        contextBuilder.includeColumnStats(Sets.newHashSet(watermarkColumn));
+
+        IcebergWatermarkExtractor watermarkExtractor =
+            new TimestampBasedWatermarkExtractor(icebergSchema, watermarkColumn);
+        emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
+        splitAssignerFactory =
+            new OrderedSplitAssignerFactory(
+                SplitComparators.watermarksAwareComparator(watermarkExtractor));
       }
 
       ScanContext context = contextBuilder.build();
@@ -506,16 +519,6 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         } else {
           splitAssignerFactory = new OrderedSplitAssignerFactory(splitComparator);
         }
-      }
-
-      SerializableRecordEmitter<T> emitter;
-      if (watermarkExtractor == null) {
-        emitter = SerializableRecordEmitter.defaultEmitter();
-      } else {
-        emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
-        splitAssignerFactory =
-            new OrderedSplitAssignerFactory(
-                SplitComparators.watermarksAwareComparator(watermarkExtractor));
       }
 
       checkRequired();

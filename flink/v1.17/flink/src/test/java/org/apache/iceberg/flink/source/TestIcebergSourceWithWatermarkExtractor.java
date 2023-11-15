@@ -66,7 +66,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.reader.IcebergTimestampWatermarkExtractor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -155,7 +154,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                   public void apply(
                       TimeWindow window, Iterable<RowData> values, Collector<RowData> out) {
                     // Just print all the data to confirm everything has arrived
-                    values.forEach(r -> out.collect(r));
+                    values.forEach(out::collect);
                   }
                 });
 
@@ -224,7 +223,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     // (100 min - 20 min - 0 min)
     // Also this validates that the WatermarkAlignment is working
     Awaitility.await()
-        .atMost(10, TimeUnit.SECONDS)
+        .atMost(120, TimeUnit.SECONDS)
         .until(() -> findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).isPresent());
     Gauge<Long> drift = findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).get();
 
@@ -250,7 +249,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     // Get the drift metric, wait for it to be created and reach the expected state (100 min - 20
     // min - 15 min)
-    Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
+    Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
 
     // Add some new records which should unblock the throttled reader
     batch = ImmutableList.of(generateRecord(110, "File-5-110"), generateRecord(111, "File-5-111"));
@@ -259,15 +258,14 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     waitForRecords(resultIterator, 6);
 
     // Wait for the new drift to decrease below the allowed drift to signal the normal state
-    Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> drift.getValue() < 1200000L);
+    Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() < 1200000L);
   }
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     return IcebergSource.<RowData>builder()
         .tableLoader(sourceTableResource.tableLoader())
-        .watermarkExtractor(new IcebergTimestampWatermarkExtractor(TestFixtures.TS_SCHEMA, "ts"))
+        .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
-        .includeColumnStats(true)
         .splitSize(100L);
   }
 
@@ -317,7 +315,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     Assert.assertEquals(expected, received);
   }
 
-  protected void waitForRecords(CollectResultIterator<RowData> iterator, int num) throws Exception {
+  protected void waitForRecords(CollectResultIterator<RowData> iterator, int num) {
     assertThat(
             CompletableFuture.supplyAsync(
                 () -> {

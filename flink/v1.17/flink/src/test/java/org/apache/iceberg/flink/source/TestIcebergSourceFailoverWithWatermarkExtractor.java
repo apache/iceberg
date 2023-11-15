@@ -34,9 +34,9 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.reader.IcebergTimestampWatermarkExtractor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.awaitility.Awaitility;
 
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
@@ -50,9 +50,8 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     return IcebergSource.<RowData>builder()
         .tableLoader(sourceTableResource.tableLoader())
-        .watermarkExtractor(new IcebergTimestampWatermarkExtractor(TestFixtures.TS_SCHEMA, "ts"))
-        .project(TestFixtures.TS_SCHEMA)
-        .includeColumnStats(true);
+        .watermarkColumn("ts")
+        .project(TestFixtures.TS_SCHEMA);
   }
 
   @Override
@@ -65,14 +64,13 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
     // Override the ts field to create a more realistic situation for event time alignment
     tsMilli.addAndGet(RECORD_BATCH_TS_INCREMENT_MILLI);
     return RandomGenericData.generate(schema(), numRecords, seed).stream()
-        .map(
+        .peek(
             record -> {
               LocalDateTime ts =
                   LocalDateTime.ofInstant(
                       Instant.ofEpochMilli(tsMilli.addAndGet(RECORD_TS_INCREMENT_MILLI)),
                       ZoneId.of("Z"));
               record.setField("ts", ts);
-              return record;
             })
         .collect(Collectors.toList());
   }
@@ -84,32 +82,30 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
    * {@link LocalDateTime} to a Long type so that Comparators can continue to work.
    */
   @Override
-  protected void assertRecords(
-      Table table, List<Record> expectedRecords, Duration interval, int maxCount) throws Exception {
+  protected void assertRecords(Table table, List<Record> expectedRecords, Duration timeout)
+      throws Exception {
     List<Record> expectedNormalized = convertTimestampField(expectedRecords);
-    for (int i = 0; i < maxCount; ++i) {
-      if (SimpleDataUtil.equalsRecords(
-          expectedNormalized,
-          convertTimestampField(SimpleDataUtil.tableRecords(table)),
-          table.schema())) {
-        break;
-      } else {
-        Thread.sleep(interval.toMillis());
-      }
-    }
-    SimpleDataUtil.assertRecordsEqual(
-        expectedNormalized,
-        convertTimestampField(SimpleDataUtil.tableRecords(table)),
-        table.schema());
+    Awaitility.await("expected list of records should be produced")
+        .atMost(timeout)
+        .untilAsserted(
+            () -> {
+              SimpleDataUtil.equalsRecords(
+                  expectedNormalized,
+                  convertTimestampField(SimpleDataUtil.tableRecords(table)),
+                  table.schema());
+              SimpleDataUtil.assertRecordsEqual(
+                  expectedNormalized,
+                  convertTimestampField(SimpleDataUtil.tableRecords(table)),
+                  table.schema());
+            });
   }
 
   private List<Record> convertTimestampField(List<Record> records) {
     return records.stream()
-        .map(
+        .peek(
             r -> {
               LocalDateTime localDateTime = ((LocalDateTime) r.getField("ts"));
               r.setField("ts", localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli());
-              return r;
             })
         .collect(Collectors.toList());
   }
