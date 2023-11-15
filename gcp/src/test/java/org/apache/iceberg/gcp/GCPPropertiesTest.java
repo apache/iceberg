@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp;
 
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
@@ -37,12 +38,13 @@ public class GCPPropertiesTest {
             String.format(
                 "Invalid auth settings: must not configure %s and %s",
                 GCS_NO_AUTH, GCS_OAUTH2_TOKEN));
-    Assertions.assertThatNoException()
-        .isThrownBy(
-            () ->
-                new GCPProperties(
-                    ImmutableMap.of(GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "false")));
-    Assertions.assertThatNoException()
-        .isThrownBy(() -> new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true")));
+
+    GCPProperties gcpProperties =
+        new GCPProperties(ImmutableMap.of(GCS_OAUTH2_TOKEN, "oauth", GCS_NO_AUTH, "false"));
+    assertThat(gcpProperties.noAuth()).isFalse();
+    assertThat(gcpProperties.oauth2Token()).get().isEqualTo("oauth");
+    gcpProperties = new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true"));
+    assertThat(gcpProperties.noAuth()).isTrue();
+    assertThat(gcpProperties.oauth2Token()).isNotPresent();
   }
 }
