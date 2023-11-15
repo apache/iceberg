@@ -196,6 +196,9 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
+      if (intLogicalType.getBitWidth() == 64) {
+        return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
+      }
       return (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG)
           ? Optional.of(new ParquetValueReaders.IntAsLongReader(desc))
           : Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
