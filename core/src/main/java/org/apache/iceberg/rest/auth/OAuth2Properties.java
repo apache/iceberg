@@ -28,7 +28,7 @@ public class OAuth2Properties {
   public static final String CREDENTIAL = "credential";
 
   /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
-  public static final String TOKEN_URI = "token-uri";
+  public static final String OAUTH2_SERVER_URI = "oauth-server-uri";
 
   /**
    * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer

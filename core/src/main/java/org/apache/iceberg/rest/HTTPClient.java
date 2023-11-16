@@ -188,7 +188,7 @@ public class HTTPClient implements RESTClient {
 
   private String buildBaseUri(String path) {
     // if full path is provided, use the input path as baseUri
-    if (path.startsWith("https://")) {
+    if (path.startsWith("https://") || path.startsWith("http://")) {
       return path;
     }
     // else concatenate client default uri with path

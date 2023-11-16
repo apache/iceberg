@@ -160,12 +160,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-    String tokenUri = props.getOrDefault(OAuth2Properties.TOKEN_URI, ResourcePaths.tokens());
+    String oauth2ServerUri =
+        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
       if (credential != null && !credential.isEmpty()) {
-        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope, tokenUri);
+        authResponse =
+            OAuth2Util.fetchToken(initClient, initHeaders, credential, scope, oauth2ServerUri);
         Map<String, String> authHeaders =
             RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
         config = fetchConfig(initClient, authHeaders, props);
@@ -191,7 +193,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
-    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope, tokenUri);
+    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope, oauth2ServerUri);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
