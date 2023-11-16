@@ -20,34 +20,42 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 
 /**
- * {@link SplitWatermarkExtractor} implementation which uses an Iceberg timestamp column
- * statistics to get the watermarks for the {@link IcebergSourceSplit}. This watermark is emitted by
- * the {@link WatermarkExtractorRecordEmitter} along with the actual records.
+ * {@link SplitWatermarkExtractor} implementation which uses an Iceberg timestamp column statistics
+ * to get the watermarks for the {@link IcebergSourceSplit}. This watermark is emitted by the {@link
+ * WatermarkExtractorRecordEmitter} along with the actual records.
  */
 @Internal
 public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, Serializable {
   private final int tsFieldId;
+  private final TimeUnit timeUnit;
 
   /**
    * Creates the extractor.
    *
    * @param schema The schema of the Table
-   * @param tsFieldName The timestamp column which should be used as an event time
+   * @param tsFieldName The column which should be used as an event time
+   * @param timeUnit Used for converting the long value to epoch milliseconds
    */
-  public ColumnStatsWatermarkExtractor(Schema schema, String tsFieldName) {
+  public ColumnStatsWatermarkExtractor(Schema schema, String tsFieldName, TimeUnit timeUnit) {
     Types.NestedField field = schema.findField(tsFieldName);
+    TypeID typeID = field.type().typeId();
     Preconditions.checkArgument(
-        field.type().typeId().equals(Type.TypeID.TIMESTAMP), "Type should be timestamp");
+        typeID.equals(TypeID.LONG) || typeID.equals(TypeID.TIMESTAMP),
+        "Found %s, expected a LONG or TIMESTAMP column for watermark generation.",
+        typeID);
     this.tsFieldId = field.fieldId();
+    // Use the timeUnit only for Long columns.
+    this.timeUnit = typeID.equals(TypeID.LONG) ? timeUnit : TimeUnit.MICROSECONDS;
   }
 
   @Override
@@ -55,10 +63,9 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
     return split.task().files().stream()
         .map(
             scanTask ->
-                (long)
-                        Conversions.fromByteBuffer(
-                            Types.LongType.get(), scanTask.file().lowerBounds().get(tsFieldId))
-                    / 1000L)
+                timeUnit.toMillis(
+                    Conversions.fromByteBuffer(
+                        Types.LongType.get(), scanTask.file().lowerBounds().get(tsFieldId))))
         .min(Comparator.comparingLong(l -> l))
         .get();
   }

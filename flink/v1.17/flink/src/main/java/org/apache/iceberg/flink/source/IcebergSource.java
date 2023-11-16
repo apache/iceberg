@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -58,14 +59,14 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
+import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
-import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
-import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
+import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
@@ -226,6 +227,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private String watermarkColumn;
+    private TimeUnit watermarkTimeUnit = TimeUnit.MICROSECONDS;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -444,13 +446,25 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     /**
      * Emits watermarks once per split based on the file statistics for the given split. The
-     * watermarks generated this way are also used for ordering the splits for read.
+     * generated watermarks are also used for ordering the splits for read. Accepted column types
+     * are timestamp/timestamptz/long. For long columns consider setting {@link
+     * #watermarkTimeUnit(TimeUnit)}.
      */
     public Builder<T> watermarkColumn(String columnName) {
       Preconditions.checkArgument(
           splitAssignerFactory == null,
           "Watermark column and SplitAssigner should not be set in the same source");
       this.watermarkColumn = columnName;
+      return this;
+    }
+
+    /**
+     * When the type of the {@link #watermarkColumn} is {@link
+     * org.apache.iceberg.types.Types.LongType}, then sets the {@link TimeUnit} to convert the
+     * value. The default value is {@link TimeUnit#MICROSECONDS}.
+     */
+    public Builder<T> watermarkTimeUnit(TimeUnit timeUnit) {
+      this.watermarkTimeUnit = timeUnit;
       return this;
     }
 
@@ -484,11 +498,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         contextBuilder.includeColumnStats(Sets.newHashSet(watermarkColumn));
 
         SplitWatermarkExtractor watermarkExtractor =
-            new ColumnStatsWatermarkExtractor(icebergSchema, watermarkColumn);
+            new ColumnStatsWatermarkExtractor(icebergSchema, watermarkColumn, watermarkTimeUnit);
         emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
         splitAssignerFactory =
-            new OrderedSplitAssignerFactory(
-                SplitComparators.watermark(watermarkExtractor));
+            new OrderedSplitAssignerFactory(SplitComparators.watermark(watermarkExtractor));
       }
 
       ScanContext context = contextBuilder.build();

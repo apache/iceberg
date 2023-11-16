@@ -118,7 +118,9 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 
-    batch = ImmutableList.of(generateRecord(1, "file_3-recordTs_1"), generateRecord(3, "file_3-recordTs_3"));
+    batch =
+        ImmutableList.of(
+            generateRecord(1, "file_3-recordTs_1"), generateRecord(3, "file_3-recordTs_3"));
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 
@@ -172,7 +174,9 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     //    - Split 1 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
     //    - Split 2 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
     List<Record> batch;
-    batch = ImmutableList.of(generateRecord(100, "file_1-recordTs_100"), generateRecord(103, "file_1-recordTs_103"));
+    batch =
+        ImmutableList.of(
+            generateRecord(100, "file_1-recordTs_100"), generateRecord(103, "file_1-recordTs_103"));
     dataAppender.appendToTable(batch);
 
     batch = Lists.newArrayListWithCapacity(100);
@@ -229,7 +233,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       dataAppender.appendToTable(batch);
       // The records received will highly depend on scheduling
       // We minimally get 3 records from the non-blocked reader
-      // We might get 1 record from the blocked reader (as part of the previous batch - file1-record-ts)
+      // We might get 1 record from the blocked reader (as part of the previous batch -
+      // file1-record-ts)
       // We might get 3 records form the non-blocked reader if it gets both new splits
       waitForRecords(resultIterator, 3);
 
@@ -238,7 +243,10 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
 
       // Add some new records which should unblock the throttled reader
-      batch = ImmutableList.of(generateRecord(110, "file_5-recordTs_110"), generateRecord(111, "file_5-recordTs_111"));
+      batch =
+          ImmutableList.of(
+              generateRecord(110, "file_5-recordTs_110"),
+              generateRecord(111, "file_5-recordTs_111"));
       dataAppender.appendToTable(batch);
       // We should get all the records at this point
       waitForRecords(resultIterator, 6);
@@ -268,8 +276,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     return record;
   }
 
-  protected void assertRecords(
-      CloseableIterator<RowData> iterator, List<Record> expectedRecords) throws Exception {
+  protected void assertRecords(CloseableIterator<RowData> iterator, List<Record> expectedRecords)
+      throws Exception {
 
     Set<RowData> received = Sets.newHashSetWithExpectedSize(expectedRecords.size());
 

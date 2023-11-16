@@ -34,8 +34,7 @@ public interface SerializableRecordEmitter<T>
     };
   }
 
-  static <T> SerializableRecordEmitter<T> emitterWithWatermark(
-      SplitWatermarkExtractor extractor) {
+  static <T> SerializableRecordEmitter<T> emitterWithWatermark(SplitWatermarkExtractor extractor) {
     return new WatermarkExtractorRecordEmitter<>(extractor);
   }
 }
