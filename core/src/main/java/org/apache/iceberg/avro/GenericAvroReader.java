@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.avro;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -26,10 +29,6 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.data.avro.DecoderResolver;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.function.Supplier;
 
 public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
 
