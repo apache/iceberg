@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.avro;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -29,6 +26,10 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.data.avro.DecoderResolver;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.function.Supplier;
 
 public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
 
@@ -133,16 +134,14 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
             return ValueReaders.ints();
 
           case "time-micros":
+          case "timestamp-micros":
+            // Spark uses the same representation
             return ValueReaders.longs();
 
           case "timestamp-millis":
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
-
-          case "timestamp-micros":
-            // Spark uses the same representation
-            return ValueReaders.longs();
 
           case "decimal":
             return ValueReaders.decimal(
