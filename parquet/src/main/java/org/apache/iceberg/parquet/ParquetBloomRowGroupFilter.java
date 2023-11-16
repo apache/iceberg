@@ -120,15 +120,11 @@ public class ParquetBloomRowGroupFilter {
       Set<Integer> filterRefs =
           Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
       if (!filterRefs.isEmpty()) {
-        Sets.SetView overlappedBloomFilters = Sets.intersection(fieldsWithBloomFilter, filterRefs);
+        Set<Integer> overlappedBloomFilters = Sets.intersection(fieldsWithBloomFilter, filterRefs);
         if (overlappedBloomFilters.isEmpty()) {
-          // If the filter's column set doesn't overlap with any bloom filter columns, exit early
-          // with ROWS_MIGHT_MATCH
           return ROWS_MIGHT_MATCH;
         } else {
-          LOG.debug(
-              "Bloom filters are used. The following fields have filters and Bloom filters : {}",
-              overlappedBloomFilters);
+          LOG.debug("Using Bloom filters for columns with IDs: {}", overlappedBloomFilters);
         }
       }
 
