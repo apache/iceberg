@@ -24,6 +24,7 @@ import java.util.UUID;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.Spark3Util;
@@ -118,8 +119,9 @@ public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBa
               .select("*", "_pos");
 
       List<Row> rows = scanDF.collectAsList();
-      Assertions.assertThat(rows.size()).isEqualTo(4);
-      Assertions.assertThat(scanDF.columns().length).isEqualTo(3);
+      ImmutableList<Object[]> expectedRows =
+          ImmutableList.of(row(1L, "a", 0L), row(2L, "b", 1L), row(3L, "c", 2L), row(4L, "d", 3L));
+      assertEquals("result should match", expectedRows, rowsToJava(rows));
     }
   }
 }

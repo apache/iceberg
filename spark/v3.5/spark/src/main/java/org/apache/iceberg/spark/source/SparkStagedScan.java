@@ -77,6 +77,7 @@ class SparkStagedScan extends SparkScan {
     SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
         && Objects.equals(taskSetId, that.taskSetId)
+        && readSchema().equals(that.readSchema())
         && Objects.equals(splitSize, that.splitSize)
         && Objects.equals(splitLookback, that.splitLookback)
         && Objects.equals(openFileCost, that.openFileCost);
@@ -84,7 +85,8 @@ class SparkStagedScan extends SparkScan {
 
   @Override
   public int hashCode() {
-    return Objects.hash(table().name(), taskSetId, splitSize, splitSize, openFileCost);
+    return Objects.hash(
+        table().name(), readSchema(), taskSetId, splitSize, splitSize, openFileCost);
   }
 
   @Override

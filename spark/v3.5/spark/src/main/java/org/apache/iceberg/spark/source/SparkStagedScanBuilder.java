@@ -42,7 +42,6 @@ class SparkStagedScanBuilder implements ScanBuilder, SupportsPushDownRequiredCol
   private final SparkSession spark;
   private final Table table;
   private final SparkReadConf readConf;
-
   private final List<String> metaColumns = Lists.newArrayList();
 
   private Schema schema = null;
@@ -61,14 +60,7 @@ class SparkStagedScanBuilder implements ScanBuilder, SupportsPushDownRequiredCol
 
   @Override
   public void pruneColumns(StructType requestedSchema) {
-    StructType requestedProjection =
-        new StructType(
-            Stream.of(requestedSchema.fields())
-                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
-                .toArray(StructField[]::new));
-
-    // the projection should include all columns that will be returned, including those only used in
-    // filters
+    StructType requestedProjection = removeMetaColumns(requestedSchema);
     this.schema = SparkSchemaUtil.prune(schema, requestedProjection);
 
     Stream.of(requestedSchema.fields())
@@ -76,6 +68,13 @@ class SparkStagedScanBuilder implements ScanBuilder, SupportsPushDownRequiredCol
         .filter(MetadataColumns::isMetadataColumn)
         .distinct()
         .forEach(metaColumns::add);
+  }
+
+  private StructType removeMetaColumns(StructType structType) {
+    return new StructType(
+        Stream.of(structType.fields())
+            .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
+            .toArray(StructField[]::new));
   }
 
   private Schema schemaWithMetadataColumns() {
@@ -87,7 +86,7 @@ class SparkStagedScanBuilder implements ScanBuilder, SupportsPushDownRequiredCol
             .collect(Collectors.toList());
     Schema meta = new Schema(fields);
 
-    // schema or rows returned by readers
+    // schema of rows returned by readers
     return TypeUtil.join(schema, meta);
   }
 }
