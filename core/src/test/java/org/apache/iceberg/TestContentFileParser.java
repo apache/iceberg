@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Comparators;
@@ -141,7 +140,7 @@ public class TestContentFileParser {
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
-          + "\"split-offsets\":[128,256],\"equality-ids\":[1],\"sort-order-id\":1}";
+          + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
       return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
           + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":1},\"file-size-in-bytes\":350,\"record-count\":10,"
@@ -152,7 +151,7 @@ public class TestContentFileParser {
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
-          + "\"split-offsets\":[128,256],\"equality-ids\":[1],\"sort-order-id\":1}";
+          + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
   }
 
@@ -180,7 +179,6 @@ public class TestContentFileParser {
                     ))
             .withFileSizeInBytes(350)
             .withSplitOffsets(Arrays.asList(128L, 256L))
-            .withEqualityFieldIds(Collections.singletonList(1))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
             .withSortOrder(
                 SortOrder.builderFor(TableTestBase.SCHEMA)
