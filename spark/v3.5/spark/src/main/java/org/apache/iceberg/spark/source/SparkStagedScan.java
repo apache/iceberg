@@ -86,7 +86,7 @@ class SparkStagedScan extends SparkScan {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), taskSetId, splitSize, splitSize, openFileCost);
+        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
   }
 
   @Override
