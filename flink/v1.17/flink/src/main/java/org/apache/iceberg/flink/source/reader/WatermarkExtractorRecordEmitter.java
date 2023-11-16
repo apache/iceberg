@@ -28,35 +28,36 @@ import org.slf4j.LoggerFactory;
  * Emitter which emits the watermarks, records and updates the split position.
  *
  * <p>The Emitter emits watermarks at the beginning of every split provided by the {@link
- * IcebergWatermarkExtractor}.
+ * SplitWatermarkExtractor}.
  */
 class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(WatermarkExtractorRecordEmitter.class);
-  private final IcebergWatermarkExtractor timeExtractor;
-  private String lastSplit = null;
+  private final SplitWatermarkExtractor timeExtractor;
+  private String lastSplitId = null;
   private long watermark;
 
-  WatermarkExtractorRecordEmitter(IcebergWatermarkExtractor timeExtractor) {
+  WatermarkExtractorRecordEmitter(SplitWatermarkExtractor timeExtractor) {
     this.timeExtractor = timeExtractor;
   }
 
   @Override
   public void emitRecord(
       RecordAndPosition<T> element, SourceOutput<T> output, IcebergSourceSplit split) {
-    if (!split.splitId().equals(lastSplit)) {
+    if (!split.splitId().equals(lastSplitId)) {
       long newWatermark = timeExtractor.extractWatermark(split);
       if (newWatermark < watermark) {
         LOG.info(
-            "Watermark decreased. PreviousWM {}, currentWM {}, previousSplit {}, currentSplit {}.",
+            "previous watermark = {}, current watermark = {}, previous split = {}, current split = {}",
             watermark,
             newWatermark,
-            lastSplit,
+            lastSplitId,
             split.splitId());
       }
 
       watermark = newWatermark;
       output.emitWatermark(new Watermark(watermark));
-      lastSplit = split.splitId();
+      lastSplitId = split.splitId();
+      LOG.debug("Watermark = {} emitted based on split = {}", watermark, lastSplitId);
     }
 
     output.collect(element.record());

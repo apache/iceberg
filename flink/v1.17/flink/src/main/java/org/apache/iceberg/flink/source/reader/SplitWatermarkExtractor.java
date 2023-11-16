@@ -22,7 +22,7 @@ import java.io.Serializable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 /** The interface used to extract watermarks from splits. */
-public interface IcebergWatermarkExtractor extends Serializable {
+public interface SplitWatermarkExtractor extends Serializable {
   /** Get the watermark for a split. */
   long extractWatermark(IcebergSourceSplit split);
 }

@@ -60,12 +60,12 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializ
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
-import org.apache.iceberg.flink.source.reader.IcebergWatermarkExtractor;
+import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
-import org.apache.iceberg.flink.source.reader.TimestampBasedWatermarkExtractor;
+import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
@@ -483,12 +483,12 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         // Column statistics is needed for watermark generation
         contextBuilder.includeColumnStats(Sets.newHashSet(watermarkColumn));
 
-        IcebergWatermarkExtractor watermarkExtractor =
-            new TimestampBasedWatermarkExtractor(icebergSchema, watermarkColumn);
+        SplitWatermarkExtractor watermarkExtractor =
+            new ColumnStatsWatermarkExtractor(icebergSchema, watermarkColumn);
         emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
         splitAssignerFactory =
             new OrderedSplitAssignerFactory(
-                SplitComparators.watermarksAwareComparator(watermarkExtractor));
+                SplitComparators.watermark(watermarkExtractor));
       }
 
       ScanContext context = contextBuilder.build();

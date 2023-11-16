@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.source.split;
 
-import org.apache.iceberg.flink.source.reader.IcebergWatermarkExtractor;
+import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -59,8 +59,8 @@ public class SplitComparators {
   }
 
   /** Comparator which orders the splits based on watermark of the splits */
-  public static SerializableComparator<IcebergSourceSplit> watermarksAwareComparator(
-      IcebergWatermarkExtractor watermarkExtractor) {
+  public static SerializableComparator<IcebergSourceSplit> watermark(
+      SplitWatermarkExtractor watermarkExtractor) {
     return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
       long watermark1 = watermarkExtractor.extractWatermark(o1);
       long watermark2 = watermarkExtractor.extractWatermark(o2);

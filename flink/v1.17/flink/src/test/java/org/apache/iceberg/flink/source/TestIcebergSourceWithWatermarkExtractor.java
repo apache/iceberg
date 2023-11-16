@@ -29,7 +29,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -37,7 +36,6 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
@@ -48,20 +46,16 @@ import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
-import org.apache.flink.streaming.api.operators.collect.CollectResultIterator;
-import org.apache.flink.streaming.api.operators.collect.CollectSinkOperator;
-import org.apache.flink.streaming.api.operators.collect.CollectSinkOperatorFactory;
-import org.apache.flink.streaming.api.operators.collect.CollectStreamSink;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.RowDataConverter;
@@ -69,8 +63,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -109,25 +101,24 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     // Generate records with the following pattern:
     // - File 1 - Later records (Watermark 6000000)
-    //    - Split 1 - 2 records (100, "File-1-100"), (103, "File-1-103")
+    //    - Split 1 - 2 records (100, "file_1-recordTs_100"), (103, "file_1-recordTs_103")
     // - File 2 - First records (Watermark 0)
-    //    - Split 1 - 100 records (0, "File-2-0"), (1, "File-2-1"),...
-    //    - Split 2 - 100 records (0, "File-2-0"), (1, "File-2-1"),...
+    //    - Split 1 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
+    //    - Split 2 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
     // - File 3 - Parallel write for the first records (Watermark 60000)
-    //    - Split 1 - 2 records (1, "File-3-1"), (3, "File-3-3")
-    List<Record> batch;
-    batch = ImmutableList.of(generateRecord(100, "100"), generateRecord(103, "103"));
+    //    - Split 1 - 2 records (1, "file_3-recordTs_1"), (3, "file_3-recordTs_3")
+    List<Record> batch = ImmutableList.of(generateRecord(100, "100"), generateRecord(103, "103"));
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 
     batch = Lists.newArrayListWithCapacity(100);
     for (int i = 0; i < RECORD_NUM_FOR_2_SPLITS; ++i) {
-      batch.add(generateRecord(i % 5, "File-2-" + i));
+      batch.add(generateRecord(i % 5, "file_2-recordTs_" + i));
     }
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 
-    batch = ImmutableList.of(generateRecord(1, "File-3-1"), generateRecord(3, "File-3-3"));
+    batch = ImmutableList.of(generateRecord(1, "file_3-recordTs_1"), generateRecord(3, "file_3-recordTs_3"));
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 
@@ -158,18 +149,16 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                   }
                 });
 
-    CollectResultIterator<RowData> resultIterator = addCollectSink(windowed);
+    try (CloseableIterator<RowData> resultIterator = windowed.collectAsync()) {
+      env.executeAsync("Iceberg Source Windowing Test");
 
-    // Start the job
-    JobClient jobClient = env.executeAsync("Iceberg Source Windowing Test");
-    resultIterator.setJobClient(jobClient);
+      // Write data so the windows containing test data are closed
+      dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
+      dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
+      dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
 
-    // Write data so the windows containing test data are closed
-    dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
-    dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
-    dataAppender.appendToTable(ImmutableList.of(generateRecord(1500, "last-record")));
-
-    assertRecords(resultIterator, expectedRecords);
+      assertRecords(resultIterator, expectedRecords);
+    }
   }
 
   @Test
@@ -178,17 +167,17 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     // Generate records with the following pattern:
     // - File 1 - Later records (Watermark 6000000)
-    //    - Split 1 - 2 records (100, "File-1-100"), (103, "File-1-103")
+    //    - Split 1 - 2 records (100, "file_1-recordTs_100"), (103, "file_1-recordTs_103")
     // - File 2 - First records (Watermark 0)
-    //    - Split 1 - 100 records (0, "File-2-0"), (1, "File-2-1"),...
-    //    - Split 2 - 100 records (0, "File-2-0"), (1, "File-2-1"),...
+    //    - Split 1 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
+    //    - Split 2 - 100 records (0, "file_2-recordTs_0"), (1, "file_2-recordTs_1"),...
     List<Record> batch;
-    batch = ImmutableList.of(generateRecord(100, "File-1-100"), generateRecord(103, "File-1-103"));
+    batch = ImmutableList.of(generateRecord(100, "file_1-recordTs_100"), generateRecord(103, "file_1-recordTs_103"));
     dataAppender.appendToTable(batch);
 
     batch = Lists.newArrayListWithCapacity(100);
     for (int i = 0; i < RECORD_NUM_FOR_2_SPLITS; ++i) {
-      batch.add(generateRecord(i % 5, "File-2-" + i));
+      batch.add(generateRecord(i % 5, "file_2-recordTs_" + i));
     }
 
     dataAppender.appendToTable(batch);
@@ -208,57 +197,55 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
             SOURCE_NAME,
             TypeInformation.of(RowData.class));
 
-    CollectResultIterator<RowData> resultIterator = addCollectSink(stream);
+    try (CloseableIterator<RowData> resultIterator = stream.collectAsync()) {
+      JobClient jobClient = env.executeAsync("Continuous Iceberg Source Failover Test");
 
-    // Start the job
-    JobClient jobClient = env.executeAsync("Continuous Iceberg Source Failover Test");
-    resultIterator.setJobClient(jobClient);
+      // Check that the read the non-blocked data
+      // The first RECORD_NUM_FOR_2_SPLITS should be read
+      // 1 or more from the runaway reader should be arrived depending on thread scheduling
+      waitForRecords(resultIterator, RECORD_NUM_FOR_2_SPLITS + 1);
 
-    // Check that the read the non-blocked data
-    // The first RECORD_NUM_FOR_2_SPLITS should be read
-    // 1 or more from the runaway reader should be arrived depending on thread scheduling
-    waitForRecords(resultIterator, RECORD_NUM_FOR_2_SPLITS + 1);
+      // Get the drift metric, wait for it to be created and reach the expected state
+      // (100 min - 20 min - 0 min)
+      // Also this validates that the WatermarkAlignment is working
+      Awaitility.await()
+          .atMost(120, TimeUnit.SECONDS)
+          .until(() -> findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).isPresent());
+      Gauge<Long> drift = findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).get();
 
-    // Get the drift metric, wait for it to be created and reach the expected state
-    // (100 min - 20 min - 0 min)
-    // Also this validates that the WatermarkAlignment is working
-    Awaitility.await()
-        .atMost(120, TimeUnit.SECONDS)
-        .until(() -> findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).isPresent());
-    Gauge<Long> drift = findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).get();
+      // Add some old records with 2 splits, so even if the blocked gets one split, the other reader
+      // one gets one as well
+      batch =
+          ImmutableList.of(
+              generateRecord(15, "file_3-recordTs_15"),
+              generateRecord(16, "file_3-recordTs_16"),
+              generateRecord(17, "file_3-recordTs_17"));
+      dataAppender.appendToTable(batch);
+      batch =
+          ImmutableList.of(
+              generateRecord(15, "file_4-recordTs_15"),
+              generateRecord(16, "file_4-recordTs_16"),
+              generateRecord(17, "file_4-recordTs_17"));
+      dataAppender.appendToTable(batch);
+      // The records received will highly depend on scheduling
+      // We minimally get 3 records from the non-blocked reader
+      // We might get 1 record from the blocked reader (as part of the previous batch - file1-record-ts)
+      // We might get 3 records form the non-blocked reader if it gets both new splits
+      waitForRecords(resultIterator, 3);
 
-    // Add some old records with 2 splits, so even if the blocked gets one split, the other reader
-    // one gets one as well
-    batch =
-        ImmutableList.of(
-            generateRecord(15, "File-3-15"),
-            generateRecord(16, "File-3-16"),
-            generateRecord(17, "File-3-17"));
-    dataAppender.appendToTable(batch);
-    batch =
-        ImmutableList.of(
-            generateRecord(15, "File-4-15"),
-            generateRecord(16, "File-4-16"),
-            generateRecord(17, "File-4-17"));
-    dataAppender.appendToTable(batch);
-    // The records received will highly depend on scheduling
-    // We minimally get 3 records from the non-blocked reader
-    // We might get 1 record from the blocked reader (as part of the previous batch - File-1)
-    // We might get 3 records form the non-blocked reader if it gets both new splits
-    waitForRecords(resultIterator, 3);
+      // Get the drift metric, wait for it to be created and reach the expected state (100 min - 20
+      // min - 15 min)
+      Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
 
-    // Get the drift metric, wait for it to be created and reach the expected state (100 min - 20
-    // min - 15 min)
-    Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
+      // Add some new records which should unblock the throttled reader
+      batch = ImmutableList.of(generateRecord(110, "file_5-recordTs_110"), generateRecord(111, "file_5-recordTs_111"));
+      dataAppender.appendToTable(batch);
+      // We should get all the records at this point
+      waitForRecords(resultIterator, 6);
 
-    // Add some new records which should unblock the throttled reader
-    batch = ImmutableList.of(generateRecord(110, "File-5-110"), generateRecord(111, "File-5-111"));
-    dataAppender.appendToTable(batch);
-    // We should get all the records at this point
-    waitForRecords(resultIterator, 6);
-
-    // Wait for the new drift to decrease below the allowed drift to signal the normal state
-    Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() < 1200000L);
+      // Wait for the new drift to decrease below the allowed drift to signal the normal state
+      Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() < 1200000L);
+    }
   }
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
@@ -281,14 +268,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     return record;
   }
 
-  /**
-   * This override is needed because {@link Comparators} used by {@link StructLikeWrapper} retrieves
-   * Timestamp type using Long type as inner class, while the {@link RandomGenericData} generates
-   * {@link LocalDateTime} for {@code TimestampType.withoutZone()}. This method normalizes the
-   * {@link LocalDateTime} to a Long type so that Comparators can continue to work.
-   */
   protected void assertRecords(
-      CollectResultIterator<RowData> iterator, List<Record> expectedRecords) throws Exception {
+      CloseableIterator<RowData> iterator, List<Record> expectedRecords) throws Exception {
 
     Set<RowData> received = Sets.newHashSetWithExpectedSize(expectedRecords.size());
 
@@ -300,10 +281,12 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                     received.add(iterator.next());
                     count++;
                   }
+
                   if (count < expectedRecords.size()) {
                     throw new IllegalStateException(
                         String.format("Fail to get %d records.", expectedRecords.size()));
                   }
+
                   return true;
                 }))
         .succeedsWithin(DEFAULT_COLLECT_DATA_TIMEOUT);
@@ -315,7 +298,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     Assert.assertEquals(expected, received);
   }
 
-  protected void waitForRecords(CollectResultIterator<RowData> iterator, int num) {
+  protected void waitForRecords(CloseableIterator<RowData> iterator, int num) {
     assertThat(
             CompletableFuture.supplyAsync(
                 () -> {
@@ -324,29 +307,14 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                     iterator.next();
                     count++;
                   }
+
                   if (count < num) {
                     throw new IllegalStateException(String.format("Fail to get %d records.", num));
                   }
+
                   return true;
                 }))
         .succeedsWithin(DEFAULT_COLLECT_DATA_TIMEOUT);
-  }
-
-  private CollectResultIterator<RowData> addCollectSink(DataStream<RowData> stream) {
-    TypeSerializer<RowData> serializer =
-        stream.getType().createSerializer(stream.getExecutionConfig());
-    String accumulatorName = "dataStreamCollect_" + UUID.randomUUID();
-    CollectSinkOperatorFactory<RowData> factory =
-        new CollectSinkOperatorFactory<>(serializer, accumulatorName);
-    CollectSinkOperator<RowData> operator = (CollectSinkOperator<RowData>) factory.getOperator();
-    CollectStreamSink<RowData> sink = new CollectStreamSink<>(stream, factory);
-    sink.name("Data stream collect sink");
-    stream.getExecutionEnvironment().addOperator(sink.getTransformation());
-    return new CollectResultIterator<>(
-        operator.getOperatorIdFuture(),
-        serializer,
-        accumulatorName,
-        stream.getExecutionEnvironment().getCheckpointConfig());
   }
 
   private Optional<Gauge<Long>> findAlignmentDriftMetric(JobID jobID, long withValue) {

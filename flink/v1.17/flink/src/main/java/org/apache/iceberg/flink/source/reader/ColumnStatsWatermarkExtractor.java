@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,11 +29,12 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * {@link IcebergWatermarkExtractor} implementation which uses an Iceberg timestamp column
+ * {@link SplitWatermarkExtractor} implementation which uses an Iceberg timestamp column
  * statistics to get the watermarks for the {@link IcebergSourceSplit}. This watermark is emitted by
  * the {@link WatermarkExtractorRecordEmitter} along with the actual records.
  */
-public class TimestampBasedWatermarkExtractor implements IcebergWatermarkExtractor, Serializable {
+@Internal
+public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, Serializable {
   private final int tsFieldId;
 
   /**
@@ -41,7 +43,7 @@ public class TimestampBasedWatermarkExtractor implements IcebergWatermarkExtract
    * @param schema The schema of the Table
    * @param tsFieldName The timestamp column which should be used as an event time
    */
-  public TimestampBasedWatermarkExtractor(Schema schema, String tsFieldName) {
+  public ColumnStatsWatermarkExtractor(Schema schema, String tsFieldName) {
     Types.NestedField field = schema.findField(tsFieldName);
     Preconditions.checkArgument(
         field.type().typeId().equals(Type.TypeID.TIMESTAMP), "Type should be timestamp");
