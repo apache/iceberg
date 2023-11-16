@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -168,24 +169,13 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
 
   @Override
   public String toString() {
-    StringBuilder builder = new StringBuilder();
+    return entrySet().stream().map(this::toString).collect(Collectors.joining(", ", "{", "}"));
+  }
 
-    builder.append('{');
-
-    for (Entry<CharSequence, V> entry : entrySet()) {
-      if (builder.length() > 1) { // comma and space are not needed before the first entry
-        builder.append(", ");
-      }
-      CharSequence key = entry.getKey();
-      V value = entry.getValue();
-      builder.append(key);
-      builder.append('=');
-      builder.append(value == this ? "(this Map)" : value);
-    }
-
-    builder.append('}');
-
-    return builder.toString();
+  private String toString(Entry<CharSequence, V> entry) {
+    CharSequence key = entry.getKey();
+    V value = entry.getValue();
+    return key + "=" + (value == this ? "(this Map)" : value);
   }
 
   private static class CharSequenceEntry<V> implements Entry<CharSequence, V> {
