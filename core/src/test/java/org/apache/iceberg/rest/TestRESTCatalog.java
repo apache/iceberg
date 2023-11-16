@@ -1151,6 +1151,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(refsTables.history()).hasSize(numSnapshots);
   }
 
+  @SuppressWarnings("MethodLength")
   public void testTableAuth(
       String catalogToken,
       Map<String, String> credentials,
