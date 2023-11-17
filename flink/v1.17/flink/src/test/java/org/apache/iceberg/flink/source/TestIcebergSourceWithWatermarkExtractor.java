@@ -197,7 +197,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                 .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
                 .build(),
             WatermarkStrategy.<RowData>noWatermarks()
-                .withWatermarkAlignment("iceberg", Duration.ofMinutes(20)),
+                .withWatermarkAlignment("iceberg", Duration.ofMinutes(20), Duration.ofMillis(10)),
             SOURCE_NAME,
             TypeInformation.of(RowData.class));
 
@@ -214,8 +214,12 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       // Also this validates that the WatermarkAlignment is working
       Awaitility.await()
           .atMost(120, TimeUnit.SECONDS)
-          .until(() -> findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).isPresent());
-      Gauge<Long> drift = findAlignmentDriftMetric(jobClient.getJobID(), 4800000L).get();
+          .until(
+              () ->
+                  findAlignmentDriftMetric(jobClient.getJobID(), TimeUnit.MINUTES.toMillis(80))
+                      .isPresent());
+      Gauge<Long> drift =
+          findAlignmentDriftMetric(jobClient.getJobID(), TimeUnit.MINUTES.toMillis(80)).get();
 
       // Add some old records with 2 splits, so even if the blocked gets one split, the other reader
       // one gets one as well
@@ -240,7 +244,9 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
       // Get the drift metric, wait for it to be created and reach the expected state (100 min - 20
       // min - 15 min)
-      Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() == 3900000L);
+      Awaitility.await()
+          .atMost(120, TimeUnit.SECONDS)
+          .until(() -> drift.getValue() == TimeUnit.MINUTES.toMillis(65));
 
       // Add some new records which should unblock the throttled reader
       batch =
@@ -252,7 +258,9 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       waitForRecords(resultIterator, 6);
 
       // Wait for the new drift to decrease below the allowed drift to signal the normal state
-      Awaitility.await().atMost(120, TimeUnit.SECONDS).until(() -> drift.getValue() < 1200000L);
+      Awaitility.await()
+          .atMost(120, TimeUnit.SECONDS)
+          .until(() -> drift.getValue() < TimeUnit.MINUTES.toMillis(20));
     }
   }
 

@@ -65,9 +65,10 @@ public class TestColumnStatsWatermarkExtractor {
       new HadoopTableResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, SCHEMA);
 
   private GenericAppenderHelper dataAppender;
-  private long minTs = Long.MAX_VALUE;
-  private long minTsTz = Long.MAX_VALUE;
-  private long minL = Long.MAX_VALUE;
+  private long timestampFieldMinValue = Long.MAX_VALUE;
+  private long timestampTzFieldMinValue = Long.MAX_VALUE;
+  private long longFieldMinValue = Long.MAX_VALUE;
+  private DataFile dataFile;
 
   @Before
   public void initTable() throws IOException {
@@ -80,91 +81,75 @@ public class TestColumnStatsWatermarkExtractor {
 
     for (Record r : batch) {
       LocalDateTime localDateTime = (LocalDateTime) r.get(0);
-      minTs = Math.min(minTs, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
+      timestampFieldMinValue =
+          Math.min(timestampFieldMinValue, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
 
       OffsetDateTime offsetDateTime = (OffsetDateTime) r.get(1);
-      minTsTz = Math.min(minTsTz, offsetDateTime.toInstant().toEpochMilli());
+      timestampTzFieldMinValue =
+          Math.min(timestampTzFieldMinValue, offsetDateTime.toInstant().toEpochMilli());
 
-      minL = Math.min(minL, (Long) r.get(2));
+      longFieldMinValue = Math.min(longFieldMinValue, (Long) r.get(2));
     }
-  }
 
-  @Test
-  public void testTimestamp() {
-    DataFile dataFile =
+    dataFile =
         sourceTableResource
             .table()
             .currentSnapshot()
             .addedDataFiles(sourceTableResource.table().io())
             .iterator()
             .next();
+  }
+
+  @Test
+  public void testTimestamp() {
     ColumnStatsWatermarkExtractor tsExtractor =
         new ColumnStatsWatermarkExtractor(SCHEMA, "ts", null);
 
     Assert.assertEquals(
-        minTs,
+        timestampFieldMinValue,
         tsExtractor.extractWatermark(
             IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
   }
 
   @Test
   public void testTimestampWithTz() {
-    DataFile dataFile =
-        sourceTableResource
-            .table()
-            .currentSnapshot()
-            .addedDataFiles(sourceTableResource.table().io())
-            .iterator()
-            .next();
     ColumnStatsWatermarkExtractor tsTzExtractor =
         new ColumnStatsWatermarkExtractor(SCHEMA, "tstz", null);
 
     Assert.assertEquals(
-        minTsTz,
+        timestampTzFieldMinValue,
         tsTzExtractor.extractWatermark(
             IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
   }
 
   @Test
   public void testLong() {
-    DataFile dataFile =
-        sourceTableResource
-            .table()
-            .currentSnapshot()
-            .addedDataFiles(sourceTableResource.table().io())
-            .iterator()
-            .next();
     ColumnStatsWatermarkExtractor longExtractorMilliSeconds =
         new ColumnStatsWatermarkExtractor(SCHEMA, "l", TimeUnit.MILLISECONDS);
     ColumnStatsWatermarkExtractor longExtractorMicroSeconds =
         new ColumnStatsWatermarkExtractor(SCHEMA, "l", TimeUnit.MICROSECONDS);
 
     Assert.assertEquals(
-        minL,
+        longFieldMinValue,
         longExtractorMilliSeconds.extractWatermark(
             IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
     Assert.assertEquals(
-        minL / 1000L,
+        longFieldMinValue / 1000L,
         longExtractorMicroSeconds.extractWatermark(
             IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
   }
 
   @Test
   public void testMultipleFiles() throws IOException {
-    DataFile oldDataFile =
-        sourceTableResource
-            .table()
-            .currentSnapshot()
-            .addedDataFiles(sourceTableResource.table().io())
-            .iterator()
-            .next();
     List<Record> batch = RandomGenericData.generate(SCHEMA, 3, 19L);
     dataAppender.appendToTable(batch);
 
-    long minTsNew = Long.MAX_VALUE;
+    long timestampFieldMinValueNew = Long.MAX_VALUE;
     for (Record r : batch) {
       LocalDateTime localDateTime = (LocalDateTime) r.get(0);
-      minTsNew = Math.min(minTsNew, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
+      timestampFieldMinValueNew =
+          Math.min(
+              timestampFieldMinValueNew, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
     }
 
     DataFile newDataFile =
@@ -178,17 +163,17 @@ public class TestColumnStatsWatermarkExtractor {
         new ColumnStatsWatermarkExtractor(SCHEMA, "ts", null);
 
     Assert.assertEquals(
-        minTsNew,
+        timestampFieldMinValueNew,
         tsExtractor.extractWatermark(
             IcebergSourceSplit.fromCombinedScanTask(new DummyTask(newDataFile))));
     Assert.assertEquals(
-        minTs,
+        timestampFieldMinValue,
         tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(oldDataFile))));
+            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
     Assert.assertEquals(
-        Math.min(minTsNew, minTs),
+        Math.min(timestampFieldMinValue, timestampFieldMinValueNew),
         tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(newDataFile, oldDataFile))));
+            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(newDataFile, dataFile))));
   }
 
   @Test
