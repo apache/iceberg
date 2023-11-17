@@ -26,7 +26,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
-
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
