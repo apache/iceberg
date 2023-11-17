@@ -24,39 +24,49 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Before;
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestColumnStatsWatermarkExtractor {
   public static final Schema SCHEMA =
       new Schema(
-          required(1, "ts", Types.TimestampType.withoutZone()),
-          required(2, "tstz", Types.TimestampType.withZone()),
-          required(3, "l", Types.LongType.get()),
-          required(4, "s", Types.StringType.get()));
+          required(1, "timestamp_column", Types.TimestampType.withoutZone()),
+          required(2, "timestamptz_column", Types.TimestampType.withZone()),
+          required(3, "long_column", Types.LongType.get()),
+          required(4, "string_column", Types.StringType.get()));
+
+  private static final GenericAppenderFactory APPENDER_FACTORY = new GenericAppenderFactory(SCHEMA);
+
+  private static final List<List<Record>> TEST_RECORDS =
+      ImmutableList.of(
+          RandomGenericData.generate(SCHEMA, 3, 2L), RandomGenericData.generate(SCHEMA, 3, 19L));
+
+  private static final List<Map<String, Long>> MIN_VALUES =
+      ImmutableList.of(Maps.newHashMapWithExpectedSize(3), Maps.newHashMapWithExpectedSize(3));
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -64,137 +74,104 @@ public class TestColumnStatsWatermarkExtractor {
   public final HadoopTableResource sourceTableResource =
       new HadoopTableResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, SCHEMA);
 
-  private GenericAppenderHelper dataAppender;
-  private long timestampFieldMinValue = Long.MAX_VALUE;
-  private long timestampTzFieldMinValue = Long.MAX_VALUE;
-  private long longFieldMinValue = Long.MAX_VALUE;
-  private DataFile dataFile;
+  private final String columnName;
 
-  @Before
-  public void initTable() throws IOException {
-    dataAppender =
-        new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+  @BeforeClass
+  public static void updateMinValue() {
+    for (int i = 0; i < TEST_RECORDS.size(); ++i) {
+      for (Record r : TEST_RECORDS.get(i)) {
+        Map<String, Long> minValues = MIN_VALUES.get(i);
 
-    List<Record> batch = RandomGenericData.generate(SCHEMA, 3, 2L);
-    dataAppender.appendToTable(batch);
+        LocalDateTime localDateTime = (LocalDateTime) r.get(0);
+        minValues.merge(
+            "timestamp_column", localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli(), Math::min);
 
-    for (Record r : batch) {
-      LocalDateTime localDateTime = (LocalDateTime) r.get(0);
-      timestampFieldMinValue =
-          Math.min(timestampFieldMinValue, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
+        OffsetDateTime offsetDateTime = (OffsetDateTime) r.get(1);
+        minValues.merge("timestamptz_column", offsetDateTime.toInstant().toEpochMilli(), Math::min);
 
-      OffsetDateTime offsetDateTime = (OffsetDateTime) r.get(1);
-      timestampTzFieldMinValue =
-          Math.min(timestampTzFieldMinValue, offsetDateTime.toInstant().toEpochMilli());
-
-      longFieldMinValue = Math.min(longFieldMinValue, (Long) r.get(2));
+        minValues.merge("long_column", (Long) r.get(2), Math::min);
+      }
     }
+  }
 
-    dataFile =
-        sourceTableResource
-            .table()
-            .currentSnapshot()
-            .addedDataFiles(sourceTableResource.table().io())
-            .iterator()
-            .next();
+  @Parameterized.Parameters(name = "{0}")
+  public static Collection<Object[]> data() {
+    return ImmutableList.of(
+        new Object[] {"timestamp_column"},
+        new Object[] {"timestamptz_column"},
+        new Object[] {"long_column"});
+  }
+
+  public TestColumnStatsWatermarkExtractor(String columnName) {
+    this.columnName = columnName;
   }
 
   @Test
-  public void testTimestamp() {
-    ColumnStatsWatermarkExtractor tsExtractor =
-        new ColumnStatsWatermarkExtractor(SCHEMA, "ts", null);
+  public void testSingle() throws IOException {
+    ColumnStatsWatermarkExtractor extractor =
+        new ColumnStatsWatermarkExtractor(SCHEMA, columnName, TimeUnit.MILLISECONDS);
 
     Assert.assertEquals(
-        timestampFieldMinValue,
-        tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
+        MIN_VALUES.get(0).get(columnName).longValue(), extractor.extractWatermark(split(0)));
   }
 
   @Test
-  public void testTimestampWithTz() {
-    ColumnStatsWatermarkExtractor tsTzExtractor =
-        new ColumnStatsWatermarkExtractor(SCHEMA, "tstz", null);
+  public void testTimeUnit() throws IOException {
+    Assume.assumeTrue("Run only for long column", columnName.equals("long_column"));
+    ColumnStatsWatermarkExtractor extractor =
+        new ColumnStatsWatermarkExtractor(SCHEMA, columnName, TimeUnit.MICROSECONDS);
 
     Assert.assertEquals(
-        timestampTzFieldMinValue,
-        tsTzExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
-  }
-
-  @Test
-  public void testLong() {
-    ColumnStatsWatermarkExtractor longExtractorMilliSeconds =
-        new ColumnStatsWatermarkExtractor(SCHEMA, "l", TimeUnit.MILLISECONDS);
-    ColumnStatsWatermarkExtractor longExtractorMicroSeconds =
-        new ColumnStatsWatermarkExtractor(SCHEMA, "l", TimeUnit.MICROSECONDS);
-
-    Assert.assertEquals(
-        longFieldMinValue,
-        longExtractorMilliSeconds.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
-    Assert.assertEquals(
-        longFieldMinValue / 1000L,
-        longExtractorMicroSeconds.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
+        MIN_VALUES.get(0).get(columnName).longValue() / 1000L,
+        extractor.extractWatermark(split(0)));
   }
 
   @Test
   public void testMultipleFiles() throws IOException {
-    List<Record> batch = RandomGenericData.generate(SCHEMA, 3, 19L);
-    dataAppender.appendToTable(batch);
+    Assume.assumeTrue("Run only for the timestamp column", columnName.equals("timestamp_column"));
+    IcebergSourceSplit combinedSplit =
+        IcebergSourceSplit.fromCombinedScanTask(
+            ReaderUtil.createCombinedScanTask(
+                TEST_RECORDS, TEMPORARY_FOLDER, FileFormat.PARQUET, APPENDER_FACTORY));
 
-    long timestampFieldMinValueNew = Long.MAX_VALUE;
-    for (Record r : batch) {
-      LocalDateTime localDateTime = (LocalDateTime) r.get(0);
-      timestampFieldMinValueNew =
-          Math.min(
-              timestampFieldMinValueNew, localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli());
-    }
-
-    DataFile newDataFile =
-        sourceTableResource
-            .table()
-            .currentSnapshot()
-            .addedDataFiles(sourceTableResource.table().io())
-            .iterator()
-            .next();
-    ColumnStatsWatermarkExtractor tsExtractor =
-        new ColumnStatsWatermarkExtractor(SCHEMA, "ts", null);
+    ColumnStatsWatermarkExtractor extractor =
+        new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null);
 
     Assert.assertEquals(
-        timestampFieldMinValueNew,
-        tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(newDataFile))));
+        MIN_VALUES.get(0).get(columnName).longValue(), extractor.extractWatermark(split(0)));
     Assert.assertEquals(
-        timestampFieldMinValue,
-        tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(dataFile))));
+        MIN_VALUES.get(1).get(columnName).longValue(), extractor.extractWatermark(split(1)));
     Assert.assertEquals(
-        Math.min(timestampFieldMinValue, timestampFieldMinValueNew),
-        tsExtractor.extractWatermark(
-            IcebergSourceSplit.fromCombinedScanTask(new DummyTask(newDataFile, dataFile))));
+        Math.min(MIN_VALUES.get(0).get(columnName), MIN_VALUES.get(1).get(columnName)),
+        extractor.extractWatermark(combinedSplit));
   }
 
   @Test
   public void testWrongColumn() {
-    Assertions.assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, "s", null))
+    Assume.assumeTrue("Run only for string column", columnName.equals("string_column"));
+    Assertions.assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Found STRING, expected a LONG or TIMESTAMP column for watermark generation.");
   }
 
-  private static class DummyTask extends BaseCombinedScanTask {
-    private Collection<FileScanTask> files;
+  @Test
+  public void testEmptyStatistics() throws IOException {
+    Assume.assumeTrue("Run only for timestamp column", columnName.equals("timestamp_column"));
 
-    DummyTask(DataFile... dataFiles) {
-      files =
-          Arrays.stream(dataFiles).map(f -> new MockFileScanTask(f)).collect(Collectors.toList());
-    }
+    // Create an extractor for a column we do not have statistics
+    ColumnStatsWatermarkExtractor extractor = new ColumnStatsWatermarkExtractor(10);
+    Assertions.assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Missing statistics in file");
+  }
 
-    @Override
-    public Collection<FileScanTask> files() {
-      return files;
-    }
+  private IcebergSourceSplit split(int id) throws IOException {
+    return IcebergSourceSplit.fromCombinedScanTask(
+        ReaderUtil.createCombinedScanTask(
+            ImmutableList.of(TEST_RECORDS.get(id)),
+            TEMPORARY_FOLDER,
+            FileFormat.PARQUET,
+            APPENDER_FACTORY));
   }
 }

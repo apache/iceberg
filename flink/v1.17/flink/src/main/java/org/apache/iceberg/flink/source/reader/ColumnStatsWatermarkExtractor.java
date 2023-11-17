@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.TypeID;
@@ -58,19 +59,25 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
     this.timeUnit = typeID.equals(TypeID.LONG) ? timeUnit : TimeUnit.MICROSECONDS;
   }
 
+  @VisibleForTesting
+  ColumnStatsWatermarkExtractor(int eventTimeFieldId) {
+    this.eventTimeFieldId = eventTimeFieldId;
+    this.timeUnit = TimeUnit.MICROSECONDS;
+  }
+
   /**
    * Get the watermark for a split using column statistics.
    *
    * @param split The split
    * @return The watermark
-   * @throws NullPointerException if there is no statistics for the column
+   * @throws IllegalArgumentException if there is no statistics for the column
    */
   @Override
   public long extractWatermark(IcebergSourceSplit split) {
     return split.task().files().stream()
         .map(
             scanTask -> {
-              Preconditions.checkNotNull(
+              Preconditions.checkArgument(
                   scanTask.file().lowerBounds() != null
                       && scanTask.file().lowerBounds().get(eventTimeFieldId) != null,
                   "Missing statistics in file = %s for columnId = %s",
