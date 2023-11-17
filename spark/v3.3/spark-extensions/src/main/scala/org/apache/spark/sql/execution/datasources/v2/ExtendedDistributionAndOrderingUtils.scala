@@ -19,10 +19,12 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RebalancePartitions
 import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.connector.distributions.ClusteredDistribution
@@ -37,8 +39,6 @@ import scala.collection.compat.immutable.ArraySeq
 /**
  * A rule that is inspired by DistributionAndOrderingUtils in Spark but supports Iceberg transforms.
  *
- * Note that similarly to the original rule in Spark, it does not let AQE pick the number of shuffle
- * partitions. See SPARK-34230 for context.
  */
 object ExtendedDistributionAndOrderingUtils {
 
@@ -57,10 +57,28 @@ object ExtendedDistributionAndOrderingUtils {
         } else {
           conf.numShufflePartitions
         }
-        // the conversion to catalyst expressions above produces SortOrder expressions
-        // for OrderedDistribution and generic expressions for ClusteredDistribution
-        // this allows RepartitionByExpression to pick either range or hash partitioning
-        RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
+
+        val isHashDistributionMode = write.requiredDistribution match {
+          case _ : ClusteredDistribution => true
+          case _ => false
+        }
+
+        val writeDistributionAqeEnabled = conf.getConfString(SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED,
+          SparkSQLProperties.WRITE_DISTRIBUTION_AQE_ENABLED_DEFAULT).toBoolean
+
+        if (writeDistributionAqeEnabled && isHashDistributionMode) {
+          // If write-distribution-AQE property is enabled, then we fallback to spark AQE
+          // to determine the number of partitions by coalescing and un-skewing partitions.
+          // Also to note, Rebalance is only supported for hash distribution mode in spark 3.3.
+          // By default the strictDistributionMode is set to true, to not disrupt regular
+          // plan of RepartitionByExpression
+          RebalancePartitions(ArraySeq.unsafeWrapArray(distribution), query)
+        } else {
+          // the conversion to catalyst expressions above produces SortOrder expressions
+          // for OrderedDistribution and generic expressions for ClusteredDistribution
+          // this allows RepartitionByExpression to pick either range or hash partitioning
+          RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
+        }
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {
