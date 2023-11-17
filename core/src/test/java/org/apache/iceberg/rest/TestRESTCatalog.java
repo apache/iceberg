@@ -351,7 +351,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-  public void testCatalogCredentialNooauth2ServerUri() {
+  public void testCatalogCredentialNoOauth2ServerUri() {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -369,7 +369,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             eq(HTTPMethod.POST),
-            eq("v1/token/oauth"),
+            eq("v1/oauth/tokens"),
             any(),
             any(),
             eq(OAuthTokenResponse.class),
