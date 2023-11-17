@@ -168,6 +168,38 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteWithPartitionedTable() throws Exception {
+    createAndInitPartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (3, 'hr')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'hardware'), (2, 'hardware')", tableName);
+
+    // row level delete
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> rowLevelDeletePartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "row level delete does not reduce number of partition", 2, rowLevelDeletePartitions.size());
+
+    // partition aligned delete
+    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> actualPartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "partition aligned delete results in 1 partition", 1, actualPartitions.size());
+  }
+
+  @Test
   public void testDeleteWithFalseCondition() {
     createAndInitUnpartitionedTable();
 

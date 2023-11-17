@@ -50,8 +50,8 @@ jobs:
         run: |
           matrix=$(echo '[${{ github.event.inputs.benchmarks }}]' | jq '.[] | select(endswith("Benchmark")) | .')
           matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
-          echo "::set-output name=matrix::[$matrix]"
-          echo "::set-output name=foundlabel::$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')"
+          echo "matrix=[$matrix]" >> $GITHUB_OUTPUT
+          echo "foundlabel=$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')" >> $GITHUB_OUTPUT
 
   show-matrix:
     needs: matrix

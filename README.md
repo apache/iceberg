@@ -20,7 +20,6 @@
 ![Iceberg](https://iceberg.apache.org/docs/latest/img/Iceberg-logo.png)
 
 [![](https://github.com/apache/iceberg/actions/workflows/java-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/java-ci.yml)
-[![](https://github.com/apache/iceberg/actions/workflows/python-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/python-ci.yml)
 [![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://apache-iceberg.slack.com/)
 
 Iceberg is a high-performance format for huge analytic tables. Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
@@ -36,9 +35,9 @@ The core Java library that tracks table snapshots and metadata is complete, but 
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
-[Java API javadocs][iceberg-javadocs] are available for the master.
+[Java API javadocs][iceberg-javadocs] are available for the main.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/master
+[iceberg-javadocs]: https://iceberg.apache.org/javadoc/latest
 [iceberg-spec]: https://iceberg.apache.org/spec
 
 
@@ -78,7 +77,25 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
+---
+**NOTE**
+
+The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+
+```
+sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
+```
+---
+
 ### Engine Compatibility
 
 See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to know about Iceberg compatibility with different Spark, Flink and Hive versions.
 For other engines such as Presto or Trino, please visit their websites for Iceberg integration details.
+
+### Implementations
+
+This repository contains the Java implementation of Iceberg. Other implementations can be found at:
+
+* **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
+* **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
+* **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)

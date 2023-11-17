@@ -35,7 +35,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -75,14 +74,18 @@ public class TestForwardCompatibility {
 
   // create a spec for the schema that uses a "zero" transform that produces all 0s
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(0)
+          .addField("zero", 1, "id_zero")
+          .build();
   // create a fake spec to use to write table metadata
   private static final PartitionSpec FAKE_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"identity\", \"source-id\": 1 } ] }");
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(0)
+          .addField("identity", 1, "id_zero")
+          .build();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 

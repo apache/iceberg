@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -36,6 +37,24 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS tmp_view");
+  }
+
+  @Test
+  public void testFilterPushdownWithDecimalValues() {
+    sql(
+        "CREATE TABLE %s (id INT, salary DECIMAL(10, 2), dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep)",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, 100.01, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 100.05, 'd1')", tableName);
+
+    checkFilters(
+        "dep = 'd1' AND salary > 100.03" /* query predicate */,
+        "isnotnull(salary) AND (salary > 100.03)" /* Spark post scan filter */,
+        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary > 100.03" /* Iceberg scan filters */,
+        ImmutableList.of(row(2, new BigDecimal("100.05"), "d1")));
   }
 
   @Test

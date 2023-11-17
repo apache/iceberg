@@ -57,6 +57,7 @@ public class GCSFileIOTest {
   private final Storage storage = spy(LocalStorageHelper.getOptions().getService());
   private GCSFileIO io;
 
+  @SuppressWarnings("unchecked")
   @BeforeEach
   public void before() {
     // LocalStorageHelper doesn't support batch operations, so mock that here

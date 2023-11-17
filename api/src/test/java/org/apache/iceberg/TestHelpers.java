@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
@@ -263,6 +264,10 @@ public class TestHelpers {
     try (ObjectOutputStream out = new ObjectOutputStream(outputStream)) {
       out.writeObject(obj);
     }
+  }
+
+  public static ExpectedSpecBuilder newExpectedSpecBuilder() {
+    return new ExpectedSpecBuilder();
   }
 
   public static class KryoHelpers {
@@ -663,8 +668,49 @@ public class TestHelpers {
     }
 
     @Override
+    public DataFile copyWithStats(Set<Integer> requestedColumns) {
+      return this;
+    }
+
+    @Override
     public List<Long> splitOffsets() {
       return null;
+    }
+  }
+
+  public static class ExpectedSpecBuilder {
+    private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
+
+    private Schema schema;
+
+    private ExpectedSpecBuilder() {
+      this.unboundPartitionSpecBuilder = UnboundPartitionSpec.builder();
+    }
+
+    public ExpectedSpecBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    public ExpectedSpecBuilder withSpecId(int newSpecId) {
+      unboundPartitionSpecBuilder.withSpecId(newSpecId);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(
+        String transformAsString, int sourceId, int partitionId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
+      return this;
+    }
+
+    public PartitionSpec build() {
+      Preconditions.checkNotNull(schema, "Field schema is missing");
+      return unboundPartitionSpecBuilder.build().bind(schema);
     }
   }
 }

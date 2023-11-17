@@ -21,14 +21,13 @@ name: "Delta Conversion CI"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
-      - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
-      - '.github/workflows/python-ci.yml'
+      - '.github/ISSUE_TEMPLATE/**'
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
       - '.gitignore'
@@ -40,7 +39,6 @@ on:
       - 'hive-runtime/**'
       - 'flink/**'
       - 'pig/**'
-      - 'python/**'
       - 'docs/**'
       - 'open-api/**'
       - 'format/**'

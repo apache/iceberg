@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Superinterface of {@link DataFile} and {@link DeleteFile} that exposes common methods.
@@ -164,6 +165,20 @@ public interface ContentFile<F> {
    *     counts, or nan value counts
    */
   F copyWithoutStats();
+
+  /**
+   * Copies this file with column stats only for specific columns. Manifest readers can reuse file
+   * instances; use this method to copy data with stats only for specific columns when collecting
+   * files.
+   *
+   * @param requestedColumnIds column IDs for which to keep stats.
+   * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
+   *     and nan value counts for only specific columns.
+   */
+  default F copyWithStats(Set<Integer> requestedColumnIds) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement copyWithStats");
+  }
 
   /**
    * Copies this file (potentially without file stats). Manifest readers can reuse file instances;

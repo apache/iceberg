@@ -21,18 +21,13 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
-import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
-import static org.apache.spark.sql.functions.callUDF;
-import static org.apache.spark.sql.functions.column;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -52,14 +47,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
-import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
@@ -73,9 +67,6 @@ import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
-import org.apache.spark.sql.types.IntegerType$;
-import org.apache.spark.sql.types.LongType$;
-import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
@@ -119,29 +110,6 @@ public class TestFilteredScan {
   @BeforeClass
   public static void startSpark() {
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
-
-    // define UDFs used by partition tests
-    Function<Object, Integer> bucket4 = Transforms.bucket(4).bind(Types.LongType.get());
-    spark.udf().register("bucket4", (UDF1<Long, Integer>) bucket4::apply, IntegerType$.MODULE$);
-
-    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withZone());
-    spark
-        .udf()
-        .register(
-            "ts_day",
-            (UDF1<Timestamp, Integer>) timestamp -> day.apply(fromJavaTimestamp(timestamp)),
-            IntegerType$.MODULE$);
-
-    Function<Object, Integer> hour = Transforms.hour().bind(Types.TimestampType.withZone());
-    spark
-        .udf()
-        .register(
-            "ts_hour",
-            (UDF1<Timestamp, Integer>) timestamp -> hour.apply(fromJavaTimestamp(timestamp)),
-            IntegerType$.MODULE$);
-
-    spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
-    spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
   }
 
   @AfterClass
@@ -299,7 +267,7 @@ public class TestFilteredScan {
 
   @Test
   public void testBucketPartitionedIDFilters() {
-    Table table = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
+    Table table = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID);
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
@@ -329,7 +297,7 @@ public class TestFilteredScan {
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testDayPartitionedTimestampFilters() {
-    Table table = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
+    Table table = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY);
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
     Batch unfiltered =
@@ -383,7 +351,7 @@ public class TestFilteredScan {
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testHourPartitionedTimestampFilters() {
-    Table table = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
+    Table table = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR);
 
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
@@ -479,8 +447,7 @@ public class TestFilteredScan {
 
   @Test
   public void testPartitionedByDataStartsWithFilter() {
-    Table table =
-        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA);
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
@@ -495,8 +462,7 @@ public class TestFilteredScan {
 
   @Test
   public void testPartitionedByDataNotStartsWithFilter() {
-    Table table =
-        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA);
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
@@ -511,7 +477,7 @@ public class TestFilteredScan {
 
   @Test
   public void testPartitionedByIdStartsWith() {
-    Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
+    Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID);
 
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
@@ -527,7 +493,7 @@ public class TestFilteredScan {
 
   @Test
   public void testPartitionedByIdNotStartsWith() {
-    Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
+    Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID);
 
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
@@ -623,8 +589,7 @@ public class TestFilteredScan {
     filterable.pushPredicates(Arrays.stream(filters).map(Filter::toV2).toArray(Predicate[]::new));
   }
 
-  private Table buildPartitionedTable(
-      String desc, PartitionSpec spec, String udf, String partitionColumn) {
+  private Table buildPartitionedTable(String desc, PartitionSpec spec) {
     File location = new File(parent, desc);
     Table table = TABLES.create(SCHEMA, spec, location.toString());
 
@@ -640,12 +605,10 @@ public class TestFilteredScan {
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(unpartitioned.toString());
 
+    // disable fanout writers to locally order records for future verifications
     allRows
-        .coalesce(1) // ensure only 1 file per partition is written
-        .withColumn("part", callUDF(udf, column(partitionColumn)))
-        .sortWithinPartitions("part")
-        .drop("part")
         .write()
+        .option(SparkWriteOptions.FANOUT_ENABLED, "false")
         .format("iceberg")
         .mode("append")
         .save(table.location());

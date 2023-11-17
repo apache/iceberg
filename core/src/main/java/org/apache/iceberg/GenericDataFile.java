@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -40,7 +41,6 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
       Metrics metrics,
       ByteBuffer keyMetadata,
       List<Long> splitOffsets,
-      int[] equalityFieldIds,
       Integer sortOrderId) {
     super(
         specId,
@@ -57,7 +57,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         metrics.lowerBounds(),
         metrics.upperBounds(),
         splitOffsets,
-        equalityFieldIds,
+        null /* no equality field IDs */,
         sortOrderId,
         keyMetadata);
   }
@@ -66,10 +66,13 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
-   * @param fullCopy whether to copy all fields or to drop column-level stats
+   * @param copyStats whether to copy all fields or to drop column-level stats.
+   * @param requestedColumnIds column ids for which to keep stats. If <code>null</code> then every
+   *     column stat is kept.
    */
-  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
-    super(toCopy, fullCopy);
+  private GenericDataFile(
+      GenericDataFile toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
+    super(toCopy, copyStats, requestedColumnIds);
   }
 
   /** Constructor for Java serialization. */
@@ -77,12 +80,17 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
 
   @Override
   public DataFile copyWithoutStats() {
-    return new GenericDataFile(this, false /* drop stats */);
+    return new GenericDataFile(this, false /* drop stats */, null);
+  }
+
+  @Override
+  public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
+    return new GenericDataFile(this, true, requestedColumnIds);
   }
 
   @Override
   public DataFile copy() {
-    return new GenericDataFile(this, true /* full copy */);
+    return new GenericDataFile(this, true /* full copy */, null);
   }
 
   @Override

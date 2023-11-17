@@ -22,13 +22,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -45,6 +45,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -197,14 +198,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Does not support range distribution-mode now.",
-        IllegalArgumentException.class,
-        "Flink does not support 'range' write distribution mode now.",
-        () -> {
-          testWriteRow(null, DistributionMode.RANGE);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Flink does not support 'range' write distribution mode now.");
   }
 
   @Test
@@ -350,17 +346,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    AssertHelpers.assertThrows(
-        "Should fail with invalid distribution mode.",
-        IllegalArgumentException.class,
-        "Invalid distribution mode: UNRECOGNIZED",
-        () -> {
-          builder.append();
-
-          // Execute the program.
-          env.execute("Test Iceberg DataStream.");
-          return null;
-        });
+    Assertions.assertThatThrownBy(builder::append)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @Test
@@ -378,16 +366,32 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    AssertHelpers.assertThrows(
-        "Should fail with invalid file format.",
-        IllegalArgumentException.class,
-        "Invalid file format: UNRECOGNIZED",
-        () -> {
-          builder.append();
+    Assertions.assertThatThrownBy(builder::append)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file format: UNRECOGNIZED");
+  }
 
-          // Execute the program.
-          env.execute("Test Iceberg DataStream.");
-          return null;
-        });
+  @Test
+  public void testWriteRowWithTableRefreshInterval() throws Exception {
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    Configuration flinkConf = new Configuration();
+    flinkConf.setString(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key(), "100ms");
+
+    FlinkSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .flinkConf(flinkConf)
+        .writeParallelism(parallelism)
+        .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream");
+
+    // Assert the iceberg table's records.
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 }

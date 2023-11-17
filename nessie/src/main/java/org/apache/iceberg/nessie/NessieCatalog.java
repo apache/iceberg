@@ -32,7 +32,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
@@ -46,7 +45,8 @@ import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.NessieApiV2;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.config.NessieClientConfigSource;
+import org.projectnessie.client.config.NessieClientConfigSources;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
 import org.slf4j.Logger;
@@ -94,10 +94,11 @@ public class NessieCatalog extends BaseMetastoreCatalog
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
 
-    NessieClientBuilder<?> nessieClientBuilder =
-        createNessieClientBuilder(
-                options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-            .fromConfig(x -> options.get(removePrefix.apply(x)));
+    NessieClientConfigSource configSource =
+        NessieClientConfigSources.mapConfigSource(options)
+            .fallbackTo(x -> options.get(removePrefix.apply(x)));
+    NessieClientBuilder nessieClientBuilder =
+        NessieClientBuilder.createClientBuilderFromSystemSettings(configSource);
     // default version is set to v1.
     final String apiVersion =
         options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
@@ -180,22 +181,6 @@ public class NessieCatalog extends BaseMetastoreCatalog
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     return warehouseLocation;
-  }
-
-  private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
-    NessieClientBuilder<?> clientBuilder;
-    if (customBuilder != null) {
-      try {
-        clientBuilder =
-            DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
-      } catch (Exception e) {
-        throw new RuntimeException(
-            String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
-      }
-    } else {
-      clientBuilder = HttpClientBuilder.builder();
-    }
-    return clientBuilder;
   }
 
   @Override

@@ -44,6 +44,18 @@ public class StaticTableOperations implements TableOperations {
     this.locationProvider = locationProvider;
   }
 
+  public StaticTableOperations(TableMetadata staticMetadata, FileIO io) {
+    this(staticMetadata, io, null);
+  }
+
+  public StaticTableOperations(
+      TableMetadata staticMetadata, FileIO io, LocationProvider locationProvider) {
+    this.staticMetadata = staticMetadata;
+    this.metadataFileLocation = staticMetadata.metadataFileLocation();
+    this.io = io;
+    this.locationProvider = locationProvider;
+  }
+
   @Override
   public TableMetadata current() {
     if (staticMetadata == null) {

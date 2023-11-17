@@ -229,7 +229,7 @@ public class RewriteDataFilesSparkAction
             Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
             Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
             List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
-            if (fileGroups.size() > 0) {
+            if (!fileGroups.isEmpty()) {
               fileGroupsByPartition.put(partition, fileGroups);
             }
           });

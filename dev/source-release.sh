@@ -156,7 +156,7 @@ Convenience binary artifacts are staged on Nexus. The Maven repository URL is:
 
 Please download, verify, and test.
 
-Please vote in the next 72 hours. (Weekends excluded)
+Please vote in the next 72 hours.
 
 [ ] +1 Release this as Apache Iceberg ${version}
 [ ] +0

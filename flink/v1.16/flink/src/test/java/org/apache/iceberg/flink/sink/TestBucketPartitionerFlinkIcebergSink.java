@@ -114,13 +114,19 @@ public class TestBucketPartitionerFlinkIcebergSink {
                 new BoundedTestSource<>(
                     allRows.stream().map(converter::toExternal).toArray(Row[]::new)),
                 ROW_TYPE_INFO)
-            .map(converter::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+            .map(converter::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE))
+            .partitionCustom(
+                new BucketPartitioner(table.spec()),
+                new BucketPartitionKeySelector(
+                    table.spec(),
+                    table.schema(),
+                    FlinkSink.toFlinkRowType(table.schema(), SimpleDataUtil.FLINK_SCHEMA)));
 
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
-        .distributionMode(DistributionMode.HASH)
+        .distributionMode(DistributionMode.NONE)
         .append();
 
     env.execute("Test Iceberg DataStream");
@@ -154,26 +160,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
       Assertions.assertThat(stats.numFilesPerBucket.get(i)).isEqualTo(2);
       // 2 rows per file (total of 16 rows across 8 files)
       Assertions.assertThat(stats.rowsPerWriter.get(i)).isEqualTo(2);
-    }
-  }
-
-  /**
-   * Verifies the BucketPartitioner is not used when the PartitionSpec has more than 1 bucket, and
-   * that it should fallback to input.keyBy
-   */
-  @ParameterizedTest
-  @EnumSource(value = TableSchemaType.class, names = "TWO_BUCKETS")
-  public void testMultipleBucketsFallback(TableSchemaType tableSchemaType) throws Exception {
-    setupEnvironment(tableSchemaType);
-    List<RowData> rows = generateTestDataRows();
-
-    appendRowsToTable(rows);
-    TableTestStats stats = extractPartitionResults(tableSchemaType);
-
-    Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
-    for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
-      // Only 1 file per bucket will be created when falling back to input.keyBy(...)
-      Assertions.assertThat((int) stats.numFilesPerBucket.get(i)).isEqualTo(1);
     }
   }
 

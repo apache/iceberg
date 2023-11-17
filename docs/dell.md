@@ -122,7 +122,7 @@ CREATE CATALOG my_catalog WITH (
     'catalog-impl'='org.apache.iceberg.dell.ecs.EcsCatalog',
     'ecs.s3.endpoint' = 'http://10.x.x.x:9020',
     'ecs.s3.access-key-id' = '<Your-ecs-s3-access-key>',
-    'ecs.s3.secret-access-key' = '<Your-ecs-s3-secret-access-key>')
+    'ecs.s3.secret-access-key' = '<Your-ecs-s3-secret-access-key>');
 ```
 
 Then, you can run `USE CATALOG my_catalog`, `SHOW DATABASES`, and `SHOW TABLES` to fetch the namespaces and tables of the catalog.

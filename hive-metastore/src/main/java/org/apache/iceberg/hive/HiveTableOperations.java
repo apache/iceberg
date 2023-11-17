@@ -121,7 +121,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   protected HiveTableOperations(
       Configuration conf,
-      ClientPool metaClients,
+      ClientPool<IMetaStoreClient, TException> metaClients,
       FileIO fileIO,
       String catalogName,
       String database,

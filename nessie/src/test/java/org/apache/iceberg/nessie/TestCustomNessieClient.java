@@ -20,18 +20,14 @@ package org.apache.iceberg.nessie;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.net.URI;
-import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
-import org.projectnessie.client.NessieClientBuilder;
+import org.projectnessie.client.NessieClientBuilder.AbstractNessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApi;
-import org.projectnessie.client.auth.NessieAuthentication;
-import org.projectnessie.client.http.HttpClientBuilder;
 
 public class TestCustomNessieClient extends BaseTestIceberg {
 
@@ -63,15 +59,14 @@ public class TestCustomNessieClient extends BaseTestIceberg {
             temp.toUri().toString(),
             CatalogProperties.URI,
             uri,
-            NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-            HttpClientBuilder.class.getName(),
+            NessieConfigConstants.CONF_NESSIE_CLIENT_NAME,
+            "HTTP",
             "client-api-version",
             apiVersion));
   }
 
   @Test
   public void testNonExistentCustomClient() {
-    String nonExistingClass = "non.existent.ClientBuilderImpl";
     assertThatThrownBy(
             () -> {
               NessieCatalog catalog = new NessieCatalog();
@@ -82,15 +77,15 @@ public class TestCustomNessieClient extends BaseTestIceberg {
                       temp.toUri().toString(),
                       CatalogProperties.URI,
                       uri,
-                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-                      nonExistingClass));
+                      NessieConfigConstants.CONF_NESSIE_CLIENT_NAME,
+                      "non_existent_Client"));
             })
         .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining(nonExistingClass);
+        .hasMessageContaining("Requested Nessie client named non_existent_Client not found");
   }
 
   @Test
-  public void testCustomClient() {
+  public void testCustomClientByName() {
     assertThatThrownBy(
             () -> {
               NessieCatalog catalog = new NessieCatalog();
@@ -101,8 +96,8 @@ public class TestCustomNessieClient extends BaseTestIceberg {
                       temp.toUri().toString(),
                       CatalogProperties.URI,
                       uri,
-                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-                      DummyClientBuilderImpl.class.getName()));
+                      NessieConfigConstants.CONF_NESSIE_CLIENT_NAME,
+                      "Dummy"));
             })
         .isInstanceOf(RuntimeException.class)
         .hasMessage("BUILD CALLED");
@@ -128,7 +123,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
   }
 
   @SuppressWarnings("rawtypes")
-  public static final class DummyClientBuilderImpl implements NessieClientBuilder {
+  public static final class DummyClientBuilderImpl extends AbstractNessieClientBuilder {
 
     @SuppressWarnings("unused")
     public static DummyClientBuilderImpl builder() {
@@ -136,33 +131,18 @@ public class TestCustomNessieClient extends BaseTestIceberg {
     }
 
     @Override
-    public NessieClientBuilder fromSystemProperties() {
-      return this;
-    }
-
-    @Override
-    public NessieClientBuilder withAuthentication(NessieAuthentication authentication) {
-      return this;
-    }
-
-    @Override
-    public NessieClientBuilder withUri(URI uri) {
-      return this;
-    }
-
-    @Override
-    public NessieClientBuilder withAuthenticationFromConfig(Function configuration) {
-      return this;
-    }
-
-    @Override
-    public NessieClientBuilder fromConfig(Function configuration) {
-      return this;
-    }
-
-    @Override
-    public NessieApi build(Class apiContract) {
+    public <A extends NessieApi> A build(Class<A> apiContract) {
       throw new RuntimeException("BUILD CALLED");
+    }
+
+    @Override
+    public String name() {
+      return "Dummy";
+    }
+
+    @Override
+    public int priority() {
+      return 42;
     }
   }
 }

@@ -21,7 +21,6 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A version of the view at a point in time.
@@ -66,7 +65,7 @@ public interface ViewVersion {
    * @return the string operation which produced the view version
    */
   default String operation() {
-    return summary().get("operation");
+    return versionId() == 1 ? "create" : "replace";
   }
 
   /** The query output schema at version create time, without aliases */
@@ -79,9 +78,4 @@ public interface ViewVersion {
 
   /** The default namespace to use when the SQL does not contain a namespace. */
   Namespace defaultNamespace();
-
-  default void check() {
-    Preconditions.checkArgument(
-        summary().containsKey("operation"), "Invalid view version summary, missing operation");
-  }
 }

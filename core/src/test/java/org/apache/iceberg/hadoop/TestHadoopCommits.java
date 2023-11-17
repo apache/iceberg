@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -54,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
@@ -435,13 +437,11 @@ public class TestHadoopCommits extends HadoopTableTestBase {
               for (int numCommittedFiles = 0;
                   numCommittedFiles < numberOfCommitedFilesPerThread;
                   numCommittedFiles++) {
-                while (barrier.get() < numCommittedFiles * threadsCount) {
-                  try {
-                    Thread.sleep(10);
-                  } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
+                final int currentFilesCount = numCommittedFiles;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .atMost(Duration.ofSeconds(10))
+                    .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 tableWithHighRetries.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();
               }

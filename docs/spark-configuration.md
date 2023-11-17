@@ -94,14 +94,14 @@ Additional properties can be found in common [catalog configuration](../configur
 Catalog names are used in SQL queries to identify a table. In the examples above, `hive_prod` and `hadoop_prod` can be used to prefix database and table names that will be loaded from those catalogs.
 
 ```sql
-SELECT * FROM hive_prod.db.table -- load db.table from catalog hive_prod
+SELECT * FROM hive_prod.db.table; -- load db.table from catalog hive_prod
 ```
 
 Spark 3 keeps track of the current catalog and namespace, which can be omitted from table names.
 
 ```sql
 USE hive_prod.db;
-SELECT * FROM table -- load db.table from catalog hive_prod
+SELECT * FROM table; -- load db.table from catalog hive_prod
 ```
 
 To see the current catalog and namespace, run `SHOW CURRENT NAMESPACE`.

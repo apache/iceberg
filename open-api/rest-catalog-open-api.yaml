@@ -226,7 +226,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -266,7 +266,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
@@ -302,7 +302,39 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchNamespaceExample:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a namespace exists
+      operationId: namespaceExists
+      description:
+        Check if a namespace exists. The response does not contain a body.
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -332,7 +364,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -383,7 +415,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -394,7 +426,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 UnprocessableEntityDuplicateKey:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
@@ -430,7 +462,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -478,7 +510,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -487,7 +519,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
@@ -530,7 +562,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -539,7 +571,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
@@ -605,7 +637,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -659,7 +691,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -669,7 +701,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         500:
@@ -678,7 +710,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Internal Server Error",
@@ -694,7 +726,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Invalid response from the upstream server",
@@ -708,7 +740,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Gateway timed out during commit",
@@ -722,7 +754,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Bad Gateway",
@@ -760,7 +792,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -777,16 +809,26 @@ paths:
       summary: Check if a table exists
       operationId: tableExists
       description:
-        Check if a table exists within a given namespace. This request does not return a response body.
+        Check if a table exists within a given namespace. The response does not contain a body.
       responses:
         204:
           description: Success, no content
         400:
-          description: Bad Request
+          $ref: '#/components/responses/BadRequestErrorResponse'
         401:
-          description: Unauthorized
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found
+          description:
+            Not Found - NoSuchTableException, Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -833,7 +875,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToRenameDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -846,7 +888,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example:
                 $ref: '#/components/examples/TableAlreadyExistsError'
         419:
@@ -889,7 +931,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -942,7 +984,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -952,7 +994,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         500:
@@ -961,7 +1003,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Internal Server Error",
@@ -977,7 +1019,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Invalid response from the upstream server",
@@ -991,7 +1033,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Gateway timed out during commit",
@@ -1005,7 +1047,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
                 "error": {
                   "message": "Bad Gateway",
@@ -1128,7 +1170,6 @@ components:
             type: string
           example: [ "department", "access_group" ]
         updates:
-          uniqueItems: true
           type: object
           example: { "owner": "Hank Bendickson" }
           additionalProperties:
@@ -1638,6 +1679,7 @@ components:
         action:
           type: string
           enum:
+            - assign-uuid
             - upgrade-format-version
             - add-schema
             - set-current-schema
@@ -1652,6 +1694,17 @@ components:
             - set-location
             - set-properties
             - remove-properties
+
+    AssignUUIDUpdate:
+      description: Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - uuid
+          properties:
+            uuid:
+              type: string
 
     UpgradeFormatVersionUpdate:
       allOf:
@@ -1809,6 +1862,7 @@ components:
 
     TableUpdate:
       anyOf:
+        - $ref: '#/components/schemas/AssignUUIDUpdate'
         - $ref: '#/components/schemas/UpgradeFormatVersionUpdate'
         - $ref: '#/components/schemas/AddSchemaUpdate'
         - $ref: '#/components/schemas/SetCurrentSchemaUpdate'
@@ -1825,54 +1879,142 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
     TableRequirement:
-      description:
-        Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
-
-        - `assert-create` - the table must not already exist; used for create transactions
-
-        - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
-
-        - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-
-        - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-
-        - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-
-        - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-
-        - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-
-        - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-create: '#/components/schemas/AssertCreate'
+          assert-table-uuid: '#/components/schemas/AssertTableUUID'
+          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
+          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
+          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
+          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
+          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
+          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
       type: object
       required:
         - type
       properties:
         type:
+          type: "string"
+
+    AssertCreate:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      type: object
+      description: The table must not already exist; used for create transactions
+      required:
+        - type
+      properties:
+        type:
           type: string
-          enum:
-            - assert-create
-            - assert-table-uuid
-            - assert-ref-snapshot-id
-            - assert-last-assigned-field-id
-            - assert-current-schema-id
-            - assert-last-assigned-partition-id
-            - assert-default-spec-id
-            - assert-default-sort-order-id
-        ref:
+          enum: ["assert-create"]
+
+    AssertTableUUID:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description: The table UUID must match the requirement's `uuid`
+      required:
+        - type
+        - uuid
+      properties:
+        type:
           type: string
+          enum: ["assert-table-uuid"]
         uuid:
+          type: string
+
+    AssertRefSnapshotId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
+        if `snapshot-id` is `null` or missing, the ref must not already exist
+      required:
+        - type
+        - ref
+        - snapshot-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-ref-snapshot-id" ]
+        ref:
           type: string
         snapshot-id:
           type: integer
           format: int64
+
+    AssertLastAssignedFieldId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's last assigned column id must match the requirement's `last-assigned-field-id`
+      required:
+        - type
+        - last-assigned-field-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-last-assigned-field-id" ]
         last-assigned-field-id:
           type: integer
+
+    AssertCurrentSchemaId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's current schema id must match the requirement's `current-schema-id`
+      required:
+        - type
+        - current-schema-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-current-schema-id" ]
         current-schema-id:
           type: integer
+
+    AssertLastAssignedPartitionId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+      required:
+        - type
+        - last-assigned-partition-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-last-assigned-partition-id" ]
         last-assigned-partition-id:
           type: integer
+
+    AssertDefaultSpecId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's default spec id must match the requirement's `default-spec-id`
+      required:
+        - type
+        - default-spec-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-default-spec-id" ]
         default-spec-id:
           type: integer
+
+    AssertDefaultSortOrderId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
+      description:
+        The table's default sort order id must match the requirement's `default-sort-order-id`
+      required:
+        - type
+        - default-sort-order-id
+      properties:
+        type:
+          type: string
+          enum: [ "assert-default-sort-order-id" ]
         default-sort-order-id:
           type: integer
 
@@ -2268,11 +2410,22 @@ components:
           description: Authorization scope for client credentials or token exchange
 
     IcebergErrorResponse:
+      description: JSON wrapper for all error responses (non-2xx)
       type: object
+      required:
+        - error
       properties:
         error:
           $ref: '#/components/schemas/ErrorModel'
       additionalProperties: false
+      example:
+        {
+          "error": {
+            "message": "The server does not support this operation",
+            "type": "UnsupportedOperationException",
+            "code": 406
+          }
+        }
 
     CreateNamespaceResponse:
       type: object
@@ -2394,7 +2547,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Malformed request",
@@ -2411,7 +2564,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Not authorized to make this request",
@@ -2427,7 +2580,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Not authorized to make this request",
@@ -2519,7 +2672,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Credentials have timed out",
@@ -2537,7 +2690,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Slow down",
@@ -2554,7 +2707,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorModel'
+            $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
               "message": "Internal Server Error",

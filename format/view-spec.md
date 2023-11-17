@@ -58,6 +58,7 @@ The view version metadata file has the following fields:
 
 | Requirement | Field name           | Description |
 |-------------|----------------------|-------------|
+| _required_  | `view-uuid`          | A UUID that identifies the view, generated when the view is created. Implementations must throw an exception if a view's UUID does not match the expected UUID after refreshing metadata |
 | _required_  | `format-version`     | An integer version number for the view format; must be 1 |
 | _required_  | `location`           | The view's base location; used to create metadata file locations |
 | _required_  | `schemas`            | A list of known schemas |
@@ -92,7 +93,6 @@ Summary is a string to string map of metadata about a view version. Common metad
 
 | Requirement | Key              | Value |
 |-------------|------------------|-------|
-| _required_  | `operation`      | Operation that caused this metadata to be created; must be `create` or `replace` |
 | _optional_  | `engine-name`    | Name of the engine that created the view version |
 | _optional_  | `engine-version` | Version of the engine that created the view version |
 
@@ -192,6 +192,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 ```
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
   "current-version-id" : 1,
@@ -205,7 +206,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },
@@ -239,12 +239,14 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 
 Each change creates a new metadata JSON file.
+In the below example, the underlying SQL is modified by specifying the fully-qualified table name.
 
 ```sql
 USE prod.other_db;
 CREATE OR REPLACE VIEW default.event_agg (
-    event_count,
+    event_count COMMENT 'Count of events',
     event_date)
+COMMENT 'Daily event counts'
 AS
 SELECT
     COUNT(1), CAST(event_ts AS DATE)
@@ -259,6 +261,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
 ```
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
   "current-version-id" : 1,
@@ -272,7 +275,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },
@@ -288,7 +290,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },
