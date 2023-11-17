@@ -130,8 +130,8 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
       if (currentFileRows == 0L) {
         try {
           io.deleteFile(currentFile.encryptingOutputFile());
-        } catch (Exception e) {
-          LOG.warn("Failed to delete empty file. This may result in empty orphan files.", e);
+        } catch (Throwable t) {
+          LOG.warn("Failed to delete empty file. This may result in empty orphan files.", t);
         }
       } else {
         addResult(currentWriter.result());
