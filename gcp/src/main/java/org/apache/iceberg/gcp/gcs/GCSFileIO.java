@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -141,10 +142,18 @@ public class GCSFileIO implements DelegateFileIO {
           gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
           gcpProperties.serviceHost().ifPresent(builder::setHost);
 
+          // Google Cloud APIs default to automatically detect the credentials to use, which is
+          // in most cases the convenient way, especially in GCP.
+          // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault().
+          if (gcpProperties.noAuth()) {
+            // Explicitly allow "no credentials" for testing purposes.
+            builder.setCredentials(NoCredentials.getInstance());
+          }
           gcpProperties
               .oauth2Token()
               .ifPresent(
                   token -> {
+                    // Explicitly configure an OAuth token.
                     AccessToken accessToken =
                         new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
                     builder.setCredentials(OAuth2Credentials.create(accessToken));
