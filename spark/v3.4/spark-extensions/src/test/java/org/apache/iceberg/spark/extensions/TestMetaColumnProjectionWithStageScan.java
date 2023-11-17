@@ -41,87 +41,87 @@ import org.junit.runners.Parameterized;
 
 public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBase {
 
-    public TestMetaColumnProjectionWithStageScan(
-            String catalogName, String implementation, Map<String, String> config) {
-        super(catalogName, implementation, config);
+  public TestMetaColumnProjectionWithStageScan(
+      String catalogName, String implementation, Map<String, String> config) {
+    super(catalogName, implementation, config);
+  }
+
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      }
+    };
+  }
+
+  @After
+  public void removeTables() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  private <T extends ScanTask> void stageTask(
+      Table tab, String fileSetID, CloseableIterable<T> tasks) {
+    ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
+    taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
+  }
+
+  @Test
+  public void testReadStageTableMeta() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    table.refresh();
+    String tableLocation = table.location();
+
+    try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
+      String fileSetID = UUID.randomUUID().toString();
+      stageTask(table, fileSetID, tasks);
+      Dataset<Row> scanDF2 =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, "0")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .load(tableLocation);
+
+      Assertions.assertThat(scanDF2.columns().length).isEqualTo(2);
     }
 
-    @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-    public static Object[][] parameters() {
-        return new Object[][] {
-                {
-                        SparkCatalogConfig.HADOOP.catalogName(),
-                        SparkCatalogConfig.HADOOP.implementation(),
-                        SparkCatalogConfig.HADOOP.properties()
-                }
-        };
+    try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
+      String fileSetID = UUID.randomUUID().toString();
+      stageTask(table, fileSetID, tasks);
+      Dataset<Row> scanDF =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, "0")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .load(tableLocation)
+              .select("*", "_pos");
+
+      List<Row> rows = scanDF.collectAsList();
+      ImmutableList<Object[]> expectedRows =
+          ImmutableList.of(row(1L, "a", 0L), row(2L, "b", 1L), row(3L, "c", 2L), row(4L, "d", 3L));
+      assertEquals("result should match", expectedRows, rowsToJava(rows));
     }
-
-    @After
-    public void removeTables() {
-        sql("DROP TABLE IF EXISTS %s", tableName);
-    }
-
-    private <T extends ScanTask> void stageTask(
-            Table tab, String fileSetID, CloseableIterable<T> tasks) {
-        ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-        taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
-    }
-
-    @Test
-    public void testReadStageTableMeta() throws Exception {
-        sql(
-                "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
-                        + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-                tableName);
-
-        List<SimpleRecord> records =
-                Lists.newArrayList(
-                        new SimpleRecord(1, "a"),
-                        new SimpleRecord(2, "b"),
-                        new SimpleRecord(3, "c"),
-                        new SimpleRecord(4, "d"));
-
-        spark
-                .createDataset(records, Encoders.bean(SimpleRecord.class))
-                .coalesce(1)
-                .writeTo(tableName)
-                .append();
-
-        Table table = Spark3Util.loadIcebergTable(spark, tableName);
-        table.refresh();
-        String tableLocation = table.location();
-
-        try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
-            String fileSetID = UUID.randomUUID().toString();
-            stageTask(table, fileSetID, tasks);
-            Dataset<Row> scanDF2 =
-                    spark
-                            .read()
-                            .format("iceberg")
-                            .option(SparkReadOptions.FILE_OPEN_COST, "0")
-                            .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-                            .load(tableLocation);
-
-            Assertions.assertThat(scanDF2.columns().length).isEqualTo(2);
-        }
-
-        try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
-            String fileSetID = UUID.randomUUID().toString();
-            stageTask(table, fileSetID, tasks);
-            Dataset<Row> scanDF =
-                    spark
-                            .read()
-                            .format("iceberg")
-                            .option(SparkReadOptions.FILE_OPEN_COST, "0")
-                            .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-                            .load(tableLocation)
-                            .select("*", "_pos");
-
-            List<Row> rows = scanDF.collectAsList();
-            ImmutableList<Object[]> expectedRows =
-                    ImmutableList.of(row(1L, "a", 0L), row(2L, "b", 1L), row(3L, "c", 2L), row(4L, "d", 3L));
-            assertEquals("result should match", expectedRows, rowsToJava(rows));
-        }
-    }
+  }
 }
