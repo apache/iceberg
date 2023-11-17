@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -40,8 +41,11 @@ class SparkStagedScan extends SparkScan {
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
   SparkStagedScan(SparkSession spark, Table table, SparkReadConf readConf) {
-    super(spark, table, readConf, table.schema(), ImmutableList.of());
+    this(spark, table, table.schema(), readConf);
+  }
 
+  SparkStagedScan(SparkSession spark, Table table, Schema expectedSchema, SparkReadConf readConf) {
+    super(spark, table, readConf, expectedSchema, ImmutableList.of());
     this.taskSetId = readConf.scanTaskSetId();
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
@@ -77,6 +81,7 @@ class SparkStagedScan extends SparkScan {
     SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
         && Objects.equals(taskSetId, that.taskSetId)
+        && readSchema().equals(that.readSchema())
         && Objects.equals(splitSize, that.splitSize)
         && Objects.equals(splitLookback, that.splitLookback)
         && Objects.equals(openFileCost, that.openFileCost);
@@ -84,7 +89,8 @@ class SparkStagedScan extends SparkScan {
 
   @Override
   public int hashCode() {
-    return Objects.hash(table().name(), taskSetId, splitSize, splitSize, openFileCost);
+    return Objects.hash(
+        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
   }
 
   @Override
