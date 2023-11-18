@@ -704,10 +704,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .execute();
 
     // the original delete manifests must be combined
-    assertThat(result.rewrittenManifests()).hasSize(2);
-    assertThat(result.rewrittenManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
-    assertThat(result.addedManifests()).hasSize(1);
-    assertThat(result.addedManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.rewrittenManifests())
+        .hasSize(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSize(1)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
     assertManifestsLocation(result.addedManifests());
 
     // the new delete manifest must only contain files with status EXISTING
@@ -804,10 +806,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .execute();
 
     // the original 4 delete manifests must be replaced with 2 new delete manifests
-    assertThat(result.rewrittenManifests()).hasSize(4);
-    assertThat(result.rewrittenManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
-    assertThat(result.addedManifests()).hasSize(2);
-    assertThat(result.addedManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.rewrittenManifests())
+        .hasSize(4)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSize(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
     assertManifestsLocation(result.addedManifests());
 
     List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
@@ -881,10 +885,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .execute();
 
     // the action must rewrite the original delete manifest and add at least 2 new ones
-    assertThat(result.rewrittenManifests()).hasSize(1);
-    assertThat(result.rewrittenManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
-    assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(2);
-    assertThat(result.addedManifests()).allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.rewrittenManifests())
+        .hasSize(1)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSizeGreaterThanOrEqualTo(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
     assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     // the current snapshot must return the correct number of delete manifests
