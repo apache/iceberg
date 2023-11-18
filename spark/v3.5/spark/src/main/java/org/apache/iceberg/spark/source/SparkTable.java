@@ -330,7 +330,7 @@ public class SparkTable
             .ignoreResiduals();
 
     if (branch != null) {
-      scan.useRef(branch);
+      scan = scan.useRef(branch);
     }
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
