@@ -17,5 +17,3 @@
 
 openapi-spec-validator==0.7.1
 datamodel-code-generator==0.24.2
-# Add the Pydantic constraint since 2.4.0 has a bug
-pydantic<2.4.0
