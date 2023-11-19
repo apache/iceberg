@@ -135,7 +135,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         false,
-        null,
+        "test",
         DISTRIBUTED
       },
       {

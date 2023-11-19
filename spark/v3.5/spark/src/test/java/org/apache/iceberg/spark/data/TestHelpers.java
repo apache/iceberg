@@ -806,7 +806,7 @@ public class TestHelpers {
   public static List<DataFile> dataFiles(Table table, String branch) {
     TableScan scan = table.newScan();
     if (branch != null) {
-      scan.useRef(branch);
+      scan = scan.useRef(branch);
     }
 
     CloseableIterable<FileScanTask> tasks = scan.includeColumnStats().planFiles();
