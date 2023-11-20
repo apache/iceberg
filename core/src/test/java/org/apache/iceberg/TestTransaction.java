@@ -27,11 +27,13 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -759,5 +761,102 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest file", 1, manifests.size());
     Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
     Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
+  }
+
+  @Test
+  public void testSimpleConcurrentTransactionWithCommitRollbackOnBranch() {
+    Assume.assumeTrue(formatVersion == 2);
+    Table table = load();
+    String branchName = "testBranch";
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
+        .commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    // create testBranch
+    table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .toBranch(branchName)
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table
+        .newRewrite()
+        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
+        .toBranch(branchName)
+        .commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    table.refresh();
+    Snapshot currentSnapshot = table.snapshot(table.refs().get(branchName).snapshotId());
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy for REPLACE operations
+      Assert.assertNotEquals(DataOperations.REPLACE, currentSnapshot.operation());
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    Assert.assertEquals(totalSnapshots, 2);
+  }
+
+  @Test
+  public void testSimpleConcurrentTransactionWithCommitRollback() {
+    Assume.assumeTrue(formatVersion == 2);
+    Table table = load();
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
+        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table.newRewrite().rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B)).commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    table.refresh();
+    Snapshot currentSnapshot = table.currentSnapshot();
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy for REPLACE operations
+      Assert.assertNotEquals(DataOperations.REPLACE, currentSnapshot.operation());
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    Assert.assertEquals(totalSnapshots, 2);
   }
 }

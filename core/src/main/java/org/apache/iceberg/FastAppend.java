@@ -168,6 +168,11 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
+  protected Long startingSnapshotId() {
+    return null;
+  }
+
+  @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
     Snapshot snapshot = ops.current().snapshot(snapshotId);

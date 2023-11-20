@@ -156,6 +156,11 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     }
   }
 
+  @Override
+  protected Long startingSnapshotId() {
+    return startingSnapshotId;
+  }
+
   private Expression dataConflictDetectionFilter() {
     if (conflictDetectionFilter != null) {
       return conflictDetectionFilter;
