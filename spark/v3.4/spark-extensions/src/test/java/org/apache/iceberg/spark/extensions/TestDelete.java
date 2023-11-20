@@ -312,9 +312,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFileThenMetadataDelete() throws Exception {
     Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
     createAndInitUnpartitionedTable();
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
 
     // MOR mode: writes a delete file as null cannot be deleted by metadata
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());

@@ -114,7 +114,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "parquet",
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
-        null,
+        "test",
       },
       {
         "testhadoop",
