@@ -69,5 +69,5 @@ public class SparkSQLProperties {
   public static final String ADVISORY_PARTITION_SIZE = "spark.sql.iceberg.advisory-partition-size";
 
   // Controls whether to report locality information to Spark while allocating input partitions
-  public static final String LOCALITY = "spark.sql.iceberg.locality";
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }

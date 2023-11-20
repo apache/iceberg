@@ -65,5 +65,5 @@ public class SparkSQLProperties {
   public static final String WAP_BRANCH = "spark.wap.branch";
 
   // Controls whether to report locality information to Spark while allocating input partitions
-  public static final String LOCALITY = "spark.sql.iceberg.locality";
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }

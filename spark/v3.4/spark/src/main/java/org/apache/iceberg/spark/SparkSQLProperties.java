@@ -76,5 +76,5 @@ public class SparkSQLProperties {
   public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
 
   // Controls whether to report locality information to Spark while allocating input partitions
-  public static final String LOCALITY = "spark.sql.iceberg.locality";
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }
