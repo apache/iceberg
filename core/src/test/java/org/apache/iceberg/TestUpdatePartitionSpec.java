@@ -358,7 +358,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   public void testRename() {
     PartitionSpec updated =
         new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .renameField("shard", "id_bucket") // rename back to default
+            .renameField("shard", "id_bucket_16") // rename back to default
             .apply();
 
     PartitionSpec expected =
@@ -371,7 +371,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   public void testMultipleChanges() {
     PartitionSpec updated =
         new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .renameField("shard", "id_bucket") // rename back to default
+            .renameField("shard", "id_bucket_16") // rename back to default
             .removeField(day("ts"))
             .addField("prefix", truncate("data", 4))
             .apply();
@@ -389,7 +389,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
             .add(id("category"), 1000, "category", Transforms.identity())
-            .add(id("id"), 1002, "id_bucket", Transforms.bucket(16))
+            .add(id("id"), 1002, "id_bucket_16", Transforms.bucket(16))
             .add(id("data"), 1003, "prefix", Transforms.truncate(4))
             .build();
 

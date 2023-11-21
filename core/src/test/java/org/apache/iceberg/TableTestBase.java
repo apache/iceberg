@@ -58,7 +58,7 @@ public class TableTestBase {
 
   // Partition spec used to create tables
   public static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
+      PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER, "data_bucket").build();
 
   static final DataFile FILE_A =
       DataFiles.builder(SPEC)
