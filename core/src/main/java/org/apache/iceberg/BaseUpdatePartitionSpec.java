@@ -41,6 +41,8 @@ import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
 
+import static org.apache.iceberg.PartitionSpec.Builder.*;
+
 class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final TableOperations ops;
   private final TableMetadata base;
@@ -509,42 +511,42 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
     @Override
     public String identity(int fieldId, String sourceName, int sourceId) {
-      return sourceName;
+      return defaultIdentityPartitionName(sourceName);
     }
 
     @Override
     public String bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
-      return sourceName + "_bucket_" + numBuckets;
+      return defaultBucketPartitionName(sourceName, numBuckets);
     }
 
     @Override
     public String truncate(int fieldId, String sourceName, int sourceId, int width) {
-      return sourceName + "_trunc_" + width;
+      return defaultTruncatePartitionName(sourceName, width);
     }
 
     @Override
     public String year(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_year";
+      return defaultYearPartitionName(sourceName);
     }
 
     @Override
     public String month(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_month";
+      return defaultMonthPartitionName(sourceName);
     }
 
     @Override
     public String day(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_day";
+      return defaultDayPartitionName(sourceName);
     }
 
     @Override
     public String hour(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_hour";
+      return defaultHourPartitionName(sourceName);
     }
 
     @Override
     public String alwaysNull(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_null";
+      return defaultAlwaysNullPartitionName(sourceName);
     }
   }
 }

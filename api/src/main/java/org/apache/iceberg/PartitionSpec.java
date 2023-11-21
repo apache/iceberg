@@ -426,7 +426,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder identity(String sourceName) {
-      return identity(sourceName, sourceName);
+      return identity(sourceName, defaultIdentityPartitionName(sourceName));
     }
 
     public Builder year(String sourceName, String targetName) {
@@ -440,7 +440,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder year(String sourceName) {
-      return year(sourceName, sourceName + "_year");
+      return year(sourceName, defaultYearPartitionName(sourceName));
     }
 
     public Builder month(String sourceName, String targetName) {
@@ -454,7 +454,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder month(String sourceName) {
-      return month(sourceName, sourceName + "_month");
+      return month(sourceName, defaultMonthPartitionName(sourceName));
     }
 
     public Builder day(String sourceName, String targetName) {
@@ -468,7 +468,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder day(String sourceName) {
-      return day(sourceName, sourceName + "_day");
+      return day(sourceName, defaultDayPartitionName(sourceName));
     }
 
     public Builder hour(String sourceName, String targetName) {
@@ -482,7 +482,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder hour(String sourceName) {
-      return hour(sourceName, sourceName + "_hour");
+      return hour(sourceName, defaultHourPartitionName(sourceName));
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
@@ -495,7 +495,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder bucket(String sourceName, int numBuckets) {
-      return bucket(sourceName, numBuckets, sourceName + "_bucket");
+      return bucket(sourceName, numBuckets, defaultBucketPartitionName(sourceName, numBuckets));
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
@@ -508,7 +508,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder truncate(String sourceName, int width) {
-      return truncate(sourceName, width, sourceName + "_trunc");
+      return truncate(sourceName, width, defaultTruncatePartitionName(sourceName, width));
     }
 
     public Builder alwaysNull(String sourceName, String targetName) {
@@ -522,7 +522,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder alwaysNull(String sourceName) {
-      return alwaysNull(sourceName, sourceName + "_null");
+      return alwaysNull(sourceName, defaultAlwaysNullPartitionName(sourceName));
     }
 
     // add a partition field with an auto-increment partition field id starting from
@@ -546,6 +546,39 @@ public class PartitionSpec implements Serializable {
 
     PartitionSpec buildUnchecked() {
       return new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
+    }
+
+
+    static String defaultIdentityPartitionName(String sourceName) {
+      return sourceName;
+    }
+
+    static String defaultBucketPartitionName(String sourceName, int numBuckets) {
+      return sourceName + "_bucket_" + numBuckets;
+    }
+
+    static String defaultTruncatePartitionName(String sourceName, int width) {
+      return sourceName + "_trunc_" + width;
+    }
+
+    static String defaultYearPartitionName(String sourceName) {
+      return sourceName + "_year";
+    }
+
+    static String defaultMonthPartitionName(String sourceName) {
+      return sourceName + "_month";
+    }
+
+    static String defaultDayPartitionName(String sourceName) {
+      return sourceName + "_day";
+    }
+
+    static String defaultHourPartitionName(String sourceName) {
+      return sourceName + "_hour";
+    }
+
+    static String defaultAlwaysNullPartitionName(String sourceName) {
+      return sourceName + "_null";
     }
   }
 
