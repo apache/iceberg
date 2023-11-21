@@ -26,7 +26,7 @@ import com.aliyun.oss.model.OSSObjectSummary;
 import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class OSSIntegrationTestRule implements AliyunOSSTestRule {
+public class OSSIntegrationExtension implements AliyunOSSExtension {
   // Aliyun access key pair.
   private String accessKeyId;
   private String accessKeySecret;
@@ -106,7 +106,7 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
 
   private OSS ossClient() {
     if (lazyClient == null) {
-      synchronized (OSSIntegrationTestRule.class) {
+      synchronized (OSSIntegrationExtension.class) {
         if (lazyClient == null) {
           lazyClient = createOSSClient();
         }

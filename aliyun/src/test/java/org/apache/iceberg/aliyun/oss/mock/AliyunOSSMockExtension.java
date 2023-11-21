@@ -25,18 +25,18 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Map;
-import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
+import org.apache.iceberg.aliyun.oss.AliyunOSSExtension;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class AliyunOSSMockRule implements AliyunOSSTestRule {
+public class AliyunOSSMockExtension implements AliyunOSSExtension {
 
   private final Map<String, Object> properties;
 
   private AliyunOSSMockApp ossMockApp;
 
-  private AliyunOSSMockRule(Map<String, Object> properties) {
+  private AliyunOSSMockExtension(Map<String, Object> properties) {
     this.properties = properties;
   }
 
@@ -108,7 +108,7 @@ public class AliyunOSSMockRule implements AliyunOSSTestRule {
       return this;
     }
 
-    public AliyunOSSTestRule build() {
+    public AliyunOSSExtension build() {
       String rootDir = (String) props.get(AliyunOSSMockApp.PROP_ROOT_DIR);
       if (Strings.isNullOrEmpty(rootDir)) {
         File dir =
@@ -121,7 +121,7 @@ public class AliyunOSSMockRule implements AliyunOSSTestRule {
       File root = new File(rootDir);
       root.deleteOnExit();
       root.mkdir();
-      return new AliyunOSSMockRule(props);
+      return new AliyunOSSMockExtension(props);
     }
   }
 }

@@ -31,23 +31,22 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.iceberg.aliyun.TestUtility;
-import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
+import org.apache.iceberg.aliyun.oss.AliyunOSSExtension;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestLocalAliyunOSS {
 
-  @ClassRule public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
+  @RegisterExtension
+  public static final AliyunOSSExtension OSS_TEST_EXTENSION = TestUtility.initialize();
 
-  private final OSS oss = OSS_TEST_RULE.createOSSClient();
-  private final String bucketName = OSS_TEST_RULE.testBucketName();
+  private final OSS oss = OSS_TEST_EXTENSION.createOSSClient();
+  private final String bucketName = OSS_TEST_EXTENSION.testBucketName();
   private final Random random = new Random(1);
 
   private static void assertThrows(Runnable runnable, String expectedErrorCode) {
@@ -58,37 +57,38 @@ public class TestLocalAliyunOSS {
         .isEqualTo(expectedErrorCode);
   }
 
-  @Before
+  @BeforeEach
   public void before() {
-    OSS_TEST_RULE.setUpBucket(bucketName);
+    OSS_TEST_EXTENSION.setUpBucket(bucketName);
   }
 
-  @After
+  @AfterEach
   public void after() {
-    OSS_TEST_RULE.tearDownBucket(bucketName);
+    OSS_TEST_EXTENSION.tearDownBucket(bucketName);
   }
 
   @Test
   public void testBuckets() {
-    Assume.assumeTrue(
-        "Aliyun integration test cannot delete existing bucket from test environment.",
-        OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
+    Assertions.assertThat(OSS_TEST_EXTENSION)
+        .as("Aliyun integration test cannot delete existing bucket from test environment.")
+        .isInstanceOf(AliyunOSSMockExtension.class);
 
-    Assert.assertTrue(doesBucketExist(bucketName));
+    Assertions.assertThat(doesBucketExist(bucketName)).isTrue();
+
     assertThrows(() -> oss.createBucket(bucketName), OSSErrorCode.BUCKET_ALREADY_EXISTS);
 
     oss.deleteBucket(bucketName);
-    Assert.assertFalse(doesBucketExist(bucketName));
+    Assertions.assertThat(doesBucketExist(bucketName)).isFalse();
 
     oss.createBucket(bucketName);
-    Assert.assertTrue(doesBucketExist(bucketName));
+    Assertions.assertThat(doesBucketExist(bucketName)).isTrue();
   }
 
   @Test
   public void testDeleteBucket() {
-    Assume.assumeTrue(
-        "Aliyun integration test cannot delete existing bucket from test environment.",
-        OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
+    Assertions.assertThat(OSS_TEST_EXTENSION)
+        .as("Aliyun integration test cannot delete existing bucket from test environment.")
+        .isInstanceOf(AliyunOSSMockExtension.class);
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.deleteBucket(bucketNotExist), OSSErrorCode.NO_SUCH_BUCKET);
@@ -107,7 +107,7 @@ public class TestLocalAliyunOSS {
 
     oss.deleteObject(bucketName, "object2");
     oss.deleteBucket(bucketName);
-    Assert.assertFalse(doesBucketExist(bucketName));
+    Assertions.assertThat(doesBucketExist(bucketName)).isFalse();
 
     oss.createBucket(bucketName);
   }
@@ -122,18 +122,18 @@ public class TestLocalAliyunOSS {
         () -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     PutObjectResult result = oss.putObject(bucketName, "object", wrap(bytes));
-    Assert.assertEquals(AliyunOSSMockLocalStore.md5sum(wrap(bytes)), result.getETag());
+    Assertions.assertThat(result.getETag()).isEqualTo(AliyunOSSMockLocalStore.md5sum(wrap(bytes)));
   }
 
   @Test
   public void testDoesObjectExist() {
-    Assert.assertFalse(oss.doesObjectExist(bucketName, "key"));
+    Assertions.assertThat(oss.doesObjectExist(bucketName, "key")).isFalse();
 
     byte[] bytes = new byte[4 * 1024];
     random.nextBytes(bytes);
     oss.putObject(bucketName, "key", wrap(bytes));
 
-    Assert.assertTrue(oss.doesObjectExist(bucketName, "key"));
+    Assertions.assertThat(oss.doesObjectExist(bucketName, "key")).isTrue();
     oss.deleteObject(bucketName, "key");
   }
 
@@ -153,7 +153,7 @@ public class TestLocalAliyunOSS {
     try (InputStream is = oss.getObject(bucketName, "key").getObjectContent()) {
       ByteStreams.readFully(is, actual);
     }
-    Assert.assertArrayEquals(bytes, actual);
+    Assertions.assertThat(actual).isEqualTo(bytes);
     oss.deleteObject(bucketName, "key");
   }
 
@@ -229,7 +229,7 @@ public class TestLocalAliyunOSS {
     try (InputStream is = oss.getObject(getObjectRequest).getObjectContent()) {
       ByteStreams.readFully(is, actual);
     }
-    Assert.assertArrayEquals(testBytes, actual);
+    Assertions.assertThat(actual).isEqualTo(testBytes);
   }
 
   private InputStream wrap(byte[] data) {

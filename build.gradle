@@ -17,7 +17,9 @@
  * under the License.
  */
 
+
 import groovy.transform.Memoized
+
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
@@ -413,6 +415,9 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-aliyun') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')

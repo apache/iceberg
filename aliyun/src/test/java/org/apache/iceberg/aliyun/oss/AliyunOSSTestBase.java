@@ -21,25 +21,26 @@ package org.apache.iceberg.aliyun.oss;
 import com.aliyun.oss.OSS;
 import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.util.SerializableSupplier;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public abstract class AliyunOSSTestBase {
-  @ClassRule public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
+  @RegisterExtension
+  public static final AliyunOSSExtension OSS_TEST_EXTENSION = TestUtility.initialize();
 
-  private final SerializableSupplier<OSS> ossClient = OSS_TEST_RULE::createOSSClient;
-  private final String bucketName = OSS_TEST_RULE.testBucketName();
-  private final String keyPrefix = OSS_TEST_RULE.keyPrefix();
+  private final SerializableSupplier<OSS> ossClient = OSS_TEST_EXTENSION::createOSSClient;
+  private final String bucketName = OSS_TEST_EXTENSION.testBucketName();
+  private final String keyPrefix = OSS_TEST_EXTENSION.keyPrefix();
 
-  @Before
+  @BeforeEach
   public void before() {
-    OSS_TEST_RULE.setUpBucket(bucketName);
+    OSS_TEST_EXTENSION.setUpBucket(bucketName);
   }
 
-  @After
+  @AfterEach
   public void after() {
-    OSS_TEST_RULE.tearDownBucket(bucketName);
+    OSS_TEST_EXTENSION.tearDownBucket(bucketName);
   }
 
   protected String location(String key) {

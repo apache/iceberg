@@ -33,8 +33,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestOSSOutputFile extends AliyunOSSTestBase {
 
@@ -54,11 +53,15 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
       ByteStreams.copy(is, os);
     }
 
-    Assert.assertTrue("OSS file should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
-    Assert.assertEquals("Object length should match", ossDataLength(uri), dataSize);
+    Assertions.assertThat(ossClient.doesObjectExist(uri.bucket(), uri.key()))
+        .as("OSS file should exist")
+        .isTrue();
+
+    Assertions.assertThat(ossDataLength(uri)).as("Object length should match").isEqualTo(dataSize);
 
     byte[] actual = ossDataContent(uri, dataSize);
-    Assert.assertArrayEquals("Object content should match", data, actual);
+
+    Assertions.assertThat(actual).as("Object content should match").isEqualTo(data);
   }
 
   @Test
@@ -100,14 +103,12 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
         InputStream is = new ByteArrayInputStream(expect)) {
       ByteStreams.copy(is, os);
     }
-
-    Assert.assertEquals(
-        String.format("Should overwrite object length from %d to %d", dataSize, expectSize),
-        expectSize,
-        ossDataLength(uri));
+    Assertions.assertThat(ossDataLength(uri))
+        .as(String.format("Should overwrite object length from %d to %d", dataSize, expectSize))
+        .isEqualTo(expectSize);
 
     byte[] actual = ossDataContent(uri, expectSize);
-    Assert.assertArrayEquals("Should overwrite object content", expect, actual);
+    Assertions.assertThat(actual).as("Should overwrite object content").isEqualTo(expect);
   }
 
   @Test
@@ -115,7 +116,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     OSSURI uri = randomURI();
     OutputFile out =
         new OSSOutputFile(ossClient, uri, aliyunProperties, MetricsContext.nullMetrics());
-    Assert.assertEquals("Location should match", uri.location(), out.location());
+    Assertions.assertThat(out.location()).as("Location should match").isEqualTo(uri.location());
   }
 
   @Test
@@ -131,16 +132,21 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     }
 
     InputFile in = out.toInputFile();
-    Assert.assertTrue("Should be an instance of OSSInputFile", in instanceof OSSInputFile);
-    Assert.assertTrue("OSS file should exist", in.exists());
-    Assert.assertEquals("Should have expected location", out.location(), in.location());
-    Assert.assertEquals("Should have expected length", dataSize, in.getLength());
+
+    Assertions.assertThat(in)
+        .as("Should be an instance of OSSInputFile")
+        .isInstanceOf(OSSInputFile.class);
+    Assertions.assertThat(in.exists()).as("OSS file should exist").isTrue();
+    Assertions.assertThat(in.location())
+        .as("Should have expected location")
+        .isEqualTo(out.location());
+    Assertions.assertThat(in.getLength()).as("Should have expected length").isEqualTo(dataSize);
 
     byte[] actual = new byte[dataSize];
     try (InputStream as = in.newStream()) {
       ByteStreams.readFully(as, actual);
     }
-    Assert.assertArrayEquals("Should have expected content", data, actual);
+    Assertions.assertThat(actual).as("Should have expected content").isEqualTo(data);
   }
 
   private OSSURI randomURI() {
