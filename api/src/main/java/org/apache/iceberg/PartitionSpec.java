@@ -548,7 +548,6 @@ public class PartitionSpec implements Serializable {
       return new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
     }
 
-
     static String defaultIdentityPartitionName(String sourceName) {
       return sourceName;
     }
