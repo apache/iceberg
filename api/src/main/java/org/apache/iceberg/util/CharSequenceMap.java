@@ -46,15 +46,25 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
   private static final long serialVersionUID = 1L;
   private static final ThreadLocal<CharSequenceWrapper> WRAPPERS =
       ThreadLocal.withInitial(() -> CharSequenceWrapper.wrap(null));
+  private static final ThreadLocal<CharSequenceWrapper> FILE_PATH_WRAPPERS =
+      ThreadLocal.withInitial(() -> CharSequenceWrapper.wrapFilePath(null));
 
   private final Map<CharSequenceWrapper, V> wrapperMap;
+  private final ThreadLocal<CharSequenceWrapper> wrappers;
+  private final boolean storeFilePaths;
 
-  private CharSequenceMap() {
+  private CharSequenceMap(boolean storeFilePaths) {
     this.wrapperMap = Maps.newHashMap();
+    this.wrappers = storeFilePaths ? FILE_PATH_WRAPPERS : WRAPPERS;
+    this.storeFilePaths = storeFilePaths;
   }
 
   public static <T> CharSequenceMap<T> create() {
-    return new CharSequenceMap<>();
+    return new CharSequenceMap<>(false);
+  }
+
+  public static <T> CharSequenceMap<T> createForFilePaths() {
+    return new CharSequenceMap<>(true);
   }
 
   @Override
@@ -70,7 +80,7 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
   @Override
   public boolean containsKey(Object key) {
     if (key instanceof CharSequence) {
-      CharSequenceWrapper wrapper = WRAPPERS.get();
+      CharSequenceWrapper wrapper = wrappers.get();
       boolean result = wrapperMap.containsKey(wrapper.set((CharSequence) key));
       wrapper.set(null); // don't hold a reference to the key
       return result;
@@ -87,7 +97,7 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
   @Override
   public V get(Object key) {
     if (key instanceof CharSequence) {
-      CharSequenceWrapper wrapper = WRAPPERS.get();
+      CharSequenceWrapper wrapper = wrappers.get();
       V result = wrapperMap.get(wrapper.set((CharSequence) key));
       wrapper.set(null); // don't hold a reference to the value
       return result;
@@ -98,13 +108,17 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
 
   @Override
   public V put(CharSequence key, V value) {
-    return wrapperMap.put(CharSequenceWrapper.wrap(key), value);
+    return wrapperMap.put(wrap(key), value);
+  }
+
+  private CharSequenceWrapper wrap(CharSequence key) {
+    return storeFilePaths ? CharSequenceWrapper.wrapFilePath(key) : CharSequenceWrapper.wrap(key);
   }
 
   @Override
   public V remove(Object key) {
     if (key instanceof CharSequence) {
-      CharSequenceWrapper wrapper = WRAPPERS.get();
+      CharSequenceWrapper wrapper = wrappers.get();
       V result = wrapperMap.remove(wrapper.set((CharSequence) key));
       wrapper.set(null); // don't hold a reference to the value
       return result;

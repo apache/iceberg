@@ -29,6 +29,9 @@ import org.junit.jupiter.api.Test;
 
 public class TestCharSequenceMap {
 
+  private static final String FILE_PATH_A = "s3://bucket/key/fileA.parquet";
+  private static final String FILE_PATH_B = "s3://bucket/key/fileB.parquet";
+
   @Test
   public void testEmptyMap() {
     CharSequenceMap<String> map = CharSequenceMap.create();
@@ -198,5 +201,47 @@ public class TestCharSequenceMap {
 
     executorService.shutdown();
     assertThat(executorService.awaitTermination(1, TimeUnit.MINUTES)).isTrue();
+  }
+
+  @Test
+  public void testDifferentCharSequenceImplementationsFilePaths() {
+    CharSequenceMap<String> map = CharSequenceMap.createForFilePaths();
+    map.put(FILE_PATH_A, "value1");
+    map.put(new StringBuffer(FILE_PATH_B), "value2");
+    assertThat(map)
+        .containsEntry(new StringBuilder(FILE_PATH_A), "value1")
+        .containsEntry(FILE_PATH_B, "value2");
+  }
+
+  @Test
+  public void testFileNamesOnly() {
+    CharSequenceMap<String> map = CharSequenceMap.createForFilePaths();
+    map.put("fileA.parquet", "value1");
+    map.put("fileB.parquet", "value2");
+    assertThat(map)
+        .containsEntry("fileA.parquet", "value1")
+        .containsEntry("fileB.parquet", "value2");
+  }
+
+  @Test
+  public void testEqualsFilePaths() {
+    CharSequenceMap<String> map1 = CharSequenceMap.createForFilePaths();
+    map1.put(new StringBuilder(FILE_PATH_A), "value");
+
+    CharSequenceMap<String> map2 = CharSequenceMap.createForFilePaths();
+    map2.put(FILE_PATH_A, "value");
+
+    assertThat(map1).isEqualTo(map2);
+  }
+
+  @Test
+  public void testHashCodeFilePaths() {
+    CharSequenceMap<String> map1 = CharSequenceMap.createForFilePaths();
+    map1.put(new StringBuilder(FILE_PATH_A), "value");
+
+    CharSequenceMap<String> map2 = CharSequenceMap.createForFilePaths();
+    map2.put(FILE_PATH_A, "value");
+
+    assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
   }
 }

@@ -34,7 +34,7 @@ spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
 spark/v3.5/spark/benchmark/*
 spark/v3.5/spark-extensions/benchmark/*
-data/benchmark/*
+*/benchmark/*
 
 __pycache__/
 *.py[cod]

@@ -25,12 +25,18 @@ import org.apache.iceberg.types.JavaHashes;
 /** Wrapper class to adapt CharSequence for use in maps and sets. */
 public class CharSequenceWrapper implements CharSequence, Serializable {
   public static CharSequenceWrapper wrap(CharSequence seq) {
-    return new CharSequenceWrapper(seq);
+    return new CharSequenceWrapper(false, seq);
   }
 
+  public static CharSequenceWrapper wrapFilePath(CharSequence filePath) {
+    return new CharSequenceWrapper(true, filePath);
+  }
+
+  private final boolean isFilePath;
   private CharSequence wrapped;
 
-  private CharSequenceWrapper(CharSequence wrapped) {
+  private CharSequenceWrapper(boolean isFilePath, CharSequence wrapped) {
+    this.isFilePath = isFilePath;
     this.wrapped = wrapped;
   }
 
@@ -66,7 +72,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
 
   @Override
   public int hashCode() {
-    return JavaHashes.hashCode(wrapped);
+    return isFilePath ? JavaHashes.filePathHashCode(wrapped) : JavaHashes.hashCode(wrapped);
   }
 
   @Override

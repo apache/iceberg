@@ -34,6 +34,27 @@ public class JavaHashes {
     return result;
   }
 
+  /**
+   * Computes a hash code for a given file path.
+   *
+   * <p>This method takes into account only the file name at the end of the path. The hash code is
+   * computed by processing characters in reverse order, starting from the end of the sequence until
+   * a slash ('/') is encountered, which indicates the start of the file name. This approach is
+   * beneficial for computing hash codes of Iceberg file paths as those have common prefixes but
+   * unique file names.
+   */
+  public static int filePathHashCode(CharSequence filePath) {
+    int result = 177;
+    for (int i = filePath.length() - 1; i >= 0; i--) {
+      char ch = filePath.charAt(i);
+      if (ch == '/') {
+        break;
+      }
+      result = 31 * result + (int) ch;
+    }
+    return result;
+  }
+
   static JavaHash<Object> strings() {
     return CharSequenceHash.INSTANCE;
   }
