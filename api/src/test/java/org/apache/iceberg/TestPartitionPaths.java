@@ -50,7 +50,7 @@ public class TestPartitionPaths {
 
     assertThat(spec.partitionToPath(partition))
         .as("Should produce expected partition key")
-        .isEqualTo("ts_hour=2017-12-01-10/id_bucket=" + idBucket);
+        .isEqualTo("ts_hour=2017-12-01-10/id_bucket_10=" + idBucket);
   }
 
   @Test
@@ -60,6 +60,6 @@ public class TestPartitionPaths {
 
     assertThat(spec.partitionToPath(Row.of("a/b/c/d", "a/b/c/d")))
         .as("Should escape / as %2F")
-        .isEqualTo("data=a%2Fb%2Fc%2Fd/data_trunc=a%2Fb%2Fc%2Fd");
+        .isEqualTo("data=a%2Fb%2Fc%2Fd/data_trunc_10=a%2Fb%2Fc%2Fd");
   }
 }
