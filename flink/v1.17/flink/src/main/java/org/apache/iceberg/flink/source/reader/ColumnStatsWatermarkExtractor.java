@@ -38,30 +38,34 @@ import org.apache.iceberg.types.Types;
 @Internal
 public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, Serializable {
   private final int eventTimeFieldId;
+  private final String eventTimeFieldName;
   private final TimeUnit timeUnit;
 
   /**
    * Creates the extractor.
    *
    * @param schema The schema of the Table
-   * @param eventTimeFieldId The column which should be used as an event time
+   * @param eventTimeFieldName The column which should be used as an event time
    * @param timeUnit Used for converting the long value to epoch milliseconds
    */
-  public ColumnStatsWatermarkExtractor(Schema schema, String eventTimeFieldId, TimeUnit timeUnit) {
-    Types.NestedField field = schema.findField(eventTimeFieldId);
+  public ColumnStatsWatermarkExtractor(
+      Schema schema, String eventTimeFieldName, TimeUnit timeUnit) {
+    Types.NestedField field = schema.findField(eventTimeFieldName);
     TypeID typeID = field.type().typeId();
     Preconditions.checkArgument(
         typeID.equals(TypeID.LONG) || typeID.equals(TypeID.TIMESTAMP),
         "Found %s, expected a LONG or TIMESTAMP column for watermark generation.",
         typeID);
     this.eventTimeFieldId = field.fieldId();
+    this.eventTimeFieldName = eventTimeFieldName;
     // Use the timeUnit only for Long columns.
     this.timeUnit = typeID.equals(TypeID.LONG) ? timeUnit : TimeUnit.MICROSECONDS;
   }
 
   @VisibleForTesting
-  ColumnStatsWatermarkExtractor(int eventTimeFieldId) {
+  ColumnStatsWatermarkExtractor(int eventTimeFieldId, String eventTimeFieldName) {
     this.eventTimeFieldId = eventTimeFieldId;
+    this.eventTimeFieldName = eventTimeFieldName;
     this.timeUnit = TimeUnit.MICROSECONDS;
   }
 
@@ -80,9 +84,10 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
               Preconditions.checkArgument(
                   scanTask.file().lowerBounds() != null
                       && scanTask.file().lowerBounds().get(eventTimeFieldId) != null,
-                  "Missing statistics in file = %s for columnId = %s",
-                  scanTask.file(),
-                  (Object) Integer.valueOf(eventTimeFieldId));
+                  "Missing statistics for columnName = %s, columnId = %s in file = %s",
+                  eventTimeFieldName,
+                  eventTimeFieldId,
+                  scanTask.file());
               return timeUnit.toMillis(
                   Conversions.fromByteBuffer(
                       Types.LongType.get(), scanTask.file().lowerBounds().get(eventTimeFieldId)));

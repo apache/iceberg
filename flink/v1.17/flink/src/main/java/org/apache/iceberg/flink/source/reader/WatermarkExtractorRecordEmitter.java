@@ -47,7 +47,7 @@ class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T>
       long newWatermark = timeExtractor.extractWatermark(split);
       if (newWatermark < watermark) {
         LOG.info(
-            "previous watermark = {}, current watermark = {}, previous split = {}, current split = {}",
+            "Received a new split with lower watermark. Previous watermark = {}, current watermark = {}, previous split = {}, current split = {}",
             watermark,
             newWatermark,
             lastSplitId,
