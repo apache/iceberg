@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -69,9 +70,9 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testBuckets() {
-    Assertions.assertThat(OSS_TEST_EXTENSION)
-        .as("Aliyun integration test cannot delete existing bucket from test environment.")
-        .isInstanceOf(AliyunOSSMockExtension.class);
+    Assumptions.assumeTrue(
+        OSS_TEST_EXTENSION.getClass() == AliyunOSSMockExtension.class,
+        "Aliyun integration test cannot delete existing bucket from test environment.");
 
     Assertions.assertThat(doesBucketExist(bucketName)).isTrue();
 
@@ -86,9 +87,9 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testDeleteBucket() {
-    Assertions.assertThat(OSS_TEST_EXTENSION)
-        .as("Aliyun integration test cannot delete existing bucket from test environment.")
-        .isInstanceOf(AliyunOSSMockExtension.class);
+    Assumptions.assumeTrue(
+        OSS_TEST_EXTENSION.getClass() == AliyunOSSMockExtension.class,
+        "Aliyun integration test cannot delete existing bucket from test environment.");
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.deleteBucket(bucketNotExist), OSSErrorCode.NO_SUCH_BUCKET);
