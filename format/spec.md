@@ -305,6 +305,10 @@ The source column, selected by id, must be a primitive type and cannot be contai
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
+Two partition specs are considered compatible with each other if they have the same number of partition columns
+and for each corresponding partition field in the spec, it has the same source column ID, transform definition
+and partition name.  Writers must not create a new parition spec if there already exists a compatible partition
+spec defined in the table.
 
 #### Partition Transforms
 
@@ -595,7 +599,7 @@ Delete files that match the query filter must be applied to data files at read t
     - The data file's partition (both spec and partition values) is equal to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -607,6 +611,8 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+3. Floating point partition values are considered equal if there IEEE 754 floating-point “single format” bit layout
+are equal (the equivelant of calling `Float.floatToIntBits`` in Java).  The avro specification encodes all floating point values in this format.
 
 #### Snapshot Reference
 
