@@ -23,7 +23,7 @@ import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 
-public class MiniClusterResourceJU5 {
+public class MiniFlinkClusterResource {
 
   private static final int DEFAULT_TM_NUM = 1;
   private static final int DEFAULT_PARALLELISM = 4;
@@ -33,7 +33,7 @@ public class MiniClusterResourceJU5 {
           // disable classloader check as Avro may cache class/object in the serializers.
           .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
-  private MiniClusterResourceJU5() {}
+  private MiniFlinkClusterResource() {}
 
   /**
    * It will start a mini cluster with classloader.check-leaked-classloader=false, so that we won't
