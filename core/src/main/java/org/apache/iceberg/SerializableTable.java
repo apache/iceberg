@@ -239,7 +239,7 @@ public class SerializableTable implements Table, Serializable {
     if (lazyLocationProvider == null) {
       synchronized (this) {
         if (lazyLocationProvider == null) {
-          lazyLocationProvider = LocationProviders.locationsFor(location, properties);
+          this.lazyLocationProvider = LocationProviders.locationsFor(location, properties);
         }
       }
     }
