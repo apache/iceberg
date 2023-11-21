@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.PartitionSpec.Builder.*;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,8 +42,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
-
-import static org.apache.iceberg.PartitionSpec.Builder.*;
 
 class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final TableOperations ops;
