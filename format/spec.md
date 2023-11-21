@@ -305,8 +305,8 @@ The source column, selected by id, must be a primitive type and cannot be contai
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
-Two partition specs are considered compatible with each other if they have the same number of partition columns
-and for each corresponding partition field in the spec, it has the same source column ID, transform definition
+Two partition specs are considered compatible with each other if they have the same number of fields
+and for each corresponding field, the fields have the same source column ID, transform definition
 and partition name.  Writers must not create a new parition spec if there already exists a compatible partition
 spec defined in the table.
 
