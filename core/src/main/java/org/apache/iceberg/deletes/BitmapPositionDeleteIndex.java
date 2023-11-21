@@ -28,7 +28,7 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
-  public synchronized void delete(long position) {
+  public void delete(long position) {
     roaring64Bitmap.add(position);
   }
 
