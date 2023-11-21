@@ -1210,4 +1210,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         .hasMessage("Table already exists: hivedb.t1");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
   }
+
+  @Test
+  public void testSkipSettingColsPropertyWhenSchemaTooLarge() throws Exception {
+
+  }
 }
