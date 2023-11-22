@@ -31,8 +31,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
@@ -64,8 +65,9 @@ import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
@@ -79,6 +81,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   private static final int PARALLELISM = 4;
   private static final String SOURCE_NAME = "IcebergSource";
   private static final int RECORD_NUM_FOR_2_SPLITS = 200;
+  private static final ConcurrentMap<Long, Integer> windows = Maps.newConcurrentMap();
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -173,47 +176,59 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     DataStream<RowData> stream =
         env.fromSource(
-            sourceBuilder()
-                .streaming(true)
-                .monitorInterval(Duration.ofMillis(10))
-                .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-                .build(),
+            source(),
             WatermarkStrategy.<RowData>noWatermarks()
                 .withTimestampAssigner(new RowDataTimestampAssigner()),
             SOURCE_NAME,
             TypeInformation.of(RowData.class));
-    DataStream<RowData> windowed =
-        stream
-            .windowAll(TumblingEventTimeWindows.of(Time.minutes(5)))
-            .apply(
-                new AllWindowFunction<RowData, RowData, TimeWindow>() {
-                  @Override
-                  public void apply(
-                      TimeWindow window, Iterable<RowData> values, Collector<RowData> out) {
-                    // Emit RowData which contains the window start time, and the record count in
-                    // that window
-                    AtomicLong count = new AtomicLong(0);
-                    values.forEach(a -> count.incrementAndGet());
-                    out.collect(row(window.getStart(), count.get()));
-                  }
-                });
 
-    try (CloseableIterator<RowData> resultIterator = windowed.collectAsync()) {
-      env.executeAsync("Iceberg Source Windowing Test");
+    stream
+        .windowAll(TumblingEventTimeWindows.of(Time.minutes(5)))
+        .apply(
+            new AllWindowFunction<RowData, RowData, TimeWindow>() {
+              @Override
+              public void apply(
+                  TimeWindow window, Iterable<RowData> values, Collector<RowData> out) {
+                // Emit RowData which contains the window start time, and the record count in
+                // that window
+                AtomicInteger count = new AtomicInteger(0);
+                values.forEach(a -> count.incrementAndGet());
+                out.collect(row(window.getStart(), count.get()));
+                windows.put(window.getStart(), count.get());
+              }
+            });
 
-      // Wait for the 2 first windows from File 2 and File 3
-      Assert.assertEquals(
-          ImmutableSet.of(row(0, RECORD_NUM_FOR_2_SPLITS), row(300000, 2)),
-          waitForRecords(resultIterator, 2));
+    // Use static variable to collect the windows, since other solutions were flaky
+    windows.clear();
+    env.executeAsync("Iceberg Source Windowing Test");
 
-      // Write data so the windows containing test data are closed
-      dataAppender.appendToTable(
-          dataAppender.writeFile(ImmutableList.of(generateRecord(1500, "last-record"))),
-          dataAppender.writeFile(ImmutableList.of(generateRecord(1500, "last-record"))));
+    // Wait for the 2 first windows from File 2 and File 3
+    Awaitility.await()
+        .pollInterval(Duration.ofMillis(10))
+        .atMost(30, TimeUnit.SECONDS)
+        .until(
+            () ->
+                windows.equals(
+                    ImmutableMap.of(0L, RECORD_NUM_FOR_2_SPLITS, TimeUnit.MINUTES.toMillis(5), 2)));
 
-      // Wait for last test record window from File 1
-      Assert.assertEquals(ImmutableSet.of(row(6000000, 3)), waitForRecords(resultIterator, 1));
-    }
+    // Write data so the windows containing test data are closed
+    dataAppender.appendToTable(
+        dataAppender.writeFile(ImmutableList.of(generateRecord(1500, "last-record"))));
+
+    // Wait for last test record window from File 1
+    Awaitility.await()
+        .pollInterval(Duration.ofMillis(10))
+        .atMost(30, TimeUnit.SECONDS)
+        .until(
+            () ->
+                windows.equals(
+                    ImmutableMap.of(
+                        0L,
+                        RECORD_NUM_FOR_2_SPLITS,
+                        TimeUnit.MINUTES.toMillis(5),
+                        2,
+                        TimeUnit.MINUTES.toMillis(100),
+                        3)));
   }
 
   /**
@@ -277,11 +292,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     DataStream<RowData> stream =
         env.fromSource(
-            sourceBuilder()
-                .streaming(true)
-                .monitorInterval(Duration.ofMillis(10))
-                .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-                .build(),
+            source(),
             WatermarkStrategy.<RowData>noWatermarks()
                 .withWatermarkAlignment("iceberg", Duration.ofMinutes(20), Duration.ofMillis(10)),
             SOURCE_NAME,
@@ -299,7 +310,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       // (100 min - 20 min - 0 min)
       // Also this validates that the WatermarkAlignment is working
       Awaitility.await()
-          .atMost(120, TimeUnit.SECONDS)
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(30, TimeUnit.SECONDS)
           .until(
               () ->
                   findAlignmentDriftMetric(jobClient.getJobID(), TimeUnit.MINUTES.toMillis(80))
@@ -331,31 +343,36 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       // Get the drift metric, wait for it to be created and reach the expected state (100 min - 20
       // min - 15 min)
       Awaitility.await()
-          .atMost(120, TimeUnit.SECONDS)
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(30, TimeUnit.SECONDS)
           .until(() -> drift.getValue() == TimeUnit.MINUTES.toMillis(65));
 
       // Add some new records which should unblock the throttled reader
       batch =
           ImmutableList.of(
-              generateRecord(110, "file_5-recordTs_110"),
-              generateRecord(111, "file_5-recordTs_111"));
+              generateRecord(90, "file_5-recordTs_90"), generateRecord(91, "file_5-recordTs_91"));
       dataAppender.appendToTable(batch);
       // We should get all the records at this point
       waitForRecords(resultIterator, 6);
 
       // Wait for the new drift to decrease below the allowed drift to signal the normal state
       Awaitility.await()
-          .atMost(120, TimeUnit.SECONDS)
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(30, TimeUnit.SECONDS)
           .until(() -> drift.getValue() < TimeUnit.MINUTES.toMillis(20));
     }
   }
 
-  protected IcebergSource.Builder<RowData> sourceBuilder() {
+  protected IcebergSource<RowData> source() {
     return IcebergSource.<RowData>builder()
         .tableLoader(sourceTableResource.tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
-        .splitSize(100L);
+        .splitSize(100L)
+        .streaming(true)
+        .monitorInterval(Duration.ofMillis(2))
+        .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+        .build();
   }
 
   protected Record generateRecord(int minutes, String str) {

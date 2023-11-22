@@ -84,23 +84,23 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   @Override
   protected void assertRecords(Table table, List<Record> expectedRecords, Duration timeout)
       throws Exception {
-    List<Record> expectedNormalized = convertTimestampField(expectedRecords);
+    List<Record> expectedNormalized = convertLocalDateTimeToMilli(expectedRecords);
     Awaitility.await("expected list of records should be produced")
         .atMost(timeout)
         .untilAsserted(
             () -> {
               SimpleDataUtil.equalsRecords(
                   expectedNormalized,
-                  convertTimestampField(SimpleDataUtil.tableRecords(table)),
+                  convertLocalDateTimeToMilli(SimpleDataUtil.tableRecords(table)),
                   table.schema());
               SimpleDataUtil.assertRecordsEqual(
                   expectedNormalized,
-                  convertTimestampField(SimpleDataUtil.tableRecords(table)),
+                  convertLocalDateTimeToMilli(SimpleDataUtil.tableRecords(table)),
                   table.schema());
             });
   }
 
-  private List<Record> convertTimestampField(List<Record> records) {
+  private List<Record> convertLocalDateTimeToMilli(List<Record> records) {
     return records.stream()
         .peek(
             r -> {
