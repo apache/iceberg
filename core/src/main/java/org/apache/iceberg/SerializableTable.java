@@ -41,10 +41,10 @@ import org.apache.iceberg.util.SerializableSupplier;
  * table metadata, it directly persists the current schema, spec, sort order, table properties to
  * avoid reading the metadata file from other nodes for frequently needed metadata.
  *
- * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
- * {@link LocationProvider} are serializable. If you are serializing the table using a custom
- * serialization framework like Kryo, those instances of {@link FileIO}, {@link EncryptionManager},
- * {@link LocationProvider} must be supported by that particular serialization framework.
+ * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager}
+ * are serializable. If you are serializing the table using a custom serialization framework like
+ * Kryo, those instances of {@link FileIO}, {@link EncryptionManager} must be supported by that
+ * particular serialization framework.
  *
  * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
  * storage.
@@ -61,9 +61,9 @@ public class SerializableTable implements Table, Serializable {
   private final String sortOrderAsJson;
   private final FileIO io;
   private final EncryptionManager encryption;
-  private final LocationProvider locationProvider;
   private final Map<String, SnapshotRef> refs;
 
+  private transient volatile LocationProvider lazyLocationProvider = null;
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
@@ -83,7 +83,6 @@ public class SerializableTable implements Table, Serializable {
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
-    this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
   }
@@ -129,7 +128,7 @@ public class SerializableTable implements Table, Serializable {
           }
 
           TableOperations ops =
-              new StaticTableOperations(metadataFileLocation, io, locationProvider);
+              new StaticTableOperations(metadataFileLocation, io, locationProvider());
           this.lazyTable = newTable(ops, name);
         }
       }
@@ -237,7 +236,14 @@ public class SerializableTable implements Table, Serializable {
 
   @Override
   public LocationProvider locationProvider() {
-    return locationProvider;
+    if (lazyLocationProvider == null) {
+      synchronized (this) {
+        if (lazyLocationProvider == null) {
+          this.lazyLocationProvider = LocationProviders.locationsFor(location, properties);
+        }
+      }
+    }
+    return lazyLocationProvider;
   }
 
   @Override
