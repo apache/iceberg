@@ -44,6 +44,7 @@ project(':iceberg-hive-runtime') {
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    implementation project(':iceberg-tencentcloud')
     implementation project(':iceberg-aws')
     implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {

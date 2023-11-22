@@ -151,6 +151,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     implementation(project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")) {
       exclude group: 'org.apache.flink'
     }
+    implementation project(':iceberg-tencentcloud')
     implementation project(':iceberg-aws')
     implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {
