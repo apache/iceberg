@@ -59,7 +59,9 @@ public class TestCatalogTableLoader extends TestBase {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      Assertions.assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
+      Assertions.assertThat(fs.delete(warehousePath, true))
+          .as("Failed to delete " + warehousePath)
+          .isTrue();
     }
   }
 
