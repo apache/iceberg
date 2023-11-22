@@ -60,7 +60,6 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     Assertions.assertThat(ossDataLength(uri)).as("Object length should match").isEqualTo(dataSize);
 
     byte[] actual = ossDataContent(uri, dataSize);
-
     Assertions.assertThat(actual).as("Object content should match").isEqualTo(data);
   }
 
@@ -132,7 +131,6 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     }
 
     InputFile in = out.toInputFile();
-
     Assertions.assertThat(in)
         .as("Should be an instance of OSSInputFile")
         .isInstanceOf(OSSInputFile.class);

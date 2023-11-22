@@ -35,7 +35,6 @@ public class TestAliyunClientFactories {
         .isEqualTo(AliyunClientFactories.defaultFactory());
 
     AliyunClientFactory defaultFactory = AliyunClientFactories.from(Maps.newHashMap());
-
     Assertions.assertThat(defaultFactory)
         .as("Should load default when factory impl not configured")
         .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
@@ -46,7 +45,6 @@ public class TestAliyunClientFactories {
 
     AliyunClientFactory defaultFactoryWithConfig =
         AliyunClientFactories.from(ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
-
     Assertions.assertThat(defaultFactoryWithConfig)
         .as("Should load default when factory impl not configured")
         .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
@@ -60,7 +58,6 @@ public class TestAliyunClientFactories {
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AliyunProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-
     Assertions.assertThat(AliyunClientFactories.from(properties))
         .as("Should load custom class")
         .isInstanceOf(CustomFactory.class);

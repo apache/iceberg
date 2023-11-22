@@ -45,7 +45,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestOSSFileIO extends AliyunOSSTestBase {
-
   private static final String OSS_IMPL_CLASS = OSSFileIO.class.getName();
   private final Configuration conf = new Configuration();
   private final Random random = ThreadLocalRandom.current();
@@ -74,7 +73,6 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     writeOSSData(out, data);
 
     OSSURI uri = new OSSURI(location);
-
     Assertions.assertThat(ossClient().get().doesObjectExist(uri.bucket(), uri.key()))
         .as("OSS file should exist")
         .isTrue();

@@ -26,7 +26,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestOSSURI {
-
   @Test
   public void testUrlParsing() {
     String location = "oss://bucket/path/to/file";
