@@ -40,6 +40,7 @@ include 'gcp-bundle'
 include 'dell'
 include 'snowflake'
 include 'delta-lake'
+include 'tencent'
 
 project(':api').name = 'iceberg-api'
 project(':common').name = 'iceberg-common'
@@ -63,6 +64,7 @@ project(':gcp-bundle').name = 'iceberg-gcp-bundle'
 project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
+project(':tencent').name = 'iceberg-tencentcloud'
 
 if (null != System.getProperty("allVersions")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
