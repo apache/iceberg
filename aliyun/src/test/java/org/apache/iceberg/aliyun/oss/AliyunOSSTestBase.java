@@ -27,7 +27,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 public abstract class AliyunOSSTestBase {
   @RegisterExtension
-  public static final AliyunOSSExtension OSS_TEST_EXTENSION = TestUtility.initialize();
+  private static final AliyunOSSExtension OSS_TEST_EXTENSION = TestUtility.initialize();
 
   private final SerializableSupplier<OSS> ossClient = OSS_TEST_EXTENSION::createOSSClient;
   private final String bucketName = OSS_TEST_EXTENSION.testBucketName();

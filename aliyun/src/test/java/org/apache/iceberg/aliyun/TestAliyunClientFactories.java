@@ -29,7 +29,6 @@ public class TestAliyunClientFactories {
 
   @Test
   public void testLoadDefault() {
-
     Assertions.assertThat(AliyunClientFactories.defaultFactory())
         .as("Default client should be singleton")
         .isEqualTo(AliyunClientFactories.defaultFactory());
