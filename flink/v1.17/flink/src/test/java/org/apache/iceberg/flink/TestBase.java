@@ -39,7 +39,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-public abstract class FlinkTestBaseUtils extends TestBaseUtils {
+public abstract class TestBase extends TestBaseUtils {
 
   @RegisterExtension
   public static MiniClusterExtension miniClusterResource =
@@ -55,10 +55,10 @@ public abstract class FlinkTestBaseUtils extends TestBaseUtils {
 
   @BeforeAll
   public static void startMetastore() {
-    FlinkTestBaseUtils.metastore = new TestHiveMetastore();
+    TestBase.metastore = new TestHiveMetastore();
     metastore.start();
-    FlinkTestBaseUtils.hiveConf = metastore.hiveConf();
-    FlinkTestBaseUtils.catalog =
+    TestBase.hiveConf = metastore.hiveConf();
+    TestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
@@ -67,7 +67,7 @@ public abstract class FlinkTestBaseUtils extends TestBaseUtils {
   @AfterAll
   public static void stopMetastore() throws Exception {
     metastore.stop();
-    FlinkTestBaseUtils.catalog = null;
+    TestBase.catalog = null;
   }
 
   protected TableEnvironment getTableEnv() {
