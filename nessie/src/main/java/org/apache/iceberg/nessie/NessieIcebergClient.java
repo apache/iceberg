@@ -237,14 +237,14 @@ public class NessieIcebergClient implements AutoCloseable {
       org.projectnessie.model.Namespace root =
           org.projectnessie.model.Namespace.of(namespace.levels());
       String filter =
-          namespace.isEmpty()
-              ? "size(entry.keyElements) == 1"
-              : String.format(
-                  "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
-                  root.getElementCount() + 1, root.name());
+          "entry.contentType == 'NAMESPACE' &&"
+              + (namespace.isEmpty()
+                  ? "size(entry.keyElements) == 1"
+                  : String.format(
+                      "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
+                      root.getElementCount() + 1, root.name()));
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
-              .filter(e -> Content.Type.NAMESPACE.equals(e.getType()))
               .map(EntriesResponse.Entry::getName)
               .collect(Collectors.toList());
       if (entries.isEmpty()) {
@@ -257,7 +257,6 @@ public class NessieIcebergClient implements AutoCloseable {
           .filter(Optional::isPresent)
           .map(Optional::get)
           .map(v -> Namespace.of(v.getElements().toArray(new String[0])))
-          .filter(v -> v.length() == namespace.length() + 1) // only direct children
           .collect(Collectors.toList());
     } catch (NessieNotFoundException e) {
       if (namespace.isEmpty()) {
