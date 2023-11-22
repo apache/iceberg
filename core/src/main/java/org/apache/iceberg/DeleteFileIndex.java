@@ -587,10 +587,32 @@ class DeleteFileIndex {
                   .build(
                       specId -> {
                         PartitionSpec spec = specsById.get(specId);
+
+                        Expression partitionSetFilter = Expressions.alwaysTrue();
+                        if (partitionSet != null) {
+                          Set<StructLike> partitions = partitionSet.get(specId);
+                          if (partitions != null) {
+                            partitionSetFilter = Expressions.alwaysFalse();
+                            for (StructLike partitionData : partitions) {
+                              Expression partFilter = Expressions.alwaysTrue();
+                              for (int i = 0; i < spec.fields().size(); i += 1) {
+                                PartitionField field = spec.fields().get(i);
+                                partFilter =
+                                    Expressions.and(
+                                        partFilter,
+                                        Expressions.equal(
+                                            field.name(), partitionData.get(i, Object.class)));
+                              }
+                              partitionSetFilter = Expressions.or(partitionSetFilter, partFilter);
+                            }
+                          }
+                        }
+
                         return ManifestEvaluator.forPartitionFilter(
                             Expressions.and(
                                 partitionFilter,
-                                Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+                                Projections.inclusive(spec, caseSensitive).project(dataFilter),
+                                partitionSetFilter),
                             spec,
                             caseSensitive);
                       });

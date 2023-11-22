@@ -79,6 +79,10 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
     return false;
   }
 
+  public Set<StructLike> get(int specId) {
+    return partitionSetById.get(specId);
+  }
+
   @Override
   public boolean add(Pair<Integer, StructLike> pair) {
     Preconditions.checkArgument(pair.first() != null, "Cannot track partition with null spec id");
