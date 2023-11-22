@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.io.File;
@@ -25,41 +24,39 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-
 public abstract class SparkCatalogTestBaseForJU5 extends SparkTestBaseWithCatalog {
 
-    // these parameters are broken out to avoid changes that need to modify lots of test suites
-    @ParameterizedTest(name = "catalogName = {0}, implementation = {1}, config = {2}")
-    @MethodSource("parameters")
-    public static Object[][] parameters() {
-        return new Object[][] {
-                {
-                        SparkCatalogConfig.HIVE.catalogName(),
-                        SparkCatalogConfig.HIVE.implementation(),
-                        SparkCatalogConfig.HIVE.properties()
-                },
-                {
-                        SparkCatalogConfig.HADOOP.catalogName(),
-                        SparkCatalogConfig.HADOOP.implementation(),
-                        SparkCatalogConfig.HADOOP.properties()
-                },
-                {
-                        SparkCatalogConfig.SPARK.catalogName(),
-                        SparkCatalogConfig.SPARK.implementation(),
-                        SparkCatalogConfig.SPARK.properties()
-                }
-        };
-    }
+  // these parameters are broken out to avoid changes that need to modify lots of test suites
+  @ParameterizedTest(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @MethodSource("parameters")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties()
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties()
+      }
+    };
+  }
 
-    @TempDir public File temp;
+  @TempDir public File temp;
 
-    public SparkCatalogTestBaseForJU5(SparkCatalogConfig config) {
-        super(config);
-    }
+  public SparkCatalogTestBaseForJU5(SparkCatalogConfig config) {
+    super(config);
+  }
 
-    public SparkCatalogTestBaseForJU5(
-            String catalogName, String implementation, Map<String, String> config) {
-        super(catalogName, implementation, config);
-    }
+  public SparkCatalogTestBaseForJU5(
+      String catalogName, String implementation, Map<String, String> config) {
+    super(catalogName, implementation, config);
+  }
 }
-
