@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.split;
 
+import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -45,10 +46,26 @@ public class SplitComparators {
           o1);
       Preconditions.checkNotNull(
           seq2,
-          "IInvalid file sequence number: null. Doesn't support splits written with V1 format: %s",
+          "Invalid file sequence number: null. Doesn't support splits written with V1 format: %s",
           o2);
 
       int temp = Long.compare(seq1, seq2);
+      if (temp != 0) {
+        return temp;
+      } else {
+        return o1.splitId().compareTo(o2.splitId());
+      }
+    };
+  }
+
+  /** Comparator which orders the splits based on watermark of the splits */
+  public static SerializableComparator<IcebergSourceSplit> watermark(
+      SplitWatermarkExtractor watermarkExtractor) {
+    return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
+      long watermark1 = watermarkExtractor.extractWatermark(o1);
+      long watermark2 = watermarkExtractor.extractWatermark(o2);
+
+      int temp = Long.compare(watermark1, watermark2);
       if (temp != 0) {
         return temp;
       } else {

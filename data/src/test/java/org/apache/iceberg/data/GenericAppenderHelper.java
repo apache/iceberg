@@ -39,6 +39,7 @@ import org.junit.rules.TemporaryFolder;
 public class GenericAppenderHelper {
 
   private static final String ORC_CONFIG_PREFIX = "^orc.*";
+  private static final String PARQUET_CONFIG_PATTERN = ".*parquet.*";
 
   private final Table table;
   private final FileFormat fileFormat;
@@ -118,6 +119,10 @@ public class GenericAppenderHelper {
     // Push down ORC related settings to appender if there are any
     if (FileFormat.ORC.equals(format) && conf != null) {
       appenderFactory.setAll(conf.getValByRegex(ORC_CONFIG_PREFIX));
+    }
+
+    if (FileFormat.PARQUET.equals(format) && conf != null) {
+      appenderFactory.setAll(conf.getValByRegex(PARQUET_CONFIG_PATTERN));
     }
 
     FileAppender<Record> appender = appenderFactory.newAppender(Files.localOutput(file), format);
