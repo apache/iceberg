@@ -43,15 +43,13 @@ public abstract class SplitAssignerTestBase {
   @Test
   public void testStaticEnumeratorSequence() throws Exception {
     SplitAssigner assigner = splitAssigner();
-    assigner.onDiscoveredSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 1));
+    assigner.onDiscoveredSplits(createSplits(4, 1, "1"));
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertSnapshot(assigner, 1);
-    assigner.onUnassignedSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1));
+    assigner.onUnassignedSplits(createSplits(1, 1, "1"));
     assertSnapshot(assigner, 2);
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -66,15 +64,12 @@ public abstract class SplitAssignerTestBase {
     SplitAssigner assigner = splitAssigner();
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
 
-    List<IcebergSourceSplit> splits1 =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    List<IcebergSourceSplit> splits1 = createSplits(1, 1, "1");
     assertAvailableFuture(assigner, 1, () -> assigner.onDiscoveredSplits(splits1));
-    List<IcebergSourceSplit> splits2 =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    List<IcebergSourceSplit> splits2 = createSplits(1, 1, "1");
     assertAvailableFuture(assigner, 1, () -> assigner.onUnassignedSplits(splits2));
 
-    assigner.onDiscoveredSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 2, 1));
+    assigner.onDiscoveredSplits(createSplits(2, 1, "1"));
     assertSnapshot(assigner, 2);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -123,6 +118,12 @@ public abstract class SplitAssignerTestBase {
   protected void assertSnapshot(SplitAssigner assigner, int splitCount) {
     Collection<IcebergSourceSplitState> stateBeforeGet = assigner.state();
     Assert.assertEquals(splitCount, stateBeforeGet.size());
+  }
+
+  protected List<IcebergSourceSplit> createSplits(int fileCount, int filesPerSplit, String version)
+      throws Exception {
+    return SplitHelpers.createSplitsFromTransientHadoopTable(
+        TEMPORARY_FOLDER, fileCount, filesPerSplit, version);
   }
 
   protected abstract SplitAssigner splitAssigner();
