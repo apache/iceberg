@@ -445,10 +445,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
-     * Emits watermarks once per split based on the file statistics for the given split. The
-     * generated watermarks are also used for ordering the splits for read. Accepted column types
-     * are timestamp/timestamptz/long. For long columns consider setting {@link
-     * #watermarkTimeUnit(TimeUnit)}.
+     * Emits watermarks once per split based on the min value of column statistics from files
+     * metadata in the given split. The generated watermarks are also used for ordering the splits
+     * for read. Accepted column types are timestamp/timestamptz/long. For long columns consider
+     * setting {@link #watermarkTimeUnit(TimeUnit)}.
+     *
+     * <p>Consider setting `read.split.open-file-cost` to prevent combining small files to a single
+     * split when the watermark is used for watermark alignment.
      */
     public Builder<T> watermarkColumn(String columnName) {
       Preconditions.checkArgument(
