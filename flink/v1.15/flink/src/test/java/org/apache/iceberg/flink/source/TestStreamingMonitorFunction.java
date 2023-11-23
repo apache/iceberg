@@ -109,8 +109,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, function);
 
       awaitExpectedSplits(sourceContext);
@@ -143,8 +142,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, function);
 
       awaitExpectedSplits(sourceContext);
@@ -176,11 +174,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, function);
 
       awaitExpectedSplits(sourceContext);
+
       // Stop the stream task.
       function.close();
 
@@ -200,8 +198,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, func);
 
       awaitExpectedSplits(sourceContext);
@@ -223,8 +220,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.initializeState(state);
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, newFunc);
 
       awaitExpectedSplits(sourceContext);

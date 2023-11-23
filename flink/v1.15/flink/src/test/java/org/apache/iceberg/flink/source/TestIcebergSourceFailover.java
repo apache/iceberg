@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import static org.apache.iceberg.flink.SimpleDataUtil.assertTableRecords;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -46,6 +44,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.HadoopTableResource;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
@@ -151,7 +150,8 @@ public class TestIcebergSourceFailover {
         RecordCounterToFail::continueProcessing,
         miniClusterResource.getMiniCluster());
 
-    assertTableRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
+    SimpleDataUtil.assertTableRecords(
+        sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -214,7 +214,8 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertTableRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
+    SimpleDataUtil.assertTableRecords(
+        sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   // ------------------------------------------------------------------------
