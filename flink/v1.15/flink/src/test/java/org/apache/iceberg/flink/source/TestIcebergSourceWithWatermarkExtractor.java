@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +40,7 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
@@ -49,6 +51,10 @@ import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
+import org.apache.flink.streaming.api.operators.collect.CollectResultIterator;
+import org.apache.flink.streaming.api.operators.collect.CollectSinkOperator;
+import org.apache.flink.streaming.api.operators.collect.CollectSinkOperatorFactory;
+import org.apache.flink.streaming.api.operators.collect.CollectStreamSink;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
@@ -298,8 +304,14 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
             SOURCE_NAME,
             TypeInformation.of(RowData.class));
 
-    try (CloseableIterator<RowData> resultIterator = stream.collectAsync()) {
-      JobClient jobClient = env.executeAsync("Iceberg Source Throttling Test");
+    // Flink 1.15 only change - start
+    CollectResultIterator<RowData> resultStream = addCollectSink(stream);
+
+    // Start the job
+    JobClient jobClient = env.executeAsync("Iceberg Source Throttling Test");
+    resultStream.setJobClient(jobClient);
+    try (CollectResultIterator<RowData> resultIterator = resultStream) {
+      // Flink 1.15 only change - end
 
       // Check that the read the non-blocked data
       // The first RECORD_NUM_FOR_2_SPLITS should be read
@@ -447,5 +459,23 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     public long extractTimestamp(RowData element, long recordTimestamp) {
       return element.getTimestamp(0, 0).getMillisecond();
     }
+  }
+
+  // Flink 1.15 only method
+  private CollectResultIterator<RowData> addCollectSink(DataStream<RowData> stream) {
+    TypeSerializer<RowData> serializer =
+        stream.getType().createSerializer(stream.getExecutionConfig());
+    String accumulatorName = "dataStreamCollect_" + UUID.randomUUID();
+    CollectSinkOperatorFactory<RowData> factory =
+        new CollectSinkOperatorFactory<>(serializer, accumulatorName);
+    CollectSinkOperator<RowData> operator = (CollectSinkOperator<RowData>) factory.getOperator();
+    CollectStreamSink<RowData> sink = new CollectStreamSink<>(stream, factory);
+    sink.name("Data stream collect sink");
+    stream.getExecutionEnvironment().addOperator(sink.getTransformation());
+    return new CollectResultIterator<>(
+        operator.getOperatorIdFuture(),
+        serializer,
+        accumulatorName,
+        stream.getExecutionEnvironment().getCheckpointConfig());
   }
 }
