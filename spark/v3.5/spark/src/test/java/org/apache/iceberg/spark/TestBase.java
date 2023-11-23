@@ -57,7 +57,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
-public abstract class TestBase extends TestHelperBase {
+public abstract class TestBase extends SparkTestHelperBase {
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;

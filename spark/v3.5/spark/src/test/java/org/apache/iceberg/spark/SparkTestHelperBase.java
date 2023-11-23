@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.spark.sql.Row;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 
 public class SparkTestHelperBase {
   protected static final Object ANY = new Object();
@@ -55,12 +55,15 @@ public class SparkTestHelperBase {
 
   protected void assertEquals(
       String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(
-        context + ": number of results should match", expectedRows.size(), actualRows.size());
+    Assertions.assertThat(actualRows.size())
+        .as(context + ": number of results should match")
+        .isEqualTo(expectedRows.size());
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
-      Assert.assertEquals("Number of columns should match", expected.length, actual.length);
+      Assertions.assertThat(actual.length)
+          .as("Number of columns should match")
+          .isEqualTo(expected.length);
       for (int col = 0; col < actualRows.get(row).length; col += 1) {
         String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
         assertEquals(newContext, expected, actual);
@@ -69,19 +72,25 @@ public class SparkTestHelperBase {
   }
 
   protected void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
-    Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
+    Assertions.assertThat(actualRow.length)
+        .as("Number of columns should match")
+        .isEqualTo(expectedRow.length);
     for (int col = 0; col < actualRow.length; col += 1) {
       Object expectedValue = expectedRow[col];
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
         if (expectedValue instanceof byte[]) {
-          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
+          Assertions.assertThat((byte[]) actualValue)
+              .as(newContext)
+              .isEqualTo((byte[]) expectedValue);
         } else {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
       } else if (expectedValue != ANY) {
-        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
+        Assertions.assertThat(actualValue)
+            .as(context + " contents should match")
+            .isEqualTo(expectedValue);
       }
     }
   }

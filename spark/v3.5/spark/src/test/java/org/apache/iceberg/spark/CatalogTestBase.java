@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
-import java.io.File;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
 
 public abstract class CatalogTestBase extends TestBaseWithCatalog {
@@ -42,8 +40,6 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
             SparkCatalogConfig.SPARK.implementation(),
             SparkCatalogConfig.SPARK.properties()));
   }
-
-  @TempDir public File temp;
 
   public CatalogTestBase(SparkCatalogConfig config) {
     super(config);

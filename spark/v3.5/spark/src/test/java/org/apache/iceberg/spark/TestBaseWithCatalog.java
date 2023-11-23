@@ -57,7 +57,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  @TempDir public File temp;
+  @TempDir protected File temp;
 
   protected final String catalogName;
   protected final Map<String, String> catalogConfig;
