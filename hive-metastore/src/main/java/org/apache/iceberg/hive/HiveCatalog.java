@@ -47,7 +47,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -72,6 +71,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private String name;
   private Configuration conf;
@@ -104,11 +104,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     this.listAllTables =
         Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO =
-        fileIOImpl == null
-            ? new HadoopFileIO(conf)
-            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl =
+        properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
+    this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
   }

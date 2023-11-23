@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
@@ -32,6 +33,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -94,10 +96,19 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   private static void validateHadoopConf(Table table) {
     FileIO io = table.io();
     Assertions.assertThat(io)
-        .as("FileIO should be a HadoopFileIO")
-        .isInstanceOf(HadoopFileIO.class);
-    HadoopFileIO hadoopIO = (HadoopFileIO) io;
-    Assert.assertEquals("my_value", hadoopIO.conf().get("my_key"));
+        .as("FileIO should be a HadoopFileIO or ResolvingFileIO")
+        .isInstanceOfAny(HadoopFileIO.class, ResolvingFileIO.class);
+
+    Configuration conf;
+    if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      conf = resolvingFileIO.getConf();
+    } else {
+      HadoopFileIO hadoopIO = (HadoopFileIO) io;
+      conf = hadoopIO.conf();
+    }
+
+    Assert.assertEquals("my_value", conf.get("my_key"));
   }
 
   @SuppressWarnings("unchecked")

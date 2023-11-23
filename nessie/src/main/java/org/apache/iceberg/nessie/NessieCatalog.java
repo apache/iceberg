@@ -57,6 +57,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
     implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Joiner SLASH = Joiner.on("/");
   private static final String NAMESPACE_LOCATION_PROPS = "location";
 
@@ -83,9 +84,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> options) {
     Map<String, String> catalogOptions = ImmutableMap.copyOf(options);
-    String fileIOImpl =
-        options.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+    String fileIOImpl = options.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
     // remove nessie prefix
     final Function<String, String> removePrefix =
         x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
