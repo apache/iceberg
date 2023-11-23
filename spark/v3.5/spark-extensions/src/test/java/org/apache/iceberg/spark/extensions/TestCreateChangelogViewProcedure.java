@@ -439,4 +439,48 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
                 "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
                 catalogName, tableName));
   }
+
+  @Test
+  public void testCreateViewAfterExpireAllSnapshots() {
+    createTableWithTwoColumns();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql(
+            "CALL %s.system.create_changelog_view("
+                    + "table => '%s',"
+                    + "changelog_view => '%s')",
+            catalogName,
+            tableName,
+            "cdc_view");
+
+    long rowCount = sql("select * from %s", "cdc_view").stream().count();
+
+    sql(
+            "CALL %s.system.expire_snapshots('%s', TIMESTAMP '2100-01-01 00:00:00.000')",
+            catalogName,
+            tableName);
+
+    sql(
+            "CALL %s.system.create_changelog_view("
+                    + "table => '%s',"
+                    + "changelog_view => '%s')",
+            catalogName,
+            tableName,
+            "cdc_view");
+
+    long newRowCount = sql("select * from %s", "cdc_view").stream().count();
+
+    Assert.assertEquals(1, newRowCount);
+  }
 }
