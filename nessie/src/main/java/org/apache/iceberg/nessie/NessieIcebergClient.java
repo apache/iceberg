@@ -194,9 +194,7 @@ public class NessieIcebergClient implements AutoCloseable {
     org.projectnessie.model.Namespace content =
         org.projectnessie.model.Namespace.of(key.getElements(), metadata);
     try {
-      Map<ContentKey, Content> contentMap =
-          api.getContent().reference(getReference()).key(key).get();
-      Content existing = contentMap.get(key);
+      Content existing = api.getContent().reference(getReference()).key(key).get().get(key);
       if (existing != null) {
         throw namespaceAlreadyExists(key, existing, null);
       }
@@ -265,11 +263,11 @@ public class NessieIcebergClient implements AutoCloseable {
             "Cannot list top-level Namespaces: ref '%s' is no longer valid.",
             getRef().getName());
       }
-      throw new RuntimeException(
-          String.format(
-              "Cannot list child Namespaces from '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
-          e);
+      throw new NoSuchNamespaceException(
+          e,
+          "Cannot list child Namespaces from '%s': ref '%s' is no longer valid.",
+          namespace,
+          getRef().getName());
     }
   }
 
@@ -280,7 +278,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Map<ContentKey, Content> contentMap =
           api.getContent().reference(getReference()).key(key).get();
       Content existing = contentMap.get(key);
-      if (existing != null && !unwrapNamespace(existing).isPresent()) {
+      if (existing != null && !existing.getType().equals(Content.Type.NAMESPACE)) {
         throw new NoSuchNamespaceException(
             "Content object with name '%s' is not a Namespace.", namespace);
       }
