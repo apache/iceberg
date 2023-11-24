@@ -43,7 +43,7 @@ public abstract class TestBase extends TestBaseUtils {
 
   @RegisterExtension
   public static MiniClusterExtension miniClusterResource =
-      MiniFlinkClusterResource.createWithClassloaderCheckDisabled();
+      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @TempDir Path temporaryDirectory;
 
