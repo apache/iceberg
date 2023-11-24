@@ -55,15 +55,13 @@ public class SparkTestHelperBase {
 
   protected void assertEquals(
       String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assertions.assertThat(actualRows.size())
+    Assertions.assertThat(actualRows)
         .as(context + ": number of results should match")
-        .isEqualTo(expectedRows.size());
+        .hasSameSizeAs(expectedRows);
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
-      Assertions.assertThat(actual.length)
-          .as("Number of columns should match")
-          .isEqualTo(expected.length);
+      Assertions.assertThat(actual).as("Number of columns should match").hasSameSizeAs(expected);
       for (int col = 0; col < actualRows.get(row).length; col += 1) {
         String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
         assertEquals(newContext, expected, actual);
@@ -72,18 +70,16 @@ public class SparkTestHelperBase {
   }
 
   protected void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
-    Assertions.assertThat(actualRow.length)
+    Assertions.assertThat(actualRow)
         .as("Number of columns should match")
-        .isEqualTo(expectedRow.length);
+        .hasSameSizeAs(expectedRow);
     for (int col = 0; col < actualRow.length; col += 1) {
       Object expectedValue = expectedRow[col];
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
         if (expectedValue instanceof byte[]) {
-          Assertions.assertThat((byte[]) actualValue)
-              .as(newContext)
-              .isEqualTo((byte[]) expectedValue);
+          Assertions.assertThat(actualValue).as(newContext).isEqualTo(expectedValue);
         } else {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }

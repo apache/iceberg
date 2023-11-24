@@ -109,9 +109,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(Iterables.size(groups)).as("Must have 1 group").isEqualTo(1);
+    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group.size()).as("Must rewrite 2 files").isEqualTo(2);
+    Assertions.assertThat(group).as("Must rewrite 2 files").hasSize(2);
   }
 
   private void checkDataFilesDeleteThreshold(SizeBasedDataRewriter rewriter) {
@@ -128,9 +128,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(Iterables.size(groups)).as("Must have 1 group").isEqualTo(1);
+    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group.size()).as("Must rewrite 1 file").isEqualTo(1);
+    Assertions.assertThat(group).as("Must rewrite 1 file").hasSize(1);
   }
 
   private void checkDataFileGroupWithEnoughFiles(SizeBasedDataRewriter rewriter) {
@@ -151,9 +151,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(Iterables.size(groups)).as("Must have 1 group").isEqualTo(1);
+    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group.size()).as("Must rewrite 4 files").isEqualTo(4);
+    Assertions.assertThat(group).as("Must rewrite 4 files").hasSize(4);
   }
 
   private void checkDataFileGroupWithEnoughData(SizeBasedDataRewriter rewriter) {
@@ -171,9 +171,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(Iterables.size(groups)).as("Must have 1 group").isEqualTo(1);
+    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group.size()).as("Must rewrite 3 files").isEqualTo(3);
+    Assertions.assertThat(group).as("Must rewrite 3 files").hasSize(3);
   }
 
   private void checkDataFileGroupWithTooMuchData(SizeBasedDataRewriter rewriter) {
@@ -189,9 +189,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(Iterables.size(groups)).as("Must have 1 group").isEqualTo(1);
+    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group.size()).as("Must rewrite big file").isEqualTo(1);
+    Assertions.assertThat(group).as("Must rewrite big file").hasSize(1);
   }
 
   @Test
