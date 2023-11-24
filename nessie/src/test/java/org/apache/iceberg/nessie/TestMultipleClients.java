@@ -22,8 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.AbstractMap;
 import java.util.Collections;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -31,6 +31,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -71,15 +72,25 @@ public class TestMultipleClients extends BaseTestIceberg {
 
   @Test
   public void testListNamespaces() throws NessieConflictException, NessieNotFoundException {
+    Assertions.assertThat(catalog.listNamespaces()).isEmpty();
+    Assertions.assertThat(anotherCatalog.listNamespaces()).isEmpty();
+
+    // listing a non-existent namespace should return empty
+    Assertions.assertThat(catalog.listNamespaces(Namespace.of("db1"))).isEmpty();
+    Assertions.assertThat(anotherCatalog.listNamespaces(Namespace.of("db1"))).isEmpty();
+
     catalog.createNamespace(Namespace.of("db1"), Collections.emptyMap());
+
     Assertions.assertThat(catalog.listNamespaces()).containsExactlyInAnyOrder(Namespace.of("db1"));
+    Assertions.assertThat(anotherCatalog.listNamespaces())
+        .containsExactlyInAnyOrder(Namespace.of("db1"));
 
     // another client creates a namespace with the same nessie server
     anotherCatalog.createNamespace(Namespace.of("db2"), Collections.emptyMap());
-    Assertions.assertThat(anotherCatalog.listNamespaces())
-        .containsExactlyInAnyOrder(Namespace.of("db1"), Namespace.of("db2"));
 
     Assertions.assertThat(catalog.listNamespaces())
+        .containsExactlyInAnyOrder(Namespace.of("db1"), Namespace.of("db2"));
+    Assertions.assertThat(anotherCatalog.listNamespaces())
         .containsExactlyInAnyOrder(Namespace.of("db1"), Namespace.of("db2"));
 
     api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
@@ -94,18 +105,40 @@ public class TestMultipleClients extends BaseTestIceberg {
 
   @Test
   public void testLoadNamespaceMetadata() throws NessieConflictException, NessieNotFoundException {
+
+    Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: namespace1");
+    Assertions.assertThatThrownBy(
+            () -> anotherCatalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: namespace1");
+
     catalog.createNamespace(Namespace.of("namespace1"), Collections.emptyMap());
+
+    // both clients should see the namespace because we read the HEAD of the ref
     Assertions.assertThat(catalog.listNamespaces())
         .containsExactlyInAnyOrder(Namespace.of("namespace1"));
+    Assertions.assertThat(anotherCatalog.listNamespaces())
+        .containsExactlyInAnyOrder(Namespace.of("namespace1"));
 
-    // another client adds a metadata to the same namespace
-    anotherCatalog.setProperties(Namespace.of("namespace1"), Collections.singletonMap("k1", "v1"));
-    AbstractMap.SimpleEntry<String, String> entry = new AbstractMap.SimpleEntry<>("k1", "v1");
+    // the other client should not be able to update the namespace
+    // because it is still on the old ref hash
+    Assertions.assertThatThrownBy(
+            () ->
+                anotherCatalog.setProperties(
+                    Namespace.of("namespace1"), Collections.singletonMap("k1", "v1")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: namespace1");
+    // the same client adds a metadata to the namespace: expect success
+    catalog.setProperties(Namespace.of("namespace1"), Collections.singletonMap("k1", "v1"));
+
+    // load metadata from the same client and another client both should work fine
+    // because we read the HEAD of the ref
     Assertions.assertThat(anotherCatalog.loadNamespaceMetadata(Namespace.of("namespace1")))
-        .containsExactly(entry);
-
+        .containsExactly(Map.entry("k1", "v1"));
     Assertions.assertThat(catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
-        .containsExactly(entry);
+        .containsExactly(Map.entry("k1", "v1"));
 
     api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
 
