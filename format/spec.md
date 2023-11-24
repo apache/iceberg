@@ -614,7 +614,7 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
-3. Floating point partition values are considered equal if there IEEE 754 floating-point “single format” bit layout
+3. Floating point partition values are considered equal if their IEEE 754 floating-point “single format” bit layout
 are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification encodes all floating point values in this format.
 
 #### Snapshot Reference
