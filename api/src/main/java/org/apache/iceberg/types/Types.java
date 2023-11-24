@@ -537,6 +537,7 @@ public class Types {
     private final NestedField[] fields;
 
     // lazy values
+    private transient Schema schema = null;
     private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
@@ -591,6 +592,18 @@ public class Types {
     public Types.StructType asStructType() {
       return this;
     }
+
+    public Schema asSchema() {
+      if (this.schema == null) {
+        synchronized (this) {
+          if (this.schema == null) {
+            this.schema = Arrays.asList(this.fields);
+          }
+        }
+      }
+      return this.schema;
+    }
+
 
     @Override
     public String toString() {
