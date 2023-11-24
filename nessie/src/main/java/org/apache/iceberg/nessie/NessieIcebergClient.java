@@ -237,15 +237,17 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
     try {
-      org.projectnessie.model.Namespace root =
-          org.projectnessie.model.Namespace.of(namespace.levels());
-      String filter =
-          "entry.contentType == 'NAMESPACE' &&"
-              + (namespace.isEmpty()
-                  ? "size(entry.keyElements) == 1"
-                  : String.format(
-                      "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
-                      root.getElementCount() + 1, root.name()));
+      String filter = "entry.contentType == 'NAMESPACE' && ";
+      if (namespace.isEmpty()) {
+        filter += "size(entry.keyElements) == 1";
+      } else {
+        org.projectnessie.model.Namespace root =
+            org.projectnessie.model.Namespace.of(namespace.levels());
+        filter +=
+            String.format(
+                "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
+                root.getElementCount() + 1, root.name());
+      }
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
               .map(EntriesResponse.Entry::getName)
@@ -383,7 +385,7 @@ public class NessieIcebergClient implements AutoCloseable {
           String.format(
               "Cannot update properties on Namespace '%s': %s", namespace, e.getMessage()));
     } catch (NessieContentNotFoundException e) {
-      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(
           String.format(
