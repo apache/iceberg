@@ -152,7 +152,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Cannot create Namespace 'a.b': parent namespace 'a' does not exist");
+        .hasMessageContaining("Cannot create namespace 'a.b': parent namespace 'a' does not exist");
   }
 
   @Test
@@ -166,7 +166,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a"), Map.of()))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Namespace already exists: 'a'");
+        .hasMessageContaining("Namespace already exists: a");
 
     client.commitTable(
         null, newTable(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
@@ -189,7 +189,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a"), Map.of()))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Namespace already exists: 'a'");
+        .hasMessageContaining("Namespace already exists: a");
 
     IcebergTable table = IcebergTable.of("file:///tmp/iceberg", 1, 1, 1, 1);
     commit(branch, "create table a.tbl2", Operation.Put.of(ContentKey.of("a", "tbl"), table));
@@ -213,7 +213,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("b"), Map.of()))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
-            "Cannot create Namespace 'b': ref 'createNamespaceNonExistingRefBranch' is no longer valid");
+            "Cannot create namespace 'b': ref 'createNamespaceNonExistingRefBranch' is no longer valid");
   }
 
   @Test
@@ -289,7 +289,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a", "tbl")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Content object with name 'a.tbl' is not a Namespace.");
+        .hasMessageContaining("Content object with name 'a.tbl' is not a namespace.");
   }
 
   @Test
@@ -312,7 +312,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a")))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
-            "Cannot drop Namespace 'a': Values of existing and expected content for key 'a' are different.");
+            "Cannot drop namespace 'a': Values of existing and expected content for key 'a' are different.");
   }
 
   @Test
@@ -424,7 +424,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> client.setProperties(Namespace.of("a"), Map.of("k1", "v1")))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
-            "Cannot update properties on Namespace 'a': ref 'setPropertiesNonExistingRefBranch' is no longer valid");
+            "Cannot update properties on namespace 'a': ref 'setPropertiesNonExistingRefBranch' is no longer valid");
   }
 
   @Test
@@ -515,7 +515,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> client.removeProperties(Namespace.of("a"), Set.of("k1")))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
-            "Cannot update properties on Namespace 'a': ref 'removePropertiesNonExistingRefBranch' is no longer valid");
+            "Cannot update properties on namespace 'a': ref 'removePropertiesNonExistingRefBranch' is no longer valid");
   }
 
   @Test

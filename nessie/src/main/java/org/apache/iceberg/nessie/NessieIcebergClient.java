@@ -215,23 +215,23 @@ public class NessieIcebergClient implements AutoCloseable {
             case NAMESPACE_ABSENT:
               throw new NoSuchNamespaceException(
                   e,
-                  "Cannot create Namespace '%s': parent namespace '%s' does not exist",
+                  "Cannot create namespace '%s': parent namespace '%s' does not exist",
                   namespace,
                   conflict.get().key());
           }
         }
         throw new RuntimeException(
-            String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()));
+            String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot create Namespace '%s': ref '%s' is no longer valid.",
+              "Cannot create namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot create Namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
 
@@ -267,12 +267,12 @@ public class NessieIcebergClient implements AutoCloseable {
       if (namespace.isEmpty()) {
         throw new NoSuchNamespaceException(
             e,
-            "Cannot list top-level Namespaces: ref '%s' is no longer valid.",
+            "Cannot list top-level namespaces: ref '%s' is no longer valid.",
             getRef().getName());
       }
       throw new NoSuchNamespaceException(
           e,
-          "Cannot list child Namespaces from '%s': ref '%s' is no longer valid.",
+          "Cannot list child namespaces from '%s': ref '%s' is no longer valid.",
           namespace,
           getRef().getName());
     }
@@ -287,7 +287,7 @@ public class NessieIcebergClient implements AutoCloseable {
       Content existing = contentMap.get(key);
       if (existing != null && !existing.getType().equals(Content.Type.NAMESPACE)) {
         throw new NoSuchNamespaceException(
-            "Content object with name '%s' is not a Namespace.", namespace);
+            "Content object with name '%s' is not a namespace.", namespace);
       }
       try {
         commitRetry("drop namespace " + key, Operation.Delete.of(key));
@@ -309,17 +309,17 @@ public class NessieIcebergClient implements AutoCloseable {
           }
         }
         throw new RuntimeException(
-            String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()));
+            String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
       LOG.error(
-          "Cannot drop Namespace '{}': ref '{}' is no longer valid.",
+          "Cannot drop namespace '{}': ref '{}' is no longer valid.",
           namespace,
           getRef().getName(),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot drop Namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
     }
     return false;
   }
@@ -336,7 +336,7 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot load Namespace '%s': ref '%s' is no longer valid.",
+              "Cannot load namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     }
@@ -383,18 +383,18 @@ public class NessieIcebergClient implements AutoCloseable {
       }
       throw new RuntimeException(
           String.format(
-              "Cannot update properties on Namespace '%s': %s", namespace, e.getMessage()));
+              "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()));
     } catch (NessieContentNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot update properties on Namespace '%s': ref '%s' is no longer valid.",
+              "Cannot update properties on namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot update Namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format("Cannot update namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
 
@@ -635,7 +635,7 @@ public class NessieIcebergClient implements AutoCloseable {
   private static AlreadyExistsException namespaceAlreadyExists(
       ContentKey key, @Nullable Content existing, @Nullable Exception ex) {
     if (existing instanceof org.projectnessie.model.Namespace) {
-      return new AlreadyExistsException(ex, "Namespace already exists: '%s'", key);
+      return new AlreadyExistsException(ex, "Namespace already exists: %s", key);
     } else {
       return new AlreadyExistsException(
           ex, "Another content object with name '%s' already exists", key);
