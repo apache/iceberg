@@ -20,6 +20,7 @@ package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -201,7 +202,11 @@ public class NessieIcebergClient implements AutoCloseable {
       try {
         commitRetry("create namespace " + key, Operation.Put.of(key, content));
       } catch (NessieReferenceConflictException e) {
-        Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+        Optional<Conflict> conflict =
+            NessieUtil.extractSingleConflict(
+                e,
+                EnumSet.of(
+                    Conflict.ConflictType.KEY_EXISTS, Conflict.ConflictType.NAMESPACE_ABSENT));
         if (conflict.isPresent()) {
           switch (conflict.get().conflictType()) {
             case KEY_EXISTS:
@@ -286,7 +291,12 @@ public class NessieIcebergClient implements AutoCloseable {
         commitRetry("drop namespace " + key, Operation.Delete.of(key));
         return true;
       } catch (NessieReferenceConflictException e) {
-        Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+        Optional<Conflict> conflict =
+            NessieUtil.extractSingleConflict(
+                e,
+                EnumSet.of(
+                    Conflict.ConflictType.KEY_DOES_NOT_EXIST,
+                    Conflict.ConflictType.NAMESPACE_NOT_EMPTY));
         if (conflict.isPresent()) {
           Conflict.ConflictType conflictType = conflict.get().conflictType();
           switch (conflictType) {
@@ -346,10 +356,8 @@ public class NessieIcebergClient implements AutoCloseable {
           "update namespace " + key,
           true,
           commitBuilder -> {
-            Map<ContentKey, Content> contentMap =
-                api.getContent().reference(getReference()).key(key).get();
             org.projectnessie.model.Namespace oldNamespace =
-                unwrapNamespace(contentMap.get(key))
+                unwrapNamespace(api.getContent().reference(getReference()).key(key).get().get(key))
                     .orElseThrow(
                         () -> new NessieContentNotFoundException(key, getReference().getName()));
             Map<String, String> newProperties = Maps.newHashMap(oldNamespace.getProperties());
@@ -365,7 +373,8 @@ public class NessieIcebergClient implements AutoCloseable {
       // always successful, otherwise an exception is thrown
       return true;
     } catch (NessieReferenceConflictException e) {
-      Optional<Conflict> conflict = NessieUtil.extractSingleConflict(e);
+      Optional<Conflict> conflict =
+          NessieUtil.extractSingleConflict(e, EnumSet.of(Conflict.ConflictType.KEY_DOES_NOT_EXIST));
       if (conflict.isPresent()
           && conflict.get().conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
         throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.util.EnumSet;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
@@ -33,6 +34,7 @@ import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.error.NessieReferenceConflictException;
+import org.projectnessie.model.Conflict;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
@@ -165,7 +167,13 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   private static void maybeThrowSpecializedException(NessieReferenceConflictException ex) {
-    NessieUtil.extractSingleConflict(ex)
+    NessieUtil.extractSingleConflict(
+            ex,
+            EnumSet.of(
+                Conflict.ConflictType.NAMESPACE_ABSENT,
+                Conflict.ConflictType.NAMESPACE_NOT_EMPTY,
+                Conflict.ConflictType.KEY_DOES_NOT_EXIST,
+                Conflict.ConflictType.KEY_EXISTS))
         .ifPresent(
             conflict -> {
               switch (conflict.conflictType()) {

@@ -19,9 +19,11 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.SnapshotRef;
@@ -169,15 +171,18 @@ public final class NessieUtil {
     return builder.discardChanges().build();
   }
 
-  public static Optional<Conflict> extractSingleConflict(NessieReferenceConflictException ex) {
+  public static Optional<Conflict> extractSingleConflict(
+      NessieReferenceConflictException ex, Collection<Conflict.ConflictType> handledConflictTypes) {
     // Check if the server returned 'ReferenceConflicts' information
     ReferenceConflicts referenceConflicts = ex.getErrorDetails();
     if (referenceConflicts == null) {
       return Optional.empty();
     }
 
-    // Can only narrow down to a single exception, if there is only one conflict.
-    List<Conflict> conflicts = referenceConflicts.conflicts();
+    List<Conflict> conflicts =
+        referenceConflicts.conflicts().stream()
+            .filter(c -> handledConflictTypes.contains(c.conflictType()))
+            .collect(Collectors.toList());
     if (conflicts.size() != 1) {
       return Optional.empty();
     }
