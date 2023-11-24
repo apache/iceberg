@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
@@ -130,14 +131,13 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .isNotEmpty()
         .first()
         .extracting(LogResponse.LogEntry::getCommitMeta)
-        .satisfies(
-            meta -> {
-              Assertions.assertThat(meta.getMessage()).contains("create namespace a");
-              Assertions.assertThat(meta.getAuthor()).isEqualTo("iceberg-user");
-              Assertions.assertThat(meta.getProperties())
-                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
-                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
-            });
+        .extracting(CommitMeta::getMessage, CommitMeta::getAuthor, CommitMeta::getProperties)
+        .containsExactly(
+            "create namespace a",
+            "iceberg-user",
+            ImmutableMap.of(
+                "application-type", "iceberg",
+                "app-id", "iceberg-nessie"));
   }
 
   @Test
