@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -595,15 +596,10 @@ public class Types {
 
     public Schema asSchema() {
       if (this.schema == null) {
-        synchronized (this) {
-          if (this.schema == null) {
-            this.schema = Arrays.asList(this.fields);
-          }
-        }
+        this.schema = new Schema(Arrays.asList(this.fields));
       }
       return this.schema;
     }
-
 
     @Override
     public String toString() {

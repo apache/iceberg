@@ -38,7 +38,8 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
 
   @Override
   public BoundReference<T> bind(Types.StructType struct, boolean caseSensitive) {
-    Schema schema = struct.asSchema(); 
+    Schema schema = struct.asSchema();
+
     Types.NestedField field =
         caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
 
