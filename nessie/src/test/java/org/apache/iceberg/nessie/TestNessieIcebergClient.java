@@ -146,9 +146,9 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
 
-    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Creating empty namespaces is not supported");
+    Assertions.assertThatIllegalArgumentException()
+        .isThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
+        .withMessageContaining("Creating empty namespaces is not supported");
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
@@ -524,9 +524,9 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
       newCatalog.setConf(hadoopConfig);
       ImmutableMap.Builder<String, String> options =
           ImmutableMap.<String, String>builder().put("client-api-version", "3");
-      Assertions.assertThatThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
+      Assertions.assertThatIllegalArgumentException()
+          .isThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
+          .withMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
     }
   }
 
