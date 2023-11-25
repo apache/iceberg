@@ -153,6 +153,14 @@ public class LockManagers {
               CatalogProperties.LOCK_HEARTBEAT_THREADS,
               CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
     }
+
+    @Override
+    public void close() {
+      if (scheduler != null) {
+        scheduler.shutdownNow();
+        scheduler = null;
+      }
+    }
   }
 
   /**
@@ -263,6 +271,7 @@ public class LockManagers {
       HEARTBEATS.values().forEach(future -> future.cancel(false));
       HEARTBEATS.clear();
       LOCKS.clear();
+      super.close();
     }
   }
 
