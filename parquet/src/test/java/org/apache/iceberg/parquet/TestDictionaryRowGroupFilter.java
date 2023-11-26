@@ -82,8 +82,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * At time of development there's no way to implement a Parameterized BeforeEach in out of the box Junit5. 
- * In order to test different parquet writer versions this abstract test class has been created. 
+ * At time of development there's no out of the box way to implement a Parameterized BeforeEach in Junit5. 
+ * In order to test different parquet writer versions this abstract test class has been created as a workaround. 
  */
 public abstract class TestDictionaryRowGroupFilter {
 

@@ -23,6 +23,9 @@ package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.ParquetProperties;
 
+/**
+ * TestDictionaryRowGroupFilter with PARQUET_2 writer version
+ */
 public class TestDictionaryRowGroupFilterParquet1 extends TestDictionaryRowGroupFilter {
     public TestDictionaryRowGroupFilterParquet1() {
         super(ParquetProperties.WriterVersion.PARQUET_1_0);
