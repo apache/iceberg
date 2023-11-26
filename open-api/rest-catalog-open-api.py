@@ -571,7 +571,7 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
-class ReportMetricsRequest1(CommitReport):
+class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -765,8 +765,8 @@ class CreateTableRequest(BaseModel):
     properties: Optional[Dict[str, str]] = None
 
 
-class ReportMetricsRequest2(BaseModel):
-    __root__: Union[ReportMetricsRequest, ReportMetricsRequest1]
+class ReportMetricsRequest(BaseModel):
+    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
 
 
 class ScanReport(BaseModel):
@@ -792,7 +792,7 @@ class Schema(StructType):
     )
 
 
-class ReportMetricsRequest(ScanReport):
+class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -803,4 +803,4 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
-ReportMetricsRequest2.update_forward_refs()
+ReportMetricsRequest.update_forward_refs()
