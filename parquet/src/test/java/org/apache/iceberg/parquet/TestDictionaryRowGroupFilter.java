@@ -18,37 +18,11 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNaN;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notEqual;
-import static org.apache.iceberg.expressions.Expressions.notIn;
-import static org.apache.iceberg.expressions.Expressions.notNaN;
-import static org.apache.iceberg.expressions.Expressions.notNull;
-import static org.apache.iceberg.expressions.Expressions.notStartsWith;
-import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
-import static org.apache.iceberg.expressions.Expressions.truncate;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
-import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_2_0;
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Arrays;
-import java.util.List;
+import java.nio.file.Path;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -79,16 +53,39 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestDictionaryRowGroupFilter {
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * At time of development there's no way to implement a Parameterized BeforeEach in out of the box Junit5. 
+ * In order to test different parquet writer versions this abstract test class has been created. 
+ */
+public abstract class TestDictionaryRowGroupFilter {
 
   private static final Types.StructType structFieldType =
       Types.StructType.of(Types.NestedField.required(9, "int_field", IntegerType.get()));
@@ -156,22 +153,18 @@ public class TestDictionaryRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
   private DictionaryPageReadStore dictionaryStore = null;
-  private final WriterVersion writerVersion;
+  private WriterVersion writerVersion;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Parameterized.Parameters
-  public static List<WriterVersion> writerVersions() {
-    return Arrays.asList(PARQUET_1_0, PARQUET_2_0);
-  }
+  @TempDir
+  public Path temp;
 
   public TestDictionaryRowGroupFilter(WriterVersion writerVersion) {
     this.writerVersion = writerVersion;
   }
 
-  @Before
+  @BeforeEach
   public void createInputFile() throws IOException {
-    File parquetFile = temp.newFile();
+    File parquetFile = temp.toFile();
     assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
@@ -1265,12 +1258,9 @@ public class TestDictionaryRowGroupFilter {
     // encoded.
     // (No need to validate all the possible predicates)
 
-    Assume.assumeTrue(
-        "decimal_fixed is not dictionary encoded in case of writer version " + writerVersion,
-        getColumnForName(rowGroupMetadata, "_decimal_fixed")
+    Assumptions.assumeTrue(getColumnForName(rowGroupMetadata, "_decimal_fixed")
             .getEncodings()
-            .contains(Encoding.RLE_DICTIONARY));
-
+            .contains(Encoding.RLE_DICTIONARY), "decimal_fixed is not dictionary encoded in case of writer version " + writerVersion);
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO))
