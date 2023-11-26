@@ -83,7 +83,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * At time of development there's no out of the box way to implement a Parameterized BeforeEach in Junit5. 
- * In order to test different parquet writer versions this abstract test class has been created as a workaround. 
+ * This abstract test class has been created as a workaround to test TestDictionaryRowGroupFilter with different parquet writer versions. 
  */
 public abstract class TestDictionaryRowGroupFilter {
 
