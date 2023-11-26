@@ -153,7 +153,7 @@ public abstract class TestDictionaryRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
   private DictionaryPageReadStore dictionaryStore = null;
-  private WriterVersion writerVersion;
+  private final WriterVersion writerVersion;
 
   @TempDir
   public Path temp;
