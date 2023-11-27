@@ -106,40 +106,41 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     return this;
   }
 
-  public UpdateSnapshotReferencesOperation replaceBranch(String name, String source) {
-    return replaceBranch(name, source, false);
+  public UpdateSnapshotReferencesOperation replaceBranch(String from, String to) {
+    return replaceBranch(from, to, false);
   }
 
-  public UpdateSnapshotReferencesOperation fastForward(String name, String source) {
-    return replaceBranch(name, source, true);
+  public UpdateSnapshotReferencesOperation fastForward(String from, String to) {
+    return replaceBranch(from, to, true);
   }
 
   private UpdateSnapshotReferencesOperation replaceBranch(
-      String name, String source, boolean fastForward) {
-    Preconditions.checkNotNull(name, "Target branch cannot be null");
-    Preconditions.checkNotNull(source, "Source ref cannot be null");
-    SnapshotRef sourceRef = updatedRefs.get(source);
-    SnapshotRef refToUpdate = updatedRefs.get(name);
-    Preconditions.checkArgument(refToUpdate != null, "Target branch does not exist: %s", name);
-    Preconditions.checkArgument(sourceRef != null, "Ref does not exist: %s", source);
-    Preconditions.checkArgument(refToUpdate.isBranch(), "Ref %s is a tag not a branch", name);
+      String from, String to, boolean fastForward) {
+    Preconditions.checkNotNull(from, "Branch to update cannot be null");
+    Preconditions.checkNotNull(to, "Destination ref cannot be null");
+    SnapshotRef branchToUpdate = updatedRefs.get(from);
+    SnapshotRef toRef = updatedRefs.get(to);
+    Preconditions.checkArgument(
+        branchToUpdate != null, "Branch to update does not exist: %s", from);
+    Preconditions.checkArgument(toRef != null, "Ref does not exist: %s", to);
+    Preconditions.checkArgument(branchToUpdate.isBranch(), "Ref %s is a tag not a branch", from);
 
     // Nothing to replace
-    if (sourceRef.snapshotId() == refToUpdate.snapshotId()) {
+    if (toRef.snapshotId() == branchToUpdate.snapshotId()) {
       return this;
     }
 
-    SnapshotRef updatedRef = SnapshotRef.builderFrom(refToUpdate, sourceRef.snapshotId()).build();
+    SnapshotRef updatedRef = SnapshotRef.builderFrom(branchToUpdate, toRef.snapshotId()).build();
 
     if (fastForward) {
       boolean targetIsAncestor =
           SnapshotUtil.isAncestorOf(
-              sourceRef.snapshotId(), refToUpdate.snapshotId(), base::snapshot);
+              toRef.snapshotId(), branchToUpdate.snapshotId(), base::snapshot);
       Preconditions.checkArgument(
-          targetIsAncestor, "Cannot fast-forward: %s is not an ancestor of %s", name, source);
+          targetIsAncestor, "Cannot fast-forward: %s is not an ancestor of %s", from, to);
     }
 
-    updatedRefs.put(name, updatedRef);
+    updatedRefs.put(from, updatedRef);
     return this;
   }
 
