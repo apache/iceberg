@@ -201,23 +201,12 @@ public class PartitionsTable extends BaseMetadataTable {
     return CloseableIterable.transform(
         ManifestFiles.open(manifest, table.io(), table.specs())
             .caseSensitive(scan.isCaseSensitive())
-            .select(scanColumns(manifest.content())) // don't select stats columns
+            .select(BaseScan.scanColumns(manifest.content())) // don't select stats columns
             .liveEntries(),
         t ->
             (ManifestEntry<? extends ContentFile<?>>)
                 // defensive copy of manifest entry without stats columns
                 t.copyWithoutStats());
-  }
-
-  private static List<String> scanColumns(ManifestContent content) {
-    switch (content) {
-      case DATA:
-        return BaseScan.SCAN_COLUMNS;
-      case DELETES:
-        return BaseScan.DELETE_SCAN_COLUMNS;
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
-    }
   }
 
   private static CloseableIterable<ManifestFile> filteredManifests(
@@ -286,7 +275,8 @@ public class PartitionsTable extends BaseMetadataTable {
     private Long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
-      this.partitionData = toPartitionData(key, keyType);
+      // converting to PartitionData as StructProjection is not serializable */
+      this.partitionData = PartitionUtil.toPartitionData(key, keyType);
       this.specId = 0;
       this.dataRecordCount = 0L;
       this.dataFileCount = 0;
@@ -327,18 +317,6 @@ public class PartitionsTable extends BaseMetadataTable {
           throw new UnsupportedOperationException(
               "Unsupported file content type: " + file.content());
       }
-    }
-
-    /** Needed because StructProjection is not serializable */
-    private PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData data = new PartitionData(keyType);
-      for (int i = 0; i < keyType.fields().size(); i++) {
-        Object val = key.get(i, keyType.fields().get(i).type().typeId().javaClass());
-        if (val != null) {
-          data.set(i, val);
-        }
-      }
-      return data;
     }
   }
 }

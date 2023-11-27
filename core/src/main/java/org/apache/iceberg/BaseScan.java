@@ -289,4 +289,21 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   public ThisT metricsReporter(MetricsReporter reporter) {
     return newRefinedScan(table, schema, context.reportWith(reporter));
   }
+
+  /**
+   * Retrieves a list of column names based on the type of manifest content provided.
+   *
+   * @param content the manifest content type to scan.
+   * @return a list of column names corresponding to the specified manifest content type.
+   */
+  public static List<String> scanColumns(ManifestContent content) {
+    switch (content) {
+      case DATA:
+        return BaseScan.SCAN_COLUMNS;
+      case DELETES:
+        return BaseScan.DELETE_SCAN_COLUMNS;
+      default:
+        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
+    }
+  }
 }
