@@ -126,6 +126,11 @@ public class TableProperties {
       "write.delete.parquet.row-group-size-bytes";
   public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
+  public static final String PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES =
+      "write.delete.path-pos-delete.parquet.row-group-size-bytes";
+  public static final int DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES =
+      2 * 1024 * 1024; // 2 MB
+
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String DELETE_PARQUET_PAGE_SIZE_BYTES =
       "write.delete.parquet.page-size-bytes";

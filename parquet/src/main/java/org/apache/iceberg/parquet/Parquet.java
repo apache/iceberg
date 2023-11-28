@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
@@ -45,6 +46,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_REC
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 
 import java.io.File;
 import java.io.IOException;
@@ -483,13 +485,35 @@ public class Parquet {
             dictionaryEnabled);
       }
 
+      // context for position delete whose schema has only `file_path` and `pos` fields
+      static Context pathPosDeleteContext(Map<String, String> config) {
+        return deleteContext(config, true);
+      }
+
+      // context for:
+      // 1. equality delete files
+      // 2. position delete files whose schema has `file_path`, `pos` and `row` fields
       static Context deleteContext(Map<String, String> config) {
+        return deleteContext(config, false);
+      }
+
+      static Context deleteContext(Map<String, String> config, boolean isPathPosDelete) {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
-                config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
+        int rowGroupSize;
+        if (!isPathPosDelete) {
+          rowGroupSize =
+              PropertyUtil.propertyAsInt(
+                  config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
+        } else {
+          rowGroupSize =
+              PropertyUtil.propertyAsInt(
+                  config,
+                  PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES,
+                  DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES);
+        }
+
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
         int pageSize =
@@ -892,6 +916,8 @@ public class Parquet {
               }
             });
 
+        appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
@@ -902,9 +928,9 @@ public class Parquet {
                 new PositionDeleteStructWriter<T>(
                     (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
                     Function.identity()));
-      }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+        appenderBuilder.createContextFunc(WriteBuilder.Context::pathPosDeleteContext);
+      }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
