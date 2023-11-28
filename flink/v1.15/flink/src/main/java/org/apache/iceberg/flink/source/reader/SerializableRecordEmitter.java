@@ -18,19 +18,23 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import org.apache.flink.api.connector.source.SourceOutput;
+import java.io.Serializable;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
-final class IcebergSourceRecordEmitter<T>
-    implements RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit> {
+@Internal
+@FunctionalInterface
+public interface SerializableRecordEmitter<T>
+    extends RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit>, Serializable {
+  static <T> SerializableRecordEmitter<T> defaultEmitter() {
+    return (element, output, split) -> {
+      output.collect(element.record());
+      split.updatePosition(element.fileOffset(), element.recordOffset());
+    };
+  }
 
-  IcebergSourceRecordEmitter() {}
-
-  @Override
-  public void emitRecord(
-      RecordAndPosition<T> element, SourceOutput<T> output, IcebergSourceSplit split) {
-    output.collect(element.record());
-    split.updatePosition(element.fileOffset(), element.recordOffset());
+  static <T> SerializableRecordEmitter<T> emitterWithWatermark(SplitWatermarkExtractor extractor) {
+    return new WatermarkExtractorRecordEmitter<>(extractor);
   }
 }
