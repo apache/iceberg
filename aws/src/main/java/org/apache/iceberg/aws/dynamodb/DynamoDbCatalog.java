@@ -49,6 +49,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -130,7 +131,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   void initialize(
       String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
     Preconditions.checkArgument(
-        path != null && path.length() > 0,
+        !Strings.isNullOrEmpty(path),
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
