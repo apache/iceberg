@@ -30,7 +30,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
@@ -91,7 +90,12 @@ public class CatalogUtil {
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
       // add all manifests to the delete set because both data and delete files should be removed
-      Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
+      try {
+        Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
+      } catch (RuntimeException e) {
+        // ignore the exception to finish deletion as much as possible.
+        LOG.warn("Failed to read all the manifests from snapshot {}", snapshot.snapshotId(), e);
+      }
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
         manifestListsToDelete.add(snapshot.manifestListLocation());
@@ -150,8 +154,7 @@ public class CatalogUtil {
                 String type = reader.isDeleteManifestReader() ? "delete" : "data";
                 deleteFiles(io, pathsToDelete, type, false);
               } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to read manifest file: %s", manifest.path());
+                LOG.warn("Failed to read manifest file: {}", manifest.path(), e);
               }
             });
   }
