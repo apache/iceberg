@@ -33,7 +33,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.GenAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -41,16 +41,12 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Test {@link FlinkInputFormat}. */
-public class TestFlinkInputFormat extends TestFlinkSource {
-
-  public TestFlinkInputFormat(String fileFormat) {
-    super(fileFormat);
-  }
-
+public class TestFlinkInputFormat extends TestFlinkSrc {
   @Override
   protected List<Row> run(
       FlinkSource.Builder formatBuilder,
@@ -61,8 +57,9 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     return runFormat(formatBuilder.tableLoader(tableLoader()).buildFormat());
   }
 
-  @Test
-  public void testNestedProjection() throws Exception {
+  @ParameterizedTest(name = "format={0}")
+  @MethodSource("parameters")
+  public void testNestedProjection(FileFormat fileFormat) throws Exception {
     Schema schema =
         new Schema(
             required(1, "data", Types.StringType.get()),
@@ -78,7 +75,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     Table table = catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+    new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
 
     // Schema: [data, nested[f1, f2, f3], id]
     // Projection: [nested.f2, data]
@@ -106,8 +103,9 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     TestHelpers.assertRows(result, expected);
   }
 
-  @Test
-  public void testBasicProjection() throws IOException {
+  @ParameterizedTest(name = "format={0}")
+  @MethodSource("parameters")
+  public void testBasicProjection(FileFormat fileFormat) throws IOException {
     Schema writeSchema =
         new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -118,7 +116,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+    new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
 
     TableSchema projectedSchema =
         TableSchema.builder()
@@ -140,9 +138,10 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     TestHelpers.assertRows(result, expected);
   }
 
-  @Test
-  public void testReadPartitionColumn() throws Exception {
-    Assume.assumeTrue("Temporary skip ORC", FileFormat.ORC != fileFormat);
+  @ParameterizedTest(name = "format={0}")
+  @MethodSource("parameters")
+  public void testReadPartitionColumn(FileFormat fileFormat) throws Exception {
+    Assumptions.assumeTrue(FileFormat.ORC != fileFormat, "Temporary skip ORC");
 
     Schema nestedSchema =
         new Schema(
@@ -159,7 +158,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     Table table =
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    GenAppenderHelper appender = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
     for (Record record : records) {
       org.apache.iceberg.TestHelpers.Row partition =
           org.apache.iceberg.TestHelpers.Row.of(record.get(1, Record.class).get(1));
