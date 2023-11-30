@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -45,6 +47,9 @@ import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.utils.Parameter;
+import org.apache.iceberg.utils.ParameterizedTestExtension;
+import org.apache.iceberg.utils.Parameters;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
@@ -55,7 +60,8 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
@@ -81,11 +87,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * At time of development there's no out of the box way to implement a Parameterized BeforeEach in Junit5. 
- * This abstract test class has been created as a workaround to test TestDictionaryRowGroupFilter with different parquet writer versions. 
- */
-public abstract class TestDictionaryRowGroupFilter {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestDictionaryRowGroupFilter {
 
   private static final Types.StructType structFieldType =
       Types.StructType.of(Types.NestedField.required(9, "int_field", IntegerType.get()));
@@ -153,14 +156,18 @@ public abstract class TestDictionaryRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
   private DictionaryPageReadStore dictionaryStore = null;
-  private final WriterVersion writerVersion;
+  @Parameter
+  private WriterVersion writerVersion;
 
+  @Parameters(name = "writerVersion={0}")
+  public static Collection<WriterVersion> parameters() {
+    return Arrays.asList(
+            WriterVersion.PARQUET_1_0,
+            WriterVersion.PARQUET_2_0);
+  }
+  
   @TempDir
   public Path temp;
-
-  public TestDictionaryRowGroupFilter(WriterVersion writerVersion) {
-    this.writerVersion = writerVersion;
-  }
 
   @BeforeEach
   public void createInputFile() throws IOException {
@@ -216,7 +223,7 @@ public abstract class TestDictionaryRowGroupFilter {
     dictionaryStore = reader.getNextDictionaryReader();
   }
 
-  @Test
+  @TestTemplate
   public void testAssumptions() {
     // this case validates that other cases don't need to test expressions with null literals.
     TestHelpers.assertThrows(
@@ -261,7 +268,7 @@ public abstract class TestDictionaryRowGroupFilter {
         () -> notStartsWith("col", null));
   }
 
-  @Test
+  @TestTemplate
   public void testAllNulls() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("all_nulls"))
@@ -284,7 +291,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testNoNulls() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("all_nulls"))
@@ -307,7 +314,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: dictionary filter doesn't help").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testRequiredColumn() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("required"))
@@ -320,7 +327,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: required columns are always non-null").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testIsNaNs() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("all_nans"))
@@ -338,7 +345,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: no_nans column will not contain NaN").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testNotNaNs() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("all_nans"))
@@ -356,7 +363,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: no_nans column will contain non-NaN").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testNotNaNOnNaNsAndNulls() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("_nans_and_nulls"))
@@ -387,7 +394,7 @@ public abstract class TestDictionaryRowGroupFilter {
         .isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStartsWith() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("non_dict", "re"))
@@ -431,7 +438,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testNotStartsWith() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("non_dict", "re"))
@@ -480,7 +487,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testMissingColumn() {
     TestHelpers.assertThrows(
         "Should complain about missing column in expression",
@@ -491,7 +498,7 @@ public abstract class TestDictionaryRowGroupFilter {
                 .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore));
   }
 
-  @Test
+  @TestTemplate
   public void testColumnNotInFile() {
     Expression[] exprs =
         new Expression[] {
@@ -509,7 +516,7 @@ public abstract class TestDictionaryRowGroupFilter {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testColumnFallbackOrNotDictionaryEncoded() {
     Expression[] exprs =
         new Expression[] {
@@ -526,7 +533,7 @@ public abstract class TestDictionaryRowGroupFilter {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMissingStats() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("no_stats", "a"))
@@ -534,7 +541,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: stats are missing but dictionary is present").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
@@ -548,7 +555,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: not(true)").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testAnd() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
@@ -577,7 +584,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: and(true, true)").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testOr() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
@@ -597,7 +604,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: or(false, true)").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerLt() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE - 25))
@@ -622,7 +629,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerLtEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 25))
@@ -645,7 +652,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerGt() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE + 6))
@@ -670,7 +677,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerGtEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 6))
@@ -693,7 +700,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE - 25))
@@ -731,7 +738,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE - 25))
@@ -769,7 +776,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotEqRewritten() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE - 25)))
@@ -807,7 +814,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStringNotEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
@@ -820,7 +827,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: contains only ''").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldLt() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -849,7 +856,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldLtEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -876,7 +883,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldGt() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -905,7 +912,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldGtEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -932,7 +939,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -977,7 +984,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldNotEq() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1021,7 +1028,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testCaseInsensitive() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("no_Nulls", ""), false)
@@ -1029,7 +1036,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should skip: contains only ''").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testMissingDictionaryPageForColumn() {
     TestHelpers.assertThrows(
         "Should complain about missing dictionary",
@@ -1040,7 +1047,7 @@ public abstract class TestDictionaryRowGroupFilter {
                 .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null));
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerIn() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1140,7 +1147,7 @@ public abstract class TestDictionaryRowGroupFilter {
         .isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotIn() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
@@ -1243,7 +1250,7 @@ public abstract class TestDictionaryRowGroupFilter {
         .isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testTypePromotion() {
     Schema promotedSchema = new Schema(required(1, "id", LongType.get()));
     boolean shouldRead =
@@ -1252,7 +1259,7 @@ public abstract class TestDictionaryRowGroupFilter {
     assertThat(shouldRead).as("Should succeed with promoted schema").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testFixedLenByteArray() {
     // This test is to validate the handling of FIXED_LEN_BYTE_ARRAY Parquet type being dictionary
     // encoded.
@@ -1277,7 +1284,7 @@ public abstract class TestDictionaryRowGroupFilter {
         .isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testTransformFilter() {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"))

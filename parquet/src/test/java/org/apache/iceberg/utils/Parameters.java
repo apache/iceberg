@@ -16,18 +16,22 @@
  *  * KIND, either express or implied.  See the License for the
  *  * specific language governing permissions and limitations
  *  * under the License.
- *
+ *  
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.utils;
 
-import org.apache.parquet.column.ParquetProperties;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * TestDictionaryRowGroupFilter with PARQUET_2 writer version
+ * The annotation is used to replace Parameterized.Parameters(Junit4) for Junit 5 parameterized
+ * tests.
  */
-public class TestDictionaryRowGroupFilterParquet2 extends TestDictionaryRowGroupFilter {
-    public TestDictionaryRowGroupFilterParquet2() {
-        super(ParquetProperties.WriterVersion.PARQUET_2_0);
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Parameters {
+    String name() default "{index}";
 }
