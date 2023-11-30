@@ -18,11 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.Map;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
@@ -30,11 +26,11 @@ import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class TestAggregatedStatisticsTracker {
   private static final int NUM_SUBTASKS = 2;
-  private final RowType rowType = RowType.of(new VarCharType());
-  // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
-  // deserializes bytes into BinaryRowData
+
   private final Schema schema =
       new Schema(Types.NestedField.optional(1, "str", Types.StringType.get()));
   private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("str").build();

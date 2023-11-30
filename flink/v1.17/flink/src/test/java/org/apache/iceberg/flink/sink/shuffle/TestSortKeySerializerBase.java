@@ -36,7 +36,7 @@ public abstract class TestSortKeySerializerBase extends SerializerTestBase<SortK
   protected abstract GenericRowData rowData();
 
   @Override
-  protected TypeSerializer createSerializer() {
+  protected TypeSerializer<SortKey> createSerializer() {
     return new SortKeySerializer(schema(), sortOrder());
   }
 

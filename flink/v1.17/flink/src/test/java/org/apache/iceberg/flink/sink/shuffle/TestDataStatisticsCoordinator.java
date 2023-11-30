@@ -18,21 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
@@ -41,6 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestDataStatisticsCoordinator {
   private static final String OPERATOR_NAME = "TestCoordinator";
@@ -97,16 +91,6 @@ public class TestDataStatisticsCoordinator {
   public void testDataStatisticsEventHandling() throws Exception {
     tasksReady();
     SortKey key = sortKey.copy();
-
-    // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
-    // deserializes bytes into BinaryRowData
-    RowType rowType = RowType.of(new VarCharType());
-    BinaryRowData binaryRowDataA =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
-    BinaryRowData binaryRowDataB =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
-    BinaryRowData binaryRowDataC =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("c")));
 
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
     key.set(0, "a");

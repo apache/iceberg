@@ -170,11 +170,11 @@ public class TestDataStatisticsOperator {
       SortKey key = sortKey.copy();
       key.set(0, "a");
       mapDataStatistics.add(key);
-      key.set(0, new String("a"));
+      key.set(0, "a");
       mapDataStatistics.add(key);
-      key.set(0, new String("b"));
+      key.set(0, "b");
       mapDataStatistics.add(key);
-      key.set(0, new String("c"));
+      key.set(0, "c");
       mapDataStatistics.add(key);
 
       SortKey key1 = sortKey.copy();
@@ -207,9 +207,7 @@ public class TestDataStatisticsOperator {
 
       // restored RowData is BinaryRowData. convert to GenericRowData for comparison
       Map<SortKey, Long> restoredStatistics = Maps.newHashMap();
-      (restoredOperator.globalDataStatistics())
-          .statistics()
-          .forEach((key, count) -> restoredStatistics.put(key, count));
+      restoredStatistics.putAll(restoredOperator.globalDataStatistics().statistics());
 
       SortKey key1 = sortKey.copy();
       key1.set(0, "a");
@@ -243,7 +241,7 @@ public class TestDataStatisticsOperator {
     OneInputStreamOperatorTestHarness<
             RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
         harness = new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
-    harness.setup(new DataStatisticsOrRecordSerializer(statisticsSerializer, rowSerializer));
+    harness.setup(new DataStatisticsOrRecordSerializer<>(statisticsSerializer, rowSerializer));
     harness.open();
     return harness;
   }

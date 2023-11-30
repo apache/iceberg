@@ -70,65 +70,66 @@ public class TestDataStatisticsCoordinatorProvider {
     SortKey keyE = sortKey.copy();
     keyE.set(0, "c");
 
-    RecreateOnResetOperatorCoordinator coordinator =
+    try (RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
-            provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS));
-    DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> dataStatisticsCoordinator =
-        (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
-            coordinator.getInternalCoordinator();
+            provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS))) {
+      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> dataStatisticsCoordinator =
+          (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
+              coordinator.getInternalCoordinator();
 
-    // Start the coordinator
-    coordinator.start();
-    TestDataStatisticsCoordinator.setAllTasksReady(
-        NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
-    MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(keyA);
-    checkpoint1Subtask0DataStatistic.add(keyB);
-    checkpoint1Subtask0DataStatistic.add(keyC);
-    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
-        checkpoint1Subtask0DataStatisticEvent =
-            DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
+      // Start the coordinator
+      coordinator.start();
+      TestDataStatisticsCoordinator.setAllTasksReady(
+          NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
+      MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
+      checkpoint1Subtask0DataStatistic.add(keyA);
+      checkpoint1Subtask0DataStatistic.add(keyB);
+      checkpoint1Subtask0DataStatistic.add(keyC);
+      DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
+          checkpoint1Subtask0DataStatisticEvent =
+          DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
 
-    // Handle events from operators for checkpoint 1
-    coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
-    TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
-    // Verify checkpoint 1 global data statistics
-    MapDataStatistics checkpoint1GlobalDataStatistics =
-        (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-    assertThat(checkpoint1GlobalDataStatistics.statistics())
-        .isEqualTo(checkpoint1Subtask0DataStatistic.statistics());
-    byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
+      // Handle events from operators for checkpoint 1
+      coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
+      TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+      // Verify checkpoint 1 global data statistics
+      MapDataStatistics checkpoint1GlobalDataStatistics =
+          (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
+      assertThat(checkpoint1GlobalDataStatistics.statistics())
+          .isEqualTo(checkpoint1Subtask0DataStatistic.statistics());
+      byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
-    MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask0DataStatistic.add(keyD);
-    checkpoint2Subtask0DataStatistic.add(keyE);
-    checkpoint2Subtask0DataStatistic.add(keyE);
-    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
-        checkpoint2Subtask0DataStatisticEvent =
-            DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
-    // Handle events from operators for checkpoint 2
-    coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
-    TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
-    // Verify checkpoint 2 global data statistics
-    MapDataStatistics checkpoint2GlobalDataStatistics =
-        (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-    assertThat(checkpoint2GlobalDataStatistics.statistics())
-        .isEqualTo(checkpoint2Subtask0DataStatistic.statistics());
-    waitForCheckpoint(2L, dataStatisticsCoordinator);
+      MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
+      checkpoint2Subtask0DataStatistic.add(keyD);
+      checkpoint2Subtask0DataStatistic.add(keyE);
+      checkpoint2Subtask0DataStatistic.add(keyE);
+      DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
+          checkpoint2Subtask0DataStatisticEvent =
+          DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
+      // Handle events from operators for checkpoint 2
+      coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
+      TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+      // Verify checkpoint 2 global data statistics
+      MapDataStatistics checkpoint2GlobalDataStatistics =
+          (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
+      assertThat(checkpoint2GlobalDataStatistics.statistics())
+          .isEqualTo(checkpoint2Subtask0DataStatistic.statistics());
+      waitForCheckpoint(2L, dataStatisticsCoordinator);
 
-    // Reset coordinator to checkpoint 1
-    coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
-    DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
-        restoredDataStatisticsCoordinator =
-            (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
-                coordinator.getInternalCoordinator();
-    assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
-    // Verify restored data statistics
-    MapDataStatistics restoredAggregateDataStatistics =
-        (MapDataStatistics)
-            restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
-    assertThat(restoredAggregateDataStatistics.statistics())
-        .isEqualTo(checkpoint1GlobalDataStatistics.statistics());
+      // Reset coordinator to checkpoint 1
+      coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
+      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
+          restoredDataStatisticsCoordinator =
+          (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
+              coordinator.getInternalCoordinator();
+      assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
+      // Verify restored data statistics
+      MapDataStatistics restoredAggregateDataStatistics =
+          (MapDataStatistics)
+              restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
+      assertThat(restoredAggregateDataStatistics.statistics())
+          .isEqualTo(checkpoint1GlobalDataStatistics.statistics());
+    }
   }
 
   private byte[] waitForCheckpoint(
