@@ -23,18 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortKey;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -42,16 +38,18 @@ public class TestDataStatisticsCoordinatorProvider {
   private static final OperatorID OPERATOR_ID = new OperatorID();
   private static final int NUM_SUBTASKS = 1;
 
-  private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<RowData, Long>> provider;
+  private final Schema schema =
+      new Schema(Types.NestedField.optional(1, "str", Types.StringType.get()));
+  private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("str").build();
+  private final SortKey sortKey = new SortKey(schema, sortOrder);
+  private final MapDataStatisticsSerializer statisticsSerializer =
+      MapDataStatisticsSerializer.fromSortKeySerializer(new SortKeySerializer(schema, sortOrder));
+
+  private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<SortKey, Long>> provider;
   private EventReceivingTasks receivingTasks;
-  private TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
-      statisticsSerializer;
 
   @Before
   public void before() {
-    statisticsSerializer =
-        MapDataStatisticsSerializer.fromKeySerializer(
-            new RowDataSerializer(RowType.of(new VarCharType())));
     provider =
         new DataStatisticsCoordinatorProvider<>(
             "DataStatisticsCoordinatorProvider", OPERATOR_ID, statisticsSerializer);
@@ -61,25 +59,22 @@ public class TestDataStatisticsCoordinatorProvider {
   @Test
   @SuppressWarnings("unchecked")
   public void testCheckpointAndReset() throws Exception {
-    RowType rowType = RowType.of(new VarCharType());
-    // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
-    // deserializes bytes into BinaryRowData
-    BinaryRowData binaryRowDataA =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
-    BinaryRowData binaryRowDataB =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
-    BinaryRowData binaryRowDataC =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("c")));
-    BinaryRowData binaryRowDataD =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("d")));
-    BinaryRowData binaryRowDataE =
-        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("e")));
+    SortKey keyA = sortKey.copy();
+    keyA.set(0, "a");
+    SortKey keyB = sortKey.copy();
+    keyB.set(0, "b");
+    SortKey keyC = sortKey.copy();
+    keyC.set(0, "c");
+    SortKey keyD = sortKey.copy();
+    keyD.set(0, "c");
+    SortKey keyE = sortKey.copy();
+    keyE.set(0, "c");
 
     RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
             provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS));
-    DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> dataStatisticsCoordinator =
-        (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
+    DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> dataStatisticsCoordinator =
+        (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
             coordinator.getInternalCoordinator();
 
     // Start the coordinator
@@ -87,10 +82,10 @@ public class TestDataStatisticsCoordinatorProvider {
     TestDataStatisticsCoordinator.setAllTasksReady(
         NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataA);
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint1Subtask0DataStatistic.add(keyA);
+    checkpoint1Subtask0DataStatistic.add(keyB);
+    checkpoint1Subtask0DataStatistic.add(keyC);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
 
@@ -105,10 +100,10 @@ public class TestDataStatisticsCoordinatorProvider {
     byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataD);
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataE);
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataE);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint2Subtask0DataStatistic.add(keyD);
+    checkpoint2Subtask0DataStatistic.add(keyE);
+    checkpoint2Subtask0DataStatistic.add(keyE);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     // Handle events from operators for checkpoint 2
@@ -123,9 +118,9 @@ public class TestDataStatisticsCoordinatorProvider {
 
     // Reset coordinator to checkpoint 1
     coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
-    DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>
+    DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
         restoredDataStatisticsCoordinator =
-            (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
+            (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
                 coordinator.getInternalCoordinator();
     assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
     // Verify restored data statistics
@@ -138,7 +133,7 @@ public class TestDataStatisticsCoordinatorProvider {
 
   private byte[] waitForCheckpoint(
       long checkpointId,
-      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> coordinator)
+      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> coordinator)
       throws InterruptedException, ExecutionException {
     CompletableFuture<byte[]> future = new CompletableFuture<>();
     coordinator.checkpointCoordinator(checkpointId, future);
