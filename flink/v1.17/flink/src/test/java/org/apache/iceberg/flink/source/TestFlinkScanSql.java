@@ -25,18 +25,14 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 
 /** Test Flink SELECT SQLs. */
 public class TestFlinkScanSql extends TestFlinkSource {
 
   private volatile TableEnvironment tEnv;
 
-  public TestFlinkScanSql(String fileFormat) {
-    super(fileFormat);
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     SqlHelpers.sql(
         getTableEnv(),

@@ -29,16 +29,12 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 
 public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
   private volatile TableEnvironment tEnv;
 
-  public TestIcebergSourceBoundedSql(String fileFormat) {
-    super(fileFormat);
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     Configuration tableConf = getTableEnv().getConfig().getConfiguration();
     tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);

@@ -31,10 +31,9 @@ import org.junit.Assert;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 
 public class HadoopCatResource implements BeforeEachCallback, AfterEachCallback {
-  protected final @TempDir Path temporaryFolder;
+  protected final Path temporaryFolder;
   protected final String database;
   protected final String tableName;
 
@@ -43,7 +42,7 @@ public class HadoopCatResource implements BeforeEachCallback, AfterEachCallback 
   protected String warehouse;
   protected TableLoader tableLoader;
 
-  public HadoopCatResource(@TempDir Path temporaryFolder, String database, String tableName) {
+  public HadoopCatResource(Path temporaryFolder, String database, String tableName) {
     this.temporaryFolder = temporaryFolder;
     this.database = database;
     this.tableName = tableName;

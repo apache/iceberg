@@ -31,11 +31,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class TestFlinkSource extends TestFlinkScan {
-
-  TestFlinkSource(String fileFormat) {
-    super(fileFormat);
-  }
-
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
     TableSchema.Builder builder = TableSchema.builder();

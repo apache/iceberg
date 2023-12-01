@@ -46,7 +46,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /** Test {@link FlinkInputFormat}. */
-public class TestFlinkInputFormat extends TestFlinkSrc {
+public class TestFlinkInputFormat extends TestFlinkSource {
   @Override
   protected List<Row> run(
       FlinkSource.Builder formatBuilder,

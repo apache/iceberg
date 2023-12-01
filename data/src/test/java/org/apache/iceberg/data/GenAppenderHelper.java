@@ -34,7 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.io.TempDir;
 
 /** Helper for appending {@link DataFile} to a table or appending {@link Record}s to a table. */
 public class GenAppenderHelper {
@@ -46,18 +45,17 @@ public class GenAppenderHelper {
 
   private final Table table;
   private final FileFormat fileFormat;
-  private final @TempDir Path tmp;
+  private final Path tmp;
   private final Configuration conf;
 
-  public GenAppenderHelper(
-      Table table, FileFormat fileFormat, @TempDir Path tmp, Configuration conf) {
+  public GenAppenderHelper(Table table, FileFormat fileFormat, Path tmp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
     this.tmp = tmp;
     this.conf = conf;
   }
 
-  public GenAppenderHelper(Table table, FileFormat fileFormat, @TempDir Path tmp) {
+  public GenAppenderHelper(Table table, FileFormat fileFormat, Path tmp) {
     this(table, fileFormat, tmp, null);
   }
 
