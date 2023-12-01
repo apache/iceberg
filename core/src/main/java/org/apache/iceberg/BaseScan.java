@@ -107,7 +107,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return schema;
   }
 
-  protected TableScanContext context() {
+  public TableScanContext context() {
     return context;
   }
 
