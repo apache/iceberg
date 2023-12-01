@@ -2873,7 +2873,7 @@ components:
         403 response. Implementations must not return altered success (200)
         responses when a request is unauthenticated or unauthorized.
 
-        If a separate authorization server is used, subtitute the tokenUrl with 
+        If a separate authorization server is used, substitute the tokenUrl with 
         the full token path of the external authorization server, and use the 
         resulting token to access the resources defined in the spec.
       flows:
