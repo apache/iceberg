@@ -24,6 +24,7 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.hour;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.month;
@@ -40,6 +41,8 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.PlanUtils;
@@ -213,15 +216,72 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     String query =
         String.format(
             "SELECT * FROM %s WHERE system.bucket(5, id) <= %s ORDER BY id", tableName, target);
+    checkQueryExecution(query, partitioned, lessThanOrEqual(bucket("id", 5), target));
+  }
 
+  @Test
+  public void testBucketLongFunctionInClauseOnUnpartitionedTable() {
+    createUnpartitionedTable(spark, tableName);
+    testBucketLongFunctionInClause(false);
+  }
+
+  @Test
+  public void testBucketLongFunctionInClauseOnPartitionedTable() {
+    createPartitionedTable(spark, tableName, "bucket(5, id)");
+    testBucketLongFunctionInClause(true);
+  }
+
+  private void testBucketLongFunctionInClause(boolean partitioned) {
+    List<Integer> inValues = IntStream.range(0, 3).boxed().collect(Collectors.toList());
+    String inValuesAsSql =
+        inValues.stream().map(x -> Integer.toString(x)).collect(Collectors.joining(", "));
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE system.bucket(5, id) IN (%s) ORDER BY id",
+            tableName, inValuesAsSql);
+
+    checkQueryExecution(query, partitioned, in(bucket("id", 5), inValues.toArray()));
+  }
+
+  private void checkQueryExecution(
+      String query, boolean partitioned, org.apache.iceberg.expressions.Expression expression) {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
     checkExpressions(optimizedPlan, partitioned, "bucket");
-    checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
+    checkPushedFilters(optimizedPlan, expression);
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
     Assertions.assertThat(actual.size()).isEqualTo(5);
+  }
+
+  @Test
+  public void testBucketLongFunctionIsNotReplacedWhenArgumentsAreNotLiteralsOnPartitionedTable() {
+    createPartitionedTable(spark, tableName, "bucket(5, id)");
+    testBucketLongFunctionIsNotReplacedWhenArgumentsAreNotLiterals();
+  }
+
+  @Test
+  public void testBucketLongFunctionIsNotReplacedWhenArgumentsAreNotLiteralsOnUnpartitionedTable() {
+    createUnpartitionedTable(spark, tableName);
+    testBucketLongFunctionIsNotReplacedWhenArgumentsAreNotLiterals();
+  }
+
+  private void testBucketLongFunctionIsNotReplacedWhenArgumentsAreNotLiterals() {
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE system.bucket(5, id) IN (system.bucket(5, id), 1) ORDER BY id",
+            tableName);
+
+    Dataset<Row> df = spark.sql(query);
+    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+
+    checkExpressionsNotReplaced(
+        optimizedPlan, "org.apache.iceberg.spark.functions.BucketFunction$BucketLong", 2);
+    checkNotPushedFilters(optimizedPlan);
+
+    List<Object[]> actual = rowsToJava(df.collectAsList());
+    Assertions.assertThat(actual.size()).isEqualTo(10);
   }
 
   @Test
@@ -310,5 +370,26 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true))
         .as("Pushed filter should match")
         .isTrue();
+  }
+
+  private void checkExpressionsNotReplaced(
+      LogicalPlan optimizedPlan, String expectedFunctionName, int expectedFunctionCount) {
+    List<StaticInvoke> staticInvokes =
+        PlanUtils.collectSparkExpressions(
+                optimizedPlan, expression -> expression instanceof StaticInvoke)
+            .stream()
+            .map(x -> (StaticInvoke) x)
+            .collect(Collectors.toList());
+
+    Assertions.assertThat(staticInvokes.size()).isEqualTo(expectedFunctionCount);
+    Assertions.assertThat(staticInvokes)
+        .allSatisfy(
+            e -> Assertions.assertThat(e.staticObject().getName()).isEqualTo(expectedFunctionName));
+  }
+
+  private void checkNotPushedFilters(LogicalPlan optimizedPlan) {
+    List<org.apache.iceberg.expressions.Expression> pushedFilters =
+        PlanUtils.collectPushDownFilters(optimizedPlan);
+    Assertions.assertThat(pushedFilters.size()).isEqualTo(0);
   }
 }
