@@ -120,9 +120,11 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     Preconditions.checkNotNull(to, "Destination ref cannot be null");
     SnapshotRef branchToUpdate = updatedRefs.get(from);
     SnapshotRef toRef = updatedRefs.get(to);
-    Preconditions.checkArgument(
-        branchToUpdate != null, "Branch to update does not exist: %s", from);
     Preconditions.checkArgument(toRef != null, "Ref does not exist: %s", to);
+    if (branchToUpdate == null) {
+      return createBranch(from, toRef.snapshotId());
+    }
+
     Preconditions.checkArgument(branchToUpdate.isBranch(), "Ref %s is a tag not a branch", from);
 
     // Nothing to replace

@@ -164,7 +164,8 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 
   /**
    * Replaces the {@code from} branch to point to the {@code to} snapshot. The {@code to} will
-   * remain unchanged, and {@code from} branch will retain its retention properties.
+   * remain unchanged, and {@code from} branch will retain its retention properties. If the {@code
+   * from} branch does not exist, it will be created with default retention properties.
    *
    * @param from Branch to replace
    * @param to The branch {@code from} should be replaced with
@@ -175,7 +176,8 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   /**
    * Performs a fast-forward of {@code from} up to the {@code to} snapshot if {@code from} is an
    * ancestor of {@code to}. The {@code to} will remain unchanged, and {@code from} will retain its
-   * retention properties.
+   * retention properties. If the {@code from} branch does not exist, it will be created with
+   * default retention properties.
    *
    * @param from Branch to fast-forward
    * @param to Ref for the {@code from} branch to be fast forwarded to
