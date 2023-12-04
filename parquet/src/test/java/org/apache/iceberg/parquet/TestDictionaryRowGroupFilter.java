@@ -166,8 +166,7 @@ public class TestDictionaryRowGroupFilter {
             WriterVersion.PARQUET_2_0);
   }
   
-  @TempDir
-  public Path temp;
+  @TempDir private Path temp;
 
   @BeforeEach
   public void createInputFile() throws IOException {
