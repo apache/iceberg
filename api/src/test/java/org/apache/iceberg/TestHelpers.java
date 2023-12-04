@@ -187,12 +187,12 @@ public class TestHelpers {
    * @param callable A Callable that is expected to throw the exception
    */
   public static void assertThrows(
-          String message,
-          Class<? extends Exception> expected,
-          String containedInMessage,
-          Callable callable) {
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Callable callable) {
     AbstractThrowableAssert<?, ? extends Throwable> check =
-            assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
+        assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }
@@ -207,12 +207,12 @@ public class TestHelpers {
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
   public static void assertThrows(
-          String message,
-          Class<? extends Exception> expected,
-          String containedInMessage,
-          Runnable runnable) {
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Runnable runnable) {
     AbstractThrowableAssert<?, ? extends Throwable> check =
-            assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
+        assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }
@@ -226,10 +226,10 @@ public class TestHelpers {
    */
   public static void assertEmptyAvroField(GenericRecord record, String field) {
     TestHelpers.assertThrows(
-            "Not a valid schema field: " + field,
-            AvroRuntimeException.class,
-            "Not a valid schema field: " + field,
-            () -> record.get(field));
+        "Not a valid schema field: " + field,
+        AvroRuntimeException.class,
+        "Not a valid schema field: " + field,
+        () -> record.get(field));
   }
 
   /**
