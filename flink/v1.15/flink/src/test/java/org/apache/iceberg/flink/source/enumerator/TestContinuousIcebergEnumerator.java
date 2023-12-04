@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -173,7 +172,7 @@ public class TestContinuousIcebergEnumerator {
     enumerator.handleSourceEvent(2, new SplitRequestEvent());
 
     // add splits[0] to the planner for next discovery
-    splitPlanner.addSplits(Arrays.asList(splits.get(0)));
+    splitPlanner.addSplits(Collections.singletonList(splits.get(0)));
     enumeratorContext.triggerAllActions();
 
     // because discovered split was assigned to reader, pending splits should be empty
@@ -185,7 +184,7 @@ public class TestContinuousIcebergEnumerator {
     // add the remaining 9 splits (one for every snapshot)
     // run discovery cycles while reader-2 still processing the splits[0]
     for (int i = 1; i < 10; ++i) {
-      splitPlanner.addSplits(Arrays.asList(splits.get(i)));
+      splitPlanner.addSplits(Collections.singletonList(splits.get(i)));
       enumeratorContext.triggerAllActions();
     }
 
@@ -196,7 +195,7 @@ public class TestContinuousIcebergEnumerator {
         splits.subList(0, 1), enumeratorContext.getSplitAssignments().get(2).getAssignedSplits());
 
     // now reader-2 finished splits[0]
-    enumerator.handleSourceEvent(2, new SplitRequestEvent(Arrays.asList(splits.get(0).splitId())));
+    enumerator.handleSourceEvent(2, new SplitRequestEvent(Collections.singletonList(splits.get(0).splitId())));
     enumeratorContext.triggerAllActions();
     // still have 3 pending splits. After assigned splits[1] to reader-2, one more split was
     // discovered and added.
@@ -217,7 +216,7 @@ public class TestContinuousIcebergEnumerator {
         splits.subList(0, 2), enumeratorContext.getSplitAssignments().get(2).getAssignedSplits());
 
     // now reader-2 finished splits[1]
-    enumerator.handleSourceEvent(2, new SplitRequestEvent(Arrays.asList(splits.get(1).splitId())));
+    enumerator.handleSourceEvent(2, new SplitRequestEvent(Collections.singletonList(splits.get(1).splitId())));
     enumeratorContext.triggerAllActions();
     // still have 3 pending splits. After assigned new splits[2] to reader-2, one more split was
     // discovered and added.
