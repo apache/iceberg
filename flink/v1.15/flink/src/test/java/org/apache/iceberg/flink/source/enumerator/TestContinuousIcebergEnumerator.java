@@ -195,7 +195,8 @@ public class TestContinuousIcebergEnumerator {
         splits.subList(0, 1), enumeratorContext.getSplitAssignments().get(2).getAssignedSplits());
 
     // now reader-2 finished splits[0]
-    enumerator.handleSourceEvent(2, new SplitRequestEvent(Collections.singletonList(splits.get(0).splitId())));
+    enumerator.handleSourceEvent(
+        2, new SplitRequestEvent(Collections.singletonList(splits.get(0).splitId())));
     enumeratorContext.triggerAllActions();
     // still have 3 pending splits. After assigned splits[1] to reader-2, one more split was
     // discovered and added.
@@ -216,7 +217,8 @@ public class TestContinuousIcebergEnumerator {
         splits.subList(0, 2), enumeratorContext.getSplitAssignments().get(2).getAssignedSplits());
 
     // now reader-2 finished splits[1]
-    enumerator.handleSourceEvent(2, new SplitRequestEvent(Collections.singletonList(splits.get(1).splitId())));
+    enumerator.handleSourceEvent(
+        2, new SplitRequestEvent(Collections.singletonList(splits.get(1).splitId())));
     enumeratorContext.triggerAllActions();
     // still have 3 pending splits. After assigned new splits[2] to reader-2, one more split was
     // discovered and added.

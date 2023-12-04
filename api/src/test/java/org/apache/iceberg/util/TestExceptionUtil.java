@@ -20,7 +20,6 @@ package org.apache.iceberg.util;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +51,7 @@ public class TestExceptionUtil {
                     CustomCheckedException.class))
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
-        .extracting(e -> Collections.singletonList(e.getSuppressed()))
+        .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asList()
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
@@ -81,7 +80,7 @@ public class TestExceptionUtil {
                     IOException.class))
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
-        .extracting(e -> Collections.singletonList(e.getSuppressed()))
+        .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asList()
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
@@ -111,7 +110,7 @@ public class TestExceptionUtil {
                     ClassNotFoundException.class))
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
-        .extracting(e -> Collections.singletonList(e.getSuppressed()))
+        .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asList()
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
