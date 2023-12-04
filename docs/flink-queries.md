@@ -294,17 +294,21 @@ If multiple smaller files with different time ranges are combined into a single 
 the out-of-orderliness and extra data buffering in the Flink state. The main purpose of watermark alignment
 is to reduce out-of-orderliness and excess data buffering in the Flink state. Hence it is recommended to
 set `read.split.open-file-cost` to a very large value to prevent combining multiple smaller files into a
-single split. Do not forget to consider the additional memory and CPU load caused by having multiple
-splits in this case.
+single split. The negative impact (of not combining small files into a single split) is on read throughput,
+especially if there are many small files. In typical stateful processing jobs, source read throughput is not
+the bottleneck. Hence this is probably a reasonable tradeoff.
 
-By default, the column metrics are collected for the first 100 columns of the table.
-Use [write properties](configuration.md#write-properties) starting with `write.metadata.metrics` when needed.
+This feature requires column-level min-max stats. Make sure stats are generated for the watermark column
+during write phase. By default, the column metrics are collected for the first 100 columns of the table.
+If watermark column doesn't have stats enabled by default, use
+[write properties](configuration.md#write-properties) starting with `write.metadata.metrics` when needed.
 
+The following example could be useful if watermarks are used for windowing. The source reads Iceberg data files
+in order, using a timestamp column and emits watermarks:
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 
-// Ordered data file reads with windowing, using a timestamp column
 DataStream<RowData> stream =
     env.fromSource(
         IcebergSource.forRowData()
@@ -318,8 +322,13 @@ DataStream<RowData> stream =
             .withTimestampAssigner((record, eventTime) -> record.getTimestamp(pos, precision).getMillisecond()),
         SOURCE_NAME,
         TypeInformation.of(RowData.class));
+```
 
-// Watermark alignment, using a long event time column
+Example for reading Iceberg table using a long event column for watermark alignment:
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+
 DataStream<RowData> stream =
     env.fromSource(
         IcebergSource source = IcebergSource.forRowData()
