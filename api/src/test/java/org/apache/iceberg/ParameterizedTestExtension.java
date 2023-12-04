@@ -16,11 +16,11 @@
  *  * KIND, either express or implied.  See the License for the
  *  * specific language governing permissions and limitations
  *  * under the License.
- *
+ *  
  */
 
-package org.apache.iceberg.utils;
-import com.google.common.base.Preconditions;
+package org.apache.iceberg;
+import org.assertj.core.util.Preconditions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.Extension;

@@ -19,9 +19,7 @@
  *  
  */
 
-package org.apache.iceberg.utils;
-
-import org.junit.runners.Parameterized;
+package org.apache.iceberg;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -29,11 +27,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * The annotation is used to replace {@link Parameterized.Parameter} for Junit 5 parameterized
+ * The annotation is used to replace Parameterized.Parameters(Junit4) for Junit 5 parameterized
  * tests.
  */
-@Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Parameter {
-    int value() default 0;
+@Target(ElementType.METHOD)
+public @interface Parameters {
+    String name() default "{index}";
 }
