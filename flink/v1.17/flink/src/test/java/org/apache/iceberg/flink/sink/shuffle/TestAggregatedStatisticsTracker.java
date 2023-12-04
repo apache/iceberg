@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
@@ -25,8 +27,6 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAggregatedStatisticsTracker {
   private static final int NUM_SUBTASKS = 2;

@@ -87,7 +87,7 @@ public class TestDataStatisticsCoordinatorProvider {
       checkpoint1Subtask0DataStatistic.add(keyC);
       DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
           checkpoint1Subtask0DataStatisticEvent =
-          DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
+              DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
 
       // Handle events from operators for checkpoint 1
       coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
@@ -105,7 +105,7 @@ public class TestDataStatisticsCoordinatorProvider {
       checkpoint2Subtask0DataStatistic.add(keyE);
       DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
           checkpoint2Subtask0DataStatisticEvent =
-          DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
+              DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
       // Handle events from operators for checkpoint 2
       coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
@@ -120,8 +120,8 @@ public class TestDataStatisticsCoordinatorProvider {
       coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
       DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
           restoredDataStatisticsCoordinator =
-          (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
-              coordinator.getInternalCoordinator();
+              (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
+                  coordinator.getInternalCoordinator();
       assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
       // Verify restored data statistics
       MapDataStatistics restoredAggregateDataStatistics =
