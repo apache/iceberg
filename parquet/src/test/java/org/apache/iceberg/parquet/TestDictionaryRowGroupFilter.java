@@ -58,7 +58,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,6 +85,8 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDictionaryRowGroupFilter {
@@ -1264,9 +1265,9 @@ public class TestDictionaryRowGroupFilter {
     // encoded.
     // (No need to validate all the possible predicates)
 
-    Assumptions.assumeTrue(getColumnForName(rowGroupMetadata, "_decimal_fixed")
-            .getEncodings()
-            .contains(Encoding.RLE_DICTIONARY), "decimal_fixed is not dictionary encoded in case of writer version " + writerVersion);
+    assumeThat(getColumnForName(rowGroupMetadata, "_decimal_fixed")
+            .getEncodings())
+            .contains(Encoding.RLE_DICTIONARY);
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO))
