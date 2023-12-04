@@ -20,6 +20,7 @@
  */
 
 package org.apache.iceberg.utils;
+import com.google.common.base.Preconditions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.Extension;
@@ -91,7 +92,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
         } catch (Exception e) {
             throw new IllegalStateException("Failed to invoke parameter provider", e);
         }
-        assert parameterValues != null;
+        Preconditions.checkState(parameterValues != null, "Parameter values cannot be null");
 
         // Parameter values could be Object[][]
         if (parameterValues instanceof Object[][]) {
