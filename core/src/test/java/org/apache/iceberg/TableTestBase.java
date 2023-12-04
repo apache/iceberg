@@ -212,6 +212,15 @@ public class TableTestBase {
                         && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
+  List<File> listManifestLists(String tableDirToList) {
+    return Lists.newArrayList(
+        new File(tableDirToList, "metadata")
+            .listFiles(
+                (dir, name) ->
+                    name.startsWith("snap")
+                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
   public static long countAllMetadataFiles(File tableDir) {
     return Arrays.stream(new File(tableDir, "metadata").listFiles())
         .filter(f -> f.isFile())

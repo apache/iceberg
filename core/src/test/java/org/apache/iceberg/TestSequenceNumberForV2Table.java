@@ -309,6 +309,8 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Should be 1 manifest list", 1, listManifestLists(table.location()).size());
 
     table.newAppend().appendFile(FILE_B).commit();
     Snapshot snap2 = table.currentSnapshot();
@@ -319,12 +321,18 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Should be 2 manifest lists", 2, listManifestLists(table.location()).size());
 
     Transaction txn = table.newTransaction();
     txn.expireSnapshots().expireSnapshotId(commitId1).commit();
     txn.commitTransaction();
     V2Assert.assertEquals(
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Should be 1 manifest list as 1 was deleted",
+        1,
+        listManifestLists(table.location()).size());
   }
 
   @Test

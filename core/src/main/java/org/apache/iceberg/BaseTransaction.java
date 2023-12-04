@@ -445,20 +445,16 @@ public class BaseTransaction implements Transaction {
       }
 
       Set<String> committedFiles = committedFiles(ops, newSnapshots);
-      if (committedFiles != null) {
-        // delete all of the files that were deleted in the most recent set of operation commits
-        Tasks.foreach(deletedFiles)
-            .suppressFailureWhenFinished()
-            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-            .run(
-                path -> {
-                  if (!committedFiles.contains(path)) {
-                    ops.io().deleteFile(path);
-                  }
-                });
-      } else {
-        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
-      }
+      // delete all of the files that were deleted in the most recent set of operation commits
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(
+              path -> {
+                if (committedFiles == null || !committedFiles.contains(path)) {
+                  ops.io().deleteFile(path);
+                }
+              });
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
