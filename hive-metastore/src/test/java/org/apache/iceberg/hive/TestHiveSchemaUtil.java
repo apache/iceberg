@@ -148,7 +148,9 @@ public class TestHiveSchemaUtil {
   public void testNotSupportedTypes() {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
       assertThatThrownBy(
-              () -> HiveSchemaUtil.convert(Lists.newArrayList(Collections.singletonList(notSupportedField))))
+              () ->
+                  HiveSchemaUtil.convert(
+                      Lists.newArrayList(Collections.singletonList(notSupportedField))))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageStartingWith("Unsupported Hive type");
     }
