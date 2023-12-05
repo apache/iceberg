@@ -202,6 +202,9 @@ public class ErrorHandlers {
     public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 400:
+          if (IllegalArgumentException.class.getSimpleName().equals(error.type())) {
+            throw new IllegalArgumentException(error.message());
+          }
           throw new BadRequestException("Malformed request: %s", error.message());
         case 401:
           throw new NotAuthorizedException("Not authorized: %s", error.message());
