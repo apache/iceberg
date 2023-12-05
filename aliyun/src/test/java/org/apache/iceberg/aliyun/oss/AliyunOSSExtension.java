@@ -20,9 +20,9 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import java.util.UUID;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
  * API for test Aliyun Object Storage Service (OSS) which is either local mock http server or remote
@@ -30,7 +30,7 @@ import org.junit.runners.model.Statement;
  *
  * <p>This API includes start,stop OSS service, create OSS client, setup bucket and teardown bucket.
  */
-public interface AliyunOSSTestRule extends TestRule {
+public interface AliyunOSSExtension extends BeforeAllCallback, AfterAllCallback {
   UUID RANDOM_UUID = java.util.UUID.randomUUID();
 
   /** Returns a specific bucket name for testing purpose. */
@@ -39,18 +39,13 @@ public interface AliyunOSSTestRule extends TestRule {
   }
 
   @Override
-  default Statement apply(Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        start();
-        try {
-          base.evaluate();
-        } finally {
-          stop();
-        }
-      }
-    };
+  default void afterAll(ExtensionContext context) throws Exception {
+    stop();
+  }
+
+  @Override
+  default void beforeAll(ExtensionContext context) throws Exception {
+    start();
   }
 
   /**
