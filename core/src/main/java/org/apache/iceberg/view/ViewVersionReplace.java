@@ -55,7 +55,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
     return internalApply().currentVersion();
   }
 
-  private ViewMetadata internalApply() {
+  ViewMetadata internalApply() {
     Preconditions.checkState(
         !representations.isEmpty(), "Cannot replace view without specifying a query");
     Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
