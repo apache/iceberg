@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         jvm: [8, 11]
-        flink: ['1.15', '1.16', '1.17']
+        flink: ['1.16', '1.17', '1.18']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
