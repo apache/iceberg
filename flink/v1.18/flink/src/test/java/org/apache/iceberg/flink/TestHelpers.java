@@ -416,7 +416,7 @@ public class TestHelpers {
         Collection<?> expectedArrayData = (Collection<?>) expected;
         ArrayData actualArrayData;
         try {
-          actualArrayData = (ArrayData) actual;
+          actualArrayData = convertToArray(actual);
         } catch (ClassCastException e) {
           actualArrayData = new GenericArrayData((Object[]) actual);
         }
@@ -459,6 +459,29 @@ public class TestHelpers {
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
+    }
+  }
+
+  private static GenericArrayData convertToArray(Object actual) {
+    Class<?> arrayClass = actual.getClass();
+    if (Object[].class.equals(arrayClass)) {
+      return new GenericArrayData((Object[]) actual);
+    } else if (int[].class.equals(arrayClass)) {
+      return new GenericArrayData((int[]) actual);
+    } else if (long[].class.equals(arrayClass)) {
+      return new GenericArrayData((long[]) actual);
+    } else if (float[].class.equals(arrayClass)) {
+      return new GenericArrayData((float[]) actual);
+    } else if (double[].class.equals(arrayClass)) {
+      return new GenericArrayData((double[]) actual);
+    } else if (short[].class.equals(arrayClass)) {
+      return new GenericArrayData((short[]) actual);
+    } else if (byte[].class.equals(arrayClass)) {
+      return new GenericArrayData((byte[]) actual);
+    } else if (boolean[].class.equals(arrayClass)) {
+      return new GenericArrayData((boolean[]) actual);
+    } else {
+      throw new IllegalArgumentException("Unsupported type " + arrayClass);
     }
   }
 
