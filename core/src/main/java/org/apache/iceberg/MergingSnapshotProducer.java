@@ -895,7 +895,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         }
       }
 
-      this.cachedNewDataManifests = committedNewDataManifests;
+      this.cachedNewDataManifests = null;
     }
 
     ListIterator<ManifestFile> deleteManifestsIterator = cachedNewDeleteManifests.listIterator();

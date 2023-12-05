@@ -187,8 +187,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
           deleteFile(manifest.path());
         }
       }
-
-      this.newManifests = committedNewManifests;
+      this.newManifests = null;
     }
 
     // clean up only rewrittenAppendManifests as they are always owned by the table

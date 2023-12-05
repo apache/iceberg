@@ -538,6 +538,51 @@ public class TestRewriteFiles extends TableTestBase {
   }
 
   @Test
+  public void testRecoveryWithManuallyReCommitting() {
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    table.ops().failCommits(5);
+
+    RewriteFiles rewrite =
+        table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
+    Snapshot pending = apply(rewrite, branch);
+
+    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests(table.io()).size());
+    ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
+    ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
+
+    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
+    validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+
+    Assertions.assertThatThrownBy(() -> commit(table, rewrite, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    TableMetadata metadata = readMetadata();
+    Assert.assertFalse(
+        "Should not commit the manifest for append in the initial commit attempt",
+        latestSnapshot(metadata, branch).allManifests(table.io()).contains(manifest1));
+
+    pending = apply(rewrite, branch);
+
+    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests(table.io()).size());
+    manifest1 = pending.allManifests(table.io()).get(0);
+    manifest2 = pending.allManifests(table.io()).get(1);
+    commit(table, rewrite, branch);
+
+    metadata = readMetadata();
+    Assert.assertTrue(
+        "Should commit the manifest for append",
+        latestSnapshot(metadata, branch).allManifests(table.io()).contains(manifest1));
+    Assert.assertTrue(
+        "Should commit the manifest for delete",
+        latestSnapshot(metadata, branch).allManifests(table.io()).contains(manifest2));
+
+    // 2 manifests added by rewrite and 1 original manifest should be found.
+    Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+  }
+
+  @Test
   public void testRecoverWhenRewriteBothDataAndDeleteFiles() {
     Assume.assumeTrue(
         "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
