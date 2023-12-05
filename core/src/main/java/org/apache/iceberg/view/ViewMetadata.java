@@ -260,6 +260,11 @@ public interface ViewMetadata extends Serializable {
 
     private int addVersionInternal(ViewVersion newVersion) {
       int newVersionId = reuseOrCreateNewViewVersionId(newVersion);
+      ViewVersion version = newVersion;
+      if (newVersionId != version.versionId()) {
+        version = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      }
+
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
             changes(MetadataUpdate.AddViewVersion.class)
@@ -268,7 +273,6 @@ public interface ViewMetadata extends Serializable {
         return newVersionId;
       }
 
-      ViewVersion version = newVersion;
       if (newVersion.schemaId() == LAST_ADDED) {
         ValidationException.check(
             lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
@@ -290,10 +294,6 @@ public interface ViewMetadata extends Serializable {
               "Invalid view version: Cannot add multiple queries for dialect %s",
               sql.dialect());
         }
-      }
-
-      if (newVersionId != version.versionId()) {
-        version = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
       }
 
       versions.add(version);

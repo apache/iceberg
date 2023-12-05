@@ -158,4 +158,9 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   protected boolean requiresNamespaceCreate() {
     return true;
   }
+
+  @Override
+  protected boolean supportsServerSideRetry() {
+    return true;
+  }
 }
