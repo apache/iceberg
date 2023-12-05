@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Comparators;
@@ -270,7 +271,7 @@ public class TestContentFileParser {
         metrics,
         new int[] {3},
         1,
-        Arrays.asList(128L),
+        Collections.singletonList(128L),
         ByteBuffer.wrap(new byte[16]));
   }
 

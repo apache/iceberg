@@ -132,7 +132,7 @@ public class TestIcebergSourceReader {
         ReaderUtil.createCombinedScanTask(
             recordBatchList, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(task);
-    reader.addSplits(Arrays.asList(split));
+    reader.addSplits(Collections.singletonList(split));
 
     while (readerOutput.getEmittedRecords().size() < expectedCount) {
       reader.pollNext(readerOutput);

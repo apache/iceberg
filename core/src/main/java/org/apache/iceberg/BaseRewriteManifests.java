@@ -22,8 +22,8 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -247,7 +247,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                   rewrittenManifests.add(manifest);
                   try (ManifestReader<DataFile> reader =
                       ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
-                          .select(Arrays.asList("*"))) {
+                          .select(Collections.singletonList("*"))) {
                     reader
                         .liveEntries()
                         .forEach(
