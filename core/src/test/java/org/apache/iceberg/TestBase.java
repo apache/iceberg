@@ -399,9 +399,9 @@ public class TestBase {
           .isTrue();
     }
 
-    Assertions.assertThat(newManifests.size())
+    Assertions.assertThat(newManifests)
         .as("Should create 1 new manifest and reuse old manifests")
-        .isEqualTo(1);
+        .hasSize(1);
     ManifestFile manifest = newManifests.get(0);
 
     long id = snap.snapshotId();
@@ -542,9 +542,7 @@ public class TestBase {
       }
     }
 
-    Assertions.assertThat(expectedFiles.hasNext())
-        .as("Should find all files in the manifest")
-        .isFalse();
+    Assertions.assertThat(expectedFiles).as("Should find all files in the manifest").isExhausted();
   }
 
   void validateDeleteManifest(
@@ -572,9 +570,7 @@ public class TestBase {
           .isEqualTo(statuses.next());
     }
 
-    Assertions.assertThat(expectedFiles.hasNext())
-        .as("Should find all files in the manifest")
-        .isFalse();
+    Assertions.assertThat(expectedFiles).as("Should find all files in the manifest").isExhausted();
   }
 
   private <T extends ContentFile<T>> void validateManifestSequenceNumbers(
@@ -697,9 +693,7 @@ public class TestBase {
           .isEqualTo(expectedStatus);
     }
 
-    Assertions.assertThat(expectedFiles.hasNext())
-        .as("Should find all files in the manifest")
-        .isFalse();
+    Assertions.assertThat(expectedFiles).as("Should find all files in the manifest").isExhausted();
   }
 
   static Iterator<ManifestEntry.Status> statuses(ManifestEntry.Status... statuses) {
