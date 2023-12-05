@@ -40,6 +40,7 @@ import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.metrics.MetricNames;
@@ -92,7 +93,10 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
               .setNumberTaskManagers(1)
               .setNumberSlotsPerTaskManager(PARALLELISM)
               .setRpcServiceSharing(RpcServiceSharing.DEDICATED)
-              .setConfiguration(reporter.addToConfiguration(new Configuration()))
+              .setConfiguration(
+                  reporter.addToConfiguration(
+                      // disable classloader check as Avro may cache class in the serializers.
+                      new Configuration().set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false)))
               .withHaLeadershipControl()
               .build());
 
