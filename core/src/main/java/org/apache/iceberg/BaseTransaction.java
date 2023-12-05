@@ -44,6 +44,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -445,16 +446,20 @@ public class BaseTransaction implements Transaction {
       }
 
       Set<String> committedFiles = committedFiles(ops, newSnapshots);
-      // delete all of the files that were deleted in the most recent set of operation commits
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(
-              path -> {
-                if (committedFiles == null || !committedFiles.contains(path)) {
-                  ops.io().deleteFile(path);
-                }
-              });
+      if (committedFiles != null) {
+        // delete all of the files that were deleted in the most recent set of operation commits
+        Tasks.foreach(deletedFiles)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+            .run(
+                path -> {
+                  if (!committedFiles.contains(path)) {
+                    ops.io().deleteFile(path);
+                  }
+                });
+      } else {
+        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
+      }
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
@@ -501,9 +506,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  // committedFiles returns null whenever the set of committed files
+  // cannot be determined from the provided snapshots
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
-      return null;
+      return ImmutableSet.of();
     }
 
     Set<String> committedFiles = Sets.newHashSet();
