@@ -173,6 +173,10 @@ public class SparkTable
     return snapshotId;
   }
 
+  public String branch() {
+    return branch;
+  }
+
   public SparkTable copyWithSnapshotId(long newSnapshotId) {
     return new SparkTable(icebergTable, newSnapshotId, refreshEagerly);
   }

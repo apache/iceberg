@@ -422,6 +422,21 @@ public class TestSelect extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testInvalidTimeTravelAgainstBranchIdentifierWithAsOf() {
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    validationCatalog.loadTable(tableIdent).manageSnapshots().createBranch("b1").commit();
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // using branch_b1 in the table identifier and VERSION AS OF
+    Assertions.assertThatThrownBy(
+            () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+  }
+
+  @Test
   public void testSpecifySnapshotAndTimestamp() {
     // get the snapshot ID of the last write
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
