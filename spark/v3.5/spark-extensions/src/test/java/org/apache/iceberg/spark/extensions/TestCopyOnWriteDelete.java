@@ -117,9 +117,12 @@ public class TestCopyOnWriteDelete extends TestDelete {
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 final int finalNumOperations = numOperations;
-                Awaitility.await().pollInterval(Duration.ofMillis(10))
-                        .untilAsserted(() -> assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2));
-
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
@@ -138,7 +141,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 final int finalNumOperations = numOperations;
                 Awaitility.await()
-                    .atMost(Duration.ofSeconds(20))
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {

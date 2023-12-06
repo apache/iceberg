@@ -1127,9 +1127,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1154,9 +1158,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () -> {
+                          assertThat(shouldAppend.get()).isFalse();
+                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                        });
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1221,9 +1230,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1248,9 +1261,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () -> {
+                          assertThat(shouldAppend.get()).isFalse();
+                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                        });
 
                 if (!shouldAppend.get()) {
                   return;

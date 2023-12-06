@@ -160,6 +160,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
+    testImplementation libs.awaitility
     testImplementation libs.parquet.hadoop
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above

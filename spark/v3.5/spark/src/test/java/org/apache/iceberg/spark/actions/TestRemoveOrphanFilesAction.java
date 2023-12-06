@@ -804,7 +804,6 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .collect(Collectors.toList());
     Assert.assertEquals("Should be 1 invalid file", 1, invalidFiles.size());
 
-    // sleep for 1 second to ensure files will be old enough
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
