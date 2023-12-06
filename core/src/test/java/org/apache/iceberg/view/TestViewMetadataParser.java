@@ -107,7 +107,8 @@ public class TestViewMetadataParser {
             .addVersion(version1)
             .addVersion(version2)
             .setLocation("s3://bucket/test/location")
-            .setProperties(ImmutableMap.of("some-key", "some-value"))
+            .setProperties(
+                ImmutableMap.of("some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
             .setCurrentVersionId(2)
             .upgradeFormatVersion(1)
             .build();
@@ -218,7 +219,9 @@ public class TestViewMetadataParser {
                     .addVersion(version1)
                     .addVersion(version2)
                     .setLocation("s3://bucket/test/location")
-                    .setProperties(ImmutableMap.of("some-key", "some-value"))
+                    .setProperties(
+                        ImmutableMap.of(
+                            "some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
                     .setCurrentVersionId(2)
                     .upgradeFormatVersion(1)
                     .build())
