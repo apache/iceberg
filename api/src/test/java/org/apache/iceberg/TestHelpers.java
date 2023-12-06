@@ -360,6 +360,52 @@ public class TestHelpers {
     }
   }
 
+  // similar to Row but has its own hashCode() and equals() implementations
+  // it is useful for testing custom collections that rely on wrappers
+  public static class CustomRow implements StructLike {
+    public static CustomRow of(Object... values) {
+      return new CustomRow(values);
+    }
+
+    private final Object[] values;
+
+    private CustomRow(Object... values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      values[pos] = value;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      CustomRow that = (CustomRow) other;
+      return Arrays.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode() {
+      return 17 * Arrays.hashCode(values);
+    }
+  }
+
   public static class TestFieldSummary implements ManifestFile.PartitionFieldSummary {
     private final boolean containsNull;
     private final Boolean containsNaN;
