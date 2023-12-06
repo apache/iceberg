@@ -40,6 +40,8 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.stream.Stream;
+
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -55,6 +57,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.PartialFunction;
+import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
@@ -261,6 +265,49 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   public void testTruncateFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "truncate(4, data)");
     testTruncateFunction(true);
+  }
+
+  @TestTemplate
+  public void testBucketStringFunctionFullOuterJoinUnpartitionedTable() {
+    createUnpartitionedTable(spark, tableName);
+    testBucketStringFunctionFullOuterJoin();
+  }
+
+  @TestTemplate
+  public void testBucketStringFunctionFullOuterJoinPartitionedTable() {
+    createPartitionedTable(spark, tableName, "bucket(5, data)");
+    testBucketStringFunctionFullOuterJoin();
+  }
+
+  private void testBucketStringFunctionFullOuterJoin() {
+    int target = 1;
+    String query =
+        String.format(
+            "SELECT * FROM %s s1 FULL OUTER JOIN %s s2 ON s1.data = s2.data and system.bucket(5, s1.data) = %d",
+            tableName, tableName, target);
+    Dataset<Row> df = spark.sql(query);
+
+    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+    Stream<Expression> expressions =
+        JavaConverters.<Expression>asJavaCollection(optimizedPlan.expressions()).stream();
+    Stream<StaticInvoke> numOfStaticInvokes =
+        expressions.flatMap(
+            e ->
+                JavaConverters.<StaticInvoke>asJavaCollection(
+                    e.<StaticInvoke>collect(
+                        new PartialFunction<Expression, StaticInvoke>() {
+                          @Override
+                          public boolean isDefinedAt(Expression x) {
+                            return x instanceof StaticInvoke;
+                          }
+
+                          @Override
+                          public StaticInvoke apply(Expression v1) {
+                            return (StaticInvoke) v1;
+                          }
+                        }))
+                    .stream());
+    assertThat(numOfStaticInvokes.count()).isZero();
   }
 
   private void testTruncateFunction(boolean partitioned) {
