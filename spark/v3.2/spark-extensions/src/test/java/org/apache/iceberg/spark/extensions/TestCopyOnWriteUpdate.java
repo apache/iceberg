@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -39,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;

@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -49,6 +51,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;

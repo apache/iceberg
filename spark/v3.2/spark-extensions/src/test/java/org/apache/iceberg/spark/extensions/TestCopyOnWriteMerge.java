@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -41,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.Encoders;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
