@@ -319,28 +319,28 @@ public class TestFastAppend extends TableTestBase {
     ops.failCommits(5);
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+
     Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
-    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+    ManifestFile originalManifest = pending.allManifests(FILE_IO).get(0);
 
     Assertions.assertThatThrownBy(append::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
     TableMetadata metadata = readMetadata();
-
     Assert.assertNull("No snapshot is committed", metadata.currentSnapshot());
+    Assert.assertFalse(
+        "Original manifest from before failure should be deleted",
+        new File(originalManifest.path()).exists());
 
-    pending = append.apply();
-    newManifest = pending.allManifests(FILE_IO).get(0);
-
+    ManifestFile newManifest = append.apply().allManifests(FILE_IO).get(0);
     append.commit();
 
     metadata = readMetadata();
     validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    Assert.assertTrue("Should commit same new manifest", new File(newManifest.path()).exists());
+    Assert.assertTrue("New manifest file should exist", new File(newManifest.path()).exists());
     Assert.assertTrue(
-        "Should commit the same new manifest",
+        "Should commit the a new manifest created for retrying",
         metadata.currentSnapshot().allManifests(FILE_IO).contains(newManifest));
   }
 
