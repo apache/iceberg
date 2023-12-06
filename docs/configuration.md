@@ -111,6 +111,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
+| gc.enabled                         | true             | Property to disable garbage collection operations such as expiring snapshots or removing orphan files |
 
 ### Reserved table properties
 Reserved table properties are only used to control behaviors when creating or updating a table.
