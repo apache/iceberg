@@ -25,7 +25,10 @@ import org.apache.iceberg.view.ViewMetadata;
 
 /** Represents a requirement for a {@link MetadataUpdate} */
 public interface UpdateRequirement {
-  void validate(TableMetadata base);
+  default void validate(TableMetadata base) {
+    throw new ValidationException(
+        "Cannot validate %s against a table", this.getClass().getSimpleName());
+  }
 
   default void validate(ViewMetadata base) {
     throw new ValidationException(
@@ -74,12 +77,6 @@ public interface UpdateRequirement {
 
     public String uuid() {
       return uuid;
-    }
-
-    @Override
-    public void validate(TableMetadata base) {
-      throw new ValidationException(
-          "Cannot validate %s against a table", this.getClass().getSimpleName());
     }
 
     @Override
