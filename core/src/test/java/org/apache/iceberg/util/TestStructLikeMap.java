@@ -153,10 +153,14 @@ public class TestStructLikeMap {
   @Test
   public void testEqualsAndHashCode() {
     Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
+    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
+
+    assertThat(map1).isEqualTo(map2);
+    assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
+
     map1.put(CustomRow.of(1, null), "aaa");
     map1.put(CustomRow.of(2, null), "bbb");
 
-    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
     map2.put(Row.of(1, null), "aaa");
     map2.put(Row.of(2, null), "bbb");
 
@@ -167,10 +171,14 @@ public class TestStructLikeMap {
   @Test
   public void testKeyAndEntrySetEquality() {
     Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
+    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
+
+    assertThat(map1.keySet()).isEqualTo(map2.keySet());
+    assertThat(map1.entrySet()).isEqualTo(map2.entrySet());
+
     map1.put(CustomRow.of(1, null), "aaa");
     map1.put(CustomRow.of(2, null), "bbb");
 
-    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
     map2.put(Row.of(1, null), "aaa");
     map2.put(Row.of(2, null), "bbb");
 
