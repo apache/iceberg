@@ -169,7 +169,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .hasMessageContaining("Namespace already exists: a");
 
     client.commitTable(
-        null, newTable(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
 
     Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "tbl"), Map.of()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -285,7 +285,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     client.createNamespace(Namespace.of("a"), Map.of());
 
     client.commitTable(
-        null, newTable(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
 
     Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a", "tbl")))
         .isInstanceOf(NoSuchNamespaceException.class)
@@ -547,9 +547,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     return content.unwrap(org.projectnessie.model.Namespace.class).orElseThrow();
   }
 
-  private static TableMetadata newTable() {
-    Schema schema =
-        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+  private static TableMetadata newTableMetadata() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
     return TableMetadata.newTableMetadata(
         schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, Map.of());
   }

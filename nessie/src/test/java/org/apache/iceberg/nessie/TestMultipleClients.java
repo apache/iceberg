@@ -96,16 +96,17 @@ public class TestMultipleClients extends BaseTestIceberg {
     api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
 
     Assertions.assertThatThrownBy(() -> catalog.listNamespaces())
+        .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining(
             "Cannot list top-level namespaces: ref '%s' is no longer valid", branch);
     Assertions.assertThatThrownBy(() -> anotherCatalog.listNamespaces(Namespace.of("db1")))
+        .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining(
             "Cannot list child namespaces from 'db1': ref '%s' is no longer valid", branch);
   }
 
   @Test
   public void testLoadNamespaceMetadata() throws NessieConflictException, NessieNotFoundException {
-
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Namespace does not exist: namespace1");
@@ -143,10 +144,12 @@ public class TestMultipleClients extends BaseTestIceberg {
     api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
 
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
             "Cannot load namespace 'namespace1': ref '%s' is no longer valid", branch);
     Assertions.assertThatThrownBy(
             () -> anotherCatalog.loadNamespaceMetadata(Namespace.of("namespace1")))
+        .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(
             "Cannot load namespace 'namespace1': ref '%s' is no longer valid", branch);
   }
