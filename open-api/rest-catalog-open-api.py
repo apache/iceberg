@@ -239,25 +239,7 @@ class ViewVersion(BaseModel):
 
 
 class BaseUpdate(BaseModel):
-    action: Literal[
-        'assign-uuid',
-        'upgrade-format-version',
-        'add-schema',
-        'set-current-schema',
-        'add-spec',
-        'set-default-spec',
-        'add-sort-order',
-        'set-default-sort-order',
-        'add-snapshot',
-        'set-snapshot-ref',
-        'remove-snapshots',
-        'remove-snapshot-ref',
-        'set-location',
-        'set-properties',
-        'remove-properties',
-        'add-view-version',
-        'set-current-view-version',
-    ]
+    action: str
 
 
 class AssignUUIDUpdate(BaseUpdate):
@@ -265,14 +247,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
+    action: Literal['assign-uuid']
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
+    action: Literal['upgrade-format-version']
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
+    action: Literal['set-current-schema']
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -281,10 +266,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
+    action: Literal['add-spec']
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
+    action: Literal['set-default-spec']
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -293,10 +280,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
+    action: Literal['add-sort-order']
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
+    action: Literal['set-default-sort-order']
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -305,30 +294,37 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
+    action: Literal['add-snapshot']
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
+    action: Literal['set-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
+    action: Literal['remove-snapshots']
     snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
+    action: Literal['remove-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
+    action: Literal['set-location']
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
+    action: Literal['set-properties']
     updates: Dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
+    action: Literal['remove-properties']
     removals: List[str]
 
 
@@ -730,6 +726,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
+    action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: Optional[int] = Field(
         None,
