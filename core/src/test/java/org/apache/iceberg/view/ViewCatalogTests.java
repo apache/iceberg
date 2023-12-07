@@ -1669,4 +1669,52 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                   .build());
     }
   }
+
+  @Test
+  public void testSqlForMultipleDialects() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withQuery("trino", "select * from ns.tbl using X")
+            .create();
+
+    assertThat(view.sqlFor("spark").sql()).isEqualTo("select * from ns.tbl");
+    assertThat(view.sqlFor("trino").sql()).isEqualTo("select * from ns.tbl using X");
+    assertThat(view.sqlFor("unknown-dialect").sql()).isEqualTo("select * from ns.tbl");
+  }
+
+  @Test
+  public void testSqlForInvalidArguments() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThatThrownBy(() -> view.sqlFor(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid dialect: null");
+    assertThatThrownBy(() -> view.sqlFor(""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid dialect: (empty string)");
+  }
 }
