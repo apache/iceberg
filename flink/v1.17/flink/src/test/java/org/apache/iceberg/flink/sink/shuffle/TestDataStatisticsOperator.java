@@ -67,7 +67,8 @@ import org.junit.Test;
 
 public class TestDataStatisticsOperator {
   private final Schema schema =
-      new Schema(Types.NestedField.optional(1, "id", Types.StringType.get()),
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.StringType.get()),
           Types.NestedField.optional(2, "number", Types.IntegerType.get()));
   private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("id").build();
   private final SortKey sortKey = new SortKey(schema, sortOrder);
