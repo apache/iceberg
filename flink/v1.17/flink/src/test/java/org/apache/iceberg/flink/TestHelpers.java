@@ -159,9 +159,8 @@ public class TestHelpers {
       return;
     }
 
-    assertThat(expectedRecord != null && actualRowData != null)
-        .as("expected Record and actual RowData should be both null or not null")
-        .isTrue();
+    assertThat(expectedRecord).isNotNull();
+    assertThat(actualRowData).isNotNull();
 
     List<Type> types = Lists.newArrayList();
     for (Types.NestedField field : structType.fields()) {
@@ -193,9 +192,8 @@ public class TestHelpers {
       return;
     }
 
-    assertThat(expected != null && actual != null)
-        .as("expected and actual should be both null or not null")
-        .isTrue();
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
 
     switch (type.typeId()) {
       case BOOLEAN:
@@ -307,8 +305,9 @@ public class TestHelpers {
 
   public static void assertEquals(Schema schema, GenericData.Record record, Row row) {
     List<Types.NestedField> fields = schema.asStruct().fields();
-    assertThat(fields.size()).isEqualTo(record.getSchema().getFields().size());
-    assertThat(fields.size()).isEqualTo(row.getArity());
+    assertThat(fields).hasSameSizeAs(record.getSchema().getFields().size());
+    assertThat(fields).hasSameSizeAs(row.getArity());
+
     RowType rowType = FlinkSchemaUtil.convert(schema);
     for (int i = 0; i < fields.size(); ++i) {
       Type fieldType = fields.get(i).type();
@@ -335,10 +334,8 @@ public class TestHelpers {
     if (expected == null && actual == null) {
       return;
     }
-
-    assertThat(expected != null && actual != null)
-        .as("expected and actual should be both null or not null")
-        .isTrue();
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
 
     switch (type.typeId()) {
       case BOOLEAN:
@@ -513,7 +510,8 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
-    assertThat(expected != null && actual != null).as("Should not be null.").isTrue();
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
     assertThat(actual.path()).as("Path must match").isEqualTo(expected.path());
     assertThat(actual.length()).as("Length must match").isEqualTo(expected.length());
     assertThat(actual.partitionSpecId())
@@ -557,9 +555,9 @@ public class TestHelpers {
 
     List<ManifestFile.PartitionFieldSummary> expectedSummaries = expected.partitions();
     List<ManifestFile.PartitionFieldSummary> actualSummaries = actual.partitions();
-    assertThat(actualSummaries.size())
+    assertThat(actualSummaries)
         .as("PartitionFieldSummary size does not match")
-        .isEqualTo(expectedSummaries.size());
+        .hasSameSizeAs(expectedSummaries.size());
     for (int i = 0; i < expectedSummaries.size(); i++) {
       assertThat(actualSummaries.get(i).containsNull())
           .as("Null flag in partition must match")
@@ -580,7 +578,8 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
-    assertThat(expected != null && actual != null).as("Shouldn't be null.").isTrue();
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
     assertThat(actual.specId()).as("SpecId").isEqualTo(expected.specId());
     assertThat(actual.content()).as("Content").isEqualTo(expected.content());
     assertThat(actual.path()).as("Path").isEqualTo(expected.path());
@@ -588,7 +587,6 @@ public class TestHelpers {
     assertThat(actual.partition().size())
         .as("Partition size")
         .isEqualTo(expected.partition().size());
-
     for (int i = 0; i < expected.partition().size(); i++) {
       assertThat(actual.partition().get(i, Object.class))
           .as("Partition data at index " + i)
