@@ -78,16 +78,6 @@ class DeleteFileIndex {
   private final boolean isEmpty;
   private final boolean useColumnStatsFiltering;
 
-  /** @deprecated since 1.4.0, will be removed in 1.5.0. */
-  @Deprecated
-  DeleteFileIndex(
-      Map<Integer, PartitionSpec> specs,
-      long[] globalSeqs,
-      DeleteFile[] globalDeletes,
-      Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition) {
-    this(specs, index(specs, globalSeqs, globalDeletes), index(specs, deletesByPartition), true);
-  }
-
   private DeleteFileIndex(
       Map<Integer, PartitionSpec> specs,
       DeleteFileGroup globalDeletes,
@@ -372,37 +362,6 @@ class DeleteFileIndex {
     }
 
     return nullValueCount > 0;
-  }
-
-  private static DeleteFileGroup index(
-      Map<Integer, PartitionSpec> specs, Pair<long[], DeleteFile[]> pairs) {
-    return index(specs, pairs.first(), pairs.second());
-  }
-
-  private static DeleteFileGroup index(
-      Map<Integer, PartitionSpec> specs, long[] seqs, DeleteFile[] files) {
-    if (files == null || files.length == 0) {
-      return null;
-    }
-
-    IndexedDeleteFile[] indexedGlobalDeleteFiles = new IndexedDeleteFile[files.length];
-
-    for (int pos = 0; pos < files.length; pos++) {
-      DeleteFile file = files[pos];
-      PartitionSpec spec = specs.get(file.specId());
-      long applySequenceNumber = seqs[pos];
-      indexedGlobalDeleteFiles[pos] = new IndexedDeleteFile(spec, file, applySequenceNumber);
-    }
-
-    return new DeleteFileGroup(seqs, indexedGlobalDeleteFiles);
-  }
-
-  private static Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> index(
-      Map<Integer, PartitionSpec> specs,
-      Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition) {
-    Map<Pair<Integer, StructLikeWrapper>, DeleteFileGroup> indexed = Maps.newHashMap();
-    deletesByPartition.forEach((key, value) -> indexed.put(key, index(specs, value)));
-    return indexed;
   }
 
   static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {

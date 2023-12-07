@@ -42,6 +42,17 @@ public class SystemConfigs {
           Math.max(2, Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /**
+   * Sets the size of the delete worker pool. This limits the number of threads used to compute the
+   * PositionDeleteIndex from the position deletes for a data file.
+   */
+  public static final ConfigEntry<Integer> DELETE_WORKER_THREAD_POOL_SIZE =
+      new ConfigEntry<>(
+          "iceberg.worker.delete-num-threads",
+          "ICEBERG_WORKER_DELETE_NUM_THREADS",
+          Math.max(2, Runtime.getRuntime().availableProcessors()),
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

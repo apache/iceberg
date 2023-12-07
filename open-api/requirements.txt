@@ -15,7 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-openapi-spec-validator==0.5.2
-datamodel-code-generator==0.22.0
-# Add the Pydantic constraint since 2.4.0 has a bug
-pydantic<2.4.0
+openapi-spec-validator==0.7.1
+datamodel-code-generator==0.25.0

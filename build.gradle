@@ -35,7 +35,7 @@ buildscript {
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.1'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
@@ -298,6 +298,7 @@ project(':iceberg-api') {
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.awaitility
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -412,6 +413,9 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-aliyun') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -497,6 +501,7 @@ project(':iceberg-aws') {
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 
   sourceSets {
@@ -718,6 +723,7 @@ project(':iceberg-hive-metastore') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 }
 

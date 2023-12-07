@@ -53,7 +53,7 @@ public class SparkSQLExecutionHelper {
     // Refresh metricValues, they will remain null until the execution is complete and metrics are
     // aggregated
     Awaitility.await()
-        .atMost(Duration.ofMillis(500))
+        .atMost(Duration.ofSeconds(3))
         .pollInterval(Duration.ofMillis(100))
         .untilAsserted(
             () -> assertThat(statusStore.execution(lastExecution.executionId()).get()).isNotNull());

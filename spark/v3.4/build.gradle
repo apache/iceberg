@@ -101,6 +101,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.awaitility
   }
 
   test {

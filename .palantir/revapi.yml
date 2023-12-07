@@ -872,6 +872,11 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
       new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
       justification: "Static utility class - should not have public constructor"
+  "1.4.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.field.serialVersionUIDChanged"
+      new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
+      justification: "Serialization is not be used"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

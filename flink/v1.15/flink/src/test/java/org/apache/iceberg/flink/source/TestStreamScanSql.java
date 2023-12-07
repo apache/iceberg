@@ -30,7 +30,6 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -43,6 +42,7 @@ import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -219,15 +219,13 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     Row row1 = Row.of(1, "aaa", "2021-01-01");
     Row row2 = Row.of(2, "bbb", "2021-01-01");
     insertRows(table, row1, row2);
-
-    AssertHelpers.assertThrows(
-        "Cannot scan table using ref for stream yet",
-        IllegalArgumentException.class,
-        "Cannot scan table using ref",
-        () ->
-            exec(
-                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
-                TABLE));
+    Assertions.assertThatThrownBy(
+            () ->
+                exec(
+                    "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
+                    TABLE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot scan table using ref b1 configured for streaming reader yet");
   }
 
   @Test
@@ -306,15 +304,13 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
       assertRows(ImmutableList.of(row7), iterator);
     }
     result.getJobClient().ifPresent(JobClient::cancel);
-
-    AssertHelpers.assertThrows(
-        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
-        IllegalArgumentException.class,
-        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
-        () ->
-            exec(
-                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "
-                    + "'start-snapshot-id'='%d' )*/",
-                TABLE, tagName, startSnapshotId));
+    Assertions.assertThatThrownBy(
+            () ->
+                exec(
+                    "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "
+                        + "'start-snapshot-id'='%d' )*/",
+                    TABLE, tagName, startSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
   }
 }

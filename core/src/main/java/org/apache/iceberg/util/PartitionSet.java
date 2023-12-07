@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
-public class PartitionSet implements Set<Pair<Integer, StructLike>> {
+public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
   public static PartitionSet create(Map<Integer, PartitionSpec> specsById) {
     return new PartitionSet(specsById);
   }

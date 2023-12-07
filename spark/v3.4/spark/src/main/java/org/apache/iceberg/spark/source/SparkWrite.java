@@ -261,6 +261,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     @Override
+    public boolean useCommitCoordinator() {
+      return false;
+    }
+
+    @Override
     public void abort(WriterCommitMessage[] messages) {
       SparkWrite.this.abort(messages);
     }

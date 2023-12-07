@@ -58,11 +58,9 @@ import org.slf4j.LoggerFactory;
 
 public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
-  private static final long DEFAULT_SET_FILTER_THRESHOLD = 100_000L;
   private static final Schema POS_DELETE_SCHEMA =
       new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
-  private final long setFilterThreshold;
   private final String filePath;
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
@@ -82,7 +80,6 @@ public abstract class DeleteFilter<T> {
       Schema tableSchema,
       Schema requestedSchema,
       DeleteCounter counter) {
-    this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
     this.filePath = filePath;
     this.counter = counter;
 
@@ -245,18 +242,9 @@ public abstract class DeleteFilter<T> {
 
     List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
 
-    // if there are fewer deletes than a reasonable number to keep in memory, use a set
-    if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
-      Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
-      return createDeleteIterable(records, isDeleted);
-    }
-
-    return hasIsDeletedColumn
-        ? Deletes.streamingMarker(
-            records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted)
-        : Deletes.streamingFilter(
-            records, this::pos, Deletes.deletePositions(filePath, deletes), counter);
+    PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
+    Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
+    return createDeleteIterable(records, isDeleted);
   }
 
   private CloseableIterable<T> createDeleteIterable(

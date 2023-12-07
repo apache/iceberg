@@ -70,6 +70,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 
 public class SimpleDataUtil {
@@ -277,21 +278,17 @@ public class SimpleDataUtil {
   }
 
   /**
-   * Assert table contains the expected list of records after waiting up to {@code maxCheckCount}
-   * with {@code checkInterval}
+   * Assert table contains the expected list of records after waiting up to the configured {@code
+   * timeout}
    */
-  public static void assertTableRecords(
-      Table table, List<Record> expected, Duration checkInterval, int maxCheckCount)
-      throws IOException, InterruptedException {
-    for (int i = 0; i < maxCheckCount; ++i) {
-      if (equalsRecords(expected, tableRecords(table), table.schema())) {
-        break;
-      } else {
-        Thread.sleep(checkInterval.toMillis());
-      }
-    }
-    // success or failure, assert on the latest table state
-    assertRecordsEqual(expected, tableRecords(table), table.schema());
+  public static void assertTableRecords(Table table, List<Record> expected, Duration timeout) {
+    Awaitility.await("expected list of records should be produced")
+        .atMost(timeout)
+        .untilAsserted(
+            () -> {
+              equalsRecords(expected, tableRecords(table), table.schema());
+              assertRecordsEqual(expected, tableRecords(table), table.schema());
+            });
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {

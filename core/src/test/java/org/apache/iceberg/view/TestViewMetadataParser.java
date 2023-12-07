@@ -73,7 +73,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -89,7 +89,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -107,7 +107,8 @@ public class TestViewMetadataParser {
             .addVersion(version1)
             .addVersion(version2)
             .setLocation("s3://bucket/test/location")
-            .setProperties(ImmutableMap.of("some-key", "some-value"))
+            .setProperties(
+                ImmutableMap.of("some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
             .setCurrentVersionId(2)
             .upgradeFormatVersion(1)
             .build();
@@ -182,7 +183,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -198,7 +199,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -218,7 +219,9 @@ public class TestViewMetadataParser {
                     .addVersion(version1)
                     .addVersion(version2)
                     .setLocation("s3://bucket/test/location")
-                    .setProperties(ImmutableMap.of("some-key", "some-value"))
+                    .setProperties(
+                        ImmutableMap.of(
+                            "some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
                     .setCurrentVersionId(2)
                     .upgradeFormatVersion(1)
                     .build())
@@ -247,7 +250,7 @@ public class TestViewMetadataParser {
         ImmutableViewVersion.builder()
             .versionId(1)
             .timestampMillis(4353L)
-            .summary(ImmutableMap.of("operation", "create"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .schemaId(0)
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
@@ -306,7 +309,7 @@ public class TestViewMetadataParser {
             .versionId(2)
             .schemaId(0)
             .timestampMillis(5555L)
-            .summary(ImmutableMap.of("operation", "replace"))
+            .summary(ImmutableMap.of("user", "some-user"))
             .defaultCatalog("some-catalog")
             .defaultNamespace(Namespace.empty())
             .addRepresentations(
@@ -335,7 +338,7 @@ public class TestViewMetadataParser {
             .schemaId(0)
             .versionId(1)
             .timestampMillis(23L)
-            .putSummary("operation", "create")
+            .putSummary("user", "some-user")
             .defaultNamespace(Namespace.of("ns"))
             .build();
 
@@ -374,5 +377,66 @@ public class TestViewMetadataParser {
         throw e;
       }
     }
+  }
+
+  @Test
+  public void roundTripSerdeWithoutProperties() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .putSummary("operation", "create")
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"view-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
+            + "  \"format-version\" : 1,\n"
+            + "  \"location\" : \"location\",\n"
+            + "  \"schemas\" : [ {\n"
+            + "    \"type\" : \"struct\",\n"
+            + "    \"schema-id\" : 0,\n"
+            + "    \"fields\" : [ {\n"
+            + "      \"id\" : 1,\n"
+            + "      \"name\" : \"x\",\n"
+            + "      \"required\" : true,\n"
+            + "      \"type\" : \"long\"\n"
+            + "    } ]\n"
+            + "  } ],\n"
+            + "  \"current-version-id\" : 1,\n"
+            + "  \"versions\" : [ {\n"
+            + "    \"version-id\" : 1,\n"
+            + "    \"timestamp-ms\" : 23,\n"
+            + "    \"schema-id\" : 0,\n"
+            + "    \"summary\" : {\n"
+            + "      \"operation\" : \"create\"\n"
+            + "    },\n"
+            + "    \"default-namespace\" : [ \"ns1\" ],\n"
+            + "    \"representations\" : [ ]\n"
+            + "  } ],\n"
+            + "  \"version-log\" : [ {\n"
+            + "    \"timestamp-ms\" : 23,\n"
+            + "    \"version-id\" : 1\n"
+            + "  } ]\n"
+            + "}";
+
+    String json = ViewMetadataParser.toJson(viewMetadata, true);
+    assertThat(json).isEqualTo(expectedJson);
+
+    assertThat(ViewMetadataParser.fromJson(json))
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
+        .isEqualTo(viewMetadata);
   }
 }

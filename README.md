@@ -37,7 +37,7 @@ The [Iceberg format specification][iceberg-spec] is being actively updated and i
 
 [Java API javadocs][iceberg-javadocs] are available for the main.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/main
+[iceberg-javadocs]: https://iceberg.apache.org/javadoc/latest
 [iceberg-spec]: https://iceberg.apache.org/spec
 
 
@@ -78,7 +78,7 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
 ---
-**NOTE** 
+**NOTE**
 
 The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
 

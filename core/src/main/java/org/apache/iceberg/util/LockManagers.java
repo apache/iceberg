@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -253,7 +254,7 @@ public class LockManagers {
         return false;
       }
 
-      HEARTBEATS.remove(entityId).cancel(false);
+      Optional.ofNullable(HEARTBEATS.remove(entityId)).ifPresent(future -> future.cancel(false));
       LOCKS.remove(entityId);
       return true;
     }

@@ -25,11 +25,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -227,11 +227,10 @@ public class TestDynamoDbLockManager {
     Mockito.doThrow(ResourceNotFoundException.class)
         .when(dynamo2)
         .describeTable(Mockito.any(DescribeTableRequest.class));
-    AssertHelpers.assertThrows(
-        "should fail to initialize the lock manager",
-        IllegalStateException.class,
-        "Cannot find Dynamo table",
-        () -> new DynamoDbLockManager(dynamo2, lockTableName));
+    Assertions.assertThatThrownBy(() -> new DynamoDbLockManager(dynamo2, lockTableName))
+        .as("should fail to initialize the lock manager")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot find Dynamo table");
   }
 
   private static String genTableName() {

@@ -70,15 +70,29 @@ public class SerializableTableWithSize extends SerializableTable
   }
 
   public static class SerializableMetadataTableWithSize extends SerializableMetadataTable
-      implements KnownSizeEstimation {
+      implements KnownSizeEstimation, AutoCloseable {
+
+    private static final Logger LOG =
+        LoggerFactory.getLogger(SerializableMetadataTableWithSize.class);
+
+    private final transient Object serializationMarker;
 
     protected SerializableMetadataTableWithSize(BaseMetadataTable metadataTable) {
       super(metadataTable);
+      this.serializationMarker = new Object();
     }
 
     @Override
     public long estimatedSize() {
       return SIZE_ESTIMATE;
+    }
+
+    @Override
+    public void close() throws Exception {
+      if (serializationMarker == null) {
+        LOG.info("Releasing resources");
+        io().close();
+      }
     }
   }
 }

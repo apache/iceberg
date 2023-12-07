@@ -188,4 +188,63 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
+
+  @Test
+  public void testFastForwardNonExistingBranchCases() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.refresh();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
+                    catalogName, tableIdent, "non_existing_branch", SnapshotRef.MAIN_BRANCH))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Branch to fast-forward does not exist: non_existing_branch");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
+                    catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, "non_existing_branch"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref does not exist: non_existing_branch");
+  }
+
+  @Test
+  public void testFastForwardNonMain() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.refresh();
+
+    String branch1 = "branch1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch1);
+    String tableNameWithBranch1 = String.format("%s.branch_%s", tableName, branch1);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableNameWithBranch1);
+    table.refresh();
+    Snapshot branch1Snapshot = table.snapshot(branch1);
+
+    // Create branch2 from branch1
+    String branch2 = "branch2";
+    sql(
+        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d",
+        tableName, branch2, branch1Snapshot.snapshotId());
+    String tableNameWithBranch2 = String.format("%s.branch_%s", tableName, branch2);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableNameWithBranch2);
+    table.refresh();
+    Snapshot branch2Snapshot = table.snapshot(branch2);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.fast_forward('%s', '%s', '%s')",
+            catalogName, tableIdent, branch1, branch2);
+    List<Object> outputRow = Arrays.stream(output.get(0)).collect(Collectors.toList());
+    assertThat(outputRow.get(0)).isEqualTo(branch1);
+    assertThat(outputRow.get(1)).isEqualTo(branch1Snapshot.snapshotId());
+    assertThat(outputRow.get(2)).isEqualTo(branch2Snapshot.snapshotId());
+  }
 }

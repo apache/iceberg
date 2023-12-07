@@ -30,13 +30,13 @@ import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -407,10 +407,9 @@ public class TestFlinkSchemaUtil {
                     Types.StructType.of(
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
-    AssertHelpers.assertThrows(
-        "Does not support the nested columns in flink schema's primary keys",
-        ValidationException.class,
-        "Column 'struct.inner' does not exist",
-        () -> FlinkSchemaUtil.toSchema(icebergSchema));
+    Assertions.assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Could not create a PRIMARY KEY")
+        .hasMessageContaining("Column 'struct.inner' does not exist");
   }
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateLocation;
 
@@ -96,5 +97,10 @@ public class BaseView implements View, Serializable {
   @Override
   public UpdateLocation updateLocation() {
     return new SetViewLocation(ops);
+  }
+
+  @Override
+  public UUID uuid() {
+    return UUID.fromString(ops.current().uuid());
   }
 }

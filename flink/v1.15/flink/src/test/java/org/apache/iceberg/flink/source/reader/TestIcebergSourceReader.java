@@ -132,7 +132,7 @@ public class TestIcebergSourceReader {
         ReaderUtil.createCombinedScanTask(
             recordBatchList, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(task);
-    reader.addSplits(Arrays.asList(split));
+    reader.addSplits(Collections.singletonList(split));
 
     while (readerOutput.getEmittedRecords().size() < expectedCount) {
       reader.pollNext(readerOutput);
@@ -167,7 +167,12 @@ public class TestIcebergSourceReader {
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
             new PlaintextEncryptionManager(),
             Collections.emptyList());
-    return new IcebergSourceReader<>(readerMetrics, readerFunction, splitComparator, readerContext);
+    return new IcebergSourceReader<>(
+        SerializableRecordEmitter.defaultEmitter(),
+        readerMetrics,
+        readerFunction,
+        splitComparator,
+        readerContext);
   }
 
   private static class IdBasedComparator implements SerializableComparator<IcebergSourceSplit> {

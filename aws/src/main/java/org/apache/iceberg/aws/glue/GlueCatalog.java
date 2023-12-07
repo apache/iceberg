@@ -55,6 +55,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -189,8 +190,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.catalogName = name;
     this.awsProperties = properties;
     this.s3FileIOProperties = s3Properties;
-    this.warehousePath =
-        (path != null && path.length() > 0) ? LocationUtil.stripTrailingSlash(path) : null;
+    this.warehousePath = Strings.isNullOrEmpty(path) ? null : LocationUtil.stripTrailingSlash(path);
     this.glue = client;
     this.lockManager = lock;
 
@@ -281,11 +281,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
                 .build());
     String dbLocationUri = response.database().locationUri();
     if (dbLocationUri != null) {
+      dbLocationUri = LocationUtil.stripTrailingSlash(dbLocationUri);
       return String.format("%s/%s", dbLocationUri, tableIdentifier.name());
     }
 
     ValidationException.check(
-        warehousePath != null && warehousePath.length() > 0,
+        !Strings.isNullOrEmpty(warehousePath),
         "Cannot derive default warehouse location, warehouse path must not be null or empty");
 
     return String.format(
@@ -514,7 +515,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
       Map<String, String> result = Maps.newHashMap(database.parameters());
 
       if (database.locationUri() != null) {
-        result.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, database.locationUri());
+        result.put(
+            IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
+            LocationUtil.stripTrailingSlash(database.locationUri()));
       }
 
       if (database.description() != null) {

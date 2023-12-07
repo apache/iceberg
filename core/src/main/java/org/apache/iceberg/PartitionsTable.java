@@ -202,7 +202,7 @@ public class PartitionsTable extends BaseMetadataTable {
         ManifestFiles.open(manifest, table.io(), table.specs())
             .caseSensitive(scan.isCaseSensitive())
             .select(scanColumns(manifest.content())) // don't select stats columns
-            .entries(),
+            .liveEntries(),
         t ->
             (ManifestEntry<? extends ContentFile<?>>)
                 // defensive copy of manifest entry without stats columns

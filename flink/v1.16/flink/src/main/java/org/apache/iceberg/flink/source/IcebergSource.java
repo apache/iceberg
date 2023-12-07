@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -58,15 +59,20 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
+import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
+import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
+import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
+import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +86,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
+  private final SerializableRecordEmitter<T> emitter;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -91,13 +98,15 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ReaderFunction<T> readerFunction,
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
-      Table table) {
+      Table table,
+      SerializableRecordEmitter<T> emitter) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
     this.splitComparator = splitComparator;
     this.table = table;
+    this.emitter = emitter;
   }
 
   String name() {
@@ -152,7 +161,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
     IcebergSourceReaderMetrics metrics =
         new IcebergSourceReaderMetrics(readerContext.metricGroup(), lazyTable().name());
-    return new IcebergSourceReader<>(metrics, readerFunction, splitComparator, readerContext);
+    return new IcebergSourceReader<>(
+        emitter, metrics, readerFunction, splitComparator, readerContext);
   }
 
   @Override
@@ -216,6 +226,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
+    private String watermarkColumn;
+    private TimeUnit watermarkTimeUnit = TimeUnit.MICROSECONDS;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -237,6 +249,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> assignerFactory(SplitAssignerFactory assignerFactory) {
+      Preconditions.checkArgument(
+          watermarkColumn == null,
+          "Watermark column and SplitAssigner should not be set in the same source");
       this.splitAssignerFactory = assignerFactory;
       return this;
     }
@@ -429,6 +444,33 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * Emits watermarks once per split based on the min value of column statistics from files
+     * metadata in the given split. The generated watermarks are also used for ordering the splits
+     * for read. Accepted column types are timestamp/timestamptz/long. For long columns consider
+     * setting {@link #watermarkTimeUnit(TimeUnit)}.
+     *
+     * <p>Consider setting `read.split.open-file-cost` to prevent combining small files to a single
+     * split when the watermark is used for watermark alignment.
+     */
+    public Builder<T> watermarkColumn(String columnName) {
+      Preconditions.checkArgument(
+          splitAssignerFactory == null,
+          "Watermark column and SplitAssigner should not be set in the same source");
+      this.watermarkColumn = columnName;
+      return this;
+    }
+
+    /**
+     * When the type of the {@link #watermarkColumn} is {@link
+     * org.apache.iceberg.types.Types.LongType}, then sets the {@link TimeUnit} to convert the
+     * value. The default value is {@link TimeUnit#MICROSECONDS}.
+     */
+    public Builder<T> watermarkTimeUnit(TimeUnit timeUnit) {
+      this.watermarkTimeUnit = timeUnit;
+      return this;
+    }
+
     /** @deprecated Use {@link #setAll} instead. */
     @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
@@ -451,6 +493,18 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
+      }
+
+      SerializableRecordEmitter<T> emitter = SerializableRecordEmitter.defaultEmitter();
+      if (watermarkColumn != null) {
+        // Column statistics is needed for watermark generation
+        contextBuilder.includeColumnStats(Sets.newHashSet(watermarkColumn));
+
+        SplitWatermarkExtractor watermarkExtractor =
+            new ColumnStatsWatermarkExtractor(icebergSchema, watermarkColumn, watermarkTimeUnit);
+        emitter = SerializableRecordEmitter.emitterWithWatermark(watermarkExtractor);
+        splitAssignerFactory =
+            new OrderedSplitAssignerFactory(SplitComparators.watermark(watermarkExtractor));
       }
 
       ScanContext context = contextBuilder.build();
@@ -485,8 +539,14 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
-      return new IcebergSource<T>(
-          tableLoader, context, readerFunction, splitAssignerFactory, splitComparator, table);
+      return new IcebergSource<>(
+          tableLoader,
+          context,
+          readerFunction,
+          splitAssignerFactory,
+          splitComparator,
+          table,
+          emitter);
     }
 
     private void checkRequired() {

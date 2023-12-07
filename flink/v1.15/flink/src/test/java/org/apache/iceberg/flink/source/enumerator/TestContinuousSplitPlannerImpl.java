@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
@@ -37,6 +36,7 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -84,7 +84,7 @@ public class TestContinuousSplitPlannerImpl {
   }
 
   /** @return the last enumerated snapshot id */
-  private IcebergEnumeratorPosition verifyOneCycle(
+  private CycleResult verifyOneCycle(
       ContinuousSplitPlannerImpl splitPlanner, IcebergEnumeratorPosition lastPosition)
       throws Exception {
     List<Record> batch =
@@ -106,7 +106,7 @@ public class TestContinuousSplitPlannerImpl {
     Assert.assertEquals(
         dataFile.path().toString(),
         Iterables.getOnlyElement(split.task().files()).file().path().toString());
-    return result.toPosition();
+    return new CycleResult(result.toPosition(), split);
   }
 
   @Test
@@ -135,7 +135,7 @@ public class TestContinuousSplitPlannerImpl {
     // next 3 snapshots
     IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -169,7 +169,7 @@ public class TestContinuousSplitPlannerImpl {
 
     IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -206,7 +206,7 @@ public class TestContinuousSplitPlannerImpl {
     // next 3 snapshots
     IcebergEnumeratorPosition lastPosition = afterTwoSnapshotsAppended.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -251,7 +251,7 @@ public class TestContinuousSplitPlannerImpl {
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -281,7 +281,7 @@ public class TestContinuousSplitPlannerImpl {
     // next 3 snapshots
     IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -323,12 +323,12 @@ public class TestContinuousSplitPlannerImpl {
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
   @Test
-  public void testIncrementalFromSnapshotIdWithEmptyTable() throws Exception {
+  public void testIncrementalFromSnapshotIdWithEmptyTable() {
     ScanContext scanContextWithInvalidSnapshotId =
         ScanContext.builder()
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
@@ -337,12 +337,9 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot id",
-        IllegalArgumentException.class,
-        "Start snapshot id not found in history: 1",
-        () -> splitPlanner.planSplits(null));
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Start snapshot id not found in history: 1");
   }
 
   @Test
@@ -365,12 +362,9 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot id",
-        IllegalArgumentException.class,
-        "Start snapshot id not found in history: " + invalidSnapshotId,
-        () -> splitPlanner.planSplits(null));
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Start snapshot id not found in history: " + invalidSnapshotId);
   }
 
   @Test
@@ -415,12 +409,12 @@ public class TestContinuousSplitPlannerImpl {
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
   @Test
-  public void testIncrementalFromSnapshotTimestampWithEmptyTable() throws Exception {
+  public void testIncrementalFromSnapshotTimestampWithEmptyTable() {
     ScanContext scanContextWithInvalidSnapshotId =
         ScanContext.builder()
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
@@ -429,12 +423,9 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot timestamp",
-        IllegalArgumentException.class,
-        "Cannot find a snapshot after: ",
-        () -> splitPlanner.planSplits(null));
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find a snapshot after: 1");
   }
 
   @Test
@@ -452,12 +443,9 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
-
-    AssertHelpers.assertThrows(
-        "Should detect invalid starting snapshot timestamp",
-        IllegalArgumentException.class,
-        "Cannot find a snapshot after: ",
-        () -> splitPlanner.planSplits(null));
+    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find a snapshot after: ");
   }
 
   @Test
@@ -501,7 +489,7 @@ public class TestContinuousSplitPlannerImpl {
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
     }
   }
 
@@ -541,6 +529,115 @@ public class TestContinuousSplitPlannerImpl {
         thirdResult, snapshot1, snapshot2, ImmutableSet.of(dataFile2.path().toString()));
   }
 
+  @Test
+  public void testTableScanNoStats() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .includeColumnStats(false)
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertEquals(1, initialResult.splits().size());
+    IcebergSourceSplit split = Iterables.getOnlyElement(initialResult.splits());
+    Assert.assertEquals(2, split.task().files().size());
+    verifyStatCount(split, 0);
+
+    IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      CycleResult result = verifyOneCycle(splitPlanner, lastPosition);
+      verifyStatCount(result.split, 0);
+      lastPosition = result.lastPosition;
+    }
+  }
+
+  @Test
+  public void testTableScanAllStats() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .includeColumnStats(true)
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertEquals(1, initialResult.splits().size());
+    IcebergSourceSplit split = Iterables.getOnlyElement(initialResult.splits());
+    Assert.assertEquals(2, split.task().files().size());
+    verifyStatCount(split, 3);
+
+    IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      CycleResult result = verifyOneCycle(splitPlanner, lastPosition);
+      verifyStatCount(result.split, 3);
+      lastPosition = result.lastPosition;
+    }
+  }
+
+  @Test
+  public void testTableScanSingleStat() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .includeColumnStats(ImmutableSet.of("data"))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertEquals(1, initialResult.splits().size());
+    IcebergSourceSplit split = Iterables.getOnlyElement(initialResult.splits());
+    Assert.assertEquals(2, split.task().files().size());
+    verifyStatCount(split, 1);
+
+    IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      CycleResult result = verifyOneCycle(splitPlanner, lastPosition);
+      verifyStatCount(result.split, 1);
+      lastPosition = result.lastPosition;
+    }
+  }
+
+  private void verifyStatCount(IcebergSourceSplit split, int expected) {
+    if (expected == 0) {
+      split
+          .task()
+          .files()
+          .forEach(
+              f -> {
+                Assert.assertNull(f.file().valueCounts());
+                Assert.assertNull(f.file().columnSizes());
+                Assert.assertNull(f.file().lowerBounds());
+                Assert.assertNull(f.file().upperBounds());
+                Assert.assertNull(f.file().nanValueCounts());
+                Assert.assertNull(f.file().nullValueCounts());
+              });
+    } else {
+      split
+          .task()
+          .files()
+          .forEach(
+              f -> {
+                Assert.assertEquals(expected, f.file().valueCounts().size());
+                Assert.assertEquals(expected, f.file().columnSizes().size());
+                Assert.assertEquals(expected, f.file().lowerBounds().size());
+                Assert.assertEquals(expected, f.file().upperBounds().size());
+                Assert.assertEquals(expected, f.file().nullValueCounts().size());
+                // The nanValue is not counted for long and string fields
+                Assert.assertEquals(0, f.file().nanValueCounts().size());
+              });
+    }
+  }
+
   private void verifyMaxPlanningSnapshotCountResult(
       ContinuousEnumerationResult result,
       Snapshot fromSnapshotExclusive,
@@ -577,5 +674,15 @@ public class TestContinuousSplitPlannerImpl {
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
     return tableResource.table().currentSnapshot();
+  }
+
+  private static class CycleResult {
+    IcebergEnumeratorPosition lastPosition;
+    IcebergSourceSplit split;
+
+    CycleResult(IcebergEnumeratorPosition lastPosition, IcebergSourceSplit split) {
+      this.lastPosition = lastPosition;
+      this.split = split;
+    }
   }
 }
