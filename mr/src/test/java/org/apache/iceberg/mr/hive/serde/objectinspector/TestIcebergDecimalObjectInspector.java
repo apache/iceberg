@@ -26,8 +26,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergDecimalObjectInspector {
 
@@ -35,43 +35,42 @@ public class TestIcebergDecimalObjectInspector {
   public void testCache() {
     HiveDecimalObjectInspector oi = IcebergDecimalObjectInspector.get(38, 18);
 
-    Assert.assertSame(oi, IcebergDecimalObjectInspector.get(38, 18));
-    Assert.assertNotSame(oi, IcebergDecimalObjectInspector.get(28, 18));
-    Assert.assertNotSame(oi, IcebergDecimalObjectInspector.get(38, 28));
+    Assertions.assertThat(IcebergDecimalObjectInspector.get(38, 18)).isSameAs(oi);
+    Assertions.assertThat(IcebergDecimalObjectInspector.get(28, 18)).isNotSameAs(oi);
+    Assertions.assertThat(IcebergDecimalObjectInspector.get(38, 28)).isNotSameAs(oi);
   }
 
   @Test
   public void testIcebergDecimalObjectInspector() {
     HiveDecimalObjectInspector oi = IcebergDecimalObjectInspector.get(38, 18);
 
-    Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(
-        PrimitiveObjectInspector.PrimitiveCategory.DECIMAL, oi.getPrimitiveCategory());
+    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
+    Assertions.assertThat(oi.getPrimitiveCategory()).isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DECIMAL);
 
-    Assert.assertEquals(new DecimalTypeInfo(38, 18), oi.getTypeInfo());
-    Assert.assertEquals(TypeInfoFactory.decimalTypeInfo.getTypeName(), oi.getTypeName());
+    Assertions.assertThat(oi.getTypeInfo()).isEqualTo(new DecimalTypeInfo(38, 18));
+    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.decimalTypeInfo.getTypeName(), oi.getTypeName());
 
-    Assert.assertEquals(38, oi.precision());
-    Assert.assertEquals(18, oi.scale());
+    Assertions.assertThat(oi.precision()).isEqualTo(38);
+    Assertions.assertThat(oi.scale()).isEqualTo(18);
 
-    Assert.assertEquals(HiveDecimal.class, oi.getJavaPrimitiveClass());
-    Assert.assertEquals(HiveDecimalWritable.class, oi.getPrimitiveWritableClass());
+    Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(HiveDecimal.class);
+    Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(HiveDecimalWritable.class);
 
-    Assert.assertNull(oi.copyObject(null));
-    Assert.assertNull(oi.getPrimitiveJavaObject(null));
-    Assert.assertNull(oi.getPrimitiveWritableObject(null));
+    Assertions.assertThat(oi.copyObject(null)).isNull();
+    Assertions.assertThat(oi.getPrimitiveJavaObject(null)).isNull();
+    Assertions.assertThat(oi.getPrimitiveWritableObject(null)).isNull();
 
     HiveDecimal one = HiveDecimal.create(BigDecimal.ONE);
 
-    Assert.assertEquals(one, oi.getPrimitiveJavaObject(BigDecimal.ONE));
-    Assert.assertEquals(
-        new HiveDecimalWritable(one), oi.getPrimitiveWritableObject(BigDecimal.ONE));
+    Assertions.assertThat(oi.getPrimitiveJavaObject(BigDecimal.ONE)).isEqualTo(one);
+    Assertions.assertThat(oi.getPrimitiveWritableObject(BigDecimal.ONE))
+            .isEqualTo(new HiveDecimalWritable(one));
 
     HiveDecimal copy = (HiveDecimal) oi.copyObject(one);
 
-    Assert.assertEquals(one, copy);
-    Assert.assertNotSame(one, copy);
+    Assertions.assertThat(copy).isEqualTo(one);
+    Assertions.assertThat(copy).isNotSameAs(one);
 
-    Assert.assertFalse(oi.preferWritable());
+    Assertions.assertThat(oi.preferWritable()).isFalse();
   }
 }

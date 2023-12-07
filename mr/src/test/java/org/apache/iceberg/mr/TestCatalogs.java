@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -40,11 +41,9 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestCatalogs {
 
@@ -54,9 +53,10 @@ public class TestCatalogs {
 
   private Configuration conf;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
-  @Before
+  @BeforeEach
   public void before() {
     conf = new Configuration();
   }
@@ -70,17 +70,17 @@ public class TestCatalogs {
         .hasMessage("Table location not set");
 
     HadoopTables tables = new HadoopTables();
-    Table hadoopTable = tables.create(SCHEMA, temp.newFolder("hadoop_tables").toString());
+    Table hadoopTable = tables.create(SCHEMA, temp.resolve("hadoop_tables").toString());
 
     conf.set(InputFormatConfig.TABLE_LOCATION, hadoopTable.location());
 
-    Assert.assertEquals(hadoopTable.location(), Catalogs.loadTable(conf).location());
+    Assertions.assertThat(Catalogs.loadTable(conf).location()).isEqualTo(hadoopTable.location());
   }
 
   @Test
   public void testLoadTableFromCatalog() throws IOException {
     String defaultCatalogName = "default";
-    String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
+    String warehouseLocation = temp.resolve("hadoop").resolve("warehouse").toString();
     setCustomCatalogProperties(defaultCatalogName, warehouseLocation);
 
     Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf))
@@ -92,13 +92,13 @@ public class TestCatalogs {
 
     conf.set(InputFormatConfig.TABLE_IDENTIFIER, "table");
 
-    Assert.assertEquals(hadoopCatalogTable.location(), Catalogs.loadTable(conf).location());
+    Assertions.assertThat(Catalogs.loadTable(conf).location()).isEqualTo(hadoopCatalogTable.location());
   }
 
   @Test
   public void testCreateDropTableToLocation() throws IOException {
     Properties missingSchema = new Properties();
-    missingSchema.put("location", temp.newFolder("hadoop_tables").toString());
+    missingSchema.put("location", temp.resolve("hadoop_tables").toString());
 
     Assertions.assertThatThrownBy(() -> Catalogs.createTable(conf, missingSchema))
         .isInstanceOf(NullPointerException.class)
@@ -113,7 +113,7 @@ public class TestCatalogs {
         .hasMessage("Table location not set");
 
     Properties properties = new Properties();
-    properties.put("location", temp.getRoot() + "/hadoop_tables");
+    properties.put("location", temp.toFile() + "/hadoop_tables");
     properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
     properties.put("dummy", "test");
@@ -123,9 +123,9 @@ public class TestCatalogs {
     HadoopTables tables = new HadoopTables();
     Table table = tables.load(properties.getProperty("location"));
 
-    Assert.assertEquals(properties.getProperty("location"), table.location());
-    Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
-    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assertions.assertThat(table.location()).isEqualTo(properties.getProperty("location"));
+    Assertions.assertThat(SchemaParser.toJson(table.schema())).isEqualTo(SchemaParser.toJson(SCHEMA));
+    Assertions.assertThat(PartitionSpecParser.toJson(table.spec())).isEqualTo(PartitionSpecParser.toJson(SPEC));
     assertThat(table.properties()).containsEntry("dummy", "test");
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
@@ -133,7 +133,7 @@ public class TestCatalogs {
         .hasMessage("Table location not set");
 
     Properties dropProperties = new Properties();
-    dropProperties.put("location", temp.getRoot() + "/hadoop_tables");
+    dropProperties.put("location", temp.toFile() + "/hadoop_tables");
     Catalogs.dropTable(conf, dropProperties);
 
     Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf, dropProperties))
@@ -145,7 +145,7 @@ public class TestCatalogs {
   public void testCreateDropTableToCatalog() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("test", "table");
     String defaultCatalogName = "default";
-    String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
+    String warehouseLocation = temp.resolve("hadoop").resolve("warehouse").toString();
 
     setCustomCatalogProperties(defaultCatalogName, warehouseLocation);
 
@@ -176,8 +176,8 @@ public class TestCatalogs {
     HadoopCatalog catalog = new CustomHadoopCatalog(conf, warehouseLocation);
     Table table = catalog.loadTable(identifier);
 
-    Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
-    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assertions.assertThat(SchemaParser.toJson(table.schema())).isEqualTo(SchemaParser.toJson(SCHEMA));
+    Assertions.assertThat(PartitionSpecParser.toJson(table.spec())).isEqualTo(PartitionSpecParser.toJson(SPEC));
     assertThat(table.properties()).containsEntry("dummy", "test");
 
     Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
@@ -198,11 +198,11 @@ public class TestCatalogs {
   public void testLoadCatalogDefault() {
     String catalogName = "barCatalog";
     Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, catalogName);
-    Assert.assertTrue(defaultCatalog.isPresent());
+    Assertions.assertThat(defaultCatalog.isPresent()).isTrue();
     Assertions.assertThat(defaultCatalog.get()).isInstanceOf(HiveCatalog.class);
     Properties properties = new Properties();
     properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    Assert.assertTrue(Catalogs.hiveCatalog(conf, properties));
+    Assertions.assertThat(Catalogs.hiveCatalog(conf, properties)).isTrue();
   }
 
   @Test
@@ -212,11 +212,11 @@ public class TestCatalogs {
         InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
         CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
     Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
-    Assert.assertTrue(hiveCatalog.isPresent());
+    Assertions.assertThat(hiveCatalog.isPresent()).isTrue();
     Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
     Properties properties = new Properties();
     properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    Assert.assertTrue(Catalogs.hiveCatalog(conf, properties));
+    Assertions.assertThat(Catalogs.hiveCatalog(conf, properties)).isTrue();
   }
 
   @Test
@@ -230,13 +230,13 @@ public class TestCatalogs {
             catalogName, CatalogProperties.WAREHOUSE_LOCATION),
         "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
-    Assert.assertTrue(hadoopCatalog.isPresent());
+    Assertions.assertThat(hadoopCatalog.isPresent()).isTrue();
     Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
-    Assert.assertEquals(
-        "HadoopCatalog{name=barCatalog, location=/tmp/mylocation}", hadoopCatalog.get().toString());
+    Assertions.assertThat(hadoopCatalog.get().toString())
+            .isEqualTo("HadoopCatalog{name=barCatalog, location=/tmp/mylocation}");
     Properties properties = new Properties();
     properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
+    Assertions.assertThat(Catalogs.hiveCatalog(conf, properties)).isFalse();
   }
 
   @Test
@@ -250,16 +250,16 @@ public class TestCatalogs {
             catalogName, CatalogProperties.WAREHOUSE_LOCATION),
         "/tmp/mylocation");
     Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
-    Assert.assertTrue(customHadoopCatalog.isPresent());
+    Assertions.assertThat(customHadoopCatalog.isPresent()).isTrue();
     Assertions.assertThat(customHadoopCatalog.get()).isInstanceOf(CustomHadoopCatalog.class);
     Properties properties = new Properties();
     properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
+    Assertions.assertThat(Catalogs.hiveCatalog(conf, properties)).isFalse();
   }
 
   @Test
   public void testLoadCatalogLocation() {
-    Assert.assertFalse(Catalogs.loadCatalog(conf, Catalogs.ICEBERG_HADOOP_TABLE_NAME).isPresent());
+    Assertions.assertThat(Catalogs.loadCatalog(conf, Catalogs.ICEBERG_HADOOP_TABLE_NAME).isPresent()).isFalse();
   }
 
   @Test

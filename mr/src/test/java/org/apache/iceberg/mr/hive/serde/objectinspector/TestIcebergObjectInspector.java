@@ -31,8 +31,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergObjectInspector {
 
@@ -74,165 +74,160 @@ public class TestIcebergObjectInspector {
   @Test
   public void testIcebergObjectInspector() {
     ObjectInspector oi = IcebergObjectInspector.create(schema);
-    Assert.assertNotNull(oi);
-    Assert.assertEquals(ObjectInspector.Category.STRUCT, oi.getCategory());
+    Assertions.assertThat(oi).isNotNull();
+    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.STRUCT);
 
     StructObjectInspector soi = (StructObjectInspector) oi;
 
     // binary
     StructField binaryField = soi.getStructFieldRef("binary_field");
-    Assert.assertEquals(1, binaryField.getFieldID());
-    Assert.assertEquals("binary_field", binaryField.getFieldName());
-    Assert.assertEquals("binary comment", binaryField.getFieldComment());
-    Assert.assertEquals(IcebergBinaryObjectInspector.get(), binaryField.getFieldObjectInspector());
+    Assertions.assertThat(binaryField.getFieldID()).isEqualTo(1);
+    Assertions.assertThat(binaryField.getFieldName()).isEqualTo("binary_field");
+    Assertions.assertThat(binaryField.getFieldComment()).isEqualTo("binary comment");
+    Assertions.assertThat(binaryField.getFieldObjectInspector()).isEqualTo(IcebergBinaryObjectInspector.get());
 
     // boolean
     StructField booleanField = soi.getStructFieldRef("boolean_field");
-    Assert.assertEquals(2, booleanField.getFieldID());
-    Assert.assertEquals("boolean_field", booleanField.getFieldName());
-    Assert.assertEquals("boolean comment", booleanField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(boolean.class), booleanField.getFieldObjectInspector());
+    Assertions.assertThat(booleanField.getFieldID()).isEqualTo(2);
+    Assertions.assertThat(booleanField.getFieldName()).isEqualTo("boolean_field");
+    Assertions.assertThat(booleanField.getFieldComment()).isEqualTo("boolean comment");
+    Assertions.assertThat(booleanField.getFieldObjectInspector())
+                    .isEqualTo(getPrimitiveObjectInspector(boolean.class));
 
     // date
     StructField dateField = soi.getStructFieldRef("date_field");
-    Assert.assertEquals(3, dateField.getFieldID());
-    Assert.assertEquals("date_field", dateField.getFieldName());
-    Assert.assertEquals("date comment", dateField.getFieldComment());
+    Assertions.assertThat(dateField.getFieldID()).isEqualTo(3);
+    Assertions.assertThat(dateField.getFieldName()).isEqualTo("date_field");
+    Assertions.assertThat(dateField.getFieldComment()).isEqualTo("date comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3",
-          dateField.getFieldObjectInspector().getClass().getName());
+      Assertions.assertThat(dateField.getFieldObjectInspector().getClass().getName())
+              .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3");
     } else {
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector",
-          dateField.getFieldObjectInspector().getClass().getName());
+      Assertions.assertThat(dateField.getFieldObjectInspector().getClass().getName())
+              .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector");
     }
 
     // decimal
     StructField decimalField = soi.getStructFieldRef("decimal_field");
-    Assert.assertEquals(4, decimalField.getFieldID());
-    Assert.assertEquals("decimal_field", decimalField.getFieldName());
-    Assert.assertEquals("decimal comment", decimalField.getFieldComment());
-    Assert.assertEquals(
-        IcebergDecimalObjectInspector.get(38, 18), decimalField.getFieldObjectInspector());
+    Assertions.assertThat(decimalField.getFieldID()).isEqualTo(4);
+    Assertions.assertThat(decimalField.getFieldName()).isEqualTo("decimal_field");
+    Assertions.assertThat(decimalField.getFieldComment()).isEqualTo("decimal comment");
+    Assertions.assertThat(decimalField.getFieldObjectInspector())
+            .isEqualTo(IcebergDecimalObjectInspector.get(38, 18));
 
     // double
     StructField doubleField = soi.getStructFieldRef("double_field");
-    Assert.assertEquals(5, doubleField.getFieldID());
-    Assert.assertEquals("double_field", doubleField.getFieldName());
-    Assert.assertEquals("double comment", doubleField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(double.class), doubleField.getFieldObjectInspector());
+    Assertions.assertThat(doubleField.getFieldID()).isEqualTo(5);
+    Assertions.assertThat(doubleField.getFieldName()).isEqualTo("double_field");
+    Assertions.assertThat(doubleField.getFieldComment()).isEqualTo("double comment");
+    Assertions.assertThat(doubleField.getFieldObjectInspector())
+                    .isEqualTo(getPrimitiveObjectInspector(double.class));
 
     // fixed
     StructField fixedField = soi.getStructFieldRef("fixed_field");
-    Assert.assertEquals(6, fixedField.getFieldID());
-    Assert.assertEquals("fixed_field", fixedField.getFieldName());
-    Assert.assertEquals("fixed comment", fixedField.getFieldComment());
-    Assert.assertEquals(IcebergFixedObjectInspector.get(), fixedField.getFieldObjectInspector());
+    Assertions.assertThat(fixedField.getFieldID()).isEqualTo(6);
+    Assertions.assertThat(fixedField.getFieldName()).isEqualTo("fixed_field");
+    Assertions.assertThat(fixedField.getFieldComment()).isEqualTo("fixed comment");
+    Assertions.assertThat(fixedField.getFieldObjectInspector()).isEqualTo(IcebergFixedObjectInspector.get());
 
     // float
     StructField floatField = soi.getStructFieldRef("float_field");
-    Assert.assertEquals(7, floatField.getFieldID());
-    Assert.assertEquals("float_field", floatField.getFieldName());
-    Assert.assertEquals("float comment", floatField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(float.class), floatField.getFieldObjectInspector());
+    Assertions.assertThat(floatField.getFieldID()).isEqualTo(7);
+    Assertions.assertThat(floatField.getFieldName()).isEqualTo("float_field");
+    Assertions.assertThat(floatField.getFieldComment()).isEqualTo("float comment");
+    Assertions.assertThat(floatField.getFieldObjectInspector())
+                    .isEqualTo(getPrimitiveObjectInspector(float.class));
 
     // integer
     StructField integerField = soi.getStructFieldRef("integer_field");
-    Assert.assertEquals(8, integerField.getFieldID());
-    Assert.assertEquals("integer_field", integerField.getFieldName());
-    Assert.assertEquals("integer comment", integerField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(int.class), integerField.getFieldObjectInspector());
+    Assertions.assertThat(integerField.getFieldID()).isEqualTo(8);
+    Assertions.assertThat(integerField.getFieldName()).isEqualTo("integer_field");
+    Assertions.assertThat(integerField.getFieldComment()).isEqualTo("integer comment");
+    Assertions.assertThat(integerField.getFieldObjectInspector())
+                    .isEqualTo(getPrimitiveObjectInspector(int.class));
 
     // long
     StructField longField = soi.getStructFieldRef("long_field");
-    Assert.assertEquals(9, longField.getFieldID());
-    Assert.assertEquals("long_field", longField.getFieldName());
-    Assert.assertEquals("long comment", longField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(long.class), longField.getFieldObjectInspector());
+    Assertions.assertThat(longField.getFieldID()).isEqualTo(9);
+    Assertions.assertThat(longField.getFieldName()).isEqualTo("long_field");
+    Assertions.assertThat(longField.getFieldComment()).isEqualTo("long comment");
+    Assertions.assertThat(longField.getFieldObjectInspector())
+                    .isEqualTo(getPrimitiveObjectInspector(long.class));
 
     // string
     StructField stringField = soi.getStructFieldRef("string_field");
-    Assert.assertEquals(10, stringField.getFieldID());
-    Assert.assertEquals("string_field", stringField.getFieldName());
-    Assert.assertEquals("string comment", stringField.getFieldComment());
-    Assert.assertEquals(
-        getPrimitiveObjectInspector(String.class), stringField.getFieldObjectInspector());
+    Assertions.assertThat(stringField.getFieldID()).isEqualTo(10);
+    Assertions.assertThat(stringField.getFieldName()).isEqualTo("string_field");
+    Assertions.assertThat(stringField.getFieldComment()).isEqualTo("string comment");
+    Assertions.assertThat(stringField.getFieldObjectInspector())
+            .isEqualTo(getPrimitiveObjectInspector(String.class));
 
     // timestamp without tz
     StructField timestampField = soi.getStructFieldRef("timestamp_field");
-    Assert.assertEquals(11, timestampField.getFieldID());
-    Assert.assertEquals("timestamp_field", timestampField.getFieldName());
-    Assert.assertEquals("timestamp comment", timestampField.getFieldComment());
+    Assertions.assertThat(timestampField.getFieldID()).isEqualTo(11);
+    Assertions.assertThat(timestampField.getFieldName()).isEqualTo("timestamp_field");
+    Assertions.assertThat(timestampField.getFieldComment()).isEqualTo("timestamp comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      Assert.assertEquals(
-          "IcebergTimestampObjectInspectorHive3",
-          timestampField.getFieldObjectInspector().getClass().getSimpleName());
+      Assertions.assertThat(timestampField.getFieldObjectInspector().getClass().getSimpleName())
+              .isEqualTo("IcebergTimestampObjectInspectorHive3");
     } else {
-      Assert.assertEquals(
-          IcebergTimestampObjectInspector.get(), timestampField.getFieldObjectInspector());
+      Assertions.assertThat(timestampField.getFieldObjectInspector())
+              .isEqualTo(IcebergTimestampObjectInspector.get());
     }
 
     // timestamp with tz
     StructField timestampTzField = soi.getStructFieldRef("timestamptz_field");
-    Assert.assertEquals(12, timestampTzField.getFieldID());
-    Assert.assertEquals("timestamptz_field", timestampTzField.getFieldName());
-    Assert.assertEquals("timestamptz comment", timestampTzField.getFieldComment());
+    Assertions.assertThat(timestampTzField.getFieldID()).isEqualTo(12);
+    Assertions.assertThat(timestampTzField.getFieldName()).isEqualTo("timestamptz_field");
+    Assertions.assertThat(timestampTzField.getFieldComment()).isEqualTo("timestamptz comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      Assert.assertEquals(
-          "IcebergTimestampWithZoneObjectInspectorHive3",
-          timestampTzField.getFieldObjectInspector().getClass().getSimpleName());
+      Assertions.assertThat(timestampTzField.getFieldObjectInspector().getClass().getSimpleName())
+              .isEqualTo("IcebergTimestampWithZoneObjectInspectorHive3");
     } else {
-      Assert.assertEquals(
-          IcebergTimestampWithZoneObjectInspector.get(),
-          timestampTzField.getFieldObjectInspector());
+      Assertions.assertThat(timestampTzField.getFieldObjectInspector())
+              .isEqualTo(IcebergTimestampWithZoneObjectInspector.get());
     }
 
     // UUID
     StructField uuidField = soi.getStructFieldRef("uuid_field");
-    Assert.assertEquals(13, uuidField.getFieldID());
-    Assert.assertEquals("uuid_field", uuidField.getFieldName());
-    Assert.assertEquals("uuid comment", uuidField.getFieldComment());
-    Assert.assertEquals(IcebergUUIDObjectInspector.get(), uuidField.getFieldObjectInspector());
+    Assertions.assertThat(uuidField.getFieldID()).isEqualTo(13);
+    Assertions.assertThat(uuidField.getFieldName()).isEqualTo("uuid_field");
+    Assertions.assertThat(uuidField.getFieldComment()).isEqualTo("uuid comment");
+    Assertions.assertThat(uuidField.getFieldObjectInspector()).isEqualTo(IcebergUUIDObjectInspector.get());
 
     // list
     StructField listField = soi.getStructFieldRef("list_field");
-    Assert.assertEquals(14, listField.getFieldID());
-    Assert.assertEquals("list_field", listField.getFieldName());
-    Assert.assertEquals("list comment", listField.getFieldComment());
-    Assert.assertEquals(getListObjectInspector(String.class), listField.getFieldObjectInspector());
+    Assertions.assertThat(listField.getFieldID()).isEqualTo(14);
+    Assertions.assertThat(listField.getFieldName()).isEqualTo("list_field");
+    Assertions.assertThat(listField.getFieldComment()).isEqualTo("list comment");
+    Assertions.assertThat(listField.getFieldObjectInspector()).isEqualTo(getListObjectInspector(String.class));
 
     // map
     StructField mapField = soi.getStructFieldRef("map_field");
-    Assert.assertEquals(16, mapField.getFieldID());
-    Assert.assertEquals("map_field", mapField.getFieldName());
-    Assert.assertEquals("map comment", mapField.getFieldComment());
-    Assert.assertEquals(
-        getMapObjectInspector(String.class, int.class), mapField.getFieldObjectInspector());
+    Assertions.assertThat(mapField.getFieldID()).isEqualTo(16);
+    Assertions.assertThat(mapField.getFieldName()).isEqualTo("map_field");
+    Assertions.assertThat(mapField.getFieldComment()).isEqualTo("map comment");
+    Assertions.assertThat(mapField.getFieldObjectInspector())
+            .isEqualTo(getMapObjectInspector(String.class, int.class));
 
     // struct
     StructField structField = soi.getStructFieldRef("struct_field");
-    Assert.assertEquals(19, structField.getFieldID());
-    Assert.assertEquals("struct_field", structField.getFieldName());
-    Assert.assertEquals("struct comment", structField.getFieldComment());
+    Assertions.assertThat(structField.getFieldID()).isEqualTo(19);
+    Assertions.assertThat(structField.getFieldName()).isEqualTo("struct_field");
+    Assertions.assertThat(structField.getFieldComment()).isEqualTo("struct comment");
 
     ObjectInspector expectedObjectInspector =
         new IcebergRecordObjectInspector(
             (Types.StructType) schema.findType(19),
             ImmutableList.of(getPrimitiveObjectInspector(String.class)));
-    Assert.assertEquals(expectedObjectInspector, structField.getFieldObjectInspector());
+    Assertions.assertThat(structField.getFieldObjectInspector()).isEqualTo(expectedObjectInspector);
 
     // time
     StructField timeField = soi.getStructFieldRef("time_field");
-    Assert.assertEquals(21, timeField.getFieldID());
-    Assert.assertEquals("time_field", timeField.getFieldName());
-    Assert.assertEquals("time comment", timeField.getFieldComment());
-    Assert.assertEquals(IcebergTimeObjectInspector.get(), timeField.getFieldObjectInspector());
+    Assertions.assertThat(timeField.getFieldID()).isEqualTo(21);
+    Assertions.assertThat(timeField.getFieldName()).isEqualTo("time_field");
+    Assertions.assertThat(timeField.getFieldComment()).isEqualTo("time comment");
+    Assertions.assertThat(timeField.getFieldObjectInspector()).isEqualTo(IcebergTimeObjectInspector.get());
   }
 
   private static ObjectInspector getPrimitiveObjectInspector(Class<?> clazz) {

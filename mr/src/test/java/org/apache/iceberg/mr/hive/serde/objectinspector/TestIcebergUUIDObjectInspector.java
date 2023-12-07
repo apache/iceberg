@@ -23,8 +23,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.Text;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergUUIDObjectInspector {
 
@@ -32,34 +32,34 @@ public class TestIcebergUUIDObjectInspector {
   public void testIcebergUUIDObjectInspector() {
     IcebergUUIDObjectInspector oi = IcebergUUIDObjectInspector.get();
 
-    Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(
-        PrimitiveObjectInspector.PrimitiveCategory.STRING, oi.getPrimitiveCategory());
+    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
+    Assertions.assertThat(oi.getPrimitiveCategory())
+            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.STRING);
 
-    Assert.assertEquals(TypeInfoFactory.stringTypeInfo, oi.getTypeInfo());
-    Assert.assertEquals(TypeInfoFactory.stringTypeInfo.getTypeName(), oi.getTypeName());
+    Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.stringTypeInfo);
+    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.stringTypeInfo.getTypeName());
 
-    Assert.assertEquals(String.class, oi.getJavaPrimitiveClass());
-    Assert.assertEquals(Text.class, oi.getPrimitiveWritableClass());
+    Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(String.class);
+    Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(Text.class);
 
-    Assert.assertNull(oi.copyObject(null));
-    Assert.assertNull(oi.getPrimitiveJavaObject(null));
-    Assert.assertNull(oi.getPrimitiveWritableObject(null));
-    Assert.assertNull(oi.convert(null));
+    Assertions.assertThat(oi.copyObject(null)).isNull();
+    Assertions.assertThat(oi.getPrimitiveJavaObject(null)).isNull();
+    Assertions.assertThat(oi.getPrimitiveWritableObject(null)).isNull();
+    Assertions.assertThat(oi.convert(null)).isNull();
 
     UUID uuid = UUID.randomUUID();
     String uuidStr = uuid.toString();
     Text text = new Text(uuidStr);
 
-    Assert.assertEquals(uuidStr, oi.getPrimitiveJavaObject(text));
-    Assert.assertEquals(text, oi.getPrimitiveWritableObject(uuidStr));
-    Assert.assertEquals(uuid, oi.convert(uuidStr));
+    Assertions.assertThat(oi.getPrimitiveJavaObject(text)).isEqualTo(uuidStr);
+    Assertions.assertThat(oi.getPrimitiveWritableObject(uuidStr)).isEqualTo(text);
+    Assertions.assertThat(oi.convert(uuidStr)).isEqualTo(uuid);
 
     Text copy = (Text) oi.copyObject(text);
 
-    Assert.assertEquals(text, copy);
-    Assert.assertNotSame(text, copy);
+    Assertions.assertThat(copy).isEqualTo(text);
+    Assertions.assertThat(copy).isNotSameAs(text);
 
-    Assert.assertFalse(oi.preferWritable());
+    Assertions.assertThat(oi.preferWritable()).isFalse();
   }
 }

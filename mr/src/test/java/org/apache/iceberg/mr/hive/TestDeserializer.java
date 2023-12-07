@@ -35,9 +35,9 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
 
 public class TestDeserializer {
   private static final Schema CUSTOMER_SCHEMA =
@@ -74,7 +74,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assert.assertEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -92,7 +92,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assert.assertEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestDeserializer {
     Object[] data = new Object[] {map};
     Record actual = deserializer.deserialize(data);
 
-    Assert.assertEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -155,13 +155,13 @@ public class TestDeserializer {
     Object[] data = new Object[] {new Object[] {new LongWritable(1L)}};
     Record actual = deserializer.deserialize(data);
 
-    Assert.assertEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
   public void testDeserializeEverySupportedType() {
-    Assume.assumeFalse(
-        "No test yet for Hive3 (Date/Timestamp creation)", HiveVersion.min(HiveVersion.HIVE_3));
+    Assumptions.assumeFalse(HiveVersion.min(HiveVersion.HIVE_3),
+        "No test yet for Hive3 (Date/Timestamp creation)");
 
     Deserializer deserializer =
         new Deserializer.Builder()
@@ -196,9 +196,9 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(nulls);
 
-    Assert.assertEquals(expected, actual);
+    Assertions.assertThat(actual).isEqualTo(expected);
 
     // Check null record as well
-    Assert.assertNull(deserializer.deserialize(null));
+    Assertions.assertThat(deserializer.deserialize(null)).isNull();
   }
 }
