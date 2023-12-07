@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
-import java.util.List;
+import java.util.EnumSet;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
@@ -34,9 +34,7 @@ import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.error.NessieReferenceConflictException;
-import org.projectnessie.error.ReferenceConflicts;
 import org.projectnessie.model.Conflict;
-import org.projectnessie.model.Conflict.ConflictType;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
@@ -169,35 +167,33 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   private static void maybeThrowSpecializedException(NessieReferenceConflictException ex) {
-    // Check if the server returned 'ReferenceConflicts' information
-    ReferenceConflicts referenceConflicts = ex.getErrorDetails();
-    if (referenceConflicts == null) {
-      return;
-    }
-
-    // Can only narrow down to a single exception, if there is only one conflict.
-    List<Conflict> conflicts = referenceConflicts.conflicts();
-    if (conflicts.size() != 1) {
-      return;
-    }
-
-    Conflict conflict = conflicts.get(0);
-    ConflictType conflictType = conflict.conflictType();
-    if (conflictType != null) {
-      switch (conflictType) {
-        case NAMESPACE_ABSENT:
-          throw new NoSuchNamespaceException(ex, "Namespace does not exist: %s", conflict.key());
-        case NAMESPACE_NOT_EMPTY:
-          throw new NamespaceNotEmptyException(ex, "Namespace not empty: %s", conflict.key());
-        case KEY_DOES_NOT_EXIST:
-          throw new NoSuchTableException(ex, "Table or view does not exist: %s", conflict.key());
-        case KEY_EXISTS:
-          throw new AlreadyExistsException(ex, "Table or view already exists: %s", conflict.key());
-        default:
-          // Explicit fall-through
-          break;
-      }
-    }
+    NessieUtil.extractSingleConflict(
+            ex,
+            EnumSet.of(
+                Conflict.ConflictType.NAMESPACE_ABSENT,
+                Conflict.ConflictType.NAMESPACE_NOT_EMPTY,
+                Conflict.ConflictType.KEY_DOES_NOT_EXIST,
+                Conflict.ConflictType.KEY_EXISTS))
+        .ifPresent(
+            conflict -> {
+              switch (conflict.conflictType()) {
+                case NAMESPACE_ABSENT:
+                  throw new NoSuchNamespaceException(
+                      ex, "Namespace does not exist: %s", conflict.key());
+                case NAMESPACE_NOT_EMPTY:
+                  throw new NamespaceNotEmptyException(
+                      ex, "Namespace not empty: %s", conflict.key());
+                case KEY_DOES_NOT_EXIST:
+                  throw new NoSuchTableException(
+                      ex, "Table or view does not exist: %s", conflict.key());
+                case KEY_EXISTS:
+                  throw new AlreadyExistsException(
+                      ex, "Table or view already exists: %s", conflict.key());
+                default:
+                  // Explicit fall-through
+                  break;
+              }
+            });
   }
 
   @Override
