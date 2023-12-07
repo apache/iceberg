@@ -50,6 +50,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Schema;
@@ -66,13 +67,14 @@ import org.junit.Test;
 
 public class TestDataStatisticsOperator {
   private final Schema schema =
-      new Schema(Types.NestedField.optional(1, "id", Types.StringType.get()));
+      new Schema(Types.NestedField.optional(1, "id", Types.StringType.get()),
+          Types.NestedField.optional(2, "number", Types.IntegerType.get()));
   private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("id").build();
   private final SortKey sortKey = new SortKey(schema, sortOrder);
-  private final RowType rowType = RowType.of(new VarCharType());
+  private final RowType rowType = RowType.of(new VarCharType(), new IntType());
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-  private final GenericRowData genericRowDataA = GenericRowData.of(StringData.fromString("a"));
-  private final GenericRowData genericRowDataB = GenericRowData.of(StringData.fromString("b"));
+  private final GenericRowData genericRowDataA = GenericRowData.of(StringData.fromString("a"), 2);
+  private final GenericRowData genericRowDataB = GenericRowData.of(StringData.fromString("b"), 1);
   private final TypeSerializer<DataStatistics<MapDataStatistics, Map<SortKey, Long>>>
       statisticsSerializer =
           MapDataStatisticsSerializer.fromSortKeySerializer(
@@ -119,9 +121,9 @@ public class TestDataStatisticsOperator {
         testHarness = createHarness(this.operator)) {
       StateInitializationContext stateContext = getStateContext();
       operator.initializeState(stateContext);
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
-      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataA));
+      operator.processElement(new StreamRecord<>(genericRowDataB));
       assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
 
       SortKey key1 = sortKey.copy();
