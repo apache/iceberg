@@ -594,6 +594,13 @@ public class Types {
       return this;
     }
 
+    /**
+     * Returns a schema which contains the columns inside struct type.
+     * This method can be used to avoid expensive conversion of StructType 
+     * to Schema during manifest evaluation. 
+     * 
+     * @return the schema containing columns of struct type.
+     */
     public Schema asSchema() {
       if (this.schema == null) {
         this.schema = new Schema(Arrays.asList(this.fields));
