@@ -595,10 +595,10 @@ public class Types {
     }
 
     /**
-     * Returns a schema which contains the columns inside struct type.
-     * This method can be used to avoid expensive conversion of StructType 
-     * to Schema during manifest evaluation. 
-     * 
+     * Returns a schema which contains the columns inside struct type. This method can be used to
+     * avoid expensive conversion of StructType containing large number of columns to Schema during
+     * manifest evaluation.
+     *
      * @return the schema containing columns of struct type.
      */
     public Schema asSchema() {
