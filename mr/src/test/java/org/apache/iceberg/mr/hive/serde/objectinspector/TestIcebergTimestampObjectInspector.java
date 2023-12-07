@@ -35,10 +35,11 @@ public class TestIcebergTimestampObjectInspector {
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     Assertions.assertThat(oi.getPrimitiveCategory())
-            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP);
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.timestampTypeInfo);
-    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
+    Assertions.assertThat(oi.getTypeName())
+        .isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
 
     Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Timestamp.class);
     Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritable.class);
@@ -52,7 +53,8 @@ public class TestIcebergTimestampObjectInspector {
     Timestamp ts = Timestamp.valueOf(local);
 
     Assertions.assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(ts);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(local)).isEqualTo(new TimestampWritable(ts));
+    Assertions.assertThat(oi.getPrimitiveWritableObject(local))
+        .isEqualTo(new TimestampWritable(ts));
 
     Timestamp copy = (Timestamp) oi.copyObject(ts);
 

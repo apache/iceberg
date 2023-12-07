@@ -35,7 +35,8 @@ public class TestIcebergDateObjectInspector {
     DateObjectInspector oi = IcebergDateObjectInspector.get();
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
-    Assertions.assertThat(oi.getPrimitiveCategory()).isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DATE);
+    Assertions.assertThat(oi.getPrimitiveCategory())
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DATE);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.dateTypeInfo);
     Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.dateTypeInfo.getTypeName());

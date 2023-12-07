@@ -33,7 +33,7 @@ public class TestIcebergFixedObjectInspector {
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     Assertions.assertThat(oi.getPrimitiveCategory())
-            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.BINARY);
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.BINARY);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.binaryTypeInfo);
     Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.binaryTypeInfo.getTypeName());

@@ -35,7 +35,7 @@ public class TestIcebergBinaryObjectInspector {
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     Assertions.assertThat(oi.getPrimitiveCategory())
-            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.BINARY);
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.BINARY);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.binaryTypeInfo);
     Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.binaryTypeInfo.getTypeName());
@@ -51,15 +51,18 @@ public class TestIcebergBinaryObjectInspector {
 
     ByteBuffer buffer = ByteBuffer.wrap(bytes);
     Assertions.assertThat(oi.getPrimitiveJavaObject(buffer)).isEqualTo(bytes);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(buffer)).isEqualTo(new BytesWritable(bytes));
+    Assertions.assertThat(oi.getPrimitiveWritableObject(buffer))
+        .isEqualTo(new BytesWritable(bytes));
 
     ByteBuffer slice = ByteBuffer.wrap(bytes, 1, 2).slice();
     Assertions.assertThat(oi.getPrimitiveJavaObject(slice)).isEqualTo(new byte[] {1, 2});
-    Assertions.assertThat(oi.getPrimitiveWritableObject(slice)).isEqualTo(new BytesWritable(new byte[] {1, 2}));
+    Assertions.assertThat(oi.getPrimitiveWritableObject(slice))
+        .isEqualTo(new BytesWritable(new byte[] {1, 2}));
 
     slice.position(1);
     Assertions.assertThat(oi.getPrimitiveJavaObject(slice)).isEqualTo(new byte[] {2});
-    Assertions.assertThat(oi.getPrimitiveWritableObject(slice)).isEqualTo(new BytesWritable(new byte[] {2}));
+    Assertions.assertThat(oi.getPrimitiveWritableObject(slice))
+        .isEqualTo(new BytesWritable(new byte[] {2}));
 
     byte[] copy = (byte[]) oi.copyObject(bytes);
 

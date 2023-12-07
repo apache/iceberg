@@ -219,7 +219,7 @@ public class HiveIcebergTestUtils {
       if (expected.get(i) instanceof OffsetDateTime) {
         // For OffsetDateTime we just compare the actual instant
         Assertions.assertThat(((OffsetDateTime) actual.get(i)).toInstant())
-                .isEqualTo(((OffsetDateTime) expected.get(i)).toInstant());
+            .isEqualTo(((OffsetDateTime) expected.get(i)).toInstant());
       } else if (expected.get(i) instanceof byte[]) {
         Assertions.assertThat((byte[]) actual.get(i)).isEqualTo((byte[]) expected.get(i));
       } else {
@@ -289,7 +289,8 @@ public class HiveIcebergTestUtils {
 
     Assertions.assertThat(dataFiles.size()).isEqualTo(dataFileNum);
     Assertions.assertThat(
-        new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId))
-            .exists()).isFalse();
+            new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId))
+                .exists())
+        .isFalse();
   }
 }

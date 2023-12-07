@@ -45,10 +45,12 @@ public class TestIcebergDecimalObjectInspector {
     HiveDecimalObjectInspector oi = IcebergDecimalObjectInspector.get(38, 18);
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
-    Assertions.assertThat(oi.getPrimitiveCategory()).isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DECIMAL);
+    Assertions.assertThat(oi.getPrimitiveCategory())
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DECIMAL);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(new DecimalTypeInfo(38, 18));
-    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.decimalTypeInfo.getTypeName(), oi.getTypeName());
+    Assertions.assertThat(oi.getTypeName())
+        .isEqualTo(TypeInfoFactory.decimalTypeInfo.getTypeName(), oi.getTypeName());
 
     Assertions.assertThat(oi.precision()).isEqualTo(38);
     Assertions.assertThat(oi.scale()).isEqualTo(18);
@@ -64,7 +66,7 @@ public class TestIcebergDecimalObjectInspector {
 
     Assertions.assertThat(oi.getPrimitiveJavaObject(BigDecimal.ONE)).isEqualTo(one);
     Assertions.assertThat(oi.getPrimitiveWritableObject(BigDecimal.ONE))
-            .isEqualTo(new HiveDecimalWritable(one));
+        .isEqualTo(new HiveDecimalWritable(one));
 
     HiveDecimal copy = (HiveDecimal) oi.copyObject(one);
 

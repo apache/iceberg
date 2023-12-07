@@ -79,8 +79,7 @@ public class TestHiveIcebergOutputCommitter {
   private static final PartitionSpec PARTITIONED_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).bucket("customer_id", 3).build();
 
-  @TempDir
-  public Path temp;
+  @TempDir public Path temp;
 
   @Test
   public void testNeedsTaskCommit() {
@@ -92,7 +91,8 @@ public class TestHiveIcebergOutputCommitter {
 
     // Map only job should commit map tasks
     Assertions.assertThat(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID))).isTrue();
+            committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID)))
+        .isTrue();
 
     JobConf mapReduceJobConf = new JobConf();
     mapReduceJobConf.setNumMapTasks(10);
@@ -100,9 +100,11 @@ public class TestHiveIcebergOutputCommitter {
 
     // MapReduce job should not commit map tasks, but should commit reduce tasks
     Assertions.assertThat(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID))).isFalse();
+            committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID)))
+        .isFalse();
     Assertions.assertThat(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, REDUCE_TASK_ID))).isTrue();
+            committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, REDUCE_TASK_ID)))
+        .isTrue();
   }
 
   @Test

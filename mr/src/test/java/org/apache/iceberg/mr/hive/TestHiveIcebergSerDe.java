@@ -44,8 +44,7 @@ public class TestHiveIcebergSerDe {
   private static final Schema schema =
       new Schema(required(1, "string_field", Types.StringType.get()));
 
-  @TempDir
-  public Path tmp;
+  @TempDir public Path tmp;
 
   @Test
   public void testInitialize() throws IOException, SerDeException {
@@ -64,7 +63,8 @@ public class TestHiveIcebergSerDe {
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
     serDe.initialize(conf, properties);
 
-    Assertions.assertThat(serDe.getObjectInspector()).isEqualTo(IcebergObjectInspector.create(schema));
+    Assertions.assertThat(serDe.getObjectInspector())
+        .isEqualTo(IcebergObjectInspector.create(schema));
   }
 
   @Test

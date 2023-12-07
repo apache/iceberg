@@ -34,7 +34,7 @@ public class TestIcebergUUIDObjectInspector {
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     Assertions.assertThat(oi.getPrimitiveCategory())
-            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.STRING);
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.STRING);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.stringTypeInfo);
     Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.stringTypeInfo.getTypeName());

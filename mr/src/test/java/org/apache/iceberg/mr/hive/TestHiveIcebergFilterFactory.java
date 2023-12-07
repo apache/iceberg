@@ -82,8 +82,10 @@ public class TestHiveIcebergFilterFactory {
 
     Assertions.assertThat(expected.op()).isEqualTo(actual.op());
     Assertions.assertThat(expected.child().op()).isEqualTo(actual.child().op());
-    Assertions.assertThat(childExpressionExpected.ref().name()).isEqualTo(childExpressionActual.ref().name());
-    Assertions.assertThat(childExpressionExpected.literal()).isEqualTo(childExpressionActual.literal());
+    Assertions.assertThat(childExpressionExpected.ref().name())
+        .isEqualTo(childExpressionActual.ref().name());
+    Assertions.assertThat(childExpressionExpected.literal())
+        .isEqualTo(childExpressionActual.literal());
   }
 
   @Test

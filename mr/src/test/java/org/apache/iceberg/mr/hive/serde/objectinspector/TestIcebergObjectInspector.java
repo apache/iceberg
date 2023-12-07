@@ -84,7 +84,8 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(binaryField.getFieldID()).isEqualTo(1);
     Assertions.assertThat(binaryField.getFieldName()).isEqualTo("binary_field");
     Assertions.assertThat(binaryField.getFieldComment()).isEqualTo("binary comment");
-    Assertions.assertThat(binaryField.getFieldObjectInspector()).isEqualTo(IcebergBinaryObjectInspector.get());
+    Assertions.assertThat(binaryField.getFieldObjectInspector())
+        .isEqualTo(IcebergBinaryObjectInspector.get());
 
     // boolean
     StructField booleanField = soi.getStructFieldRef("boolean_field");
@@ -92,7 +93,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(booleanField.getFieldName()).isEqualTo("boolean_field");
     Assertions.assertThat(booleanField.getFieldComment()).isEqualTo("boolean comment");
     Assertions.assertThat(booleanField.getFieldObjectInspector())
-                    .isEqualTo(getPrimitiveObjectInspector(boolean.class));
+        .isEqualTo(getPrimitiveObjectInspector(boolean.class));
 
     // date
     StructField dateField = soi.getStructFieldRef("date_field");
@@ -101,10 +102,11 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(dateField.getFieldComment()).isEqualTo("date comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assertions.assertThat(dateField.getFieldObjectInspector().getClass().getName())
-              .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3");
+          .isEqualTo(
+              "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3");
     } else {
       Assertions.assertThat(dateField.getFieldObjectInspector().getClass().getName())
-              .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector");
+          .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector");
     }
 
     // decimal
@@ -113,7 +115,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(decimalField.getFieldName()).isEqualTo("decimal_field");
     Assertions.assertThat(decimalField.getFieldComment()).isEqualTo("decimal comment");
     Assertions.assertThat(decimalField.getFieldObjectInspector())
-            .isEqualTo(IcebergDecimalObjectInspector.get(38, 18));
+        .isEqualTo(IcebergDecimalObjectInspector.get(38, 18));
 
     // double
     StructField doubleField = soi.getStructFieldRef("double_field");
@@ -121,14 +123,15 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(doubleField.getFieldName()).isEqualTo("double_field");
     Assertions.assertThat(doubleField.getFieldComment()).isEqualTo("double comment");
     Assertions.assertThat(doubleField.getFieldObjectInspector())
-                    .isEqualTo(getPrimitiveObjectInspector(double.class));
+        .isEqualTo(getPrimitiveObjectInspector(double.class));
 
     // fixed
     StructField fixedField = soi.getStructFieldRef("fixed_field");
     Assertions.assertThat(fixedField.getFieldID()).isEqualTo(6);
     Assertions.assertThat(fixedField.getFieldName()).isEqualTo("fixed_field");
     Assertions.assertThat(fixedField.getFieldComment()).isEqualTo("fixed comment");
-    Assertions.assertThat(fixedField.getFieldObjectInspector()).isEqualTo(IcebergFixedObjectInspector.get());
+    Assertions.assertThat(fixedField.getFieldObjectInspector())
+        .isEqualTo(IcebergFixedObjectInspector.get());
 
     // float
     StructField floatField = soi.getStructFieldRef("float_field");
@@ -136,7 +139,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(floatField.getFieldName()).isEqualTo("float_field");
     Assertions.assertThat(floatField.getFieldComment()).isEqualTo("float comment");
     Assertions.assertThat(floatField.getFieldObjectInspector())
-                    .isEqualTo(getPrimitiveObjectInspector(float.class));
+        .isEqualTo(getPrimitiveObjectInspector(float.class));
 
     // integer
     StructField integerField = soi.getStructFieldRef("integer_field");
@@ -144,7 +147,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(integerField.getFieldName()).isEqualTo("integer_field");
     Assertions.assertThat(integerField.getFieldComment()).isEqualTo("integer comment");
     Assertions.assertThat(integerField.getFieldObjectInspector())
-                    .isEqualTo(getPrimitiveObjectInspector(int.class));
+        .isEqualTo(getPrimitiveObjectInspector(int.class));
 
     // long
     StructField longField = soi.getStructFieldRef("long_field");
@@ -152,7 +155,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(longField.getFieldName()).isEqualTo("long_field");
     Assertions.assertThat(longField.getFieldComment()).isEqualTo("long comment");
     Assertions.assertThat(longField.getFieldObjectInspector())
-                    .isEqualTo(getPrimitiveObjectInspector(long.class));
+        .isEqualTo(getPrimitiveObjectInspector(long.class));
 
     // string
     StructField stringField = soi.getStructFieldRef("string_field");
@@ -160,7 +163,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(stringField.getFieldName()).isEqualTo("string_field");
     Assertions.assertThat(stringField.getFieldComment()).isEqualTo("string comment");
     Assertions.assertThat(stringField.getFieldObjectInspector())
-            .isEqualTo(getPrimitiveObjectInspector(String.class));
+        .isEqualTo(getPrimitiveObjectInspector(String.class));
 
     // timestamp without tz
     StructField timestampField = soi.getStructFieldRef("timestamp_field");
@@ -169,10 +172,10 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(timestampField.getFieldComment()).isEqualTo("timestamp comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assertions.assertThat(timestampField.getFieldObjectInspector().getClass().getSimpleName())
-              .isEqualTo("IcebergTimestampObjectInspectorHive3");
+          .isEqualTo("IcebergTimestampObjectInspectorHive3");
     } else {
       Assertions.assertThat(timestampField.getFieldObjectInspector())
-              .isEqualTo(IcebergTimestampObjectInspector.get());
+          .isEqualTo(IcebergTimestampObjectInspector.get());
     }
 
     // timestamp with tz
@@ -182,10 +185,10 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(timestampTzField.getFieldComment()).isEqualTo("timestamptz comment");
     if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assertions.assertThat(timestampTzField.getFieldObjectInspector().getClass().getSimpleName())
-              .isEqualTo("IcebergTimestampWithZoneObjectInspectorHive3");
+          .isEqualTo("IcebergTimestampWithZoneObjectInspectorHive3");
     } else {
       Assertions.assertThat(timestampTzField.getFieldObjectInspector())
-              .isEqualTo(IcebergTimestampWithZoneObjectInspector.get());
+          .isEqualTo(IcebergTimestampWithZoneObjectInspector.get());
     }
 
     // UUID
@@ -193,14 +196,16 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(uuidField.getFieldID()).isEqualTo(13);
     Assertions.assertThat(uuidField.getFieldName()).isEqualTo("uuid_field");
     Assertions.assertThat(uuidField.getFieldComment()).isEqualTo("uuid comment");
-    Assertions.assertThat(uuidField.getFieldObjectInspector()).isEqualTo(IcebergUUIDObjectInspector.get());
+    Assertions.assertThat(uuidField.getFieldObjectInspector())
+        .isEqualTo(IcebergUUIDObjectInspector.get());
 
     // list
     StructField listField = soi.getStructFieldRef("list_field");
     Assertions.assertThat(listField.getFieldID()).isEqualTo(14);
     Assertions.assertThat(listField.getFieldName()).isEqualTo("list_field");
     Assertions.assertThat(listField.getFieldComment()).isEqualTo("list comment");
-    Assertions.assertThat(listField.getFieldObjectInspector()).isEqualTo(getListObjectInspector(String.class));
+    Assertions.assertThat(listField.getFieldObjectInspector())
+        .isEqualTo(getListObjectInspector(String.class));
 
     // map
     StructField mapField = soi.getStructFieldRef("map_field");
@@ -208,7 +213,7 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(mapField.getFieldName()).isEqualTo("map_field");
     Assertions.assertThat(mapField.getFieldComment()).isEqualTo("map comment");
     Assertions.assertThat(mapField.getFieldObjectInspector())
-            .isEqualTo(getMapObjectInspector(String.class, int.class));
+        .isEqualTo(getMapObjectInspector(String.class, int.class));
 
     // struct
     StructField structField = soi.getStructFieldRef("struct_field");
@@ -227,7 +232,8 @@ public class TestIcebergObjectInspector {
     Assertions.assertThat(timeField.getFieldID()).isEqualTo(21);
     Assertions.assertThat(timeField.getFieldName()).isEqualTo("time_field");
     Assertions.assertThat(timeField.getFieldComment()).isEqualTo("time comment");
-    Assertions.assertThat(timeField.getFieldObjectInspector()).isEqualTo(IcebergTimeObjectInspector.get());
+    Assertions.assertThat(timeField.getFieldObjectInspector())
+        .isEqualTo(IcebergTimeObjectInspector.get());
   }
 
   private static ObjectInspector getPrimitiveObjectInspector(Class<?> clazz) {

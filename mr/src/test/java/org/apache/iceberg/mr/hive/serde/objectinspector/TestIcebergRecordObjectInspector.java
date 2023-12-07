@@ -48,7 +48,7 @@ public class TestIcebergRecordObjectInspector {
 
     StructObjectInspector soi = (StructObjectInspector) IcebergObjectInspector.create(schema);
     Assertions.assertThat(soi.getStructFieldsDataAsList(record))
-                    .isEqualTo(ImmutableList.of(record.get(0), record.get(1)));
+        .isEqualTo(ImmutableList.of(record.get(0), record.get(1)));
 
     StructField integerField = soi.getStructFieldRef("integer_field");
     Assertions.assertThat(soi.getStructFieldData(record, integerField)).isEqualTo(record.get(0));
@@ -61,8 +61,9 @@ public class TestIcebergRecordObjectInspector {
     StructField stringField = innerSoi.getStructFieldRef("string_field");
 
     Assertions.assertThat(innerSoi.getStructFieldsDataAsList(innerRecord))
-            .isEqualTo(ImmutableList.of(innerRecord.get(0)));
-    Assertions.assertThat(innerSoi.getStructFieldData(innerData, stringField)).isEqualTo(innerRecord.get(0));
+        .isEqualTo(ImmutableList.of(innerRecord.get(0)));
+    Assertions.assertThat(innerSoi.getStructFieldData(innerData, stringField))
+        .isEqualTo(innerRecord.get(0));
   }
 
   @Test

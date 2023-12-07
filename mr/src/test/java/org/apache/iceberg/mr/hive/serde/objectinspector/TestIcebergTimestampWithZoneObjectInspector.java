@@ -37,10 +37,11 @@ public class TestIcebergTimestampWithZoneObjectInspector {
 
     Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     Assertions.assertThat(oi.getPrimitiveCategory())
-            .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP);
+        .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP);
 
     Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.timestampTypeInfo);
-    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
+    Assertions.assertThat(oi.getTypeName())
+        .isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
 
     Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Timestamp.class);
     Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritable.class);
@@ -55,7 +56,8 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     Timestamp ts = Timestamp.from(offsetDateTime.toInstant());
 
     Assertions.assertThat(oi.getPrimitiveJavaObject(offsetDateTime)).isEqualTo(ts);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(offsetDateTime)).isEqualTo(new TimestampWritable(ts));
+    Assertions.assertThat(oi.getPrimitiveWritableObject(offsetDateTime))
+        .isEqualTo(new TimestampWritable(ts));
 
     Timestamp copy = (Timestamp) oi.copyObject(ts);
 
@@ -65,10 +67,10 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     Assertions.assertThat(oi.preferWritable()).isFalse();
 
     Assertions.assertThat(oi.convert(ts))
-            .isEqualTo(OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC));
+        .isEqualTo(
+            OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC));
 
-    Assertions.assertThat(
-        offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC))
-                    .isEqualTo(oi.convert(Timestamp.from(offsetDateTime.toInstant())));
+    Assertions.assertThat(offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC))
+        .isEqualTo(oi.convert(Timestamp.from(offsetDateTime.toInstant())));
   }
 }
