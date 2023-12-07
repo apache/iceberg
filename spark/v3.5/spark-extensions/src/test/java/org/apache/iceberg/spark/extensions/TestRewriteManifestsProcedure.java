@@ -337,27 +337,33 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)",
         tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest-merge.enabled' = 'false')", tableName);
 
     sql("INSERT INTO %s VALUES (1, '2024-01-01', '00')", tableName);
     sql("INSERT INTO %s VALUES (2, '2024-01-01', '00')", tableName);
     assertEquals(
-        "Should have 2 manifests",
-        ImmutableList.of(row(2L)),
-        sql("SELECT count(*) FROM %s.manifests", tableName));
+        "Should have 2 manifests and their partition spec id should be 0",
+        ImmutableList.of(row(0), row(0)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
 
     sql("ALTER TABLE %s ADD PARTITION FIELD hr", tableName);
+    sql("INSERT INTO %s VALUES (3, '2024-01-01', '00')", tableName);
     assertEquals(
-        "Should still have 2 manifests",
-        ImmutableList.of(row(2L)),
-        sql("SELECT count(*) FROM %s.manifests", tableName));
+        "Should have 3 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(0), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
 
     List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+    assertEquals("Nothing should be rewritten", ImmutableList.of(row(0, 0)), output);
 
     output =
         sql(
             "CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0)",
             catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(2, 1)), output);
+    assertEquals("There should be 2 manifests rewriten", ImmutableList.of(row(2, 1)), output);
+    assertEquals(
+        "Should have 2 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
   }
 }
