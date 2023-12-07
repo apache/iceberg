@@ -606,29 +606,28 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("ns1", "ns2"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns_"))).isFalse();
-    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2", "ns3"))).isFalse();
   }
 
   @Test
   public void testCreateNamespaceWithBackslashCharacter() {
-
     Namespace testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("test\\Db", "ns\\1"))).isTrue();
-    //
+    // test that SQL special characters `%`,`.`,`_` are escaped and returns false
     assertThat(catalog.namespaceExists(Namespace.of("test\\%Db", "ns\\.1"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test%Db", "ns\\.1"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test%Db"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test\\%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns\\.1"))).isFalse();
-    //
+    // test that backslash with `%` is escaped and treated correctly
     testNamespace = Namespace.of("test\\%Db2", "ns1");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
@@ -640,13 +639,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Test
   public void testCreateNamespaceWithPercentCharacter() {
-
     Namespace testNamespace = Namespace.of("testDb%", "ns%1");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isTrue();
-    //
+    // test that searching with SQL special characters `\`,`%` are escaped and returns false
     assertThat(catalog.namespaceExists(Namespace.of("testDb\\%"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("tes%Db%"))).isFalse();
@@ -659,7 +657,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_1"))).isTrue();
-    //
+    // test that searching with SQL special characters `_`,`%` are escaped and returns false
     assertThat(catalog.namespaceExists(Namespace.of("test_Db"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("test_D_"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("test_D%"))).isFalse();
