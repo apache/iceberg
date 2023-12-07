@@ -602,8 +602,8 @@ project(':iceberg-delta-lake') {
     }
   }
 
-  // The newest version of delta-core uses Spark 3.4.*. The integration test should only be built
-  // if iceberg-spark-3.4 is available
+  // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
+  // if iceberg-spark-3.5 is available
   if (sparkVersions.contains("3.5")) {
     sourceSets {
       integration {
