@@ -487,33 +487,34 @@ public class Parquet {
 
       // context for position delete whose schema has only `file_path` and `pos` fields
       static Context pathPosDeleteContext(Map<String, String> config) {
-        return deleteContext(config, true);
+        int rowGroupSize =
+            PropertyUtil.propertyAsInt(
+                config,
+                PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES,
+                DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES);
+
+        Context context = deleteContext(config);
+        return new Context(
+            rowGroupSize,
+            context.pageSize(),
+            context.pageRowLimit(),
+            context.dictionaryPageSize(),
+            context.codec(),
+            context.compressionLevel(),
+            context.rowGroupCheckMinRecordCount(),
+            context.rowGroupCheckMaxRecordCount(),
+            context.bloomFilterMaxBytes(),
+            context.columnBloomFilterEnabled(),
+            context.dictionaryEnabled());
       }
 
-      // context for:
-      // 1. equality delete files
-      // 2. position delete files whose schema has `file_path`, `pos` and `row` fields
       static Context deleteContext(Map<String, String> config) {
-        return deleteContext(config, false);
-      }
-
-      static Context deleteContext(Map<String, String> config, boolean isPathPosDelete) {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
-        int rowGroupSize;
-        if (!isPathPosDelete) {
-          rowGroupSize =
-              PropertyUtil.propertyAsInt(
-                  config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
-        } else {
-          rowGroupSize =
-              PropertyUtil.propertyAsInt(
-                  config,
-                  PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES,
-                  DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES);
-        }
-
+        int rowGroupSize =
+            PropertyUtil.propertyAsInt(
+                config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
         int pageSize =
