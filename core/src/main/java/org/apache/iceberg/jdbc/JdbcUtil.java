@@ -133,7 +133,7 @@ final class JdbcUtil {
           + CATALOG_NAME
           + " = ? AND "
           + TABLE_NAMESPACE
-          + " LIKE ? LIMIT 1";
+          + " = ? LIMIT 1";
   static final String LIST_NAMESPACES_SQL =
       "SELECT DISTINCT "
           + TABLE_NAMESPACE
@@ -203,7 +203,7 @@ final class JdbcUtil {
           + CATALOG_NAME
           + " = ? AND "
           + NAMESPACE_NAME
-          + " LIKE ? LIMIT 1";
+          + " = ? LIMIT 1";
   static final String INSERT_NAMESPACE_PROPERTIES_SQL =
       "INSERT INTO "
           + NAMESPACE_PROPERTIES_TABLE_NAME

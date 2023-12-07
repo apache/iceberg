@@ -576,6 +576,13 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.namespaceExists(Namespace.of("db", "db2", "not_exist")))
         .as("Should false to namespace doesn't exist")
         .isFalse();
+
+    Lists.newArrayList(TableIdentifier.of("ns", "t1"), TableIdentifier.of("ns_1", "t1"))
+        .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+    catalog.dropTable(TableIdentifier.of("ns", "t1"));
+    catalog.dropNamespace(Namespace.of("ns"));
+    assertThat(catalog.namespaceExists(Namespace.of("ns"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("ns_1"))).isTrue();
   }
 
   @Test
